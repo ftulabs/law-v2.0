@@ -107,6 +107,7 @@ def run_pipeline(
         doc_tags=doc_tags,
         llm=llm,
         top_k=top_k,
+        log=log,
     )
     for m in mappings:
         db.save_mapping(m)

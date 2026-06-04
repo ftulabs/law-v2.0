@@ -101,18 +101,28 @@ def map_provisions(
     llm: LLMProvider | None = None,
     top_k: int = 5,
     min_retrieval: float = 0.05,
+    log=lambda *_: None,
 ) -> list[EvidenceMapping]:
     llm = llm or get_llm_provider()
     source_texts = source_texts or {}
     doc_tags = doc_tags or {}
     mappings: list[EvidenceMapping] = []
+    failures = 0
 
     for ind in indicators:
         for r in retrieve(ind.indicator_id, provisions, top_k=top_k):
             if r.score < min_retrieval:
                 continue
             prov = r.provision
-            graded = llm.complete_json(SYSTEM, _user_prompt(ind, prov))
+            # Resilience: a single LLM failure (e.g. all free models rate-limited)
+            # must NOT crash the whole run — log and skip this pairing.
+            try:
+                graded = llm.complete_json(SYSTEM, _user_prompt(ind, prov))
+            except Exception as e:  # noqa: BLE001
+                failures += 1
+                if failures <= 3:
+                    log(f"[warn] LLM call failed ({type(e).__name__}); skipping {ind.indicator_id}/{prov.provision_id}")
+                continue
 
             # disambiguation: drop the pairing if the model judged a sibling a better
             # fit (it will be mapped under that sibling on its own pass)
@@ -163,6 +173,9 @@ def map_provisions(
                 retrieval_log=r.log,
                 scope_flag=scope_flag,
             ))
+    if failures:
+        log(f"[warn] {failures} LLM call(s) failed and were skipped "
+            f"(free-tier rate limits? try a paid key or fewer pillars)")
     # most confident first
     mappings.sort(key=lambda m: m.confidence_score, reverse=True)
     return mappings

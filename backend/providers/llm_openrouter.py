@@ -23,6 +23,8 @@ class OpenRouterLLM(LLMProvider):
         self._client = OpenAI(
             base_url=BASE_URL,
             api_key=api_key,
+            max_retries=0,   # our own model-fallover handles 429 — avoid SDK backoff stalls
+            timeout=30.0,
             default_headers={  # optional attribution headers OpenRouter recommends
                 "HTTP-Referer": "https://github.com/ftulabs/law-v2.0",
                 "X-Title": "VeriTrade",
