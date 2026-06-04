@@ -107,9 +107,9 @@ st.markdown(
         font-family: 'Newsreader', Georgia, 'Times New Roman', serif;
         font-size: 16px;
       }}
-      .vt-logo {{ line-height:0; margin:.15rem 0; }}
-      img.vt-logo, .vt-logo img, .vt-logo svg {{ height:40px !important; width:auto !important;
-              max-width:300px; display:block; {LOGO_FX} }}
+      .vt-logo {{ line-height:0; margin:.2rem 0; }}
+      img.vt-logo, .vt-logo img, .vt-logo svg {{ height:72px !important; width:auto !important;
+              max-width:340px; display:block; {LOGO_FX} }}
       .block-container {{padding-top: 1.4rem; max-width: 1320px;}}
       [data-testid="stHeader"] {{background: transparent;}}
 
@@ -221,8 +221,14 @@ st.markdown(
       div[data-baseweb="select"] > div {{ background:var(--paper-3) !important;
               border-color:var(--rule) !important; }}
       div[data-baseweb="select"] * {{ color:var(--ink) !important; }}
-      [data-baseweb="popover"] li, [role="option"] {{ background:var(--paper-2) !important; color:var(--ink) !important; }}
+      /* dropdown menus (selectbox/multiselect) rendered in body portals */
+      [data-baseweb="popover"] [role="listbox"], [data-baseweb="menu"], ul[role="listbox"] {{
+              background:var(--paper-2) !important; }}
+      [data-baseweb="menu"] *, [data-baseweb="popover"] li, [role="option"], [role="option"] * {{
+              background-color:transparent !important; color:var(--ink) !important; }}
+      [role="option"]:hover, li[role="option"][aria-selected="true"] {{ background:var(--paper-3) !important; }}
       [data-baseweb="tag"] {{ background:var(--accent) !important; color:#fff !important; }}
+      [data-baseweb="tag"] * {{ color:#fff !important; }}
       [data-testid="stSliderThumbValue"], [data-testid="stTickBarMin"], [data-testid="stTickBarMax"] {{
               color:var(--ink-soft) !important; }}
       pre, code, .stCode, [data-testid="stJson"], [data-testid="stJson"] * {{
@@ -278,12 +284,10 @@ def _secret(name: str, fallback: str = "") -> str:
 
 
 # ── top-right overflow menu (dark-mode toggle tucked away) ─────────────────
-_spacer, _menu = st.columns([11, 2])
-with _menu:
-    with st.popover("🌙 Theme"):
-        st.session_state.setdefault("dark_mode", True)
-        st.toggle("🌙 Dark mode", key="dark_mode",
-                  help="Brand navy theme (on) / parchment dossier (off)")
+st.session_state.setdefault("dark_mode", True)
+_spacer, _tog = st.columns([10, 2])
+with _tog:
+    st.toggle("🌙 Dark", key="dark_mode", help="Switch dark / light theme")
 
 # ── masthead ─────────────────────────────────────────────────────────────
 st.markdown(
