@@ -68,8 +68,10 @@ GRAIN = (
     "%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E"
 )
 
-# ── theme: dark (brand navy, default) or light (legal-dossier parchment) ──
-DARK = st.session_state.get("dark_mode", True)
+# ── theme follows Streamlit's NATIVE menu (⋮ → Settings → Choose app theme).
+#    Dark (brand navy) by default; Light = the legal-dossier parchment palette. ──
+_theme_ctx = getattr(st.context, "theme", None)
+DARK = getattr(_theme_ctx, "type", None) != "light"
 if DARK:
     PALETTE = (
         "--paper:#0a1024; --paper-2:#0d1630; --paper-3:#142146;"
@@ -293,13 +295,6 @@ def _secret(name: str, fallback: str = "") -> str:
 
 
 # ── top-right overflow menu (dark-mode toggle tucked away) ─────────────────
-st.session_state.setdefault("dark_mode", True)
-_spacer, _menu = st.columns([15, 1])
-with _menu:
-    with st.popover("⋮"):
-        st.markdown('<div class="kicker">Display</div>', unsafe_allow_html=True)
-        st.toggle("🌙 Dark mode", key="dark_mode", help="Switch dark / light theme")
-
 # ── masthead ─────────────────────────────────────────────────────────────
 st.markdown(
     '<div class="masthead"><div class="row">'
@@ -307,7 +302,7 @@ st.markdown(
     f'{logo_html()}'
     '<div class="strap">Where legal expertise meets AI &mdash; auditable RDTII evidence, '
     'Pillars 6 &amp; 7 &middot; Singapore &middot; Australia &middot; Malaysia</div></div>'
-    f'<div class="edition">No. 2.0<br>engines chosen at left<br>'
+    f'<div class="edition">No. 2.0<br>theme &middot; &#8942; &rarr; Settings<br>'
     f'auto &ge; {settings.conf_auto_accept} &middot; rev &ge; {settings.conf_review_floor}</div>'
     '</div></div>',
     unsafe_allow_html=True,

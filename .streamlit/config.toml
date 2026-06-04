@@ -1,11 +1,12 @@
-# VeriTrade — "legal dossier" editorial theme.
-# Fonts are loaded via @import in the app CSS; colours match the dossier palette.
+# VeriTrade theme. DARK (brand navy) is the default; users switch Light/Dark via the
+# native menu: ⋮ (top-right) → Settings → Choose app theme. The app's custom palette
+# (frontend/app.py) follows st.context.theme automatically.
 [theme]
-base = "light"
-primaryColor = "#7c2d2d"            # oxblood — actions / accents
-backgroundColor = "#f4f1ea"         # parchment
-secondaryBackgroundColor = "#ece6d8"# aged paper (sidebar, cards)
-textColor = "#1c1a16"               # ink
+base = "dark"
+primaryColor = "#3aa0ff"            # electric blue accent
+backgroundColor = "#0a1024"         # deep navy
+secondaryBackgroundColor = "#0d1630"# panel navy (sidebar, inputs)
+textColor = "#e8eeff"               # near-white ink
 font = "serif"
 
 [server]
