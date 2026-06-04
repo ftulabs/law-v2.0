@@ -34,25 +34,38 @@ def _summary(mappings: list[EvidenceMapping]) -> dict:
 
 
 def _mapping_payload(m: EvidenceMapping) -> dict:
+    ocr = m.ocr.model_dump()
     return {
         "mapping_id": m.mapping_id,
         "economy": m.economy.value,
         "pillar": m.pillar,
         "indicator_id": m.indicator_id,
         "law_name": m.law_name,
+        "law_number": m.law_number,
+        "last_amended": m.last_amended,
         "article_section": m.article_section,
+        "location_reference": m.location_ref,
         "verbatim_snippet": m.verbatim_snippet,
         "source_url": m.source_url,
+        "source_pdf_path": m.source_pdf_path,                    # local retrieved file
         "mapping_rationale": m.mapping_rationale,
         "confidence_score": m.confidence_score,
         "confidence_breakdown": m.confidence.model_dump(),       # scoring explanation
         "discovery_tag": m.discovery_tag.value,
+        "notes": m.notes,
         "review_status": m.review_status.value,
         "scope_flag": m.scope_flag,
         "provision_id": m.provision_id,
-        "raw_context": m.raw_context,                            # what the model saw
-        "ocr_metrics": m.ocr.model_dump(),                       # OCR quality
-        "model_version": m.model_version,
+        "raw_context": m.raw_context,                            # what the model saw (HITL)
+        "ocr_quality": {                                         # OCR quality metrics
+            "provider": ocr.get("provider"),
+            "used": ocr.get("used"),
+            "mean_confidence": ocr.get("mean_confidence"),
+            "cer": None,                                         # true CER needs ground truth
+            "pages": ocr.get("pages"),
+            "low_conf_pages": ocr.get("low_conf_pages"),
+        },
+        "model_version": m.model_version,                        # LLM (+OCR) version used
         "retrieval_log": m.retrieval_log,                        # retrieval logs
         "human_note": m.human_note,
     }

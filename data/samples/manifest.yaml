@@ -6,6 +6,7 @@
 documents:
   - economy: SG
     title: Personal Data Protection Act 2012 (Singapore)
+    law_number: Act 26 of 2012
     source_url: https://sso.agc.gov.sg/Act/PDPA2012
     portal: Singapore Statutes Online
     format: html
@@ -15,6 +16,7 @@ documents:
 
   - economy: SG
     title: Cybersecurity Act 2018 (Singapore)
+    law_number: Act 9 of 2018
     source_url: https://sso.agc.gov.sg/Act/CA2018
     portal: Singapore Statutes Online
     format: text
@@ -24,6 +26,7 @@ documents:
 
   - economy: SG
     title: MAS Notice 655 — Cyber Hygiene (Banks)
+    law_number: MAS Notice 655
     source_url: https://www.mas.gov.sg/regulation/notices/notice-655
     portal: Monetary Authority of Singapore
     format: pdf_scanned          # demonstrates the OCR branch
@@ -33,6 +36,7 @@ documents:
 
   - economy: AU
     title: Privacy Act 1988 (Commonwealth of Australia)
+    law_number: No. 119, 1988
     source_url: https://www.legislation.gov.au/C2004A03712
     portal: Federal Register of Legislation
     format: text
@@ -42,6 +46,7 @@ documents:
 
   - economy: AU
     title: Privacy and Other Legislation Amendment Act 2024 (Cth)
+    law_number: No. 121, 2024
     source_url: https://www.legislation.gov.au/C2024A00xx
     portal: Federal Register of Legislation
     format: text
@@ -51,6 +56,7 @@ documents:
 
   - economy: MY
     title: Personal Data Protection Act 2010 (Malaysia)
+    law_number: Act 709
     source_url: https://lom.agc.gov.my/act-view.php?act=709
     portal: AGC Malaysia
     format: text

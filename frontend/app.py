@@ -405,13 +405,18 @@ with tab_audit:
 # ── exports ──────────────────────────────────────────────────────────────
 with tab_export:
     result = RunResult(meta=meta, mappings=mappings)
-    csv_path = export_csv(mappings, run_id)
+    st.markdown('<div class="quote">CSV is the official RDTII submission format (exact template '
+                'columns) for the policy judge; JSON carries the full evidence trace for the '
+                'technical judge.</div>', unsafe_allow_html=True)
+    sub_only = st.toggle("Submission set only — exclude rejected & quarantined rows", value=True,
+                         help="Keeps sector-flagged / low-confidence rows out of the national-indicator submission")
+    csv_path = export_csv(mappings, run_id, submission_only=sub_only)
     json_path = export_json(result)
-    st.markdown('<div class="quote">Two artefacts, two audiences — verbatim CSV for legal reviewers, '
-                'full-trace JSON for technical reviewers.</div>', unsafe_allow_html=True)
+    n_rows = sum(1 for ln in Path(csv_path).read_text(encoding="utf-8-sig").splitlines()) - 1
+    st.markdown(f'<div class="kicker">{n_rows} rows · 13 official columns</div>', unsafe_allow_html=True)
     e1, e2 = st.columns(2)
-    e1.download_button("⬇  CSV · legal / policy", Path(csv_path).read_bytes(),
+    e1.download_button("⬇  Submission CSV · policy judge", Path(csv_path).read_bytes(),
                        file_name=Path(csv_path).name, mime="text/csv", width="stretch")
-    e2.download_button("⬇  JSON · technical", Path(json_path).read_bytes(),
+    e2.download_button("⬇  Evidence JSON · technical judge", Path(json_path).read_bytes(),
                        file_name=Path(json_path).name, mime="application/json", width="stretch")
-    st.dataframe(pd.read_csv(csv_path), width="stretch", height=380)
+    st.dataframe(pd.read_csv(csv_path, dtype=str).fillna(""), width="stretch", height=380)

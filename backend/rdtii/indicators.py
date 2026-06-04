@@ -16,7 +16,7 @@ from ..schemas import Indicator
 INDICATORS: list[Indicator] = [
     # ───────────── Pillar 6 — cross-border data policies ─────────────
     Indicator(
-        indicator_id="P6.1",
+        indicator_id="P6-I1",
         pillar=6,
         title="Cross-border data transfer — general permission",
         description="Whether law permits cross-border transfer of personal data subject to conditions.",
@@ -29,7 +29,7 @@ INDICATORS: list[Indicator] = [
         query_terms=["transfer of personal data outside", "cross-border", "overseas recipient", "comparable protection"],
     ),
     Indicator(
-        indicator_id="P6.2",
+        indicator_id="P6-I2",
         pillar=6,
         title="Cross-border transfer — accountability / adequacy condition",
         description="Conditions imposed on transfer (comparable protection, consent, contractual safeguards).",
@@ -42,7 +42,7 @@ INDICATORS: list[Indicator] = [
         query_terms=["comparable standard of protection", "prescribed conditions", "transfer limitation", "binding corporate rules"],
     ),
     Indicator(
-        indicator_id="P6.3",
+        indicator_id="P6-I3",
         pillar=6,
         title="Data localisation requirement",
         description="Whether certain data must be stored/processed domestically.",
@@ -55,7 +55,7 @@ INDICATORS: list[Indicator] = [
     ),
     # ───────────── Pillar 7 — data protection & cybersecurity ─────────────
     Indicator(
-        indicator_id="P7.1",
+        indicator_id="P7-I1",
         pillar=7,
         title="Comprehensive personal data protection law",
         description="Existence of a national personal data protection statute.",
@@ -68,7 +68,7 @@ INDICATORS: list[Indicator] = [
         query_terms=["personal data protection act", "privacy act", "protection of personal data", "data protection"],
     ),
     Indicator(
-        indicator_id="P7.2",
+        indicator_id="P7-I2",
         pillar=7,
         title="Consent / lawful basis for processing",
         description="Requirement of consent or another lawful basis to process personal data.",
@@ -80,7 +80,7 @@ INDICATORS: list[Indicator] = [
         query_terms=["consent of the individual", "shall not collect", "lawful basis", "purpose limitation"],
     ),
     Indicator(
-        indicator_id="P7.3",
+        indicator_id="P7-I3",
         pillar=7,
         title="Security safeguards obligation",
         description="Obligation to protect personal data with reasonable security arrangements.",
@@ -92,7 +92,7 @@ INDICATORS: list[Indicator] = [
         query_terms=["reasonable security arrangements", "protect personal data", "security safeguards", "technical and organisational measures"],
     ),
     Indicator(
-        indicator_id="P7.4",
+        indicator_id="P7-I4",
         pillar=7,
         title="Data breach notification",
         description="Mandatory notification of data breaches to a regulator and/or affected individuals.",
@@ -104,7 +104,7 @@ INDICATORS: list[Indicator] = [
         query_terms=["notify the Commission", "data breach notification", "notifiable data breach", "notify affected individuals"],
     ),
     Indicator(
-        indicator_id="P7.5",
+        indicator_id="P7-I5",
         pillar=7,
         title="National cybersecurity framework",
         description="A national-level cybersecurity law/framework (e.g. critical information infrastructure).",

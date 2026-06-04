@@ -1,8 +1,10 @@
-"""CSV export for legal/policy reviewers.
+"""CSV export — the OFFICIAL hackathon submission format.
 
-Columns follow CSV_COLUMNS exactly. Verbatim snippets are written unaltered (only
-CSV-quoted), so the exact statutory wording survives the round-trip — a hard
-requirement for legal traceability.
+Column names and order match the UNESCAP RDTII template EXACTLY (judges validate
+programmatically). Economy uses the official UN member-state name; verbatim snippets
+are written unaltered; confidence is a 2-dp decimal. By default only submittable rows
+are written (rejected/quarantined are excluded), keeping a sectoral mis-map out of a
+national-indicator submission — pass `submission_only=False` to dump everything.
 """
 from __future__ import annotations
 
@@ -10,27 +12,35 @@ import csv
 from pathlib import Path
 
 from ..config import settings
-from ..schemas import CSV_COLUMNS, EvidenceMapping
+from ..schemas import ECONOMY_UN_NAME, SUBMISSION_COLUMNS, SUBMITTABLE_STATUSES, EvidenceMapping
 
 
-def export_csv(mappings: list[EvidenceMapping], run_id: str, out_dir: Path | None = None) -> Path:
+def _row(m: EvidenceMapping) -> dict[str, str]:
+    return {
+        "Economy": ECONOMY_UN_NAME.get(m.economy.value, m.economy.value),
+        "Law Name": m.law_name,
+        "Law Number / Ref": m.law_number or "",
+        "Last Amended": m.last_amended or "",
+        "Indicator ID": m.indicator_id,
+        "Article / Section": m.article_section,
+        "Discovery Tag": m.discovery_tag.value,
+        "Location Reference": m.location_ref or "",
+        "Verbatim Snippet": m.verbatim_snippet,          # EXACT — never paraphrased
+        "Mapping Rationale": m.mapping_rationale or "",
+        "Source URL": m.source_url,
+        "Confidence": f"{m.confidence_score:.2f}",
+        "Notes": m.notes or "",
+    }
+
+
+def export_csv(mappings: list[EvidenceMapping], run_id: str, out_dir: Path | None = None,
+               submission_only: bool = True) -> Path:
     out_dir = out_dir or settings.output_path
+    rows = [m for m in mappings if (not submission_only or m.review_status.value in SUBMITTABLE_STATUSES)]
     path = Path(out_dir) / f"veritrade_{run_id}.csv"
     with path.open("w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_COLUMNS, quoting=csv.QUOTE_ALL)
+        writer = csv.DictWriter(f, fieldnames=SUBMISSION_COLUMNS, quoting=csv.QUOTE_ALL)
         writer.writeheader()
-        for m in mappings:
-            writer.writerow({
-                "economy": m.economy.value,
-                "pillar": m.pillar,
-                "indicator_id": m.indicator_id,
-                "law_name": m.law_name,
-                "article_section": m.article_section,
-                "verbatim_snippet": m.verbatim_snippet,   # exact wording, never paraphrased
-                "source_url": m.source_url,
-                "mapping_rationale": m.mapping_rationale,
-                "confidence_score": m.confidence_score,
-                "discovery_tag": m.discovery_tag.value,
-                "review_status": m.review_status.value,
-            })
+        for m in rows:
+            writer.writerow(_row(m))
     return path

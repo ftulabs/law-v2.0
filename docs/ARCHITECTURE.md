@@ -103,26 +103,36 @@ veritrade/
 
 ---
 
-## 4. CSV schema (legal/policy reviewers)
+## 4. CSV schema — OFFICIAL submission template (policy judge)
 
-`outputs/veritrade_<run>.csv` — one row per mapping, **verbatim wording preserved**,
-all fields quoted (`utf-8-sig` for Excel).
+`outputs/veritrade_<run>.csv` matches the UNESCAP RDTII submission template **exactly**
+(column names + order — judges validate programmatically). One row per
+provision×indicator, **verbatim wording preserved**, `utf-8-sig` for Excel. By default
+only submittable rows are written (rejected/quarantined excluded, so a sectoral mis-map
+never enters a national-indicator submission); pass `submission_only=False` to dump all.
 
-| Column | Meaning |
-|---|---|
-| `economy` | SG / AU / MY |
-| `pillar` | 6 or 7 |
-| `indicator_id` | e.g. `P7.4` |
-| `law_name` | statute title |
-| `article_section` | e.g. `Section 26D` |
-| `verbatim_snippet` | exact statutory wording (never paraphrased) |
-| `source_url` | official source |
-| `mapping_rationale` | why this provision maps to the indicator |
-| `confidence_score` | 0–1 final score |
-| `discovery_tag` | `KNOWN` / `NEW` |
-| `review_status` | auto_accepted / pending_review / quarantined / approved / rejected / corrected |
+| # | Column (exact) | Req. | Source in pipeline |
+|---|---|---|---|
+| 1 | `Economy` | ✓ | official UN member-state name (SG→Singapore, …) |
+| 2 | `Law Name` | ✓ | statute title + year |
+| 3 | `Law Number / Ref` | opt | from manifest/discovery (e.g. `Act 709`) |
+| 4 | `Last Amended` | ✓ | **year** of `amendment_date` |
+| 5 | `Indicator ID` | ✓ | RDTII code in `P6-I1` form |
+| 6 | `Article / Section` | ✓ | extracted clause label |
+| 7 | `Discovery Tag` | ✓ | `KNOWN` / `NEW` |
+| 8 | `Location Reference` | opt | `p. N` (PDF/OCR) or `#sec26` anchor (HTML) |
+| 9 | `Verbatim Snippet` | ✓ | exact statutory wording (never paraphrased) |
+| 10 | `Mapping Rationale` | opt | templated "This [§] [verb] [what]. Maps to [id] because …" (≤300 chars) |
+| 11 | `Source URL` | ✓ | official portal URL |
+| 12 | `Confidence` | opt | 2-dp 0.00–1.00 |
+| 13 | `Notes` | opt | OCR/scope/bilingual flags |
 
-See [examples/example_SG.csv](examples/example_SG.csv).
+> **Before submitting:** confirm each `Indicator ID` against the authoritative RDTII 2.1
+> codebook (the bundled indicators are illustrative). NEW provisions score highest, so
+> review the `NEW`-tagged rows carefully.
+
+See [examples/example_SG.csv](examples/example_SG.csv). `review_status` and all technical
+metadata live in the JSON (§5), not the submission CSV.
 
 ---
 

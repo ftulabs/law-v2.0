@@ -25,8 +25,11 @@ SYSTEM = (
     "right scope) from mere topical/semantic relevance. (3) If the snippet is "
     "sector-specific but the indicator is national in scope, set scope_flag to "
     "'SECTORAL_NOT_NATIONAL' and lower scope_alignment. (4) Never assert a legal "
-    "conclusion the snippet does not support. Respond with a JSON object: "
-    "{relevant:bool, legal_match:0..1, scope_alignment:0..1, scope_flag:str|null, "
+    "conclusion the snippet does not support. (5) Write 'rationale' in EXACTLY this "
+    "format, max 300 characters: 'This [article/section] [prohibits/requires/permits/"
+    "establishes] [what]. Maps to [indicator] because [one-sentence legal logic].' "
+    "Name the legal mechanism; do not paraphrase the snippet. Respond with a JSON "
+    "object: {relevant:bool, legal_match:0..1, scope_alignment:0..1, scope_flag:str|null, "
     "rationale:str}."
 )
 
@@ -41,6 +44,18 @@ def _user_prompt(ind, prov: Provision) -> str:
         f"<SNIPPET>{prov.verbatim_snippet}</SNIPPET>\n"
         "Grade this provision against the indicator. Return the JSON object only."
     )
+
+
+def _build_notes(prov: Provision, scope_flag: str | None) -> str | None:
+    """Template 'Notes' — flag unusual cases: scope, OCR quality, etc."""
+    parts = []
+    if scope_flag:
+        parts.append(f"{scope_flag}: sectoral instrument — verify before treating as national.")
+    if prov.ocr.used:
+        mc = prov.ocr.mean_confidence
+        parts.append(f"OCR-extracted via {prov.ocr.provider}"
+                     + (f" (mean conf {mc:.2f})" if mc is not None else "") + "; verify wording vs source.")
+    return " ".join(parts) or None
 
 
 def _mapping_id(run_id: str, indicator_id: str, provision_id: str) -> str:
@@ -95,14 +110,19 @@ def map_provisions(
                 pillar=ind.pillar,
                 indicator_id=ind.indicator_id,
                 law_name=prov.law_name,
+                law_number=prov.law_number,
+                last_amended=(prov.amendment_date or "")[:4] or None,
                 article_section=prov.article_section,
+                location_ref=prov.location_ref,
                 verbatim_snippet=prov.verbatim_snippet,
                 source_url=prov.source_url,
-                mapping_rationale=rationale,
+                mapping_rationale=(rationale or "")[:300],
                 confidence_score=breakdown.final,
                 discovery_tag=doc_tags.get(prov.doc_id, DiscoveryTag.KNOWN),
+                notes=_build_notes(prov, scope_flag),
                 review_status=status,
                 provision_id=prov.provision_id,
+                source_pdf_path=prov.source_pdf_path,
                 raw_context=r.raw_context,
                 confidence=breakdown,
                 ocr=prov.ocr,

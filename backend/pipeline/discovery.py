@@ -68,6 +68,7 @@ def discover_from_samples(economy: Economy, pillar: int | None = None) -> list[D
             portal=entry.get("portal", "sample"),
             fmt=DocFormat(entry.get("format", "html")),
             amendment_date=entry.get("amendment_date"),
+            law_number=entry.get("law_number"),
             relevance_score=_score(searchable, indicators),
             discovery_tag=DiscoveryTag(entry.get("discovery_tag", "KNOWN")),
             local_path=str(local),

@@ -1,14 +1,14 @@
 {
   "run": {
-    "run_id": "run-adbecbab",
+    "run_id": "run-36b37673",
     "economy": "SG",
     "pillars": [
       6,
       7
     ],
-    "started_at": "2026-06-04T09:32:54.152962+00:00",
-    "finished_at": "2026-06-04T09:32:55.145698+00:00",
-    "processing_time_seconds": 0.99,
+    "started_at": "2026-06-04T12:57:48.884184+00:00",
+    "finished_at": "2026-06-04T12:57:49.994280+00:00",
+    "processing_time_seconds": 1.112,
     "docs_discovered": 3,
     "provisions_extracted": 12,
     "mappings_produced": 40,
@@ -26,21 +26,25 @@
     "total": 40,
     "by_status": {
       "auto_accepted": 4,
-      "pending_review": 25,
-      "quarantined": 11
+      "pending_review": 23,
+      "quarantined": 13
     }
   },
   "mappings": [
     {
-      "mapping_id": "map-11aa91eb8483",
+      "mapping_id": "map-775e883fb0e4",
       "economy": "SG",
       "pillar": 7,
-      "indicator_id": "P7.3",
+      "indicator_id": "P7-I3",
       "law_name": "Personal Data Protection Act 2012 (Singapore)",
+      "law_number": "Act 26 of 2012",
+      "last_amended": "2021",
       "article_section": "Section 24",
+      "location_reference": "#sect24",
       "verbatim_snippet": "Protection of personal data. An organisation shall protect personal data\nin its possession or under its control by making reasonable security arrangements to\nprevent unauthorised access, collection, use, disclosure, copying, modification,\ndisposal or similar risks.\nPart VIA — Notification of Data Breaches",
       "source_url": "https://sso.agc.gov.sg/Act/PDPA2012",
-      "mapping_rationale": "Provision contains indicator language (reasonable security arrangements, protect personal data). Binding obligation language present. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\pdpa.html",
+      "mapping_rationale": "This Section 24 requires security safeguards obligation. Maps to P7-I3 because it uses binding obligation language matching the indicator's legal test.",
       "confidence_score": 0.992,
       "confidence_breakdown": {
         "retrieval_score": 1.0,
@@ -51,35 +55,40 @@
         "explanation": "0.25·ret(1.0) + 0.40·legal(1.0) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "auto_accepted",
       "scope_flag": null,
       "provision_id": "SG-7508aacd68#p2",
       "raw_context": "Protection of personal data. An organisation shall protect personal data\nin its possession or under its control by making reasonable security arrangements to\nprevent unauthorised access, collection, use, disclosure, copying, modification,\ndisposal or similar risks.\nPart VIA — Notification of Data Breaches",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P7.3 query='security safeguards obligation reasonable security arrangements protect personal...'",
+        "indicator=P7-I3 query='security safeguards obligation reasonable security arrangements protect personal...'",
         "bm25_raw=8.664 normalised=1.0 provision=SG-7508aacd68#p2"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-efea056e981a",
+      "mapping_id": "map-ff0df2dbe59a",
       "economy": "SG",
       "pillar": 7,
-      "indicator_id": "P7.4",
+      "indicator_id": "P7-I4",
       "law_name": "Personal Data Protection Act 2012 (Singapore)",
+      "law_number": "Act 26 of 2012",
+      "last_amended": "2021",
       "article_section": "Section 26D",
+      "location_reference": "#sect26D",
       "verbatim_snippet": "Duty to notify. Where an organisation assesses that a data breach is a\nnotifiable data breach, the organisation must notify the Commission as soon as is\npracticable, and in any case no later than 3 calendar days after making that\nassessment, and must notify affected individuals where the breach is likely to result\nin significant harm.\nPart IX — Transfer of Personal Data Outside Singapore",
       "source_url": "https://sso.agc.gov.sg/Act/PDPA2012",
-      "mapping_rationale": "Provision contains indicator language (notify the commission, notifiable data breach, notify affected individuals). Binding obligation language present. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\pdpa.html",
+      "mapping_rationale": "This Section 26D prohibits data breach notification. Maps to P7-I4 because it uses binding obligation language matching the indicator's legal test.",
       "confidence_score": 0.992,
       "confidence_breakdown": {
         "retrieval_score": 1.0,
@@ -90,35 +99,40 @@
         "explanation": "0.25·ret(1.0) + 0.40·legal(1.0) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "auto_accepted",
       "scope_flag": null,
       "provision_id": "SG-7508aacd68#p3",
       "raw_context": "Duty to notify. Where an organisation assesses that a data breach is a\nnotifiable data breach, the organisation must notify the Commission as soon as is\npracticable, and in any case no later than 3 calendar days after making that\nassessment, and must notify affected individuals where the breach is likely to result\nin significant harm.\nPart IX — Transfer of Personal Data Outside Singapore",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P7.4 query='data breach notification notify the commission data breach...'",
+        "indicator=P7-I4 query='data breach notification notify the commission data breach...'",
         "bm25_raw=22.662 normalised=1.0 provision=SG-7508aacd68#p3"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-9cc9f43d278d",
+      "mapping_id": "map-97e2d3b17c3e",
       "economy": "SG",
       "pillar": 6,
-      "indicator_id": "P6.1",
+      "indicator_id": "P6-I1",
       "law_name": "Personal Data Protection Act 2012 (Singapore)",
+      "law_number": "Act 26 of 2012",
+      "last_amended": "2021",
       "article_section": "Section 26",
+      "location_reference": "#sect26",
       "verbatim_snippet": "Transfer of personal data outside Singapore. An organisation shall not\ntransfer any personal data to a country or territory outside Singapore except in\naccordance with requirements prescribed under this Act to ensure that the transferred\npersonal data will be accorded a standard of protection that is comparable to the\nprotection under this Act.",
       "source_url": "https://sso.agc.gov.sg/Act/PDPA2012",
-      "mapping_rationale": "Provision contains indicator language (transfer of personal data outside). Binding obligation language present. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\pdpa.html",
+      "mapping_rationale": "This Section 26 prohibits cross-border data transfer — general permission. Maps to P6-I1 because it uses binding obligation language matching the indicator's legal test.",
       "confidence_score": 0.892,
       "confidence_breakdown": {
         "retrieval_score": 1.0,
@@ -129,35 +143,40 @@
         "explanation": "0.25·ret(1.0) + 0.40·legal(0.75) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "auto_accepted",
       "scope_flag": null,
       "provision_id": "SG-7508aacd68#p4",
       "raw_context": "Transfer of personal data outside Singapore. An organisation shall not\ntransfer any personal data to a country or territory outside Singapore except in\naccordance with requirements prescribed under this Act to ensure that the transferred\npersonal data will be accorded a standard of protection that is comparable to the\nprotection under this Act.",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P6.1 query='cross border data transfer general permission transfer of...'",
+        "indicator=P6-I1 query='cross border data transfer general permission transfer of...'",
         "bm25_raw=10.335 normalised=1.0 provision=SG-7508aacd68#p4"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-8ea1be5f54fd",
+      "mapping_id": "map-f16cef5385ac",
       "economy": "SG",
       "pillar": 7,
-      "indicator_id": "P7.1",
+      "indicator_id": "P7-I1",
       "law_name": "Personal Data Protection Act 2012 (Singapore)",
+      "law_number": "Act 26 of 2012",
+      "last_amended": "2021",
       "article_section": "Section 24",
+      "location_reference": "#sect24",
       "verbatim_snippet": "Protection of personal data. An organisation shall protect personal data\nin its possession or under its control by making reasonable security arrangements to\nprevent unauthorised access, collection, use, disclosure, copying, modification,\ndisposal or similar risks.\nPart VIA — Notification of Data Breaches",
       "source_url": "https://sso.agc.gov.sg/Act/PDPA2012",
-      "mapping_rationale": "Provision contains indicator language (protection of personal data). Binding obligation language present. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\pdpa.html",
+      "mapping_rationale": "This Section 24 requires comprehensive personal data protection law. Maps to P7-I1 because it uses binding obligation language matching the indicator's legal test.",
       "confidence_score": 0.874,
       "confidence_breakdown": {
         "retrieval_score": 0.928,
@@ -168,35 +187,40 @@
         "explanation": "0.25·ret(0.928) + 0.40·legal(0.75) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "auto_accepted",
       "scope_flag": null,
       "provision_id": "SG-7508aacd68#p2",
       "raw_context": "Protection of personal data. An organisation shall protect personal data\nin its possession or under its control by making reasonable security arrangements to\nprevent unauthorised access, collection, use, disclosure, copying, modification,\ndisposal or similar risks.\nPart VIA — Notification of Data Breaches",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P7.1 query='comprehensive personal data protection law personal data protection...'",
+        "indicator=P7-I1 query='comprehensive personal data protection law personal data protection...'",
         "bm25_raw=7.032 normalised=0.928 provision=SG-7508aacd68#p2"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-2cb0728df060",
+      "mapping_id": "map-449f8bf33fa6",
       "economy": "SG",
       "pillar": 7,
-      "indicator_id": "P7.5",
+      "indicator_id": "P7-I5",
       "law_name": "Cybersecurity Act 2018 (Singapore)",
+      "law_number": "Act 9 of 2018",
+      "last_amended": "2018",
       "article_section": "Section 7",
+      "location_reference": "#sect7",
       "verbatim_snippet": "Designation of critical information infrastructure. The Commissioner may, by\nwritten notice, designate a computer or computer system as a critical information\ninfrastructure for the purposes of this Act if the Commissioner is satisfied that the\ncomputer or computer system is necessary for the continuous delivery of an essential\nservice, and the loss or compromise of the computer or computer system will have a\ndebilitating effect on the availability of the essential service in Singapore.",
       "source_url": "https://sso.agc.gov.sg/Act/CA2018",
-      "mapping_rationale": "Provision contains indicator language (critical information infrastructure). No clearly binding obligation detected. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\cybersecurity_act.txt",
+      "mapping_rationale": "This Section 7 establishes obligations on national cybersecurity framework. Maps to P7-I5 because its wording matches the indicator's legal test.",
       "confidence_score": 0.832,
       "confidence_breakdown": {
         "retrieval_score": 1.0,
@@ -207,35 +231,40 @@
         "explanation": "0.25·ret(1.0) + 0.40·legal(0.6) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "pending_review",
       "scope_flag": null,
       "provision_id": "SG-e822d34028#p0",
       "raw_context": "Designation of critical information infrastructure. The Commissioner may, by\nwritten notice, designate a computer or computer system as a critical information\ninfrastructure for the purposes of this Act if the Commissioner is satisfied that the\ncomputer or computer system is necessary for the continuous delivery of an essential\nservice, and the loss or compromise of the computer or computer system will have a\ndebilitating effect on the availability of the essential service in Singapore.",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P7.5 query='national cybersecurity framework cybersecurity act critical information infrastructure...'",
+        "indicator=P7-I5 query='national cybersecurity framework cybersecurity act critical information infrastructure...'",
         "bm25_raw=8.612 normalised=1.0 provision=SG-e822d34028#p0"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-d5c1941d6d6f",
+      "mapping_id": "map-45b91bc94240",
       "economy": "SG",
       "pillar": 7,
-      "indicator_id": "P7.5",
+      "indicator_id": "P7-I5",
       "law_name": "Cybersecurity Act 2018 (Singapore)",
+      "law_number": "Act 9 of 2018",
+      "last_amended": "2018",
       "article_section": "Section 14",
+      "location_reference": "#sect14",
       "verbatim_snippet": "Duty to report cybersecurity incidents. The owner of a critical information\ninfrastructure must notify the Commissioner of the occurrence of any prescribed\ncybersecurity incident in respect of the critical information infrastructure within the\nprescribed period after becoming aware of such occurrence.",
       "source_url": "https://sso.agc.gov.sg/Act/CA2018",
-      "mapping_rationale": "Provision contains indicator language (critical information infrastructure). Binding obligation language present. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\cybersecurity_act.txt",
+      "mapping_rationale": "This Section 14 prohibits national cybersecurity framework. Maps to P7-I5 because it uses binding obligation language matching the indicator's legal test.",
       "confidence_score": 0.828,
       "confidence_breakdown": {
         "retrieval_score": 0.743,
@@ -246,35 +275,40 @@
         "explanation": "0.25·ret(0.743) + 0.40·legal(0.75) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "pending_review",
       "scope_flag": null,
       "provision_id": "SG-e822d34028#p2",
       "raw_context": "Duty to report cybersecurity incidents. The owner of a critical information\ninfrastructure must notify the Commissioner of the occurrence of any prescribed\ncybersecurity incident in respect of the critical information infrastructure within the\nprescribed period after becoming aware of such occurrence.",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P7.5 query='national cybersecurity framework cybersecurity act critical information infrastructure...'",
+        "indicator=P7-I5 query='national cybersecurity framework cybersecurity act critical information infrastructure...'",
         "bm25_raw=6.396 normalised=0.743 provision=SG-e822d34028#p2"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-b4c75d9bb934",
+      "mapping_id": "map-e65e70f8222a",
       "economy": "SG",
       "pillar": 7,
-      "indicator_id": "P7.5",
+      "indicator_id": "P7-I5",
       "law_name": "Cybersecurity Act 2018 (Singapore)",
+      "law_number": "Act 9 of 2018",
+      "last_amended": "2018",
       "article_section": "Section 19",
+      "location_reference": "#sect19",
       "verbatim_snippet": "National cybersecurity. The Commissioner is responsible for the oversight\nand promotion of cybersecurity in Singapore at the national level, including the\nestablishment of cybersecurity codes of practice and national response measures.",
       "source_url": "https://sso.agc.gov.sg/Act/CA2018",
-      "mapping_rationale": "Provision contains indicator language (national cybersecurity). No clearly binding obligation detected. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\cybersecurity_act.txt",
+      "mapping_rationale": "This Section 19 establishes obligations on national cybersecurity framework. Maps to P7-I5 because its wording matches the indicator's legal test.",
       "confidence_score": 0.797,
       "confidence_breakdown": {
         "retrieval_score": 0.858,
@@ -285,35 +319,40 @@
         "explanation": "0.25·ret(0.858) + 0.40·legal(0.6) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "pending_review",
       "scope_flag": null,
       "provision_id": "SG-e822d34028#p3",
       "raw_context": "National cybersecurity. The Commissioner is responsible for the oversight\nand promotion of cybersecurity in Singapore at the national level, including the\nestablishment of cybersecurity codes of practice and national response measures.",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P7.5 query='national cybersecurity framework cybersecurity act critical information infrastructure...'",
+        "indicator=P7-I5 query='national cybersecurity framework cybersecurity act critical information infrastructure...'",
         "bm25_raw=7.392 normalised=0.858 provision=SG-e822d34028#p3"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-187e2c140d40",
+      "mapping_id": "map-b26f29da820f",
       "economy": "SG",
       "pillar": 6,
-      "indicator_id": "P6.2",
+      "indicator_id": "P6-I2",
       "law_name": "Personal Data Protection Act 2012 (Singapore)",
+      "law_number": "Act 26 of 2012",
+      "last_amended": "2021",
       "article_section": "Section 26",
+      "location_reference": "#sect26",
       "verbatim_snippet": "Transfer of personal data outside Singapore. An organisation shall not\ntransfer any personal data to a country or territory outside Singapore except in\naccordance with requirements prescribed under this Act to ensure that the transferred\npersonal data will be accorded a standard of protection that is comparable to the\nprotection under this Act.",
       "source_url": "https://sso.agc.gov.sg/Act/PDPA2012",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\pdpa.html",
+      "mapping_rationale": "This Section 26 prohibits cross-border transfer — accountability / adequacy condition. Maps to P6-I2 because it uses binding obligation language matching the indicator's legal test.",
       "confidence_score": 0.792,
       "confidence_breakdown": {
         "retrieval_score": 1.0,
@@ -324,35 +363,40 @@
         "explanation": "0.25·ret(1.0) + 0.40·legal(0.5) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "pending_review",
       "scope_flag": null,
       "provision_id": "SG-7508aacd68#p4",
       "raw_context": "Transfer of personal data outside Singapore. An organisation shall not\ntransfer any personal data to a country or territory outside Singapore except in\naccordance with requirements prescribed under this Act to ensure that the transferred\npersonal data will be accorded a standard of protection that is comparable to the\nprotection under this Act.",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P6.2 query='cross border transfer accountability adequacy condition comparable standard...'",
+        "indicator=P6-I2 query='cross border transfer accountability adequacy condition comparable standard...'",
         "bm25_raw=9.974 normalised=1.0 provision=SG-7508aacd68#p4"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-d1993d958925",
+      "mapping_id": "map-a5a80262df5d",
       "economy": "SG",
       "pillar": 6,
-      "indicator_id": "P6.3",
+      "indicator_id": "P6-I3",
       "law_name": "Personal Data Protection Act 2012 (Singapore)",
+      "law_number": "Act 26 of 2012",
+      "last_amended": "2021",
       "article_section": "Section 26",
+      "location_reference": "#sect26",
       "verbatim_snippet": "Transfer of personal data outside Singapore. An organisation shall not\ntransfer any personal data to a country or territory outside Singapore except in\naccordance with requirements prescribed under this Act to ensure that the transferred\npersonal data will be accorded a standard of protection that is comparable to the\nprotection under this Act.",
       "source_url": "https://sso.agc.gov.sg/Act/PDPA2012",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\pdpa.html",
+      "mapping_rationale": "This Section 26 prohibits data localisation requirement. Maps to P6-I3 because it uses binding obligation language matching the indicator's legal test.",
       "confidence_score": 0.792,
       "confidence_breakdown": {
         "retrieval_score": 1.0,
@@ -363,35 +407,40 @@
         "explanation": "0.25·ret(1.0) + 0.40·legal(0.5) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "pending_review",
       "scope_flag": null,
       "provision_id": "SG-7508aacd68#p4",
       "raw_context": "Transfer of personal data outside Singapore. An organisation shall not\ntransfer any personal data to a country or territory outside Singapore except in\naccordance with requirements prescribed under this Act to ensure that the transferred\npersonal data will be accorded a standard of protection that is comparable to the\nprotection under this Act.",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P6.3 query='data localisation requirement stored in retained within data...'",
+        "indicator=P6-I3 query='data localisation requirement stored in retained within data...'",
         "bm25_raw=4.232 normalised=1.0 provision=SG-7508aacd68#p4"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-3f59a2fdc4ef",
+      "mapping_id": "map-8ed1787939ac",
       "economy": "SG",
       "pillar": 7,
-      "indicator_id": "P7.1",
+      "indicator_id": "P7-I1",
       "law_name": "Personal Data Protection Act 2012 (Singapore)",
+      "law_number": "Act 26 of 2012",
+      "last_amended": "2021",
       "article_section": "Section 26",
+      "location_reference": "#sect26",
       "verbatim_snippet": "Transfer of personal data outside Singapore. An organisation shall not\ntransfer any personal data to a country or territory outside Singapore except in\naccordance with requirements prescribed under this Act to ensure that the transferred\npersonal data will be accorded a standard of protection that is comparable to the\nprotection under this Act.",
       "source_url": "https://sso.agc.gov.sg/Act/PDPA2012",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\pdpa.html",
+      "mapping_rationale": "This Section 26 prohibits comprehensive personal data protection law. Maps to P7-I1 because it uses binding obligation language matching the indicator's legal test.",
       "confidence_score": 0.792,
       "confidence_breakdown": {
         "retrieval_score": 1.0,
@@ -402,35 +451,40 @@
         "explanation": "0.25·ret(1.0) + 0.40·legal(0.5) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "pending_review",
       "scope_flag": null,
       "provision_id": "SG-7508aacd68#p4",
       "raw_context": "Transfer of personal data outside Singapore. An organisation shall not\ntransfer any personal data to a country or territory outside Singapore except in\naccordance with requirements prescribed under this Act to ensure that the transferred\npersonal data will be accorded a standard of protection that is comparable to the\nprotection under this Act.",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P7.1 query='comprehensive personal data protection law personal data protection...'",
+        "indicator=P7-I1 query='comprehensive personal data protection law personal data protection...'",
         "bm25_raw=7.577 normalised=1.0 provision=SG-7508aacd68#p4"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-0576837527fc",
+      "mapping_id": "map-4ddce8a7b445",
       "economy": "SG",
       "pillar": 7,
-      "indicator_id": "P7.2",
+      "indicator_id": "P7-I2",
       "law_name": "Personal Data Protection Act 2012 (Singapore)",
+      "law_number": "Act 26 of 2012",
+      "last_amended": "2021",
       "article_section": "Section 13",
+      "location_reference": "#sect13",
       "verbatim_snippet": "Consent required. An organisation shall not, on or after the appointed\nday, collect, use or disclose personal data about an individual unless the individual\ngives, or is deemed to have given, his or her consent under this Act to the collection,\nuse or disclosure of the personal data.",
       "source_url": "https://sso.agc.gov.sg/Act/PDPA2012",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\pdpa.html",
+      "mapping_rationale": "This Section 13 prohibits consent / lawful basis for processing. Maps to P7-I2 because it uses binding obligation language matching the indicator's legal test.",
       "confidence_score": 0.792,
       "confidence_breakdown": {
         "retrieval_score": 1.0,
@@ -441,35 +495,40 @@
         "explanation": "0.25·ret(1.0) + 0.40·legal(0.5) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "pending_review",
       "scope_flag": null,
       "provision_id": "SG-7508aacd68#p0",
       "raw_context": "Consent required. An organisation shall not, on or after the appointed\nday, collect, use or disclose personal data about an individual unless the individual\ngives, or is deemed to have given, his or her consent under this Act to the collection,\nuse or disclosure of the personal data.",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P7.2 query='consent lawful basis for processing consent of the...'",
+        "indicator=P7-I2 query='consent lawful basis for processing consent of the...'",
         "bm25_raw=12.035 normalised=1.0 provision=SG-7508aacd68#p0"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-bdac5350e9ff",
+      "mapping_id": "map-6730bafe0932",
       "economy": "SG",
       "pillar": 6,
-      "indicator_id": "P6.1",
+      "indicator_id": "P6-I1",
       "law_name": "Personal Data Protection Act 2012 (Singapore)",
+      "law_number": "Act 26 of 2012",
+      "last_amended": "2021",
       "article_section": "Section 26D",
+      "location_reference": "#sect26D",
       "verbatim_snippet": "Duty to notify. Where an organisation assesses that a data breach is a\nnotifiable data breach, the organisation must notify the Commission as soon as is\npracticable, and in any case no later than 3 calendar days after making that\nassessment, and must notify affected individuals where the breach is likely to result\nin significant harm.\nPart IX — Transfer of Personal Data Outside Singapore",
       "source_url": "https://sso.agc.gov.sg/Act/PDPA2012",
-      "mapping_rationale": "Provision contains indicator language (transfer of personal data outside). Binding obligation language present. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\pdpa.html",
+      "mapping_rationale": "This Section 26D prohibits cross-border data transfer — general permission. Maps to P6-I1 because it uses binding obligation language matching the indicator's legal test.",
       "confidence_score": 0.78,
       "confidence_breakdown": {
         "retrieval_score": 0.549,
@@ -480,35 +539,40 @@
         "explanation": "0.25·ret(0.549) + 0.40·legal(0.75) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "pending_review",
       "scope_flag": null,
       "provision_id": "SG-7508aacd68#p3",
       "raw_context": "Duty to notify. Where an organisation assesses that a data breach is a\nnotifiable data breach, the organisation must notify the Commission as soon as is\npracticable, and in any case no later than 3 calendar days after making that\nassessment, and must notify affected individuals where the breach is likely to result\nin significant harm.\nPart IX — Transfer of Personal Data Outside Singapore",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P6.1 query='cross border data transfer general permission transfer of...'",
+        "indicator=P6-I1 query='cross border data transfer general permission transfer of...'",
         "bm25_raw=5.678 normalised=0.549 provision=SG-7508aacd68#p3"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-d4eeda911757",
+      "mapping_id": "map-a109dd533130",
       "economy": "SG",
       "pillar": 7,
-      "indicator_id": "P7.2",
+      "indicator_id": "P7-I2",
       "law_name": "Personal Data Protection Act 2012 (Singapore)",
+      "law_number": "Act 26 of 2012",
+      "last_amended": "2021",
       "article_section": "Section 18",
+      "location_reference": "#sect18",
       "verbatim_snippet": "Purpose limitation. An organisation may collect, use or disclose\npersonal data about an individual only for purposes that a reasonable person would\nconsider appropriate in the circumstances.\nPart VI — Care of Personal Data",
       "source_url": "https://sso.agc.gov.sg/Act/PDPA2012",
-      "mapping_rationale": "Provision contains indicator language (purpose limitation). No clearly binding obligation detected. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\pdpa.html",
+      "mapping_rationale": "This Section 18 permits consent / lawful basis for processing. Maps to P7-I2 because its wording matches the indicator's legal test.",
       "confidence_score": 0.766,
       "confidence_breakdown": {
         "retrieval_score": 0.735,
@@ -519,35 +583,40 @@
         "explanation": "0.25·ret(0.735) + 0.40·legal(0.6) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "pending_review",
       "scope_flag": null,
       "provision_id": "SG-7508aacd68#p1",
       "raw_context": "Purpose limitation. An organisation may collect, use or disclose\npersonal data about an individual only for purposes that a reasonable person would\nconsider appropriate in the circumstances.\nPart VI — Care of Personal Data",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P7.2 query='consent lawful basis for processing consent of the...'",
+        "indicator=P7-I2 query='consent lawful basis for processing consent of the...'",
         "bm25_raw=8.851 normalised=0.735 provision=SG-7508aacd68#p1"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-fdc1cc9a2da7",
+      "mapping_id": "map-a60a884caea7",
       "economy": "SG",
       "pillar": 6,
-      "indicator_id": "P6.3",
+      "indicator_id": "P6-I3",
       "law_name": "Cybersecurity Act 2018 (Singapore)",
+      "law_number": "Act 9 of 2018",
+      "last_amended": "2018",
       "article_section": "Section 14",
+      "location_reference": "#sect14",
       "verbatim_snippet": "Duty to report cybersecurity incidents. The owner of a critical information\ninfrastructure must notify the Commissioner of the occurrence of any prescribed\ncybersecurity incident in respect of the critical information infrastructure within the\nprescribed period after becoming aware of such occurrence.",
       "source_url": "https://sso.agc.gov.sg/Act/CA2018",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\cybersecurity_act.txt",
+      "mapping_rationale": "This Section 14 prohibits data localisation requirement. Maps to P6-I3 because it uses binding obligation language matching the indicator's legal test.",
       "confidence_score": 0.762,
       "confidence_breakdown": {
         "retrieval_score": 0.879,
@@ -558,35 +627,40 @@
         "explanation": "0.25·ret(0.879) + 0.40·legal(0.5) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "pending_review",
       "scope_flag": null,
       "provision_id": "SG-e822d34028#p2",
       "raw_context": "Duty to report cybersecurity incidents. The owner of a critical information\ninfrastructure must notify the Commissioner of the occurrence of any prescribed\ncybersecurity incident in respect of the critical information infrastructure within the\nprescribed period after becoming aware of such occurrence.",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P6.3 query='data localisation requirement stored in retained within data...'",
+        "indicator=P6-I3 query='data localisation requirement stored in retained within data...'",
         "bm25_raw=3.72 normalised=0.879 provision=SG-e822d34028#p2"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-961510121f76",
+      "mapping_id": "map-10f2e147693e",
       "economy": "SG",
       "pillar": 7,
-      "indicator_id": "P7.5",
+      "indicator_id": "P7-I5",
       "law_name": "Cybersecurity Act 2018 (Singapore)",
+      "law_number": "Act 9 of 2018",
+      "last_amended": "2018",
       "article_section": "Section 11",
+      "location_reference": "#sect11",
       "verbatim_snippet": "Codes of practice and standards of performance. The Commissioner may issue\nor approve one or more codes of practice or standards of performance for the regulation\nof the owners of critical information infrastructure with respect to measures to be\ntaken by them to ensure the cybersecurity of the critical information infrastructure.",
       "source_url": "https://sso.agc.gov.sg/Act/CA2018",
-      "mapping_rationale": "Provision contains indicator language (critical information infrastructure). No clearly binding obligation detected. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\cybersecurity_act.txt",
+      "mapping_rationale": "This Section 11 permits national cybersecurity framework. Maps to P7-I5 because its wording matches the indicator's legal test.",
       "confidence_score": 0.751,
       "confidence_breakdown": {
         "retrieval_score": 0.673,
@@ -597,35 +671,40 @@
         "explanation": "0.25·ret(0.673) + 0.40·legal(0.6) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "pending_review",
       "scope_flag": null,
       "provision_id": "SG-e822d34028#p1",
       "raw_context": "Codes of practice and standards of performance. The Commissioner may issue\nor approve one or more codes of practice or standards of performance for the regulation\nof the owners of critical information infrastructure with respect to measures to be\ntaken by them to ensure the cybersecurity of the critical information infrastructure.",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P7.5 query='national cybersecurity framework cybersecurity act critical information infrastructure...'",
+        "indicator=P7-I5 query='national cybersecurity framework cybersecurity act critical information infrastructure...'",
         "bm25_raw=5.795 normalised=0.673 provision=SG-e822d34028#p1"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-90a8e97e20a6",
+      "mapping_id": "map-6b0c7e293d57",
       "economy": "SG",
       "pillar": 7,
-      "indicator_id": "P7.1",
+      "indicator_id": "P7-I1",
       "law_name": "Personal Data Protection Act 2012 (Singapore)",
+      "law_number": "Act 26 of 2012",
+      "last_amended": "2021",
       "article_section": "Section 13",
+      "location_reference": "#sect13",
       "verbatim_snippet": "Consent required. An organisation shall not, on or after the appointed\nday, collect, use or disclose personal data about an individual unless the individual\ngives, or is deemed to have given, his or her consent under this Act to the collection,\nuse or disclosure of the personal data.",
       "source_url": "https://sso.agc.gov.sg/Act/PDPA2012",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\pdpa.html",
+      "mapping_rationale": "This Section 13 prohibits comprehensive personal data protection law. Maps to P7-I1 because it uses binding obligation language matching the indicator's legal test.",
       "confidence_score": 0.747,
       "confidence_breakdown": {
         "retrieval_score": 0.82,
@@ -636,35 +715,40 @@
         "explanation": "0.25·ret(0.82) + 0.40·legal(0.5) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "pending_review",
       "scope_flag": null,
       "provision_id": "SG-7508aacd68#p0",
       "raw_context": "Consent required. An organisation shall not, on or after the appointed\nday, collect, use or disclose personal data about an individual unless the individual\ngives, or is deemed to have given, his or her consent under this Act to the collection,\nuse or disclosure of the personal data.",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P7.1 query='comprehensive personal data protection law personal data protection...'",
+        "indicator=P7-I1 query='comprehensive personal data protection law personal data protection...'",
         "bm25_raw=6.216 normalised=0.82 provision=SG-7508aacd68#p0"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-714c35735e5a",
+      "mapping_id": "map-3d2f612298f8",
       "economy": "SG",
       "pillar": 7,
-      "indicator_id": "P7.1",
+      "indicator_id": "P7-I1",
       "law_name": "Personal Data Protection Act 2012 (Singapore)",
+      "law_number": "Act 26 of 2012",
+      "last_amended": "2021",
       "article_section": "Section 26D",
+      "location_reference": "#sect26D",
       "verbatim_snippet": "Duty to notify. Where an organisation assesses that a data breach is a\nnotifiable data breach, the organisation must notify the Commission as soon as is\npracticable, and in any case no later than 3 calendar days after making that\nassessment, and must notify affected individuals where the breach is likely to result\nin significant harm.\nPart IX — Transfer of Personal Data Outside Singapore",
       "source_url": "https://sso.agc.gov.sg/Act/PDPA2012",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\pdpa.html",
+      "mapping_rationale": "This Section 26D prohibits comprehensive personal data protection law. Maps to P7-I1 because it uses binding obligation language matching the indicator's legal test.",
       "confidence_score": 0.718,
       "confidence_breakdown": {
         "retrieval_score": 0.702,
@@ -675,35 +759,40 @@
         "explanation": "0.25·ret(0.702) + 0.40·legal(0.5) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "pending_review",
       "scope_flag": null,
       "provision_id": "SG-7508aacd68#p3",
       "raw_context": "Duty to notify. Where an organisation assesses that a data breach is a\nnotifiable data breach, the organisation must notify the Commission as soon as is\npracticable, and in any case no later than 3 calendar days after making that\nassessment, and must notify affected individuals where the breach is likely to result\nin significant harm.\nPart IX — Transfer of Personal Data Outside Singapore",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P7.1 query='comprehensive personal data protection law personal data protection...'",
+        "indicator=P7-I1 query='comprehensive personal data protection law personal data protection...'",
         "bm25_raw=5.321 normalised=0.702 provision=SG-7508aacd68#p3"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-f5aa86ac2c46",
+      "mapping_id": "map-f7dbad39cca2",
       "economy": "SG",
       "pillar": 6,
-      "indicator_id": "P6.3",
+      "indicator_id": "P6-I3",
       "law_name": "Personal Data Protection Act 2012 (Singapore)",
+      "law_number": "Act 26 of 2012",
+      "last_amended": "2021",
       "article_section": "Section 26D",
+      "location_reference": "#sect26D",
       "verbatim_snippet": "Duty to notify. Where an organisation assesses that a data breach is a\nnotifiable data breach, the organisation must notify the Commission as soon as is\npracticable, and in any case no later than 3 calendar days after making that\nassessment, and must notify affected individuals where the breach is likely to result\nin significant harm.\nPart IX — Transfer of Personal Data Outside Singapore",
       "source_url": "https://sso.agc.gov.sg/Act/PDPA2012",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\pdpa.html",
+      "mapping_rationale": "This Section 26D prohibits data localisation requirement. Maps to P6-I3 because it uses binding obligation language matching the indicator's legal test.",
       "confidence_score": 0.699,
       "confidence_breakdown": {
         "retrieval_score": 0.626,
@@ -714,35 +803,40 @@
         "explanation": "0.25·ret(0.626) + 0.40·legal(0.5) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "pending_review",
       "scope_flag": null,
       "provision_id": "SG-7508aacd68#p3",
       "raw_context": "Duty to notify. Where an organisation assesses that a data breach is a\nnotifiable data breach, the organisation must notify the Commission as soon as is\npracticable, and in any case no later than 3 calendar days after making that\nassessment, and must notify affected individuals where the breach is likely to result\nin significant harm.\nPart IX — Transfer of Personal Data Outside Singapore",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P6.3 query='data localisation requirement stored in retained within data...'",
+        "indicator=P6-I3 query='data localisation requirement stored in retained within data...'",
         "bm25_raw=2.65 normalised=0.626 provision=SG-7508aacd68#p3"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-6d1cb1be82b0",
+      "mapping_id": "map-23dad5336e4a",
       "economy": "SG",
       "pillar": 7,
-      "indicator_id": "P7.1",
+      "indicator_id": "P7-I1",
       "law_name": "Personal Data Protection Act 2012 (Singapore)",
+      "law_number": "Act 26 of 2012",
+      "last_amended": "2021",
       "article_section": "Section 18",
+      "location_reference": "#sect18",
       "verbatim_snippet": "Purpose limitation. An organisation may collect, use or disclose\npersonal data about an individual only for purposes that a reasonable person would\nconsider appropriate in the circumstances.\nPart VI — Care of Personal Data",
       "source_url": "https://sso.agc.gov.sg/Act/PDPA2012",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. No clearly binding obligation detected. Not sufficient for a legal mapping.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\pdpa.html",
+      "mapping_rationale": "This Section 18 relates to comprehensive personal data protection law but does not satisfy P7-I1: no binding rule of the required scope found in the snippet.",
       "confidence_score": 0.696,
       "confidence_breakdown": {
         "retrieval_score": 0.856,
@@ -753,35 +847,40 @@
         "explanation": "0.25·ret(0.856) + 0.40·legal(0.35) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "pending_review",
       "scope_flag": null,
       "provision_id": "SG-7508aacd68#p1",
       "raw_context": "Purpose limitation. An organisation may collect, use or disclose\npersonal data about an individual only for purposes that a reasonable person would\nconsider appropriate in the circumstances.\nPart VI — Care of Personal Data",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P7.1 query='comprehensive personal data protection law personal data protection...'",
+        "indicator=P7-I1 query='comprehensive personal data protection law personal data protection...'",
         "bm25_raw=6.486 normalised=0.856 provision=SG-7508aacd68#p1"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-4277dbdea853",
+      "mapping_id": "map-cb6221da550d",
       "economy": "SG",
       "pillar": 7,
-      "indicator_id": "P7.4",
+      "indicator_id": "P7-I4",
       "law_name": "Cybersecurity Act 2018 (Singapore)",
+      "law_number": "Act 9 of 2018",
+      "last_amended": "2018",
       "article_section": "Section 14",
+      "location_reference": "#sect14",
       "verbatim_snippet": "Duty to report cybersecurity incidents. The owner of a critical information\ninfrastructure must notify the Commissioner of the occurrence of any prescribed\ncybersecurity incident in respect of the critical information infrastructure within the\nprescribed period after becoming aware of such occurrence.",
       "source_url": "https://sso.agc.gov.sg/Act/CA2018",
-      "mapping_rationale": "Provision contains indicator language (notify the commission). Binding obligation language present. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\cybersecurity_act.txt",
+      "mapping_rationale": "This Section 14 prohibits data breach notification. Maps to P7-I4 because it uses binding obligation language matching the indicator's legal test.",
       "confidence_score": 0.684,
       "confidence_breakdown": {
         "retrieval_score": 0.166,
@@ -792,35 +891,40 @@
         "explanation": "0.25·ret(0.166) + 0.40·legal(0.75) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "pending_review",
       "scope_flag": null,
       "provision_id": "SG-e822d34028#p2",
       "raw_context": "Duty to report cybersecurity incidents. The owner of a critical information\ninfrastructure must notify the Commissioner of the occurrence of any prescribed\ncybersecurity incident in respect of the critical information infrastructure within the\nprescribed period after becoming aware of such occurrence.",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P7.4 query='data breach notification notify the commission data breach...'",
+        "indicator=P7-I4 query='data breach notification notify the commission data breach...'",
         "bm25_raw=3.759 normalised=0.166 provision=SG-e822d34028#p2"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-24357d996ae7",
+      "mapping_id": "map-7ecf3aaa7273",
       "economy": "SG",
       "pillar": 6,
-      "indicator_id": "P6.3",
+      "indicator_id": "P6-I3",
       "law_name": "Personal Data Protection Act 2012 (Singapore)",
+      "law_number": "Act 26 of 2012",
+      "last_amended": "2021",
       "article_section": "Section 24",
+      "location_reference": "#sect24",
       "verbatim_snippet": "Protection of personal data. An organisation shall protect personal data\nin its possession or under its control by making reasonable security arrangements to\nprevent unauthorised access, collection, use, disclosure, copying, modification,\ndisposal or similar risks.\nPart VIA — Notification of Data Breaches",
       "source_url": "https://sso.agc.gov.sg/Act/PDPA2012",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\pdpa.html",
+      "mapping_rationale": "This Section 24 requires data localisation requirement. Maps to P6-I3 because it uses binding obligation language matching the indicator's legal test.",
       "confidence_score": 0.658,
       "confidence_breakdown": {
         "retrieval_score": 0.461,
@@ -831,74 +935,40 @@
         "explanation": "0.25·ret(0.461) + 0.40·legal(0.5) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "pending_review",
       "scope_flag": null,
       "provision_id": "SG-7508aacd68#p2",
       "raw_context": "Protection of personal data. An organisation shall protect personal data\nin its possession or under its control by making reasonable security arrangements to\nprevent unauthorised access, collection, use, disclosure, copying, modification,\ndisposal or similar risks.\nPart VIA — Notification of Data Breaches",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P6.3 query='data localisation requirement stored in retained within data...'",
+        "indicator=P6-I3 query='data localisation requirement stored in retained within data...'",
         "bm25_raw=1.95 normalised=0.461 provision=SG-7508aacd68#p2"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-295028ff49ab",
-      "economy": "SG",
-      "pillar": 7,
-      "indicator_id": "P7.3",
-      "law_name": "MAS Notice 655 — Cyber Hygiene (Banks)",
-      "article_section": "Paragraph 5",
-      "verbatim_snippet": "Security patches. A bank must apply security patches to address security\nvulnerabilities in every system in a timely manner.",
-      "source_url": "https://www.mas.gov.sg/regulation/notices/notice-655",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.",
-      "confidence_score": 0.646,
-      "confidence_breakdown": {
-        "retrieval_score": 0.416,
-        "legal_match": 0.5,
-        "snippet_grounding": 1.0,
-        "scope_alignment": 0.95,
-        "final": 0.646,
-        "explanation": "0.25·ret(0.416) + 0.40·legal(0.5) + 0.20·ground(1.0) + 0.15·scope(0.95)"
-      },
-      "discovery_tag": "KNOWN",
-      "review_status": "pending_review",
-      "scope_flag": null,
-      "provision_id": "SG-e12721b531#p1",
-      "raw_context": "Security patches. A bank must apply security patches to address security\nvulnerabilities in every system in a timely manner.",
-      "ocr_metrics": {
-        "used": true,
-        "provider": "mock",
-        "mean_confidence": 0.94,
-        "pages": 1,
-        "chars": 1001,
-        "low_conf_pages": []
-      },
-      "model_version": "mock-grounded-grader-0.1",
-      "retrieval_log": [
-        "indicator=P7.3 query='security safeguards obligation reasonable security arrangements protect personal...'",
-        "bm25_raw=3.607 normalised=0.416 provision=SG-e12721b531#p1"
-      ],
-      "human_note": null
-    },
-    {
-      "mapping_id": "map-65d7061d068e",
+      "mapping_id": "map-c78a90ea5304",
       "economy": "SG",
       "pillar": 6,
-      "indicator_id": "P6.3",
+      "indicator_id": "P6-I3",
       "law_name": "Personal Data Protection Act 2012 (Singapore)",
+      "law_number": "Act 26 of 2012",
+      "last_amended": "2021",
       "article_section": "Section 18",
+      "location_reference": "#sect18",
       "verbatim_snippet": "Purpose limitation. An organisation may collect, use or disclose\npersonal data about an individual only for purposes that a reasonable person would\nconsider appropriate in the circumstances.\nPart VI — Care of Personal Data",
       "source_url": "https://sso.agc.gov.sg/Act/PDPA2012",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. No clearly binding obligation detected. Not sufficient for a legal mapping.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\pdpa.html",
+      "mapping_rationale": "This Section 18 relates to data localisation requirement but does not satisfy P6-I3: no binding rule of the required scope found in the snippet.",
       "confidence_score": 0.624,
       "confidence_breakdown": {
         "retrieval_score": 0.567,
@@ -909,35 +979,40 @@
         "explanation": "0.25·ret(0.567) + 0.40·legal(0.35) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "pending_review",
       "scope_flag": null,
       "provision_id": "SG-7508aacd68#p1",
       "raw_context": "Purpose limitation. An organisation may collect, use or disclose\npersonal data about an individual only for purposes that a reasonable person would\nconsider appropriate in the circumstances.\nPart VI — Care of Personal Data",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P6.3 query='data localisation requirement stored in retained within data...'",
+        "indicator=P6-I3 query='data localisation requirement stored in retained within data...'",
         "bm25_raw=2.4 normalised=0.567 provision=SG-7508aacd68#p1"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-58d66fcd2868",
+      "mapping_id": "map-431424e7ecee",
       "economy": "SG",
       "pillar": 6,
-      "indicator_id": "P6.2",
+      "indicator_id": "P6-I2",
       "law_name": "Personal Data Protection Act 2012 (Singapore)",
+      "law_number": "Act 26 of 2012",
+      "last_amended": "2021",
       "article_section": "Section 26D",
+      "location_reference": "#sect26D",
       "verbatim_snippet": "Duty to notify. Where an organisation assesses that a data breach is a\nnotifiable data breach, the organisation must notify the Commission as soon as is\npracticable, and in any case no later than 3 calendar days after making that\nassessment, and must notify affected individuals where the breach is likely to result\nin significant harm.\nPart IX — Transfer of Personal Data Outside Singapore",
       "source_url": "https://sso.agc.gov.sg/Act/PDPA2012",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\pdpa.html",
+      "mapping_rationale": "This Section 26D prohibits cross-border transfer — accountability / adequacy condition. Maps to P6-I2 because it uses binding obligation language matching the indicator's legal test.",
       "confidence_score": 0.618,
       "confidence_breakdown": {
         "retrieval_score": 0.304,
@@ -948,35 +1023,40 @@
         "explanation": "0.25·ret(0.304) + 0.40·legal(0.5) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "pending_review",
       "scope_flag": null,
       "provision_id": "SG-7508aacd68#p3",
       "raw_context": "Duty to notify. Where an organisation assesses that a data breach is a\nnotifiable data breach, the organisation must notify the Commission as soon as is\npracticable, and in any case no later than 3 calendar days after making that\nassessment, and must notify affected individuals where the breach is likely to result\nin significant harm.\nPart IX — Transfer of Personal Data Outside Singapore",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P6.2 query='cross border transfer accountability adequacy condition comparable standard...'",
+        "indicator=P6-I2 query='cross border transfer accountability adequacy condition comparable standard...'",
         "bm25_raw=3.029 normalised=0.304 provision=SG-7508aacd68#p3"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-3d53988b4bec",
+      "mapping_id": "map-b8a07e9868c9",
       "economy": "SG",
       "pillar": 6,
-      "indicator_id": "P6.2",
+      "indicator_id": "P6-I2",
       "law_name": "Cybersecurity Act 2018 (Singapore)",
+      "law_number": "Act 9 of 2018",
+      "last_amended": "2018",
       "article_section": "Section 14",
+      "location_reference": "#sect14",
       "verbatim_snippet": "Duty to report cybersecurity incidents. The owner of a critical information\ninfrastructure must notify the Commissioner of the occurrence of any prescribed\ncybersecurity incident in respect of the critical information infrastructure within the\nprescribed period after becoming aware of such occurrence.",
       "source_url": "https://sso.agc.gov.sg/Act/CA2018",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\cybersecurity_act.txt",
+      "mapping_rationale": "This Section 14 prohibits cross-border transfer — accountability / adequacy condition. Maps to P6-I2 because it uses binding obligation language matching the indicator's legal test.",
       "confidence_score": 0.615,
       "confidence_breakdown": {
         "retrieval_score": 0.289,
@@ -987,35 +1067,40 @@
         "explanation": "0.25·ret(0.289) + 0.40·legal(0.5) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "pending_review",
       "scope_flag": null,
       "provision_id": "SG-e822d34028#p2",
       "raw_context": "Duty to report cybersecurity incidents. The owner of a critical information\ninfrastructure must notify the Commissioner of the occurrence of any prescribed\ncybersecurity incident in respect of the critical information infrastructure within the\nprescribed period after becoming aware of such occurrence.",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P6.2 query='cross border transfer accountability adequacy condition comparable standard...'",
+        "indicator=P6-I2 query='cross border transfer accountability adequacy condition comparable standard...'",
         "bm25_raw=2.883 normalised=0.289 provision=SG-e822d34028#p2"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-ebc78fc9a479",
+      "mapping_id": "map-b765301ea637",
       "economy": "SG",
       "pillar": 6,
-      "indicator_id": "P6.1",
+      "indicator_id": "P6-I1",
       "law_name": "Personal Data Protection Act 2012 (Singapore)",
+      "law_number": "Act 26 of 2012",
+      "last_amended": "2021",
       "article_section": "Section 24",
+      "location_reference": "#sect24",
       "verbatim_snippet": "Protection of personal data. An organisation shall protect personal data\nin its possession or under its control by making reasonable security arrangements to\nprevent unauthorised access, collection, use, disclosure, copying, modification,\ndisposal or similar risks.\nPart VIA — Notification of Data Breaches",
       "source_url": "https://sso.agc.gov.sg/Act/PDPA2012",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\pdpa.html",
+      "mapping_rationale": "This Section 24 requires cross-border data transfer — general permission. Maps to P6-I1 because it uses binding obligation language matching the indicator's legal test.",
       "confidence_score": 0.608,
       "confidence_breakdown": {
         "retrieval_score": 0.26,
@@ -1026,35 +1111,40 @@
         "explanation": "0.25·ret(0.26) + 0.40·legal(0.5) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "pending_review",
       "scope_flag": null,
       "provision_id": "SG-7508aacd68#p2",
       "raw_context": "Protection of personal data. An organisation shall protect personal data\nin its possession or under its control by making reasonable security arrangements to\nprevent unauthorised access, collection, use, disclosure, copying, modification,\ndisposal or similar risks.\nPart VIA — Notification of Data Breaches",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P6.1 query='cross border data transfer general permission transfer of...'",
+        "indicator=P6-I1 query='cross border data transfer general permission transfer of...'",
         "bm25_raw=2.687 normalised=0.26 provision=SG-7508aacd68#p2"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-d2c6223f5132",
+      "mapping_id": "map-795c50b32de7",
       "economy": "SG",
       "pillar": 7,
-      "indicator_id": "P7.4",
+      "indicator_id": "P7-I4",
       "law_name": "Personal Data Protection Act 2012 (Singapore)",
+      "law_number": "Act 26 of 2012",
+      "last_amended": "2021",
       "article_section": "Section 24",
+      "location_reference": "#sect24",
       "verbatim_snippet": "Protection of personal data. An organisation shall protect personal data\nin its possession or under its control by making reasonable security arrangements to\nprevent unauthorised access, collection, use, disclosure, copying, modification,\ndisposal or similar risks.\nPart VIA — Notification of Data Breaches",
       "source_url": "https://sso.agc.gov.sg/Act/PDPA2012",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\pdpa.html",
+      "mapping_rationale": "This Section 24 requires data breach notification. Maps to P7-I4 because it uses binding obligation language matching the indicator's legal test.",
       "confidence_score": 0.607,
       "confidence_breakdown": {
         "retrieval_score": 0.259,
@@ -1065,74 +1155,40 @@
         "explanation": "0.25·ret(0.259) + 0.40·legal(0.5) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "pending_review",
       "scope_flag": null,
       "provision_id": "SG-7508aacd68#p2",
       "raw_context": "Protection of personal data. An organisation shall protect personal data\nin its possession or under its control by making reasonable security arrangements to\nprevent unauthorised access, collection, use, disclosure, copying, modification,\ndisposal or similar risks.\nPart VIA — Notification of Data Breaches",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P7.4 query='data breach notification notify the commission data breach...'",
+        "indicator=P7-I4 query='data breach notification notify the commission data breach...'",
         "bm25_raw=5.866 normalised=0.259 provision=SG-7508aacd68#p2"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-4d0e597d86e9",
+      "mapping_id": "map-d2b759b15738",
       "economy": "SG",
       "pillar": 7,
-      "indicator_id": "P7.3",
-      "law_name": "MAS Notice 655 — Cyber Hygiene (Banks)",
-      "article_section": "Paragraph 4",
-      "verbatim_snippet": "Administrative accounts. A bank must ensure that every administrative\naccount in respect of any operating system, database, application, security appliance\nor network device is secured to prevent unauthorised access.",
-      "source_url": "https://www.mas.gov.sg/regulation/notices/notice-655",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.",
-      "confidence_score": 0.606,
-      "confidence_breakdown": {
-        "retrieval_score": 0.252,
-        "legal_match": 0.5,
-        "snippet_grounding": 1.0,
-        "scope_alignment": 0.95,
-        "final": 0.606,
-        "explanation": "0.25·ret(0.252) + 0.40·legal(0.5) + 0.20·ground(1.0) + 0.15·scope(0.95)"
-      },
-      "discovery_tag": "KNOWN",
-      "review_status": "pending_review",
-      "scope_flag": null,
-      "provision_id": "SG-e12721b531#p0",
-      "raw_context": "Administrative accounts. A bank must ensure that every administrative\naccount in respect of any operating system, database, application, security appliance\nor network device is secured to prevent unauthorised access.",
-      "ocr_metrics": {
-        "used": true,
-        "provider": "mock",
-        "mean_confidence": 0.94,
-        "pages": 1,
-        "chars": 1001,
-        "low_conf_pages": []
-      },
-      "model_version": "mock-grounded-grader-0.1",
-      "retrieval_log": [
-        "indicator=P7.3 query='security safeguards obligation reasonable security arrangements protect personal...'",
-        "bm25_raw=2.182 normalised=0.252 provision=SG-e12721b531#p0"
-      ],
-      "human_note": null
-    },
-    {
-      "mapping_id": "map-89b6e21a553a",
-      "economy": "SG",
-      "pillar": 7,
-      "indicator_id": "P7.2",
+      "indicator_id": "P7-I2",
       "law_name": "Personal Data Protection Act 2012 (Singapore)",
+      "law_number": "Act 26 of 2012",
+      "last_amended": "2021",
       "article_section": "Section 26",
+      "location_reference": "#sect26",
       "verbatim_snippet": "Transfer of personal data outside Singapore. An organisation shall not\ntransfer any personal data to a country or territory outside Singapore except in\naccordance with requirements prescribed under this Act to ensure that the transferred\npersonal data will be accorded a standard of protection that is comparable to the\nprotection under this Act.",
       "source_url": "https://sso.agc.gov.sg/Act/PDPA2012",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\pdpa.html",
+      "mapping_rationale": "This Section 26 prohibits consent / lawful basis for processing. Maps to P7-I2 because it uses binding obligation language matching the indicator's legal test.",
       "confidence_score": 0.603,
       "confidence_breakdown": {
         "retrieval_score": 0.242,
@@ -1143,35 +1199,40 @@
         "explanation": "0.25·ret(0.242) + 0.40·legal(0.5) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "pending_review",
       "scope_flag": null,
       "provision_id": "SG-7508aacd68#p4",
       "raw_context": "Transfer of personal data outside Singapore. An organisation shall not\ntransfer any personal data to a country or territory outside Singapore except in\naccordance with requirements prescribed under this Act to ensure that the transferred\npersonal data will be accorded a standard of protection that is comparable to the\nprotection under this Act.",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P7.2 query='consent lawful basis for processing consent of the...'",
+        "indicator=P7-I2 query='consent lawful basis for processing consent of the...'",
         "bm25_raw=2.912 normalised=0.242 provision=SG-7508aacd68#p4"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-18ab37025538",
+      "mapping_id": "map-189b8e43f554",
       "economy": "SG",
       "pillar": 6,
-      "indicator_id": "P6.2",
+      "indicator_id": "P6-I2",
       "law_name": "Personal Data Protection Act 2012 (Singapore)",
+      "law_number": "Act 26 of 2012",
+      "last_amended": "2021",
       "article_section": "Section 24",
+      "location_reference": "#sect24",
       "verbatim_snippet": "Protection of personal data. An organisation shall protect personal data\nin its possession or under its control by making reasonable security arrangements to\nprevent unauthorised access, collection, use, disclosure, copying, modification,\ndisposal or similar risks.\nPart VIA — Notification of Data Breaches",
       "source_url": "https://sso.agc.gov.sg/Act/PDPA2012",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\pdpa.html",
+      "mapping_rationale": "This Section 24 requires cross-border transfer — accountability / adequacy condition. Maps to P6-I2 because it uses binding obligation language matching the indicator's legal test.",
       "confidence_score": 0.568,
       "confidence_breakdown": {
         "retrieval_score": 0.103,
@@ -1182,35 +1243,40 @@
         "explanation": "0.25·ret(0.103) + 0.40·legal(0.5) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "quarantined",
       "scope_flag": null,
       "provision_id": "SG-7508aacd68#p2",
       "raw_context": "Protection of personal data. An organisation shall protect personal data\nin its possession or under its control by making reasonable security arrangements to\nprevent unauthorised access, collection, use, disclosure, copying, modification,\ndisposal or similar risks.\nPart VIA — Notification of Data Breaches",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P6.2 query='cross border transfer accountability adequacy condition comparable standard...'",
+        "indicator=P6-I2 query='cross border transfer accountability adequacy condition comparable standard...'",
         "bm25_raw=1.026 normalised=0.103 provision=SG-7508aacd68#p2"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-e60b261d584a",
+      "mapping_id": "map-8848adc5ed71",
       "economy": "SG",
       "pillar": 7,
-      "indicator_id": "P7.4",
+      "indicator_id": "P7-I4",
       "law_name": "Personal Data Protection Act 2012 (Singapore)",
+      "law_number": "Act 26 of 2012",
+      "last_amended": "2021",
       "article_section": "Section 13",
+      "location_reference": "#sect13",
       "verbatim_snippet": "Consent required. An organisation shall not, on or after the appointed\nday, collect, use or disclose personal data about an individual unless the individual\ngives, or is deemed to have given, his or her consent under this Act to the collection,\nuse or disclosure of the personal data.",
       "source_url": "https://sso.agc.gov.sg/Act/PDPA2012",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\pdpa.html",
+      "mapping_rationale": "This Section 13 prohibits data breach notification. Maps to P7-I4 because it uses binding obligation language matching the indicator's legal test.",
       "confidence_score": 0.567,
       "confidence_breakdown": {
         "retrieval_score": 0.098,
@@ -1221,35 +1287,40 @@
         "explanation": "0.25·ret(0.098) + 0.40·legal(0.5) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "quarantined",
       "scope_flag": null,
       "provision_id": "SG-7508aacd68#p0",
       "raw_context": "Consent required. An organisation shall not, on or after the appointed\nday, collect, use or disclose personal data about an individual unless the individual\ngives, or is deemed to have given, his or her consent under this Act to the collection,\nuse or disclosure of the personal data.",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P7.4 query='data breach notification notify the commission data breach...'",
+        "indicator=P7-I4 query='data breach notification notify the commission data breach...'",
         "bm25_raw=2.226 normalised=0.098 provision=SG-7508aacd68#p0"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-d80dd1bd104c",
+      "mapping_id": "map-6e8f14ebf570",
       "economy": "SG",
       "pillar": 7,
-      "indicator_id": "P7.4",
+      "indicator_id": "P7-I4",
       "law_name": "Personal Data Protection Act 2012 (Singapore)",
+      "law_number": "Act 26 of 2012",
+      "last_amended": "2021",
       "article_section": "Section 26",
+      "location_reference": "#sect26",
       "verbatim_snippet": "Transfer of personal data outside Singapore. An organisation shall not\ntransfer any personal data to a country or territory outside Singapore except in\naccordance with requirements prescribed under this Act to ensure that the transferred\npersonal data will be accorded a standard of protection that is comparable to the\nprotection under this Act.",
       "source_url": "https://sso.agc.gov.sg/Act/PDPA2012",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\pdpa.html",
+      "mapping_rationale": "This Section 26 prohibits data breach notification. Maps to P7-I4 because it uses binding obligation language matching the indicator's legal test.",
       "confidence_score": 0.566,
       "confidence_breakdown": {
         "retrieval_score": 0.096,
@@ -1260,35 +1331,40 @@
         "explanation": "0.25·ret(0.096) + 0.40·legal(0.5) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "quarantined",
       "scope_flag": null,
       "provision_id": "SG-7508aacd68#p4",
       "raw_context": "Transfer of personal data outside Singapore. An organisation shall not\ntransfer any personal data to a country or territory outside Singapore except in\naccordance with requirements prescribed under this Act to ensure that the transferred\npersonal data will be accorded a standard of protection that is comparable to the\nprotection under this Act.",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P7.4 query='data breach notification notify the commission data breach...'",
+        "indicator=P7-I4 query='data breach notification notify the commission data breach...'",
         "bm25_raw=2.165 normalised=0.096 provision=SG-7508aacd68#p4"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-620e9a6be16b",
+      "mapping_id": "map-c436765a74ab",
       "economy": "SG",
       "pillar": 7,
-      "indicator_id": "P7.3",
+      "indicator_id": "P7-I3",
       "law_name": "Personal Data Protection Act 2012 (Singapore)",
+      "law_number": "Act 26 of 2012",
+      "last_amended": "2021",
       "article_section": "Section 18",
+      "location_reference": "#sect18",
       "verbatim_snippet": "Purpose limitation. An organisation may collect, use or disclose\npersonal data about an individual only for purposes that a reasonable person would\nconsider appropriate in the circumstances.\nPart VI — Care of Personal Data",
       "source_url": "https://sso.agc.gov.sg/Act/PDPA2012",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. No clearly binding obligation detected. Not sufficient for a legal mapping.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\pdpa.html",
+      "mapping_rationale": "This Section 18 relates to security safeguards obligation but does not satisfy P7-I3: no binding rule of the required scope found in the snippet.",
       "confidence_score": 0.56,
       "confidence_breakdown": {
         "retrieval_score": 0.308,
@@ -1299,35 +1375,40 @@
         "explanation": "0.25·ret(0.308) + 0.40·legal(0.35) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "quarantined",
       "scope_flag": null,
       "provision_id": "SG-7508aacd68#p1",
       "raw_context": "Purpose limitation. An organisation may collect, use or disclose\npersonal data about an individual only for purposes that a reasonable person would\nconsider appropriate in the circumstances.\nPart VI — Care of Personal Data",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P7.3 query='security safeguards obligation reasonable security arrangements protect personal...'",
+        "indicator=P7-I3 query='security safeguards obligation reasonable security arrangements protect personal...'",
         "bm25_raw=2.667 normalised=0.308 provision=SG-7508aacd68#p1"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-b8318e2079ab",
+      "mapping_id": "map-2a9d8c9d54d5",
       "economy": "SG",
       "pillar": 6,
-      "indicator_id": "P6.2",
+      "indicator_id": "P6-I2",
       "law_name": "Personal Data Protection Act 2012 (Singapore)",
+      "law_number": "Act 26 of 2012",
+      "last_amended": "2021",
       "article_section": "Section 18",
+      "location_reference": "#sect18",
       "verbatim_snippet": "Purpose limitation. An organisation may collect, use or disclose\npersonal data about an individual only for purposes that a reasonable person would\nconsider appropriate in the circumstances.\nPart VI — Care of Personal Data",
       "source_url": "https://sso.agc.gov.sg/Act/PDPA2012",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. No clearly binding obligation detected. Not sufficient for a legal mapping.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\pdpa.html",
+      "mapping_rationale": "This Section 18 relates to cross-border transfer — accountability / adequacy condition but does not satisfy P6-I2: no binding rule of the required scope found in the snippet.",
       "confidence_score": 0.558,
       "confidence_breakdown": {
         "retrieval_score": 0.303,
@@ -1338,35 +1419,40 @@
         "explanation": "0.25·ret(0.303) + 0.40·legal(0.35) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "quarantined",
       "scope_flag": null,
       "provision_id": "SG-7508aacd68#p1",
       "raw_context": "Purpose limitation. An organisation may collect, use or disclose\npersonal data about an individual only for purposes that a reasonable person would\nconsider appropriate in the circumstances.\nPart VI — Care of Personal Data",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P6.2 query='cross border transfer accountability adequacy condition comparable standard...'",
+        "indicator=P6-I2 query='cross border transfer accountability adequacy condition comparable standard...'",
         "bm25_raw=3.018 normalised=0.303 provision=SG-7508aacd68#p1"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-f483ba1985ab",
+      "mapping_id": "map-6b2b4178170e",
       "economy": "SG",
       "pillar": 7,
-      "indicator_id": "P7.3",
+      "indicator_id": "P7-I3",
       "law_name": "MAS Notice 655 — Cyber Hygiene (Banks)",
+      "law_number": "MAS Notice 655",
+      "last_amended": "2019",
       "article_section": "Paragraph 6",
+      "location_reference": "p. 1",
       "verbatim_snippet": "Security standards. A bank must establish and implement written security\nstandards for every system, and must ensure that each system conforms to the security\nstandards.\n\nThis Notice applies only to the financial sector and does not constitute a national\ncybersecurity framework of general application.",
       "source_url": "https://www.mas.gov.sg/regulation/notices/notice-655",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. Binding obligation language present. Text is sector-specific; flagged as SECTORAL_NOT_NATIONAL against a national-scope indicator. Not sufficient for a legal mapping.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\mas_notice_655.pdf",
+      "mapping_rationale": "This Cyber Hygiene (Banks) — Paragraph 6 relates to security safeguards obligation but does not satisfy P7-I3: no binding rule of the required scope found in the snippet.",
       "confidence_score": 0.55,
       "confidence_breakdown": {
         "retrieval_score": 0.425,
@@ -1377,35 +1463,84 @@
         "explanation": "0.25·ret(0.425) + 0.40·legal(0.5) + 0.20·ground(1.0) + 0.15·scope(0.35)  [capped at 0.55 — SECTORAL_NOT_NATIONAL]"
       },
       "discovery_tag": "KNOWN",
+      "notes": "SECTORAL_NOT_NATIONAL: sectoral instrument — verify before treating as national. OCR-extracted via mock (mean conf 0.94); verify wording vs source.",
       "review_status": "quarantined",
       "scope_flag": "SECTORAL_NOT_NATIONAL",
       "provision_id": "SG-e12721b531#p2",
       "raw_context": "Security standards. A bank must establish and implement written security\nstandards for every system, and must ensure that each system conforms to the security\nstandards.\n\nThis Notice applies only to the financial sector and does not constitute a national\ncybersecurity framework of general application.",
-      "ocr_metrics": {
-        "used": true,
+      "ocr_quality": {
         "provider": "mock",
+        "used": true,
         "mean_confidence": 0.94,
+        "cer": null,
         "pages": 1,
-        "chars": 1001,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P7.3 query='security safeguards obligation reasonable security arrangements protect personal...'",
+        "indicator=P7-I3 query='security safeguards obligation reasonable security arrangements protect personal...'",
         "bm25_raw=3.685 normalised=0.425 provision=SG-e12721b531#p2"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-76fdb0a6f702",
+      "mapping_id": "map-5b2afad95c4f",
       "economy": "SG",
       "pillar": 7,
-      "indicator_id": "P7.5",
+      "indicator_id": "P7-I3",
       "law_name": "MAS Notice 655 — Cyber Hygiene (Banks)",
+      "law_number": "MAS Notice 655",
+      "last_amended": "2019",
+      "article_section": "Paragraph 5",
+      "location_reference": "p. 1",
+      "verbatim_snippet": "Security patches. A bank must apply security patches to address security\nvulnerabilities in every system in a timely manner.",
+      "source_url": "https://www.mas.gov.sg/regulation/notices/notice-655",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\mas_notice_655.pdf",
+      "mapping_rationale": "This Cyber Hygiene (Banks) — Paragraph 5 relates to security safeguards obligation but does not satisfy P7-I3: no binding rule of the required scope found in the snippet.",
+      "confidence_score": 0.55,
+      "confidence_breakdown": {
+        "retrieval_score": 0.416,
+        "legal_match": 0.5,
+        "snippet_grounding": 1.0,
+        "scope_alignment": 0.35,
+        "final": 0.55,
+        "explanation": "0.25·ret(0.416) + 0.40·legal(0.5) + 0.20·ground(1.0) + 0.15·scope(0.35)  [capped at 0.55 — SECTORAL_NOT_NATIONAL]"
+      },
+      "discovery_tag": "KNOWN",
+      "notes": "SECTORAL_NOT_NATIONAL: sectoral instrument — verify before treating as national. OCR-extracted via mock (mean conf 0.94); verify wording vs source.",
+      "review_status": "quarantined",
+      "scope_flag": "SECTORAL_NOT_NATIONAL",
+      "provision_id": "SG-e12721b531#p1",
+      "raw_context": "Security patches. A bank must apply security patches to address security\nvulnerabilities in every system in a timely manner.",
+      "ocr_quality": {
+        "provider": "mock",
+        "used": true,
+        "mean_confidence": 0.94,
+        "cer": null,
+        "pages": 1,
+        "low_conf_pages": []
+      },
+      "model_version": "mock-grounded-grader-0.1",
+      "retrieval_log": [
+        "indicator=P7-I3 query='security safeguards obligation reasonable security arrangements protect personal...'",
+        "bm25_raw=3.607 normalised=0.416 provision=SG-e12721b531#p1"
+      ],
+      "human_note": null
+    },
+    {
+      "mapping_id": "map-91c2ac233d22",
+      "economy": "SG",
+      "pillar": 7,
+      "indicator_id": "P7-I5",
+      "law_name": "MAS Notice 655 — Cyber Hygiene (Banks)",
+      "law_number": "MAS Notice 655",
+      "last_amended": "2019",
       "article_section": "Paragraph 6",
+      "location_reference": "p. 1",
       "verbatim_snippet": "Security standards. A bank must establish and implement written security\nstandards for every system, and must ensure that each system conforms to the security\nstandards.\n\nThis Notice applies only to the financial sector and does not constitute a national\ncybersecurity framework of general application.",
       "source_url": "https://www.mas.gov.sg/regulation/notices/notice-655",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. Binding obligation language present. Text is sector-specific; flagged as SECTORAL_NOT_NATIONAL against a national-scope indicator. Not sufficient for a legal mapping.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\mas_notice_655.pdf",
+      "mapping_rationale": "This Cyber Hygiene (Banks) — Paragraph 6 relates to national cybersecurity framework but does not satisfy P7-I5: no binding rule of the required scope found in the snippet.",
       "confidence_score": 0.55,
       "confidence_breakdown": {
         "retrieval_score": 0.674,
@@ -1416,35 +1551,40 @@
         "explanation": "0.25·ret(0.674) + 0.40·legal(0.5) + 0.20·ground(1.0) + 0.15·scope(0.35)  [capped at 0.55 — SECTORAL_NOT_NATIONAL]"
       },
       "discovery_tag": "KNOWN",
+      "notes": "SECTORAL_NOT_NATIONAL: sectoral instrument — verify before treating as national. OCR-extracted via mock (mean conf 0.94); verify wording vs source.",
       "review_status": "quarantined",
       "scope_flag": "SECTORAL_NOT_NATIONAL",
       "provision_id": "SG-e12721b531#p2",
       "raw_context": "Security standards. A bank must establish and implement written security\nstandards for every system, and must ensure that each system conforms to the security\nstandards.\n\nThis Notice applies only to the financial sector and does not constitute a national\ncybersecurity framework of general application.",
-      "ocr_metrics": {
-        "used": true,
+      "ocr_quality": {
         "provider": "mock",
+        "used": true,
         "mean_confidence": 0.94,
+        "cer": null,
         "pages": 1,
-        "chars": 1001,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P7.5 query='national cybersecurity framework cybersecurity act critical information infrastructure...'",
+        "indicator=P7-I5 query='national cybersecurity framework cybersecurity act critical information infrastructure...'",
         "bm25_raw=5.804 normalised=0.674 provision=SG-e12721b531#p2"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-675695b8d031",
+      "mapping_id": "map-450d4b91a10e",
       "economy": "SG",
       "pillar": 6,
-      "indicator_id": "P6.1",
+      "indicator_id": "P6-I1",
       "law_name": "Personal Data Protection Act 2012 (Singapore)",
+      "law_number": "Act 26 of 2012",
+      "last_amended": "2021",
       "article_section": "Section 18",
+      "location_reference": "#sect18",
       "verbatim_snippet": "Purpose limitation. An organisation may collect, use or disclose\npersonal data about an individual only for purposes that a reasonable person would\nconsider appropriate in the circumstances.\nPart VI — Care of Personal Data",
       "source_url": "https://sso.agc.gov.sg/Act/PDPA2012",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. No clearly binding obligation detected. Not sufficient for a legal mapping.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\pdpa.html",
+      "mapping_rationale": "This Section 18 relates to cross-border data transfer — general permission but does not satisfy P6-I1: no binding rule of the required scope found in the snippet.",
       "confidence_score": 0.541,
       "confidence_breakdown": {
         "retrieval_score": 0.233,
@@ -1455,35 +1595,40 @@
         "explanation": "0.25·ret(0.233) + 0.40·legal(0.35) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "quarantined",
       "scope_flag": null,
       "provision_id": "SG-7508aacd68#p1",
       "raw_context": "Purpose limitation. An organisation may collect, use or disclose\npersonal data about an individual only for purposes that a reasonable person would\nconsider appropriate in the circumstances.\nPart VI — Care of Personal Data",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P6.1 query='cross border data transfer general permission transfer of...'",
+        "indicator=P6-I1 query='cross border data transfer general permission transfer of...'",
         "bm25_raw=2.411 normalised=0.233 provision=SG-7508aacd68#p1"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-4cf0c6d6a3f1",
+      "mapping_id": "map-a734ea1afbd8",
       "economy": "SG",
       "pillar": 7,
-      "indicator_id": "P7.2",
+      "indicator_id": "P7-I2",
       "law_name": "Cybersecurity Act 2018 (Singapore)",
+      "law_number": "Act 9 of 2018",
+      "last_amended": "2018",
       "article_section": "Section 7",
+      "location_reference": "#sect7",
       "verbatim_snippet": "Designation of critical information infrastructure. The Commissioner may, by\nwritten notice, designate a computer or computer system as a critical information\ninfrastructure for the purposes of this Act if the Commissioner is satisfied that the\ncomputer or computer system is necessary for the continuous delivery of an essential\nservice, and the loss or compromise of the computer or computer system will have a\ndebilitating effect on the availability of the essential service in Singapore.",
       "source_url": "https://sso.agc.gov.sg/Act/CA2018",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. No clearly binding obligation detected. Not sufficient for a legal mapping.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\cybersecurity_act.txt",
+      "mapping_rationale": "This Section 7 relates to consent / lawful basis for processing but does not satisfy P7-I2: no binding rule of the required scope found in the snippet.",
       "confidence_score": 0.522,
       "confidence_breakdown": {
         "retrieval_score": 0.156,
@@ -1494,35 +1639,84 @@
         "explanation": "0.25·ret(0.156) + 0.40·legal(0.35) + 0.20·ground(1.0) + 0.15·scope(0.95)"
       },
       "discovery_tag": "KNOWN",
+      "notes": null,
       "review_status": "quarantined",
       "scope_flag": null,
       "provision_id": "SG-e822d34028#p0",
       "raw_context": "Designation of critical information infrastructure. The Commissioner may, by\nwritten notice, designate a computer or computer system as a critical information\ninfrastructure for the purposes of this Act if the Commissioner is satisfied that the\ncomputer or computer system is necessary for the continuous delivery of an essential\nservice, and the loss or compromise of the computer or computer system will have a\ndebilitating effect on the availability of the essential service in Singapore.",
-      "ocr_metrics": {
-        "used": false,
+      "ocr_quality": {
         "provider": "none",
+        "used": false,
         "mean_confidence": null,
+        "cer": null,
         "pages": 0,
-        "chars": 0,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P7.2 query='consent lawful basis for processing consent of the...'",
+        "indicator=P7-I2 query='consent lawful basis for processing consent of the...'",
         "bm25_raw=1.877 normalised=0.156 provision=SG-e822d34028#p0"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-bf09a17b7388",
+      "mapping_id": "map-5507503c5d72",
+      "economy": "SG",
+      "pillar": 7,
+      "indicator_id": "P7-I3",
+      "law_name": "MAS Notice 655 — Cyber Hygiene (Banks)",
+      "law_number": "MAS Notice 655",
+      "last_amended": "2019",
+      "article_section": "Paragraph 4",
+      "location_reference": "p. 1",
+      "verbatim_snippet": "Administrative accounts. A bank must ensure that every administrative\naccount in respect of any operating system, database, application, security appliance\nor network device is secured to prevent unauthorised access.",
+      "source_url": "https://www.mas.gov.sg/regulation/notices/notice-655",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\mas_notice_655.pdf",
+      "mapping_rationale": "This Cyber Hygiene (Banks) — Paragraph 4 relates to security safeguards obligation but does not satisfy P7-I3: no binding rule of the required scope found in the snippet.",
+      "confidence_score": 0.516,
+      "confidence_breakdown": {
+        "retrieval_score": 0.252,
+        "legal_match": 0.5,
+        "snippet_grounding": 1.0,
+        "scope_alignment": 0.35,
+        "final": 0.516,
+        "explanation": "0.25·ret(0.252) + 0.40·legal(0.5) + 0.20·ground(1.0) + 0.15·scope(0.35)  [capped at 0.55 — SECTORAL_NOT_NATIONAL]"
+      },
+      "discovery_tag": "KNOWN",
+      "notes": "SECTORAL_NOT_NATIONAL: sectoral instrument — verify before treating as national. OCR-extracted via mock (mean conf 0.94); verify wording vs source.",
+      "review_status": "quarantined",
+      "scope_flag": "SECTORAL_NOT_NATIONAL",
+      "provision_id": "SG-e12721b531#p0",
+      "raw_context": "Administrative accounts. A bank must ensure that every administrative\naccount in respect of any operating system, database, application, security appliance\nor network device is secured to prevent unauthorised access.",
+      "ocr_quality": {
+        "provider": "mock",
+        "used": true,
+        "mean_confidence": 0.94,
+        "cer": null,
+        "pages": 1,
+        "low_conf_pages": []
+      },
+      "model_version": "mock-grounded-grader-0.1",
+      "retrieval_log": [
+        "indicator=P7-I3 query='security safeguards obligation reasonable security arrangements protect personal...'",
+        "bm25_raw=2.182 normalised=0.252 provision=SG-e12721b531#p0"
+      ],
+      "human_note": null
+    },
+    {
+      "mapping_id": "map-d822de6fab64",
       "economy": "SG",
       "pillar": 6,
-      "indicator_id": "P6.1",
+      "indicator_id": "P6-I1",
       "law_name": "MAS Notice 655 — Cyber Hygiene (Banks)",
+      "law_number": "MAS Notice 655",
+      "last_amended": "2019",
       "article_section": "Paragraph 6",
+      "location_reference": "p. 1",
       "verbatim_snippet": "Security standards. A bank must establish and implement written security\nstandards for every system, and must ensure that each system conforms to the security\nstandards.\n\nThis Notice applies only to the financial sector and does not constitute a national\ncybersecurity framework of general application.",
       "source_url": "https://www.mas.gov.sg/regulation/notices/notice-655",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. Binding obligation language present. Text is sector-specific; flagged as SECTORAL_NOT_NATIONAL against a national-scope indicator. Not sufficient for a legal mapping.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\mas_notice_655.pdf",
+      "mapping_rationale": "This Cyber Hygiene (Banks) — Paragraph 6 relates to cross-border data transfer — general permission but does not satisfy P6-I1: no binding rule of the required scope found in the snippet.",
       "confidence_score": 0.511,
       "confidence_breakdown": {
         "retrieval_score": 0.234,
@@ -1533,35 +1727,40 @@
         "explanation": "0.25·ret(0.234) + 0.40·legal(0.5) + 0.20·ground(1.0) + 0.15·scope(0.35)  [capped at 0.55 — SECTORAL_NOT_NATIONAL]"
       },
       "discovery_tag": "KNOWN",
+      "notes": "SECTORAL_NOT_NATIONAL: sectoral instrument — verify before treating as national. OCR-extracted via mock (mean conf 0.94); verify wording vs source.",
       "review_status": "quarantined",
       "scope_flag": "SECTORAL_NOT_NATIONAL",
       "provision_id": "SG-e12721b531#p2",
       "raw_context": "Security standards. A bank must establish and implement written security\nstandards for every system, and must ensure that each system conforms to the security\nstandards.\n\nThis Notice applies only to the financial sector and does not constitute a national\ncybersecurity framework of general application.",
-      "ocr_metrics": {
-        "used": true,
+      "ocr_quality": {
         "provider": "mock",
+        "used": true,
         "mean_confidence": 0.94,
+        "cer": null,
         "pages": 1,
-        "chars": 1001,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P6.1 query='cross border data transfer general permission transfer of...'",
+        "indicator=P6-I1 query='cross border data transfer general permission transfer of...'",
         "bm25_raw=2.42 normalised=0.234 provision=SG-e12721b531#p2"
       ],
       "human_note": null
     },
     {
-      "mapping_id": "map-d853eb6e25c7",
+      "mapping_id": "map-9d3a49d868f7",
       "economy": "SG",
       "pillar": 7,
-      "indicator_id": "P7.2",
+      "indicator_id": "P7-I2",
       "law_name": "MAS Notice 655 — Cyber Hygiene (Banks)",
+      "law_number": "MAS Notice 655",
+      "last_amended": "2019",
       "article_section": "Paragraph 6",
+      "location_reference": "p. 1",
       "verbatim_snippet": "Security standards. A bank must establish and implement written security\nstandards for every system, and must ensure that each system conforms to the security\nstandards.\n\nThis Notice applies only to the financial sector and does not constitute a national\ncybersecurity framework of general application.",
       "source_url": "https://www.mas.gov.sg/regulation/notices/notice-655",
-      "mapping_rationale": "No indicator-specific legal language found in the snippet. Binding obligation language present. Text is sector-specific; flagged as SECTORAL_NOT_NATIONAL against a national-scope indicator. Not sufficient for a legal mapping.",
+      "source_pdf_path": "D:\\FTU vibe code\\VeriTrade\\law v2.0\\data\\samples\\SG\\mas_notice_655.pdf",
+      "mapping_rationale": "This Cyber Hygiene (Banks) — Paragraph 6 relates to consent / lawful basis for processing but does not satisfy P7-I2: no binding rule of the required scope found in the snippet.",
       "confidence_score": 0.5,
       "confidence_breakdown": {
         "retrieval_score": 0.188,
@@ -1572,21 +1771,22 @@
         "explanation": "0.25·ret(0.188) + 0.40·legal(0.5) + 0.20·ground(1.0) + 0.15·scope(0.35)  [capped at 0.55 — SECTORAL_NOT_NATIONAL]"
       },
       "discovery_tag": "KNOWN",
+      "notes": "SECTORAL_NOT_NATIONAL: sectoral instrument — verify before treating as national. OCR-extracted via mock (mean conf 0.94); verify wording vs source.",
       "review_status": "quarantined",
       "scope_flag": "SECTORAL_NOT_NATIONAL",
       "provision_id": "SG-e12721b531#p2",
       "raw_context": "Security standards. A bank must establish and implement written security\nstandards for every system, and must ensure that each system conforms to the security\nstandards.\n\nThis Notice applies only to the financial sector and does not constitute a national\ncybersecurity framework of general application.",
-      "ocr_metrics": {
-        "used": true,
+      "ocr_quality": {
         "provider": "mock",
+        "used": true,
         "mean_confidence": 0.94,
+        "cer": null,
         "pages": 1,
-        "chars": 1001,
         "low_conf_pages": []
       },
       "model_version": "mock-grounded-grader-0.1",
       "retrieval_log": [
-        "indicator=P7.2 query='consent lawful basis for processing consent of the...'",
+        "indicator=P7-I2 query='consent lawful basis for processing consent of the...'",
         "bm25_raw=2.262 normalised=0.188 provision=SG-e12721b531#p2"
       ],
       "human_note": null

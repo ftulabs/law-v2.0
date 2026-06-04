@@ -70,10 +70,17 @@ uvicorn backend.main:app --reload
 
 ## Outputs
 
-- **CSV** (`outputs/*.csv`) — for legal/policy reviewers. Verbatim wording preserved.
-- **JSON** (`outputs/*.json`) — for technical reviewers. Timings, OCR metrics, raw context, retrieval logs, model versions.
+- **CSV** (`outputs/*.csv`) — the **official RDTII submission format**: exact template
+  columns/order, Economy as the UN name, `Indicator ID` as `P6-I1`, year-only
+  `Last Amended`, 2-dp `Confidence`, verbatim snippets preserved. Rejected/quarantined
+  rows are excluded by default (a sectoral mis-map never enters a national submission).
+- **JSON** (`outputs/*.json`) — for technical reviewers: timings, OCR quality, raw
+  context, retrieval logs, model versions, confidence breakdown, `source_pdf_path`.
 
-Schemas: [docs/ARCHITECTURE.md#data-schemas](docs/ARCHITECTURE.md#data-schemas).
+Schemas: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#4-csv-schema--official-submission-template-policy-judge).
+
+> **Submission note:** the bundled RDTII indicator codes are illustrative — confirm each
+> `Indicator ID` against the official RDTII 2.1 codebook before submitting.
 
 ## Modularity — pick your engines
 

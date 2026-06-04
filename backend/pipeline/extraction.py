@@ -33,8 +33,20 @@ def _law_name(doc: DiscoveredDoc) -> str:
     return doc.title.strip()
 
 
+def _location_ref(ocr: OCRMetrics, start: int, total_len: int, label: str) -> str:
+    """Template 'Location Reference': PDF → page number; HTML/text → URL anchor/path."""
+    if ocr.used and ocr.pages:
+        page = min(ocr.pages, max(1, int(start / max(total_len, 1) * ocr.pages) + 1))
+        return f"p. {page}"
+    # HTML/text → an anchor-style ref (e.g. "Section 26D" -> "#sec26D")
+    num = re.search(r"\d+[A-Za-z]?", label)
+    prefix = re.sub(r"[^a-z]", "", label.split()[0].lower())[:4] if label.split() else "s"
+    return f"#{prefix}{num.group(0)}" if num else label
+
+
 def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> list[Provision]:
     text = raw_text or ""
+    total = len(text)
     matches = list(SECTION_RE.finditer(text))
     provisions: list[Provision] = []
 
@@ -42,7 +54,8 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
         # whole-doc fallback: still emit one provision so nothing is silently dropped
         snippet = text.strip()[:MAX_SNIPPET]
         if snippet:
-            provisions.append(_mk(doc, "(document)", snippet, (0, len(snippet)), ocr, 0))
+            loc = _location_ref(ocr, 0, total, "(document)")
+            provisions.append(_mk(doc, "(document)", snippet, (0, len(snippet)), loc, ocr, 0))
         return provisions
 
     for i, m in enumerate(matches):
@@ -53,7 +66,9 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
         if not body:
             continue
         snippet = body[:MAX_SNIPPET]
-        provisions.append(_mk(doc, _normalise_label(label), snippet, (start, start + len(snippet)), ocr, i))
+        norm = _normalise_label(label)
+        loc = _location_ref(ocr, start, total, norm)
+        provisions.append(_mk(doc, norm, snippet, (start, start + len(snippet)), loc, ocr, i))
     return provisions
 
 
@@ -62,16 +77,19 @@ def _normalise_label(label: str) -> str:
     return label[:1].upper() + label[1:]
 
 
-def _mk(doc: DiscoveredDoc, label: str, snippet: str, span, ocr: OCRMetrics, idx: int) -> Provision:
+def _mk(doc: DiscoveredDoc, label: str, snippet: str, span, location_ref: str, ocr: OCRMetrics, idx: int) -> Provision:
     return Provision(
         provision_id=f"{doc.doc_id}#p{idx}",
         doc_id=doc.doc_id,
         economy=doc.economy,
         law_name=_law_name(doc),
+        law_number=doc.law_number,
         article_section=label,
         verbatim_snippet=snippet,
         source_url=doc.source_url,
         amendment_date=doc.amendment_date,
+        location_ref=location_ref,
+        source_pdf_path=doc.local_path,
         char_span=span,
         ocr=ocr,
     )

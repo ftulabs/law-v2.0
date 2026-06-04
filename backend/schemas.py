@@ -20,6 +20,11 @@ class Economy(str, Enum):
     MY = "MY"   # Malaysia
 
 
+# Official UN member-state names required by the submission template
+# (https://www.unescap.org/about/member-states). The CSV must use these, not codes.
+ECONOMY_UN_NAME = {"SG": "Singapore", "AU": "Australia", "MY": "Malaysia"}
+
+
 class DiscoveryTag(str, Enum):
     KNOWN = "KNOWN"   # in the provided sample/reference dataset
     NEW = "NEW"       # surfaced by the crawler, outside the sample set
@@ -73,6 +78,7 @@ class DiscoveredDoc(BaseModel):
     relevance_score: float = 0.0
     discovery_tag: DiscoveryTag = DiscoveryTag.NEW
     amendment_date: Optional[str] = None        # ISO date if detectable
+    law_number: Optional[str] = None            # official act/law number, e.g. "Act 709"
     local_path: Optional[str] = None            # cached file
     raw_text: Optional[str] = None              # filled by extraction
 
@@ -93,10 +99,13 @@ class Provision(BaseModel):
     doc_id: str
     economy: Economy
     law_name: str
+    law_number: Optional[str] = None            # official act/law number
     article_section: str                        # e.g. "Section 26" / "Art. 13"
     verbatim_snippet: str                       # EXACT wording — never paraphrased
     source_url: str
     amendment_date: Optional[str] = None
+    location_ref: Optional[str] = None          # "p. 14" (PDF) or "§ Section 26" (HTML)
+    source_pdf_path: Optional[str] = None        # local retrieved file (JSON/audit only)
     char_span: Optional[tuple[int, int]] = None # offsets into raw_text for audit
     ocr: OCRMetrics = Field(default_factory=OCRMetrics)
 
@@ -119,16 +128,21 @@ class EvidenceMapping(BaseModel):
     pillar: int
     indicator_id: str
     law_name: str
+    law_number: Optional[str] = None
+    last_amended: Optional[str] = None          # YEAR only, per template
     article_section: str
+    location_ref: Optional[str] = None
     verbatim_snippet: str
     source_url: str
     mapping_rationale: str
     confidence_score: float
     discovery_tag: DiscoveryTag
+    notes: Optional[str] = None                 # OCR/scope/bilingual flags
     review_status: ReviewStatus
 
     # technical / audit extras (JSON export, not CSV)
     provision_id: str
+    source_pdf_path: Optional[str] = None         # local retrieved file
     raw_context: str = ""                         # retrieval window the LLM actually saw
     confidence: ConfidenceBreakdown = Field(default_factory=ConfidenceBreakdown)
     ocr: OCRMetrics = Field(default_factory=OCRMetrics)
@@ -160,17 +174,23 @@ class RunResult(BaseModel):
     mappings: list[EvidenceMapping] = Field(default_factory=list)
 
 
-# CSV column order (legal/policy reviewers) — verbatim wording preserved
-CSV_COLUMNS = [
-    "economy",
-    "pillar",
-    "indicator_id",
-    "law_name",
-    "article_section",
-    "verbatim_snippet",
-    "source_url",
-    "mapping_rationale",
-    "confidence_score",
-    "discovery_tag",
-    "review_status",
+# OFFICIAL submission columns — must match the hackathon template EXACTLY
+# (name + order). Judges validate programmatically, so do not rename or reorder.
+SUBMISSION_COLUMNS = [
+    "Economy",
+    "Law Name",
+    "Law Number / Ref",
+    "Last Amended",
+    "Indicator ID",
+    "Article / Section",
+    "Discovery Tag",
+    "Location Reference",
+    "Verbatim Snippet",
+    "Mapping Rationale",
+    "Source URL",
+    "Confidence",
+    "Notes",
 ]
+
+# Statuses that belong in a submission (exclude rejected/quarantined by default)
+SUBMITTABLE_STATUSES = {"auto_accepted", "approved", "corrected", "pending_review"}
