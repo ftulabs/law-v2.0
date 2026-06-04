@@ -12,37 +12,62 @@ import hashlib
 
 from ..providers import get_llm_provider
 from ..providers.llm_base import LLMProvider
-from ..rdtii import get_indicator
+from ..rdtii import get_indicator, siblings
 from ..schemas import DiscoveryTag, EvidenceMapping, Provision
 from . import confidence
 from .retrieval import retrieve
 
 SYSTEM = (
-    "You are a legal evidence grader for the UNESCAP RDTII framework. You assess "
-    "whether a single statutory provision satisfies a specific indicator's LEGAL "
-    "TEST. Rules: (1) Judge ONLY the provided snippet — never rely on outside "
-    "knowledge of the law. (2) Distinguish legal relevance (a binding rule of the "
-    "right scope) from mere topical/semantic relevance. (3) If the snippet is "
-    "sector-specific but the indicator is national in scope, set scope_flag to "
-    "'SECTORAL_NOT_NATIONAL' and lower scope_alignment. (4) Never assert a legal "
-    "conclusion the snippet does not support. (5) Write 'rationale' in EXACTLY this "
-    "format, max 300 characters: 'This [article/section] [prohibits/requires/permits/"
-    "establishes] [what]. Maps to [indicator] because [one-sentence legal logic].' "
-    "Name the legal mechanism; do not paraphrase the snippet. Respond with a JSON "
-    "object: {relevant:bool, legal_match:0..1, scope_alignment:0..1, scope_flag:str|null, "
-    "rationale:str}."
+    "You are a legal evidence grader for the UNESCAP RDTII 2.1 framework. You decide "
+    "whether ONE statutory provision satisfies a SPECIFIC target indicator's legal "
+    "test — and, crucially, whether a SIBLING indicator in the same pillar fits "
+    "BETTER. These indicators are deliberately close (e.g. a default cross-border "
+    "RESTRICTION vs the consent/adequacy/contract EXCEPTIONS; a basis-to-process duty "
+    "vs a purpose-limitation duty vs individual rights), so misclassification is the "
+    "main risk.\n\n"
+    "Rules:\n"
+    "(1) Judge ONLY the provided snippet — never rely on outside knowledge of the law.\n"
+    "(2) Identify the provision's OPERATIVE legal rule (what it actually does), then "
+    "match that rule to the indicator whose legal_test it best satisfies.\n"
+    "(3) Compare the TARGET indicator against every sibling listed. Set "
+    "best_fit_indicator to the single indicator id that fits best. If that is NOT the "
+    "target, set relevant=false (the provision will be mapped under the better sibling "
+    "on its own pass).\n"
+    "(4) 'legal_match' (0..1) = how strongly the OPERATIVE rule satisfies the TARGET "
+    "indicator's legal_test, not mere topical overlap.\n"
+    "(5) If the instrument is sector-specific (e.g. a financial-sector notice) while "
+    "the indicator is national in scope, set scope_flag='SECTORAL_NOT_NATIONAL' and "
+    "lower scope_alignment.\n"
+    "(6) Never assert a legal conclusion the snippet does not support.\n"
+    "(7) Write 'rationale' in EXACTLY this format, max 300 chars: 'This "
+    "[article/section] [prohibits/requires/permits/establishes] [what]. Maps to "
+    "[indicator] because [one-sentence legal logic].' Name the legal mechanism; do not "
+    "paraphrase the snippet.\n\n"
+    "Respond with ONLY a JSON object: {relevant:bool, best_fit_indicator:str, "
+    "legal_match:0..1, scope_alignment:0..1, scope_flag:str|null, rationale:str}."
 )
+
+
+def _siblings_block(ind) -> str:
+    lines = []
+    for s in siblings(ind.indicator_id):
+        terms = " | ".join(s.query_terms[:4])
+        lines.append(f"{s.indicator_id} :: {s.title} — {s.description} :: {terms}")
+    return "\n".join(lines)
 
 
 def _user_prompt(ind, prov: Provision) -> str:
     return (
-        f"<INDICATOR>{ind.indicator_id} — {ind.title}</INDICATOR>\n"
+        f"<TARGET_INDICATOR>{ind.indicator_id} — {ind.title}</TARGET_INDICATOR>\n"
+        f"<INDICATOR_QUESTION>{ind.description}</INDICATOR_QUESTION>\n"
         f"<INDICATOR_SCOPE>{ind.scope}</INDICATOR_SCOPE>\n"
         f"<LEGAL_TEST>{ind.legal_test}</LEGAL_TEST>\n"
         f"<QUERY_TERMS>{' | '.join(ind.query_terms)}</QUERY_TERMS>\n"
+        f"<SIBLINGS>\n{_siblings_block(ind)}\n</SIBLINGS>\n"
         f"<LAW>{prov.law_name} — {prov.article_section}</LAW>\n"
         f"<SNIPPET>{prov.verbatim_snippet}</SNIPPET>\n"
-        "Grade this provision against the indicator. Return the JSON object only."
+        "Pick the best-fitting indicator, then grade the provision against the TARGET. "
+        "Return the JSON object only."
     )
 
 
@@ -53,8 +78,11 @@ def _build_notes(prov: Provision, scope_flag: str | None) -> str | None:
         parts.append(f"{scope_flag}: sectoral instrument — verify before treating as national.")
     if prov.ocr.used:
         mc = prov.ocr.mean_confidence
-        parts.append(f"OCR-extracted via {prov.ocr.provider}"
-                     + (f" (mean conf {mc:.2f})" if mc is not None else "") + "; verify wording vs source.")
+        if prov.ocr.provider == "markitdown":
+            parts.append("Text extracted from PDF via MarkItDown; verify wording vs source.")
+        else:
+            parts.append(f"OCR-extracted via {prov.ocr.provider}"
+                         + (f" (mean conf {mc:.2f})" if mc is not None else "") + "; verify wording vs source.")
     return " ".join(parts) or None
 
 
@@ -85,6 +113,11 @@ def map_provisions(
                 continue
             prov = r.provision
             graded = llm.complete_json(SYSTEM, _user_prompt(ind, prov))
+
+            # disambiguation: drop the pairing if the model judged a sibling a better
+            # fit (it will be mapped under that sibling on its own pass)
+            if not graded.get("relevant", True):
+                continue
 
             legal_match = float(graded.get("legal_match", 0.0) or 0.0)
             scope_alignment = float(graded.get("scope_alignment", 0.0) or 0.0)

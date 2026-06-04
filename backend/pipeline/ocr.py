@@ -53,24 +53,32 @@ def get_document_text(doc: DiscoveredDoc, ocr_provider: OCRProvider | None = Non
         text = Path(path).read_text(encoding="utf-8", errors="ignore") if path and Path(path).exists() else (doc.raw_text or "")
         return text, metrics
 
-    if fmt == DocFormat.PDF_TEXT and path:
-        text = _pdf_text_layer(path)
-        if len(text.strip()) >= 200:
-            return text, metrics
-        # text layer too thin → treat as scanned
-        fmt = DocFormat.PDF_SCANNED
-
-    if fmt == DocFormat.PDF_SCANNED and path:
+    if fmt in (DocFormat.PDF_TEXT, DocFormat.PDF_SCANNED) and path:
         provider = ocr_provider or get_ocr_provider(settings.ocr_provider)
-        result = provider.ocr_pdf(path)
-        metrics = OCRMetrics(
-            used=True,
-            provider=result.provider,
-            mean_confidence=result.mean_confidence,
-            pages=len(result.pages),
-            chars=len(result.text),
-            low_conf_pages=result.low_conf_pages,
-        )
-        return result.text, metrics
+        is_markitdown = getattr(provider, "name", "") == "markitdown"
+
+        # MarkItDown is the default extraction engine: use it for ALL PDFs. For real
+        # OCR engines (tesseract/azure), prefer a clean text layer and only OCR when
+        # the layer is thin (genuinely scanned).
+        if fmt == DocFormat.PDF_TEXT and not is_markitdown:
+            text = _pdf_text_layer(path)
+            if len(text.strip()) >= 200:
+                return text, metrics
+            # fall through → scanned, run OCR
+
+        return _run_provider(provider, path)
 
     return doc.raw_text or "", metrics
+
+
+def _run_provider(provider, path: str) -> tuple[str, OCRMetrics]:
+    result = provider.ocr_pdf(path)
+    metrics = OCRMetrics(
+        used=True,
+        provider=result.provider,
+        mean_confidence=result.mean_confidence,
+        pages=len(result.pages),
+        chars=len(result.text),
+        low_conf_pages=result.low_conf_pages,
+    )
+    return result.text, metrics

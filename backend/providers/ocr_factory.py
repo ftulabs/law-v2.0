@@ -53,7 +53,10 @@ def get_ocr_provider(name: str | None = None, azure_endpoint: str | None = None,
                      azure_key: str | None = None) -> OCRProvider:
     """Azure endpoint/key can be overridden at runtime (dashboard) — other providers
     read their settings (tesseract path, poppler) from `.env`."""
-    name = (name or settings.ocr_provider or "mock").lower()
+    name = (name or settings.ocr_provider or "markitdown").lower()
+    if name == "markitdown":
+        from .ocr_markitdown import MarkItDownOCR
+        return MarkItDownOCR(settings.azure_vision_endpoint)
     if name == "mock":
         return MockOCR()
     if name == "tesseract":

@@ -30,28 +30,54 @@ class MockLLM(LLMProvider):
     def complete_json(self, system: str, user: str) -> dict[str, Any]:
         # The mapper packs a compact, parseable block into `user`. We read it back
         # rather than free-text parse, keeping the mock deterministic.
-        snippet_raw = _between(user, "<SNIPPET>", "</SNIPPET>")
-        snippet = snippet_raw.lower()
-        legal_test = _between(user, "<LEGAL_TEST>", "</LEGAL_TEST>").lower()
-        terms = [t.strip().lower() for t in _between(user, "<QUERY_TERMS>", "</QUERY_TERMS>").split("|") if t.strip()]
+        snippet = _between(user, "<SNIPPET>", "</SNIPPET>").lower()
+        terms = _split_terms(_between(user, "<QUERY_TERMS>", "</QUERY_TERMS>"))
         indicator_scope = _between(user, "<INDICATOR_SCOPE>", "</INDICATOR_SCOPE>").strip().lower() or "national"
-        ind_block = _between(user, "<INDICATOR>", "</INDICATOR>")
+        ind_block = _between(user, "<TARGET_INDICATOR>", "</TARGET_INDICATOR>")
         ind_id = ind_block.split("—")[0].strip() or "the indicator"
         ind_title = ind_block.split("—", 1)[1].strip().lower() if "—" in ind_block else "the indicator"
         law_block = _between(user, "<LAW>", "</LAW>")
         article = law_block.split("—", 1)[1].strip() if "—" in law_block else "This provision"
 
-        # signal 1: term overlap (semantic+lexical relevance)
-        hits = [t for t in terms if t and t in snippet]
-        term_score = min(1.0, len(hits) / max(2, len(terms) * 0.5)) if terms else 0.0
+        # ── disambiguation: score the TARGET against every sibling, pick the best ──
+        def overlap(term_list: list[str]) -> tuple[float, int]:
+            # token-based: a phrase counts when most of its CONTENT words appear,
+            # robust to punctuation / word-order ("collect, use or disclose" matches
+            # the term "collect use or disclose"). Returns (score, strong_hits) where
+            # a strong hit is a phrase whose content words are essentially all present.
+            score, strong = 0.0, 0
+            for t in term_list:
+                ws = _content_words(t)
+                if not ws:
+                    continue
+                frac = sum(1 for w in ws if w in snippet) / len(ws)
+                if frac >= 0.7:
+                    score += 1 + 0.5 * len(ws)
+                    strong += 1
+                elif frac >= 0.4:
+                    score += frac
+            return score, strong
 
-        # signal 2: binding language (legal, not merely topical)
+        target_score, target_strong = overlap(terms)
+        sib_scores = {sid: overlap(st)[0] for sid, st in _parse_siblings(user).items()}
+        best_id, best_score = ind_id, target_score
+        for sid, sc in sib_scores.items():
+            if sc > best_score:                       # strict '>' → target wins ties
+                best_id, best_score = sid, sc
+
         binding = any(b in snippet for b in BINDING_MARKERS)
-        legal_match = round(min(1.0, 0.35 + 0.5 * term_score + (0.15 if binding else 0.0)), 3)
+        # require at least one STRONG phrase hit — kills mappings built only on weak,
+        # incidental word overlap (e.g. a security clause drifting onto a rights indicator)
+        target_wins = target_strong >= 1 and target_score >= best_score
 
-        # signal 3: scope alignment — sectoral text against a national indicator → penalty + flag.
-        # Check the law TITLE too: a sectoral instrument's name (e.g. "MAS Notice … Banks")
-        # signals scope even when an individual paragraph omits the marker words.
+        if target_wins:
+            legal_match = min(1.0, 0.45 + 0.16 * target_score + (0.12 if binding else 0.0))
+        else:
+            legal_match = min(0.45, 0.20 + 0.08 * target_score)
+
+        # scope alignment — sectoral instrument vs a national indicator → penalty + flag.
+        # Check the law TITLE too (e.g. "MAS Notice … Banks") so it fires even when an
+        # individual paragraph omits the marker words.
         scope_text = snippet + " " + law_block.lower()
         sectoral = any(m in scope_text for m in SECTORAL_MARKERS)
         scope_flag = None
@@ -61,16 +87,27 @@ class MockLLM(LLMProvider):
         else:
             scope_alignment = 0.95 if not sectoral else 0.8
 
-        relevant = legal_match >= 0.5 and scope_alignment >= 0.5
+        # Pillar-6 gate: a cross-border-transfer indicator only fits a provision that
+        # actually concerns transfer/cross-border movement. Stops a domestic consent/
+        # use clause (Pillar 7) from being mislabelled as a transfer-consent rule.
+        pillar6 = ind_id.upper().startswith("P6")
+        transfer_ctx = any(k in snippet for k in (
+            "transfer", "cross-border", "cross border", "outside", "overseas",
+            "to a country", "place outside", "another country", "foreign"))
+        gate_ok = (not pillar6) or transfer_ctx
+        if not gate_ok:
+            legal_match = min(legal_match, 0.3)
 
-        rationale = _rationale(article, ind_id, ind_title, snippet, binding, sectoral, indicator_scope, relevant)
+        relevant = target_wins and gate_ok and legal_match >= 0.5 and scope_alignment >= 0.5
+        rationale = _rationale(article, ind_id, ind_title, snippet, binding, sectoral,
+                               indicator_scope, relevant, best_id)
         return {
             "relevant": relevant,
-            "legal_match": legal_match,
+            "best_fit_indicator": best_id,
+            "legal_match": round(legal_match, 3),
             "scope_alignment": round(scope_alignment, 3),
             "scope_flag": scope_flag,
             "rationale": rationale,
-            "matched_terms": hits,
         }
 
 
@@ -84,18 +121,43 @@ def _verb(snippet: str) -> str:
     return "establishes obligations on"
 
 
-def _rationale(article, ind_id, ind_title, snippet, binding, sectoral, scope, relevant) -> str:
+def _rationale(article, ind_id, ind_title, snippet, binding, sectoral, scope, relevant, best_id) -> str:
     """Template format: 'This [article] [verb] [what]. Maps to [indicator] because [logic].'"""
     verb = _verb(snippet)
     if not relevant:
+        if best_id and best_id != ind_id:
+            return (f"This {article} relates to {ind_title} but indicator {best_id} fits its operative "
+                    f"rule better; not mapped to {ind_id}.")[:300]
         return (f"This {article} relates to {ind_title} but does not satisfy {ind_id}: "
-                f"no binding rule of the required scope found in the snippet.")[:300]
+                f"no operative rule of the required scope in the snippet.")[:300]
     because = ("it uses binding obligation language matching the indicator's legal test"
                if binding else "its wording matches the indicator's legal test")
     if sectoral and scope == "national":
         because = ("the text is sector-specific (flagged SECTORAL_NOT_NATIONAL) and cannot stand "
                    "as national-scope evidence without review")
     return f"This {article} {verb} {ind_title}. Maps to {ind_id} because {because}."[:300]
+
+
+_STOP = {"of", "the", "a", "to", "or", "and", "for", "in", "on", "that", "is", "as",
+         "an", "by", "it", "his", "her", "any", "with", "be", "are", "this"}
+
+
+def _content_words(phrase: str) -> list[str]:
+    return [w for w in re.findall(r"[a-z]+", phrase.lower()) if w not in _STOP and len(w) > 2]
+
+
+def _split_terms(block: str) -> list[str]:
+    return [t.strip().lower() for t in block.split("|") if t.strip()]
+
+
+def _parse_siblings(user: str) -> dict[str, list[str]]:
+    """Parse the <SIBLINGS> block: 'ID :: title — desc :: t1 | t2 | t3' per line."""
+    out: dict[str, list[str]] = {}
+    for line in _between(user, "<SIBLINGS>", "</SIBLINGS>").splitlines():
+        parts = line.split("::")
+        if len(parts) >= 3:
+            out[parts[0].strip()] = _split_terms(parts[2])
+    return out
 
 
 def _between(text: str, a: str, b: str) -> str:

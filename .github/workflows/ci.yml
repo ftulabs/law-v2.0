@@ -1,0 +1,68 @@
+name: VeriTrade CI
+
+# Installs the full stack (incl. Microsoft MarkItDown, the default OCR/extraction
+# engine) and smoke-tests the end-to-end pipeline so judges get a one-command,
+# reproducible environment.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-smoke-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies (includes MarkItDown)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Verify MarkItDown is the default OCR engine and is available
+        run: |
+          python -c "from backend.providers import registry as r; a=r.ocr_availability('markitdown'); print('markitdown:', a); assert a.ready, a.note"
+          python -c "from backend.config import settings; assert settings.ocr_provider=='markitdown', settings.ocr_provider; print('default OCR =', settings.ocr_provider)"
+
+      - name: Byte-compile all modules
+        run: python -m compileall -q backend frontend
+
+      - name: Smoke-test pipeline (mock LLM, MarkItDown OCR) and validate CSV template
+        run: |
+          python -m backend.cli run-pipeline --economy SG --pillar 6 --pillar 7 --use-samples
+          python - <<'PY'
+          import csv, glob
+          f = sorted(glob.glob("outputs/*.csv"))[-1]
+          rows = list(csv.reader(open(f, encoding="utf-8-sig")))
+          official = ["Economy","Law Name","Law Number / Ref","Last Amended","Indicator ID",
+                      "Article / Section","Discovery Tag","Location Reference","Verbatim Snippet",
+                      "Mapping Rationale","Source URL","Confidence","Notes"]
+          assert rows[0] == official, f"CSV header mismatch: {rows[0]}"
+          assert len(rows) > 1, "no data rows produced"
+          # MarkItDown must have extracted the bundled scanned MAS PDF
+          import json
+          j = sorted(glob.glob("outputs/*.json"))[-1]
+          data = json.load(open(j, encoding="utf-8"))
+          used = {m["ocr_quality"]["provider"] for m in data["mappings"] if m["ocr_quality"]["used"]}
+          print("OCR providers used:", used, "| rows:", len(rows)-1)
+          print("CSV header OK ✓")
+          PY
+
+      - name: Upload example outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: veritrade-outputs-py${{ matrix.python-version }}
+          path: outputs/*.csv
+          if-no-files-found: warn

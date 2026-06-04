@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # providers
-    ocr_provider: str = "mock"
+    ocr_provider: str = "markitdown"   # default doc-extraction engine (MS MarkItDown)
     llm_provider: str = "mock"
 
     # llm

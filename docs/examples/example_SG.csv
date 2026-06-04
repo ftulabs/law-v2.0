@@ -1,130 +1,56 @@
 ﻿"Economy","Law Name","Law Number / Ref","Last Amended","Indicator ID","Article / Section","Discovery Tag","Location Reference","Verbatim Snippet","Mapping Rationale","Source URL","Confidence","Notes"
-"Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P7-I3","Section 24","KNOWN","#sect24","Protection of personal data. An organisation shall protect personal data
-in its possession or under its control by making reasonable security arrangements to
-prevent unauthorised access, collection, use, disclosure, copying, modification,
-disposal or similar risks.
-Part VIA — Notification of Data Breaches","This Section 24 requires security safeguards obligation. Maps to P7-I3 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.99",""
+"Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P6-I3","Section 26A","KNOWN","#sect26A","Conditions for transfer. An organisation may transfer personal data
+overseas where the recipient is bound by legally enforceable obligations to provide a
+standard of protection comparable to this Act, including binding corporate rules or
+contractual clauses, or where the individual has given consent to the transfer of the
+personal data to that country or territory.
+Part IX — Enforcement","This Section 26A permits contractual safeguards. Maps to P6-I3 because its wording matches the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.99",""
+"Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P7-I1","Section 13","KNOWN","#sect13","Consent required. An organisation shall not, on or after the appointed
+day, collect, use or disclose personal data about an individual unless the individual
+gives, or is deemed to have given, his or her consent under this Act to the collection,
+use or disclosure of the personal data.","This Section 13 prohibits legal basis for processing. Maps to P7-I1 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.99",""
+"Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P7-I2","Section 18","KNOWN","#sect18","Purpose limitation. An organisation may collect, use or disclose
+personal data about an individual only for purposes that a reasonable person would
+consider appropriate in the circumstances.
+Part V — Access to and Correction of Personal Data","This Section 18 permits purpose limitation. Maps to P7-I2 because its wording matches the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.99",""
+"Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P7-I3","Section 22","KNOWN","#sect22","Correction of personal data. An individual may request an organisation to
+correct an error or omission in the personal data about the individual that is in the
+possession or under the control of the organisation, and the organisation shall correct
+the personal data as soon as practicable.
+Part VI — Care of Personal Data","This Section 22 requires data subject rights. Maps to P7-I3 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.99",""
 "Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P7-I4","Section 26D","KNOWN","#sect26D","Duty to notify. Where an organisation assesses that a data breach is a
 notifiable data breach, the organisation must notify the Commission as soon as is
 practicable, and in any case no later than 3 calendar days after making that
 assessment, and must notify affected individuals where the breach is likely to result
 in significant harm.
 Part IX — Transfer of Personal Data Outside Singapore","This Section 26D prohibits data breach notification. Maps to P7-I4 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.99",""
+"Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P7-I5","Section 48J","KNOWN","#sect48J","Financial penalties. The Commission may, if it is satisfied that an
+organisation has intentionally or negligently contravened a provision of this Act,
+require the organisation to pay a financial penalty of an amount not exceeding 10% of
+the organisation's annual turnover in Singapore or S$1 million, whichever is higher.","This Section 48J establishes obligations on enforcement & penalties. Maps to P7-I5 because its wording matches the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.99",""
+"Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P7-I3","Section 21","KNOWN","#sect21","Access to personal data. On request of an individual, an organisation
+shall, as soon as reasonably possible, provide the individual with personal data about
+the individual that is in the possession or under the control of the organisation and
+information about the ways in which that personal data has been used or disclosed.","This Section 21 requires data subject rights. Maps to P7-I3 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.99",""
 "Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P6-I1","Section 26","KNOWN","#sect26","Transfer of personal data outside Singapore. An organisation shall not
 transfer any personal data to a country or territory outside Singapore except in
 accordance with requirements prescribed under this Act to ensure that the transferred
 personal data will be accorded a standard of protection that is comparable to the
-protection under this Act.","This Section 26 prohibits cross-border data transfer — general permission. Maps to P6-I1 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.89",""
-"Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P7-I1","Section 24","KNOWN","#sect24","Protection of personal data. An organisation shall protect personal data
-in its possession or under its control by making reasonable security arrangements to
-prevent unauthorised access, collection, use, disclosure, copying, modification,
-disposal or similar risks.
-Part VIA — Notification of Data Breaches","This Section 24 requires comprehensive personal data protection law. Maps to P7-I1 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.87",""
-"Singapore","Cybersecurity Act 2018 (Singapore)","Act 9 of 2018","2018","P7-I5","Section 7","KNOWN","#sect7","Designation of critical information infrastructure. The Commissioner may, by
-written notice, designate a computer or computer system as a critical information
-infrastructure for the purposes of this Act if the Commissioner is satisfied that the
-computer or computer system is necessary for the continuous delivery of an essential
-service, and the loss or compromise of the computer or computer system will have a
-debilitating effect on the availability of the essential service in Singapore.","This Section 7 establishes obligations on national cybersecurity framework. Maps to P7-I5 because its wording matches the indicator's legal test.","https://sso.agc.gov.sg/Act/CA2018","0.83",""
-"Singapore","Cybersecurity Act 2018 (Singapore)","Act 9 of 2018","2018","P7-I5","Section 14","KNOWN","#sect14","Duty to report cybersecurity incidents. The owner of a critical information
-infrastructure must notify the Commissioner of the occurrence of any prescribed
-cybersecurity incident in respect of the critical information infrastructure within the
-prescribed period after becoming aware of such occurrence.","This Section 14 prohibits national cybersecurity framework. Maps to P7-I5 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/CA2018","0.83",""
-"Singapore","Cybersecurity Act 2018 (Singapore)","Act 9 of 2018","2018","P7-I5","Section 19","KNOWN","#sect19","National cybersecurity. The Commissioner is responsible for the oversight
-and promotion of cybersecurity in Singapore at the national level, including the
-establishment of cybersecurity codes of practice and national response measures.","This Section 19 establishes obligations on national cybersecurity framework. Maps to P7-I5 because its wording matches the indicator's legal test.","https://sso.agc.gov.sg/Act/CA2018","0.80",""
-"Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P6-I2","Section 26","KNOWN","#sect26","Transfer of personal data outside Singapore. An organisation shall not
-transfer any personal data to a country or territory outside Singapore except in
-accordance with requirements prescribed under this Act to ensure that the transferred
-personal data will be accorded a standard of protection that is comparable to the
-protection under this Act.","This Section 26 prohibits cross-border transfer — accountability / adequacy condition. Maps to P6-I2 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.79",""
-"Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P6-I3","Section 26","KNOWN","#sect26","Transfer of personal data outside Singapore. An organisation shall not
-transfer any personal data to a country or territory outside Singapore except in
-accordance with requirements prescribed under this Act to ensure that the transferred
-personal data will be accorded a standard of protection that is comparable to the
-protection under this Act.","This Section 26 prohibits data localisation requirement. Maps to P6-I3 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.79",""
-"Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P7-I1","Section 26","KNOWN","#sect26","Transfer of personal data outside Singapore. An organisation shall not
-transfer any personal data to a country or territory outside Singapore except in
-accordance with requirements prescribed under this Act to ensure that the transferred
-personal data will be accorded a standard of protection that is comparable to the
-protection under this Act.","This Section 26 prohibits comprehensive personal data protection law. Maps to P7-I1 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.79",""
-"Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P7-I2","Section 13","KNOWN","#sect13","Consent required. An organisation shall not, on or after the appointed
-day, collect, use or disclose personal data about an individual unless the individual
-gives, or is deemed to have given, his or her consent under this Act to the collection,
-use or disclosure of the personal data.","This Section 13 prohibits consent / lawful basis for processing. Maps to P7-I2 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.79",""
+protection under this Act.","This Section 26 prohibits general prohibition / restriction. Maps to P6-I1 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.96",""
+"Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P7-I1","Section 26A","KNOWN","#sect26A","Conditions for transfer. An organisation may transfer personal data
+overseas where the recipient is bound by legally enforceable obligations to provide a
+standard of protection comparable to this Act, including binding corporate rules or
+contractual clauses, or where the individual has given consent to the transfer of the
+personal data to that country or territory.
+Part IX — Enforcement","This Section 26A permits legal basis for processing. Maps to P7-I1 because its wording matches the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.85",""
 "Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P6-I1","Section 26D","KNOWN","#sect26D","Duty to notify. Where an organisation assesses that a data breach is a
 notifiable data breach, the organisation must notify the Commission as soon as is
 practicable, and in any case no later than 3 calendar days after making that
 assessment, and must notify affected individuals where the breach is likely to result
 in significant harm.
-Part IX — Transfer of Personal Data Outside Singapore","This Section 26D prohibits cross-border data transfer — general permission. Maps to P6-I1 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.78",""
-"Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P7-I2","Section 18","KNOWN","#sect18","Purpose limitation. An organisation may collect, use or disclose
-personal data about an individual only for purposes that a reasonable person would
-consider appropriate in the circumstances.
-Part VI — Care of Personal Data","This Section 18 permits consent / lawful basis for processing. Maps to P7-I2 because its wording matches the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.77",""
-"Singapore","Cybersecurity Act 2018 (Singapore)","Act 9 of 2018","2018","P6-I3","Section 14","KNOWN","#sect14","Duty to report cybersecurity incidents. The owner of a critical information
-infrastructure must notify the Commissioner of the occurrence of any prescribed
-cybersecurity incident in respect of the critical information infrastructure within the
-prescribed period after becoming aware of such occurrence.","This Section 14 prohibits data localisation requirement. Maps to P6-I3 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/CA2018","0.76",""
-"Singapore","Cybersecurity Act 2018 (Singapore)","Act 9 of 2018","2018","P7-I5","Section 11","KNOWN","#sect11","Codes of practice and standards of performance. The Commissioner may issue
-or approve one or more codes of practice or standards of performance for the regulation
-of the owners of critical information infrastructure with respect to measures to be
-taken by them to ensure the cybersecurity of the critical information infrastructure.","This Section 11 permits national cybersecurity framework. Maps to P7-I5 because its wording matches the indicator's legal test.","https://sso.agc.gov.sg/Act/CA2018","0.75",""
-"Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P7-I1","Section 13","KNOWN","#sect13","Consent required. An organisation shall not, on or after the appointed
-day, collect, use or disclose personal data about an individual unless the individual
-gives, or is deemed to have given, his or her consent under this Act to the collection,
-use or disclosure of the personal data.","This Section 13 prohibits comprehensive personal data protection law. Maps to P7-I1 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.75",""
-"Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P7-I1","Section 26D","KNOWN","#sect26D","Duty to notify. Where an organisation assesses that a data breach is a
-notifiable data breach, the organisation must notify the Commission as soon as is
-practicable, and in any case no later than 3 calendar days after making that
-assessment, and must notify affected individuals where the breach is likely to result
-in significant harm.
-Part IX — Transfer of Personal Data Outside Singapore","This Section 26D prohibits comprehensive personal data protection law. Maps to P7-I1 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.72",""
-"Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P6-I3","Section 26D","KNOWN","#sect26D","Duty to notify. Where an organisation assesses that a data breach is a
-notifiable data breach, the organisation must notify the Commission as soon as is
-practicable, and in any case no later than 3 calendar days after making that
-assessment, and must notify affected individuals where the breach is likely to result
-in significant harm.
-Part IX — Transfer of Personal Data Outside Singapore","This Section 26D prohibits data localisation requirement. Maps to P6-I3 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.70",""
-"Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P7-I1","Section 18","KNOWN","#sect18","Purpose limitation. An organisation may collect, use or disclose
-personal data about an individual only for purposes that a reasonable person would
-consider appropriate in the circumstances.
-Part VI — Care of Personal Data","This Section 18 relates to comprehensive personal data protection law but does not satisfy P7-I1: no binding rule of the required scope found in the snippet.","https://sso.agc.gov.sg/Act/PDPA2012","0.70",""
-"Singapore","Cybersecurity Act 2018 (Singapore)","Act 9 of 2018","2018","P7-I4","Section 14","KNOWN","#sect14","Duty to report cybersecurity incidents. The owner of a critical information
-infrastructure must notify the Commissioner of the occurrence of any prescribed
-cybersecurity incident in respect of the critical information infrastructure within the
-prescribed period after becoming aware of such occurrence.","This Section 14 prohibits data breach notification. Maps to P7-I4 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/CA2018","0.68",""
-"Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P6-I3","Section 24","KNOWN","#sect24","Protection of personal data. An organisation shall protect personal data
-in its possession or under its control by making reasonable security arrangements to
-prevent unauthorised access, collection, use, disclosure, copying, modification,
-disposal or similar risks.
-Part VIA — Notification of Data Breaches","This Section 24 requires data localisation requirement. Maps to P6-I3 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.66",""
-"Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P6-I3","Section 18","KNOWN","#sect18","Purpose limitation. An organisation may collect, use or disclose
-personal data about an individual only for purposes that a reasonable person would
-consider appropriate in the circumstances.
-Part VI — Care of Personal Data","This Section 18 relates to data localisation requirement but does not satisfy P6-I3: no binding rule of the required scope found in the snippet.","https://sso.agc.gov.sg/Act/PDPA2012","0.62",""
-"Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P6-I2","Section 26D","KNOWN","#sect26D","Duty to notify. Where an organisation assesses that a data breach is a
-notifiable data breach, the organisation must notify the Commission as soon as is
-practicable, and in any case no later than 3 calendar days after making that
-assessment, and must notify affected individuals where the breach is likely to result
-in significant harm.
-Part IX — Transfer of Personal Data Outside Singapore","This Section 26D prohibits cross-border transfer — accountability / adequacy condition. Maps to P6-I2 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.62",""
-"Singapore","Cybersecurity Act 2018 (Singapore)","Act 9 of 2018","2018","P6-I2","Section 14","KNOWN","#sect14","Duty to report cybersecurity incidents. The owner of a critical information
-infrastructure must notify the Commissioner of the occurrence of any prescribed
-cybersecurity incident in respect of the critical information infrastructure within the
-prescribed period after becoming aware of such occurrence.","This Section 14 prohibits cross-border transfer — accountability / adequacy condition. Maps to P6-I2 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/CA2018","0.61",""
-"Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P6-I1","Section 24","KNOWN","#sect24","Protection of personal data. An organisation shall protect personal data
-in its possession or under its control by making reasonable security arrangements to
-prevent unauthorised access, collection, use, disclosure, copying, modification,
-disposal or similar risks.
-Part VIA — Notification of Data Breaches","This Section 24 requires cross-border data transfer — general permission. Maps to P6-I1 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.61",""
+Part IX — Transfer of Personal Data Outside Singapore","This Section 26D prohibits general prohibition / restriction. Maps to P6-I1 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.85",""
 "Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P7-I4","Section 24","KNOWN","#sect24","Protection of personal data. An organisation shall protect personal data
 in its possession or under its control by making reasonable security arrangements to
 prevent unauthorised access, collection, use, disclosure, copying, modification,
 disposal or similar risks.
-Part VIA — Notification of Data Breaches","This Section 24 requires data breach notification. Maps to P7-I4 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.61",""
-"Singapore","Personal Data Protection Act 2012 (Singapore)","Act 26 of 2012","2021","P7-I2","Section 26","KNOWN","#sect26","Transfer of personal data outside Singapore. An organisation shall not
-transfer any personal data to a country or territory outside Singapore except in
-accordance with requirements prescribed under this Act to ensure that the transferred
-personal data will be accorded a standard of protection that is comparable to the
-protection under this Act.","This Section 26 prohibits consent / lawful basis for processing. Maps to P7-I2 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.60",""
+Part VIA — Notification of Data Breaches","This Section 24 requires data breach notification. Maps to P7-I4 because it uses binding obligation language matching the indicator's legal test.","https://sso.agc.gov.sg/Act/PDPA2012","0.81",""

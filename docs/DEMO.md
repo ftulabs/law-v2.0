@@ -20,24 +20,33 @@ audit trail* — discover → extract (incl. scanned PDFs) → map → score →
 python -m backend.cli run-pipeline --economy SG --pillar 6 --pillar 7 --use-samples
 ```
 Narrate the live log:
-- `[discovery]` — found the PDPA, Cybersecurity Act, **and a scanned MAS notice**; one AU doc is tagged **NEW**.
-- `[ocr] MAS Notice 655 via mock conf=0.94` — **the scanned-PDF branch ran**.
+- `[providers] OCR=markitdown LLM=mock` — **Microsoft MarkItDown is the default engine**.
+- `[discovery]` — found the PDPA, Cybersecurity Act and the MAS notice; one AU doc is tagged **NEW**.
 - `[done] … auto=… review=… quarantine=…` — confidence routed every mapping.
 
-Point at the table: top rows are **auto-accepted** (PDPA s24 → P7.3 security, s26D → P7.4 breach,
-s26 → P6.1 cross-border). Note a row with `(!)`.
+Point at the table: auto-accepted rows map to the **official RDTII codes** — s13 → P7-I1
+(legal basis), s18 → P7-I2 (purpose), s21/s22 → P7-I3 (data subject rights), s26D → P7-I4
+(breach), s48J → P7-I5 (enforcement), s26 → P6-I1 (cross-border), s26A → P6-I3 (contractual).
 
-## 3 · The scope-confusion guard (60s) — the money moment
+Then run Australia to show **MarkItDown extracting a real PDF**:
 ```bash
-python -m backend.cli review --queue
+python -m backend.cli run-pipeline --economy AU --pillar 6 --pillar 7 --use-samples
 ```
-"Here's the trap every naive mapper falls into." Open the JSON and grep the MAS notice:
+The AU Privacy Act ships as a real PDF — the JSON shows `"ocr_quality":{"provider":"markitdown",...}`.
+
+## 3 · Disambiguation + scope guard (60s) — the money moment
+"The official indicators are deliberately close — a default cross-border RESTRICTION
+(P6-I1) vs the consent/adequacy/contract EXCEPTIONS (P6-I4/I2/I3); a basis-to-process duty
+(P7-I1) vs purpose limitation (P7-I2). Naive mappers smear one provision across all of
+them." VeriTrade shows the model every sibling indicator and asks for the BEST fit, then
+drops the rest. Two guards to show:
 ```bash
 python -c "import json,glob;d=json.load(open(sorted(glob.glob('outputs/*.json'))[-1],encoding='utf-8'));[print(m['indicator_id'],m['scope_flag'],m['confidence_score'],m['review_status']) for m in d['mappings'] if m['scope_flag']]"
 ```
-"A MAS financial-sector cyber-hygiene notice is **sectoral**. VeriTrade flags
-`SECTORAL_NOT_NATIONAL`, caps the score at 0.55, and **quarantines** it — it never
-gets mistaken for a national cybersecurity framework (P7.5)."
+- **Scope guard**: the sectoral MAS notice is flagged `SECTORAL_NOT_NATIONAL`, capped at
+  0.55, **quarantined** — it never enters a national-indicator submission.
+- **No over-mapping**: a security or localisation clause that fits *none* of the 10
+  official indicators produces **no row** — the system declines rather than guesses.
 
 ## 4 · The dashboard (2 min)
 ```bash
@@ -56,13 +65,13 @@ streamlit run frontend/app.py
 - `outputs/veritrade_<run>.json` → technical reviewers (timings, OCR quality, raw context, model version, retrieval logs).
 
 ## 6 · Modularity close (30s)
-"Nothing is hardcoded." Show `.env`:
+"Nothing is hardcoded." Show the dashboard **Engines** panel (or `.env`):
 ```
-OCR_PROVIDER=tesseract        # or paddle / azure
-LLM_PROVIDER=anthropic        # or openai
+OCR_PROVIDER=markitdown       # default · or tesseract / paddle / azure
+LLM_PROVIDER=anthropic        # or openai  (paste a key in the sidebar to go live)
 ```
-"Swap OCR or LLM providers with one line — same audit trail. Today's run used mock so
-it's reproducible on this laptop; in production these become real engines."
+"Judges pick the OCR engine and LLM right in the sidebar — MarkItDown extraction is the
+default, and the same audit trail holds whichever engine runs."
 
 ---
 

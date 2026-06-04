@@ -79,8 +79,10 @@ uvicorn backend.main:app --reload
 
 Schemas: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#4-csv-schema--official-submission-template-policy-judge).
 
-> **Submission note:** the bundled RDTII indicator codes are illustrative — confirm each
-> `Indicator ID` against the official RDTII 2.1 codebook before submitting.
+> **Submission note:** indicator IDs / titles / questions are the **official RDTII 2.1**
+> reference (Pillars 6 & 7). The `legal_test` wording and `query_terms` are our
+> interpretation to drive mapping — review the mappings (especially `pending_review`
+> rows) before submitting, as closely-related indicators are easy to confuse.
 
 ## Modularity — pick your engines
 
@@ -91,7 +93,7 @@ Two ways to choose OCR + LLM, no code changes:
    ready on this machine. Unavailable engines fall back to `mock` automatically so a run
    never breaks.
 2. **Via `.env`** (default for CLI/API):
-   - `OCR_PROVIDER=tesseract|paddle|azure|mock`
+   - `OCR_PROVIDER=markitdown|tesseract|paddle|azure|mock` (default **markitdown** — Microsoft MarkItDown)
    - `LLM_PROVIDER=anthropic|openai|mock`
 
 CLI flags also override per-run: `--ocr tesseract --llm anthropic --llm-model claude-opus-4-8`.

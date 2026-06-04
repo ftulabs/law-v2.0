@@ -127,9 +127,11 @@ never enters a national-indicator submission); pass `submission_only=False` to d
 | 12 | `Confidence` | opt | 2-dp 0.00–1.00 |
 | 13 | `Notes` | opt | OCR/scope/bilingual flags |
 
-> **Before submitting:** confirm each `Indicator ID` against the authoritative RDTII 2.1
-> codebook (the bundled indicators are illustrative). NEW provisions score highest, so
-> review the `NEW`-tagged rows carefully.
+> **Before submitting:** indicator IDs/titles/questions are the official RDTII 2.1
+> reference; the `legal_test`/`query_terms` are our interpretation. Closely-related
+> indicators (e.g. the cross-border exceptions P6-I2..P6-I5, or P7-I1 vs P7-I2)
+> are easy to confuse — review mappings, especially `pending_review` rows. NEW
+> provisions score highest, so check the `NEW`-tagged rows carefully.
 
 See [examples/example_SG.csv](examples/example_SG.csv). `review_status` and all technical
 metadata live in the JSON (§5), not the submission CSV.
@@ -164,23 +166,28 @@ See [examples/example_SG.json](examples/example_SG.json).
 
 ---
 
-## 6. OCR pipeline (`pipeline/ocr.py` + `providers/ocr_*`)
+## 6. OCR / extraction pipeline (`pipeline/ocr.py` + `providers/ocr_*`)
 
 ```
-DiscoveredDoc.fmt ──► html        → BeautifulSoup strip → text
-                  ──► pdf_text    → pdfplumber/pypdf text layer
-                  │                 └─ if layer < 200 chars → reclassify scanned
-                  ──► pdf_scanned → OCRProvider.ocr_pdf() → text + per-page confidence
+DiscoveredDoc.fmt ──► html         → BeautifulSoup strip → text
+                  ──► pdf_text  ┐
+                  ──► pdf_scanned┘ → OCR/extraction provider .ocr_pdf() → text (+ confidence)
+                                    • markitdown (DEFAULT): used for ALL PDFs
+                                    • tesseract/azure: text-layer first, OCR only if thin
 ```
 
-- **Interchangeable** via `OCR_PROVIDER` (`mock|tesseract|paddle|azure`); selected by
-  `ocr_factory.get_ocr_provider()`. Heavy imports are deferred so unused providers
-  never need to be installed.
-- **Quality captured**: `mean_confidence`, per-page confidence, `low_conf_pages`
-  flow into `OCRMetrics` and propagate to every mapping for audit.
-- **Mock provider** reads a `*.ocr.txt` sidecar (sample "scanned" docs ship ground
-  truth) and simulates content-derived page confidence — the scanned branch and
-  confidence routing run with no binaries.
+- **Default engine = Microsoft MarkItDown** (`OCR_PROVIDER=markitdown`): converts
+  PDF/Office/HTML to clean Markdown; used for every PDF. High-fidelity text extraction
+  (no error-prone image OCR for text-bearing PDFs). For image-only/scanned pages, plug
+  Azure Document Intelligence (`docintel_endpoint`) or switch to `tesseract`.
+- **Interchangeable** via `OCR_PROVIDER` (`markitdown|tesseract|paddle|azure|mock`) —
+  selected by `ocr_factory.get_ocr_provider()`, or chosen per-run in the dashboard.
+  Heavy imports are deferred; unused providers need not be installed.
+- **Quality captured**: provider, `mean_confidence` (None for deterministic extraction),
+  per-page confidence, `low_conf_pages` → `OCRMetrics` → every mapping (JSON `ocr_quality`).
+- **Offline robustness**: the MarkItDown provider falls back to a `*.ocr.txt` sidecar if
+  a sample PDF is a placeholder, so the demo always yields text. The bundled
+  `AU/privacy_act.pdf` and `SG/mas_notice_655.pdf` are real PDFs MarkItDown extracts.
 
 ---
 
@@ -201,14 +208,17 @@ DiscoveredDoc.fmt ──► html        → BeautifulSoup strip → text
 For each (indicator, retrieved provision):
 
 1. Build a structured prompt carrying the indicator's **legal test**, scope, query
-   terms, and the **verbatim snippet** only.
-2. The LLM returns `{relevant, legal_match, scope_alignment, scope_flag, rationale}`
-   — judging *only the snippet*, distinguishing **legal** relevance (a binding rule
-   of the right scope) from **semantic** relevance (same topic).
-3. Sectoral language against a national indicator ⇒ `scope_flag=SECTORAL_NOT_NATIONAL`
-   and lowered `scope_alignment`. *(Example: MAS Notice 655 must not map to "national
-   cybersecurity framework" P7.5 — see the bundled sample.)*
-4. Law name, article number, URL, OCR metrics come from extraction — **not** the LLM.
+   terms, **every sibling indicator in the pillar**, and the **verbatim snippet** only.
+2. The LLM returns `{relevant, best_fit_indicator, legal_match, scope_alignment,
+   scope_flag, rationale}` — judging *only the snippet*, distinguishing **legal**
+   relevance (the operative rule satisfies the test) from **semantic** relevance (same
+   topic), and naming the best-fitting sibling so close indicators aren't conflated.
+3. **Disambiguation**: if a sibling fits better (`best_fit_indicator ≠ target`), the
+   pairing is dropped — the provision is mapped under the better sibling on its own pass.
+4. Sectoral language against a national indicator ⇒ `scope_flag=SECTORAL_NOT_NATIONAL`
+   and a capped score. *(Example: the sectoral MAS Notice 655 matches none of the 10
+   national indicators and is flagged/quarantined — see the bundled sample.)*
+5. Law name, article number, URL, OCR metrics come from extraction — **not** the LLM.
 
 Swap `LLM_PROVIDER=anthropic|openai` for real reasoning; the deterministic `mock`
 grader uses transparent lexical signals so the logic is reproducible in a demo.

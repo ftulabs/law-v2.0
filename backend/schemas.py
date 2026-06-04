@@ -49,7 +49,7 @@ class DocFormat(str, Enum):
 # ─────────────────────────── reference data ───────────────────────────
 class Indicator(BaseModel):
     """An RDTII 2.1 indicator we try to find legal evidence for."""
-    indicator_id: str                         # e.g. "P7.1"
+    indicator_id: str                         # e.g. "P7-I1"
     pillar: int                               # 6 or 7
     title: str
     description: str

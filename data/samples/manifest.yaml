@@ -39,10 +39,10 @@ documents:
     law_number: No. 119, 1988
     source_url: https://www.legislation.gov.au/C2004A03712
     portal: Federal Register of Legislation
-    format: text
+    format: pdf_text          # real PDF — extracted by MarkItDown (default engine)
     amendment_date: "2022-12-12"
     discovery_tag: KNOWN
-    path: AU/privacy_act.txt
+    path: AU/privacy_act.pdf
 
   - economy: AU
     title: Privacy and Other Legislation Amendment Act 2024 (Cth)

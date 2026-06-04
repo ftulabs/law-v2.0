@@ -11,10 +11,11 @@ from dataclasses import dataclass
 
 from ..config import settings
 
-OCR_PROVIDERS = ["mock", "tesseract", "paddle", "azure"]
+OCR_PROVIDERS = ["markitdown", "mock", "tesseract", "paddle", "azure"]
 LLM_PROVIDERS = ["mock", "anthropic", "openai"]
 
-OCR_LABELS = {"mock": "Mock (offline)", "tesseract": "Tesseract", "paddle": "PaddleOCR", "azure": "Azure Vision"}
+OCR_LABELS = {"markitdown": "MarkItDown (default)", "mock": "Mock (offline)",
+              "tesseract": "Tesseract", "paddle": "PaddleOCR", "azure": "Azure Vision"}
 LLM_LABELS = {"mock": "Mock grader (offline)", "anthropic": "Anthropic Claude", "openai": "OpenAI"}
 
 
@@ -36,6 +37,10 @@ def _have(*mods: str) -> bool:
 
 
 def ocr_availability(name: str) -> Availability:
+    if name == "markitdown":
+        if not _have("markitdown"):
+            return Availability(False, "pip install 'markitdown[pdf]'")
+        return Availability(True, "ready (text PDF/HTML/Office)")
     if name == "mock":
         return Availability(True, "always on")
     if name == "tesseract":

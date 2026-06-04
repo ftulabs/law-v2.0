@@ -13,11 +13,12 @@ httpx>=0.27
 streamlit>=1.33
 pandas>=2.2
 
-# --- Document parsing ---
+# --- Document parsing / extraction ---
+markitdown[pdf]>=0.0.1a2   # Microsoft MarkItDown — DEFAULT OCR/extraction engine
 beautifulsoup4>=4.12
 lxml>=5.2
 pypdf>=4.2
-pdfplumber>=0.11
+pdfplumber>=0.11           # fallback text-layer extractor for non-markitdown providers
 
 # --- Retrieval (lightweight; FAISS optional) ---
 rank-bm25>=0.2.2
