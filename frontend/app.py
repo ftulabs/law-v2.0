@@ -107,8 +107,8 @@ st.markdown(
         font-family: 'Newsreader', Georgia, 'Times New Roman', serif;
         font-size: 16px;
       }}
-      .vt-logo {{ line-height:0; }}
-      .vt-logo img, .vt-logo svg {{ height:64px; width:auto; max-width:520px; {LOGO_FX} }}
+      .vt-logo {{ line-height:0; margin:.1rem 0; }}
+      .vt-logo img, .vt-logo svg {{ height:44px; width:auto; max-width:360px; {LOGO_FX} }}
       .block-container {{padding-top: 1.4rem; max-width: 1320px;}}
       [data-testid="stHeader"] {{background: transparent;}}
 
@@ -205,6 +205,28 @@ st.markdown(
       .prov-note {{font-family:'IBM Plex Mono',monospace; font-size:.62rem; color:var(--ink-faint);
                    margin:-.4rem 0 .5rem; line-height:1.4;}}
       .prov-note.ready {{color:var(--forest);}}
+      /* ── native Streamlit elements follow the theme palette (var(--ink) flips
+            automatically between dark/light, so text never vanishes) ── */
+      [data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] * {{ color:var(--ink) !important; }}
+      [data-testid="stMarkdownContainer"] {{ color:var(--ink); }}
+      [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] * {{ color:var(--ink-faint) !important; }}
+      [data-testid="stMetricValue"] {{ color:var(--ink) !important; }}
+      [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] * {{ color:var(--ink-soft) !important; }}
+      [data-testid="stExpander"] summary, [data-testid="stExpander"] summary * {{ color:var(--ink) !important; }}
+      [data-testid="stNotificationContentInfo"], [data-testid="stStatusWidget"] * {{ color:var(--ink) !important; }}
+      /* text inputs + selects: readable box + text in both themes */
+      .stTextInput input, .stNumberInput input, .stTextArea textarea {{
+              color:var(--ink) !important; background:var(--paper-3) !important; }}
+      div[data-baseweb="select"] > div {{ background:var(--paper-3) !important;
+              border-color:var(--rule) !important; }}
+      div[data-baseweb="select"] * {{ color:var(--ink) !important; }}
+      [data-baseweb="popover"] li, [role="option"] {{ background:var(--paper-2) !important; color:var(--ink) !important; }}
+      [data-baseweb="tag"] {{ background:var(--accent) !important; color:#fff !important; }}
+      [data-testid="stSliderThumbValue"], [data-testid="stTickBarMin"], [data-testid="stTickBarMax"] {{
+              color:var(--ink-soft) !important; }}
+      pre, code, .stCode, [data-testid="stJson"], [data-testid="stJson"] * {{
+              background:var(--paper-3) !important; color:var(--ink) !important; }}
+
       /* top-right overflow (⋮) menu button — subtle, borderless */
       [data-testid="stPopover"] button {{background:transparent !important; border:none !important;
               color:var(--ink-faint) !important; font-size:1.4rem; line-height:1; padding:.1rem .4rem;}}
