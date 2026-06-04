@@ -1,0 +1,23 @@
+Personal Data Protection Act 2010 (Malaysia) — Act 709
+
+An Act to regulate the processing of personal data in commercial transactions and to
+provide for matters connected therewith and incidental thereto.
+
+Section 6. General Principle. A data user shall not process personal data about a data
+subject unless the data subject has given his consent to the processing of the personal
+data, or the processing is necessary for the performance of a contract to which the data
+subject is a party.
+
+Section 9. Security Principle. A data user shall, when processing personal data, take
+practical steps to protect the personal data from any loss, misuse, modification,
+unauthorised or accidental access or disclosure, alteration or destruction.
+
+Section 129. Transfer of personal data to places outside Malaysia. A data user shall not
+transfer any personal data of a data subject to a place outside Malaysia unless to such
+place as specified by the Minister, or where the data subject has given his consent to
+the transfer, or the transfer is necessary for the performance of a contract between the
+data subject and the data user.
+
+Section 130. Data retention within Malaysia. The Minister may, by order, require that
+personal data of a prescribed class be stored and processed within Malaysia where the
+Minister considers it necessary for the protection of national interest.

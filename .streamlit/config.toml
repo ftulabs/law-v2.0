@@ -1,0 +1,12 @@
+# VeriTrade — "legal dossier" editorial theme.
+# Fonts are loaded via @import in the app CSS; colours match the dossier palette.
+[theme]
+base = "light"
+primaryColor = "#7c2d2d"            # oxblood — actions / accents
+backgroundColor = "#f4f1ea"         # parchment
+secondaryBackgroundColor = "#ece6d8"# aged paper (sidebar, cards)
+textColor = "#1c1a16"               # ink
+font = "serif"
+
+[server]
+runOnSave = true

@@ -1,0 +1,59 @@
+# Reference corpus for offline demo. discovery_tag KNOWN = in this manifest;
+# the AU privacy amendment is tagged NEW to demonstrate "new evidence" detection.
+# Texts are illustrative paraphrases of real instruments, shortened for the MVP —
+# replace with crawled source text in production.
+
+documents:
+  - economy: SG
+    title: Personal Data Protection Act 2012 (Singapore)
+    source_url: https://sso.agc.gov.sg/Act/PDPA2012
+    portal: Singapore Statutes Online
+    format: html
+    amendment_date: "2021-02-01"
+    discovery_tag: KNOWN
+    path: SG/pdpa.html
+
+  - economy: SG
+    title: Cybersecurity Act 2018 (Singapore)
+    source_url: https://sso.agc.gov.sg/Act/CA2018
+    portal: Singapore Statutes Online
+    format: text
+    amendment_date: "2018-08-31"
+    discovery_tag: KNOWN
+    path: SG/cybersecurity_act.txt
+
+  - economy: SG
+    title: MAS Notice 655 — Cyber Hygiene (Banks)
+    source_url: https://www.mas.gov.sg/regulation/notices/notice-655
+    portal: Monetary Authority of Singapore
+    format: pdf_scanned          # demonstrates the OCR branch
+    amendment_date: "2019-08-06"
+    discovery_tag: KNOWN
+    path: SG/mas_notice_655.pdf   # text supplied via mas_notice_655.ocr.txt sidecar
+
+  - economy: AU
+    title: Privacy Act 1988 (Commonwealth of Australia)
+    source_url: https://www.legislation.gov.au/C2004A03712
+    portal: Federal Register of Legislation
+    format: text
+    amendment_date: "2022-12-12"
+    discovery_tag: KNOWN
+    path: AU/privacy_act.txt
+
+  - economy: AU
+    title: Privacy and Other Legislation Amendment Act 2024 (Cth)
+    source_url: https://www.legislation.gov.au/C2024A00xx
+    portal: Federal Register of Legislation
+    format: text
+    amendment_date: "2024-12-10"
+    discovery_tag: NEW            # surfaced outside the original sample set
+    path: AU/privacy_amendment_2024.txt
+
+  - economy: MY
+    title: Personal Data Protection Act 2010 (Malaysia)
+    source_url: https://lom.agc.gov.my/act-view.php?act=709
+    portal: AGC Malaysia
+    format: text
+    amendment_date: "2024-10-17"
+    discovery_tag: KNOWN
+    path: MY/pdpa_2010.txt

@@ -1,0 +1,17 @@
+Privacy and Other Legislation Amendment Act 2024 (Commonwealth of Australia)
+
+An Act to amend the Privacy Act 1988 to strengthen the protection of personal
+information and to introduce new enforcement and transparency measures.
+
+Section 13G. Statutory tort for serious invasions of privacy. An individual has a cause
+of action in tort against another person who invades the privacy of the individual,
+where the invasion was intentional or reckless and was serious.
+
+Section 26WB. Automated decision-making transparency. An APP entity that uses personal
+information in a computer program to make, or substantially assist in making, a decision
+that could reasonably be expected to significantly affect the rights or interests of an
+individual must include information about that use in its privacy policy.
+
+Section 33A. Civil penalties for interferences with privacy. A court may order a person
+who engages in an act or practice that is a serious interference with the privacy of an
+individual to pay a civil penalty.

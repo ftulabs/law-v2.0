@@ -1,0 +1,26 @@
+# Official legal portals for live discovery (Zone 1, --live mode).
+# The sample pipeline does NOT need these; they document where real crawls go and
+# provide selectors the httpx/BeautifulSoup skeleton in discovery.py can use.
+# Swap in Playwright/Scrapy behind discover_live() for JS-heavy portals.
+
+sources:
+  - economy: SG
+    name: Singapore Statutes Online
+    base_url: https://sso.agc.gov.sg
+    search_url_template: https://sso.agc.gov.sg/Search/Content?Query={query}
+    result_link_selector: a.non-ajax
+    notes: Primary statute repository. Respect robots.txt and rate limits.
+
+  - economy: AU
+    name: Federal Register of Legislation
+    base_url: https://www.legislation.gov.au
+    search_url_template: https://www.legislation.gov.au/Search/{query}
+    result_link_selector: a.search-result-title
+    notes: Commonwealth legislation. JS-heavy — prefer Playwright for full crawl.
+
+  - economy: MY
+    name: Attorney General's Chambers (AGC) Malaysia
+    base_url: https://lom.agc.gov.my
+    search_url_template: https://lom.agc.gov.my/search.php?q={query}
+    result_link_selector: a
+    notes: Laws of Malaysia. Many documents are scanned PDFs → OCR required.

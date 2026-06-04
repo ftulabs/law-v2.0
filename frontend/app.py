@@ -1,0 +1,375 @@
+"""VeriTrade reviewer dashboard (Streamlit).
+
+Design direction — "legal dossier": a refined editorial aesthetic that treats the
+screen like an evidence file. Parchment ground with a faint grain, a gazette
+masthead set in Fraunces, body in Newsreader, statutory citations in IBM Plex Mono.
+A single "verdict" colour system (forest = auto-accept, ochre = review, oxblood =
+quarantine) carries confidence everywhere so a reviewer's eye lands on doubt first.
+Restraint over spectacle — the data is the drama.
+
+Same backend the CLI/API use. Run:  streamlit run frontend/app.py
+"""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import pandas as pd
+import streamlit as st
+
+# allow `import backend...` when launched via `streamlit run frontend/app.py`
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from backend.config import settings  # noqa: E402
+from backend.export import export_csv, export_json  # noqa: E402
+from backend.pipeline.orchestrator import run_pipeline  # noqa: E402
+from backend.review import workflow  # noqa: E402
+from backend.schemas import Economy, RunResult  # noqa: E402
+from backend.storage import db  # noqa: E402
+
+st.set_page_config(page_title="VeriTrade · Evidence Dossier", page_icon="§", layout="wide")
+
+# ── design system ────────────────────────────────────────────────────────
+GRAIN = (
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E"
+    "%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E"
+    "%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E"
+)
+
+st.markdown(
+    f"""
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900;9..144,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+      :root {{
+        --paper:#f4f1ea; --paper-2:#ece6d8; --paper-3:#e3dccb;
+        --ink:#1c1a16; --ink-soft:#5b554a; --ink-faint:#8a8270;
+        --rule:#cdc4b0; --rule-soft:#ddd5c2;
+        --oxblood:#7c2d2d; --forest:#2f5d3a; --ochre:#a9742a; --gold:#9a7b3f;
+      }}
+
+      .stApp {{
+        background-color: var(--paper);
+        background-image: url("{GRAIN}");
+        color: var(--ink);
+        font-family: 'Newsreader', Georgia, 'Times New Roman', serif;
+        font-size: 16px;
+      }}
+      .block-container {{padding-top: 1.4rem; max-width: 1320px;}}
+      [data-testid="stHeader"] {{background: transparent;}}
+
+      h1,h2,h3,h4 {{font-family:'Fraunces','Newsreader',serif; color:var(--ink); letter-spacing:-.01em;}}
+      a {{color:var(--oxblood); text-decoration:none; border-bottom:1px solid var(--rule);}}
+      a:hover {{border-bottom-color:var(--oxblood);}}
+
+      .mono {{font-family:'IBM Plex Mono',ui-monospace,monospace;}}
+      .kicker {{font-family:'IBM Plex Mono',monospace; font-size:.7rem; letter-spacing:.28em;
+                text-transform:uppercase; color:var(--ink-faint);}}
+
+      /* ── masthead ── */
+      .masthead {{border-bottom:3px double var(--ink); padding-bottom:.7rem; margin-bottom:.2rem;
+                  animation: rise .6s ease both;}}
+      .masthead .row {{display:flex; align-items:baseline; justify-content:space-between; gap:1rem;}}
+      .masthead h1 {{font-weight:900; font-size:3.1rem; line-height:1; margin:.1rem 0 0;}}
+      .masthead .mark {{color:var(--oxblood);}}
+      .masthead .strap {{font-style:italic; color:var(--ink-soft); font-size:1.02rem; margin-top:.35rem;}}
+      .masthead .edition {{text-align:right; font-family:'IBM Plex Mono',monospace; font-size:.72rem;
+                           color:var(--ink-faint); line-height:1.5; white-space:nowrap;}}
+
+      /* ── ledger (summary strip) ── */
+      .ledger {{display:flex; gap:0; border:1px solid var(--rule); background:rgba(255,255,255,.35);
+                margin:1.1rem 0 .4rem; animation: rise .7s ease both;}}
+      .ledger .cell {{flex:1; padding:.7rem 1rem; border-right:1px solid var(--rule-soft);}}
+      .ledger .cell:last-child {{border-right:none;}}
+      .ledger .cap {{font-family:'IBM Plex Mono',monospace; font-size:.62rem; letter-spacing:.18em;
+                     text-transform:uppercase; color:var(--ink-faint);}}
+      .ledger .num {{font-family:'Fraunces',serif; font-size:1.7rem; font-weight:600; line-height:1.1;}}
+      .ledger .num.ox {{color:var(--oxblood);}} .ledger .num.fo {{color:var(--forest);}}
+      .ledger .num.oc {{color:var(--ochre);}}
+
+      /* ── verdict / confidence band ── */
+      .verdict {{display:flex; align-items:center; gap:.5rem;}}
+      .vbar {{flex:1; height:7px; background:var(--paper-3); border:1px solid var(--rule-soft);
+              border-radius:1px; overflow:hidden;}}
+      .vbar > i {{display:block; height:100%; background:var(--c);}}
+      .vnum {{font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:.82rem; color:var(--c);}}
+      .vtag {{font-family:'IBM Plex Mono',monospace; font-size:.6rem; letter-spacing:.14em;
+              text-transform:uppercase; color:var(--ink-faint);}}
+
+      /* ── status seal ── */
+      .seal {{display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:.64rem;
+              letter-spacing:.12em; text-transform:uppercase; padding:.13rem .5rem; border-radius:1px;
+              border:1px solid; }}
+      .s-auto {{color:var(--forest); border-color:var(--forest); background:rgba(47,93,58,.07);}}
+      .s-review {{color:var(--ochre); border-color:var(--ochre); background:rgba(169,116,42,.08);}}
+      .s-quar {{color:var(--oxblood); border-color:var(--oxblood); background:rgba(124,45,45,.07);}}
+      .s-appr {{color:#1e40af; border-color:#1e40af; background:rgba(30,64,175,.06);}}
+      .s-rej {{color:var(--ink-soft); border-color:var(--rule);}}
+      .s-flag {{color:#86198f; border-color:#86198f; background:rgba(134,25,143,.06);}}
+
+      /* ── evidence card ── */
+      .vt-card {{border:1px solid var(--rule); border-left:3px solid var(--c,var(--rule));
+                 background:rgba(255,255,255,.4); padding:.9rem 1.1rem; margin-bottom:.7rem;
+                 display:grid; grid-template-columns: 92px 1fr 168px; gap:1rem; align-items:start;
+                 animation: rise .5s ease both;}}
+      .vt-card .docket {{font-family:'IBM Plex Mono',monospace;}}
+      .vt-card .docket b {{font-size:1.05rem; color:var(--ink);}}
+      .vt-card .docket span {{display:block; font-size:.62rem; letter-spacing:.1em; color:var(--ink-faint);
+                              text-transform:uppercase; margin-top:.15rem;}}
+      .vt-card .law {{font-family:'Fraunces',serif; font-weight:600; font-size:1.02rem;}}
+      .vt-card .cite {{font-family:'IBM Plex Mono',monospace; font-size:.72rem; color:var(--ink-soft);}}
+      .quote {{font-style:italic; color:var(--ink-soft); border-left:2px solid var(--rule);
+               padding:.35rem 0 .35rem .8rem; margin:.5rem 0 .4rem; font-size:.92rem; line-height:1.5;}}
+      .quote::before {{content:'\\201C'; font-family:'Fraunces',serif; font-size:1.5rem; color:var(--gold);
+                       margin-right:.1rem; line-height:0;}}
+      .srcurl {{font-family:'IBM Plex Mono',monospace; font-size:.66rem;}}
+
+      /* ── tabs ── */
+      .stTabs [data-baseweb="tab-list"] {{gap:1.4rem; border-bottom:1px solid var(--rule);}}
+      .stTabs [data-baseweb="tab"] {{font-family:'IBM Plex Mono',monospace; font-size:.74rem;
+              letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint); padding:.4rem 0;}}
+      .stTabs [aria-selected="true"] {{color:var(--oxblood) !important;}}
+      .stTabs [data-baseweb="tab-highlight"] {{background:var(--oxblood);}}
+
+      /* ── sidebar ── */
+      [data-testid="stSidebar"] {{background:var(--paper-2); border-right:1px solid var(--rule);}}
+      [data-testid="stSidebar"] h2,[data-testid="stSidebar"] h3 {{font-family:'Fraunces',serif;}}
+
+      .stButton button {{font-family:'IBM Plex Mono',monospace; font-size:.74rem; letter-spacing:.06em;
+              border-radius:1px; border:1px solid var(--ink);}}
+      .stButton button:hover {{border-color:var(--oxblood); color:var(--oxblood);}}
+
+      /* ── breakdown bars (audit) ── */
+      .bd {{display:grid; grid-template-columns:130px 1fr 48px; align-items:center; gap:.6rem; margin:.3rem 0;}}
+      .bd .lab {{font-family:'IBM Plex Mono',monospace; font-size:.64rem; letter-spacing:.1em;
+                 text-transform:uppercase; color:var(--ink-soft);}}
+      .bd .track {{height:6px; background:var(--paper-3); border:1px solid var(--rule-soft);}}
+      .bd .track > i {{display:block; height:100%; background:var(--gold);}}
+      .bd .track > i.final {{background:var(--oxblood);}}
+      .bd .val {{font-family:'IBM Plex Mono',monospace; font-size:.74rem; text-align:right;}}
+
+      .hr-thin {{border:none; border-top:1px solid var(--rule-soft); margin:.4rem 0;}}
+      @keyframes rise {{from{{opacity:0; transform:translateY(8px);}} to{{opacity:1; transform:none;}}}}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+SEAL = {"auto_accepted": "s-auto", "pending_review": "s-review", "quarantined": "s-quar",
+        "approved": "s-appr", "rejected": "s-rej", "corrected": "s-appr"}
+ECON_NAME = {"SG": "Singapore", "AU": "Australia", "MY": "Malaysia"}
+
+
+def vcolor(c: float) -> str:
+    if c >= settings.conf_auto_accept:
+        return "var(--forest)"
+    if c >= settings.conf_review_floor:
+        return "var(--ochre)"
+    return "var(--oxblood)"
+
+
+def vband(c: float) -> str:
+    return "auto" if c >= settings.conf_auto_accept else ("review" if c >= settings.conf_review_floor else "quarantine")
+
+
+def verdict_html(c: float) -> str:
+    return (f'<div class="verdict" style="--c:{vcolor(c)}"><div class="vbar"><i style="width:{int(c*100)}%"></i></div>'
+            f'<span class="vnum">{c:.2f}</span></div>'
+            f'<div class="vtag" style="text-align:right">{vband(c)}</div>')
+
+
+def seal_html(s: str) -> str:
+    return f'<span class="seal {SEAL.get(s, "s-review")}">{s.replace("_", " ")}</span>'
+
+
+# ── masthead ─────────────────────────────────────────────────────────────
+st.markdown(
+    '<div class="masthead"><div class="row">'
+    '<div><div class="kicker">UNESCAP RDTII 2.1 &middot; Evidence Dossier</div>'
+    '<h1>Veri<span class="mark">Trade</span></h1>'
+    '<div class="strap">Auditable legal evidence extraction &mdash; Pillars VI &amp; VII '
+    '&middot; Singapore &middot; Australia &middot; Malaysia</div></div>'
+    f'<div class="edition">No. 2.0<br>OCR &middot; {settings.ocr_provider}<br>LLM &middot; {settings.llm_provider}<br>'
+    f'auto &ge; {settings.conf_auto_accept} &middot; rev &ge; {settings.conf_review_floor}</div>'
+    '</div></div>',
+    unsafe_allow_html=True,
+)
+
+# ── sidebar: run controls ────────────────────────────────────────────────
+with st.sidebar:
+    st.markdown('<div class="kicker">Commission a run</div>', unsafe_allow_html=True)
+    economy = st.selectbox("Economy", [e.value for e in Economy], format_func=lambda v: ECON_NAME[v])
+    pillars = st.multiselect("Pillars", [6, 7], default=[6, 7])
+    use_samples = st.toggle("Sample corpus (offline)", value=True,
+                            help="Off = live crawl of official portals (network + selectors required)")
+    top_k = st.slider("Provisions retrieved / indicator", 1, 10, 5)
+    run_clicked = st.button("⟢  Run pipeline", type="primary", width="stretch")
+
+    st.markdown('<hr class="hr-thin">', unsafe_allow_html=True)
+    st.markdown('<div class="kicker">Open a prior dossier</div>', unsafe_allow_html=True)
+    prev = db.list_runs()
+    chosen_prev = st.selectbox("run_id", ["—"] + [r["run_id"] for r in prev], label_visibility="collapsed")
+
+# ── run / load state ─────────────────────────────────────────────────────
+if run_clicked and pillars:
+    with st.status("Compiling the dossier…", expanded=True) as status:
+        def log(m):
+            status.write(m)
+        result = run_pipeline(Economy(economy), pillars, use_samples=use_samples, top_k=top_k, log=log)
+        export_csv(result.mappings, result.meta.run_id)
+        export_json(result)
+        status.update(label=f"Filed — {result.meta.run_id}", state="complete")
+    st.session_state["run_id"] = result.meta.run_id
+elif chosen_prev and chosen_prev != "—":
+    st.session_state["run_id"] = chosen_prev
+
+run_id = st.session_state.get("run_id")
+if not run_id:
+    st.markdown(
+        '<div style="border:1px solid var(--rule); background:rgba(255,255,255,.4); padding:1.4rem 1.6rem;'
+        ' margin-top:1.4rem; font-style:italic; color:var(--ink-soft);">'
+        'Choose an economy and pillars at left, then <b>Run pipeline</b> to compile a fresh evidence '
+        'dossier — or open a prior one. Everything runs offline on the sample corpus.</div>',
+        unsafe_allow_html=True,
+    )
+    st.stop()
+
+meta = db.get_run(run_id)
+mappings = db.list_mappings(run_id=run_id)
+if not mappings:
+    st.warning("No mappings recorded for this run.")
+    st.stop()
+
+# ── ledger (summary) ─────────────────────────────────────────────────────
+summ = workflow.summary(run_id)
+bs = summ["by_status"]
+auto = bs.get("auto_accepted", 0) + bs.get("approved", 0)
+cells = [
+    ("Dossier", run_id, ""), ("Economy", ECON_NAME.get(meta.economy.value, "—") if meta else "—", ""),
+    ("Documents", meta.docs_discovered if meta else "—", ""),
+    ("Provisions", meta.provisions_extracted if meta else "—", ""),
+    ("Auto-accepted", auto, "fo"), ("Needs review", bs.get("pending_review", 0), "oc"),
+    ("Quarantined", bs.get("quarantined", 0), "ox"),
+]
+st.markdown(
+    '<div class="ledger">' + "".join(
+        f'<div class="cell"><div class="cap">{c}</div><div class="num {cls}">{v}</div></div>'
+        for c, v, cls in cells
+    ) + "</div>",
+    unsafe_allow_html=True,
+)
+
+tab_ev, tab_review, tab_audit, tab_export = st.tabs(
+    ["Evidence", f"Verdict queue · {len(workflow.queue(run_id))}", "Audit detail", "Exports"]
+)
+
+# ── evidence ─────────────────────────────────────────────────────────────
+with tab_ev:
+    f1, f2, f3 = st.columns(3)
+    pillar_f = f1.multiselect("Pillar", sorted({m.pillar for m in mappings}), default=sorted({m.pillar for m in mappings}))
+    status_f = f2.multiselect("Status", sorted({m.review_status.value for m in mappings}),
+                              default=sorted({m.review_status.value for m in mappings}))
+    only_flag = f3.toggle("Scope-flagged only", value=False)
+    view = [m for m in mappings if m.pillar in pillar_f and m.review_status.value in status_f
+            and (not only_flag or m.scope_flag)]
+    st.markdown(f'<div class="kicker" style="margin:.4rem 0 .8rem">{len(view)} mapped provisions</div>',
+                unsafe_allow_html=True)
+    for i, m in enumerate(view):
+        snip = m.verbatim_snippet[:260] + ("…" if len(m.verbatim_snippet) > 260 else "")
+        flag = f' {seal_html("scope")}'.replace("s-review", "s-flag") if m.scope_flag else ""
+        st.markdown(
+            f'<div class="vt-card" style="--c:{vcolor(m.confidence_score)}; animation-delay:{min(i*35,560)}ms">'
+            f'<div class="docket"><b>{m.indicator_id}</b><span>Pillar {m.pillar}</span>'
+            f'<span style="margin-top:.4rem">{m.discovery_tag.value}</span></div>'
+            f'<div><div class="law">{m.law_name}</div>'
+            f'<div class="cite">{m.article_section} &middot; {m.economy.value}{flag}</div>'
+            f'<div class="quote">{snip}</div>'
+            f'<a class="srcurl" href="{m.source_url}" target="_blank">{m.source_url}</a></div>'
+            f'<div>{verdict_html(m.confidence_score)}<div style="margin-top:.5rem">{seal_html(m.review_status.value)}</div></div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+# ── verdict queue ────────────────────────────────────────────────────────
+with tab_review:
+    queue = workflow.queue(run_id)
+    if not queue:
+        st.markdown('<div class="quote">The verdict queue is clear — nothing sits in the 0.60–0.84 '
+                    'band awaiting a human ruling.</div>', unsafe_allow_html=True)
+    for m in queue:
+        with st.container(border=True):
+            st.markdown(
+                f'<div style="display:flex;justify-content:space-between;align-items:baseline;gap:1rem">'
+                f'<div class="law">{m.indicator_id} &middot; {m.law_name}'
+                f'<span class="cite"> &mdash; {m.article_section}</span></div></div>'
+                f'<div style="max-width:300px;margin:.3rem 0 .2rem">{verdict_html(m.confidence_score)}</div>'
+                f'<div class="quote">{m.verbatim_snippet}</div>'
+                f'<div class="cite">Rationale &middot; {m.mapping_rationale}</div>',
+                unsafe_allow_html=True,
+            )
+            note = st.text_input("Reviewer note", key=f"note_{m.mapping_id}", placeholder="optional — recorded in audit log")
+            b = st.columns([1, 1, 1.4, 1])
+            if b[0].button("Approve", key=f"ap_{m.mapping_id}", width="stretch"):
+                workflow.approve(m.mapping_id, "dashboard", note); st.rerun()
+            if b[1].button("Reject", key=f"rj_{m.mapping_id}", width="stretch"):
+                workflow.reject(m.mapping_id, "dashboard", note); st.rerun()
+            new_ind = b[2].text_input("indicator", value=m.indicator_id, key=f"ci_{m.mapping_id}",
+                                      label_visibility="collapsed")
+            if b[3].button("Correct", key=f"co_{m.mapping_id}", width="stretch"):
+                workflow.correct(m.mapping_id, {"indicator_id": new_ind}, "dashboard", note); st.rerun()
+
+# ── audit detail ─────────────────────────────────────────────────────────
+with tab_audit:
+    ids = [f"{m.indicator_id} · {m.law_name[:30]} {m.article_section}" for m in mappings]
+    idx = st.selectbox("Mapping under examination", range(len(mappings)), format_func=lambda i: ids[i])
+    m = mappings[idx]
+    left, right = st.columns([1.3, 1])
+    with left:
+        st.markdown(f"### {m.indicator_id} — {m.law_name}")
+        st.markdown(f'<div class="cite">{m.article_section} &middot; {m.economy.value} &middot; Pillar {m.pillar} '
+                    f'&middot; {m.discovery_tag.value}</div>', unsafe_allow_html=True)
+        st.markdown('<div class="kicker" style="margin-top:.8rem">Verbatim provision</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="quote">{m.verbatim_snippet}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="srcurl">Source &middot; <a href="{m.source_url}">{m.source_url}</a></div>',
+                    unsafe_allow_html=True)
+        st.markdown(f'<div class="cite" style="margin-top:.6rem">Rationale &middot; {m.mapping_rationale}</div>',
+                    unsafe_allow_html=True)
+        if m.scope_flag:
+            st.markdown(f'<div style="margin-top:.7rem">{seal_html("scope").replace("s-review","s-flag")} '
+                        f'<span class="cite">{m.scope_flag} — capped to bar auto-accept of a sectoral instrument.</span></div>',
+                        unsafe_allow_html=True)
+    with right:
+        cb = m.confidence.model_dump()
+        st.markdown('<div class="kicker">Confidence breakdown</div>', unsafe_allow_html=True)
+        rows = [(k, cb[k]) for k in ("retrieval_score", "legal_match", "snippet_grounding", "scope_alignment")]
+        html = ""
+        for lab, v in rows:
+            html += (f'<div class="bd"><div class="lab">{lab.replace("_"," ")}</div>'
+                     f'<div class="track"><i style="width:{int(float(v)*100)}%"></i></div>'
+                     f'<div class="val">{float(v):.2f}</div></div>')
+        html += (f'<div class="bd"><div class="lab" style="color:var(--oxblood)">final</div>'
+                 f'<div class="track"><i class="final" style="width:{int(cb["final"]*100)}%"></i></div>'
+                 f'<div class="val">{cb["final"]:.2f}</div></div>')
+        st.markdown(html, unsafe_allow_html=True)
+        st.markdown(f'<div class="srcurl" style="color:var(--ink-faint)">{cb["explanation"]}</div>',
+                    unsafe_allow_html=True)
+        st.markdown('<div class="kicker" style="margin-top:.9rem">OCR metrics</div>', unsafe_allow_html=True)
+        st.json(m.ocr.model_dump(), expanded=False)
+        st.markdown('<div class="kicker">Retrieval log</div>', unsafe_allow_html=True)
+        st.code("\n".join(m.retrieval_log) or "—")
+        st.markdown(f'<div class="srcurl" style="color:var(--ink-faint)">model · {m.model_version}</div>',
+                    unsafe_allow_html=True)
+
+# ── exports ──────────────────────────────────────────────────────────────
+with tab_export:
+    result = RunResult(meta=meta, mappings=mappings)
+    csv_path = export_csv(mappings, run_id)
+    json_path = export_json(result)
+    st.markdown('<div class="quote">Two artefacts, two audiences — verbatim CSV for legal reviewers, '
+                'full-trace JSON for technical reviewers.</div>', unsafe_allow_html=True)
+    e1, e2 = st.columns(2)
+    e1.download_button("⬇  CSV · legal / policy", Path(csv_path).read_bytes(),
+                       file_name=Path(csv_path).name, mime="text/csv", width="stretch")
+    e2.download_button("⬇  JSON · technical", Path(json_path).read_bytes(),
+                       file_name=Path(json_path).name, mime="application/json", width="stretch")
+    st.dataframe(pd.read_csv(csv_path), width="stretch", height=380)

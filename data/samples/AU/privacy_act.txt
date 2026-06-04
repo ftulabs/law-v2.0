@@ -1,0 +1,30 @@
+Privacy Act 1988 (Commonwealth of Australia)
+
+An Act to make provision to protect the privacy of individuals, and for related
+purposes. The Australian Privacy Principles (APPs) apply to APP entities throughout
+Australia.
+
+Section 14. Australian Privacy Principle 3 — collection of solicited personal
+information. An APP entity must not collect personal information (other than sensitive
+information) unless the information is reasonably necessary for one or more of the
+entity's functions or activities, and must collect it only by lawful and fair means.
+
+Section 15. Australian Privacy Principle 6 — use or disclosure. If an APP entity holds
+personal information that was collected for a particular purpose, the entity must not
+use or disclose the information for another purpose unless the individual has consented
+to the use or disclosure.
+
+Section 21. Australian Privacy Principle 8 — cross-border disclosure of personal
+information. Before an APP entity discloses personal information about an individual to
+an overseas recipient, the entity must take such steps as are reasonable in the
+circumstances to ensure that the overseas recipient does not breach the Australian
+Privacy Principles in relation to the information.
+
+Section 22. Australian Privacy Principle 11 — security of personal information. An APP
+entity must take such steps as are reasonable in the circumstances to protect personal
+information it holds from misuse, interference and loss, and from unauthorised access,
+modification or disclosure.
+
+Section 26WK. Notifiable data breaches. If an entity is aware that there are reasonable
+grounds to believe that an eligible data breach has occurred, the entity must, as soon
+as practicable, notify the Commissioner and notify affected individuals of the breach.

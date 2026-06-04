@@ -1,0 +1,104 @@
+"""End-to-end pipeline orchestration (Zone 1 → Zone 2 → outputs).
+
+Ties the stages together, persists everything to the audit store, and returns a
+RunResult. Designed to be called from the CLI, the FastAPI route, or the Streamlit
+app. Pure function of its inputs + provider config — reproducible in mock mode.
+"""
+from __future__ import annotations
+
+import time
+import uuid
+from datetime import datetime, timezone
+
+from ..config import settings
+from ..providers import get_llm_provider
+from ..rdtii import get_indicators
+from ..schemas import Economy, RunMeta, RunResult
+from ..storage import db
+from . import discovery, extraction, mapping
+from .ocr import get_document_text
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def run_pipeline(
+    economy: Economy,
+    pillars: list[int],
+    use_samples: bool = True,
+    top_k: int = 5,
+    log=print,
+) -> RunResult:
+    run_id = "run-" + uuid.uuid4().hex[:8]
+    t0 = time.perf_counter()
+    started = _now()
+    llm = get_llm_provider()
+
+    db.init_db()
+    db.start_run(run_id, economy.value, pillars, started, settings.ocr_provider, settings.llm_provider, llm.model_version)
+
+    log(f"[discovery] economy={economy.value} pillars={pillars} samples={use_samples}")
+    # discover across all requested pillars (union)
+    seen, docs = set(), []
+    for pillar in pillars:
+        for d in discovery.discover(economy, pillar, use_samples=use_samples):
+            if d.doc_id not in seen:
+                seen.add(d.doc_id)
+                docs.append(d)
+    log(f"[discovery] {len(docs)} documents (NEW={sum(d.discovery_tag=='NEW' for d in docs)})")
+    for d in docs:
+        db.save_doc(run_id, d)
+
+    # extraction (+OCR) → provisions
+    provisions, source_texts, doc_tags = [], {}, {}
+    for d in docs:
+        raw, ocr = get_document_text(d)
+        source_texts[d.doc_id] = raw
+        doc_tags[d.doc_id] = d.discovery_tag
+        provs = extraction.extract_provisions(d, raw, ocr)
+        provisions.extend(provs)
+        if ocr.used:
+            log(f"[ocr] {d.title[:48]} via {ocr.provider} conf={ocr.mean_confidence} pages={ocr.pages}")
+        log(f"[extract] {d.title[:48]} -> {len(provs)} provisions")
+    for p in provisions:
+        db.save_provision(run_id, p)
+
+    # mapping → evidence
+    indicators = [i for pillar in pillars for i in get_indicators(pillar)]
+    log(f"[map] {len(provisions)} provisions × {len(indicators)} indicators (LLM={llm.name})")
+    mappings = mapping.map_provisions(
+        run_id=run_id,
+        provisions=provisions,
+        pillar=None,
+        indicators=indicators,
+        source_texts=source_texts,
+        doc_tags=doc_tags,
+        llm=llm,
+        top_k=top_k,
+    )
+    for m in mappings:
+        db.save_mapping(m)
+
+    elapsed = round(time.perf_counter() - t0, 3)
+    auto = sum(m.review_status == "auto_accepted" for m in mappings)
+    review = sum(m.review_status == "pending_review" for m in mappings)
+    quar = sum(m.review_status == "quarantined" for m in mappings)
+    log(f"[done] {len(mappings)} mappings in {elapsed}s — auto={auto} review={review} quarantine={quar}")
+
+    meta = RunMeta(
+        run_id=run_id,
+        economy=economy,
+        pillars=pillars,
+        started_at=started,
+        finished_at=_now(),
+        processing_time_seconds=elapsed,
+        docs_discovered=len(docs),
+        provisions_extracted=len(provisions),
+        mappings_produced=len(mappings),
+        ocr_provider=settings.ocr_provider,
+        llm_provider=settings.llm_provider,
+        model_version=llm.model_version,
+    )
+    db.finish_run(meta)
+    return RunResult(meta=meta, mappings=mappings)

@@ -1,0 +1,77 @@
+"""ZONE 2b — provision extraction.
+
+Splits a document's raw text into Provisions keyed by article/section markers,
+preserving VERBATIM wording and recording character spans into the raw text so
+any snippet can later be re-verified against source. The law name is derived from
+the document title; amendment dates flow from discovery metadata.
+
+Regex covers the common Commonwealth/ASEAN drafting conventions:
+  Section 26.  |  Art. 13  |  Article 13  |  Regulation 4  |  Clause 8  |  § 12
+"""
+from __future__ import annotations
+
+import re
+
+from ..schemas import DiscoveredDoc, OCRMetrics, Provision
+
+SECTION_RE = re.compile(
+    r"(?im)^\s*("
+    r"(?:section|sec\.?|s\.)\s*\d+[A-Z]?"        # Section 26 / S. 13
+    r"|(?:article|art\.?)\s*\d+[A-Z]?"            # Article 13 / Art. 13
+    r"|(?:regulation|reg\.?)\s*\d+[A-Z]?"
+    r"|(?:paragraph|para\.?)\s*\d+[A-Z]?"
+    r"|(?:clause)\s*\d+[A-Z]?"
+    r"|§\s*\d+[A-Z]?"
+    r"|\d+[A-Z]?\.\s+(?=[A-Z])"                   # "26.  Foo" bare numbered clause
+    r")\s*[.\-—:]?\s*"
+)
+
+MAX_SNIPPET = 1200   # keep snippets reviewable; verbatim within the bound
+
+
+def _law_name(doc: DiscoveredDoc) -> str:
+    return doc.title.strip()
+
+
+def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> list[Provision]:
+    text = raw_text or ""
+    matches = list(SECTION_RE.finditer(text))
+    provisions: list[Provision] = []
+
+    if not matches:
+        # whole-doc fallback: still emit one provision so nothing is silently dropped
+        snippet = text.strip()[:MAX_SNIPPET]
+        if snippet:
+            provisions.append(_mk(doc, "(document)", snippet, (0, len(snippet)), ocr, 0))
+        return provisions
+
+    for i, m in enumerate(matches):
+        label = re.sub(r"\s+", " ", m.group(1)).strip().rstrip(".-—:").strip()
+        start = m.end()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        body = text[start:end].strip()
+        if not body:
+            continue
+        snippet = body[:MAX_SNIPPET]
+        provisions.append(_mk(doc, _normalise_label(label), snippet, (start, start + len(snippet)), ocr, i))
+    return provisions
+
+
+def _normalise_label(label: str) -> str:
+    label = label.replace("Sec.", "Section").replace("S.", "Section").replace("Art.", "Article").replace("Reg.", "Regulation")
+    return label[:1].upper() + label[1:]
+
+
+def _mk(doc: DiscoveredDoc, label: str, snippet: str, span, ocr: OCRMetrics, idx: int) -> Provision:
+    return Provision(
+        provision_id=f"{doc.doc_id}#p{idx}",
+        doc_id=doc.doc_id,
+        economy=doc.economy,
+        law_name=_law_name(doc),
+        article_section=label,
+        verbatim_snippet=snippet,
+        source_url=doc.source_url,
+        amendment_date=doc.amendment_date,
+        char_span=span,
+        ocr=ocr,
+    )

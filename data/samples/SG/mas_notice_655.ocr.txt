@@ -1,0 +1,21 @@
+MONETARY AUTHORITY OF SINGAPORE
+
+NOTICE 655   NOTICE ON CYBER HYGIENE
+
+This Notice is issued pursuant to the Banking Act and applies to all banks in Singapore.
+It sets out the cyber hygiene measures that a bank, as a licensed financial institution,
+must put in place to protect its information technology systems.
+
+Paragraph 4. Administrative accounts. A bank must ensure that every administrative
+account in respect of any operating system, database, application, security appliance
+or network device is secured to prevent unauthorised access.
+
+Paragraph 5. Security patches. A bank must apply security patches to address security
+vulnerabilities in every system in a timely manner.
+
+Paragraph 6. Security standards. A bank must establish and implement written security
+standards for every system, and must ensure that each system conforms to the security
+standards.
+
+This Notice applies only to the financial sector and does not constitute a national
+cybersecurity framework of general application.

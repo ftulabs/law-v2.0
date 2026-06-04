@@ -1,0 +1,26 @@
+Cybersecurity Act 2018 (Singapore)
+
+An Act to provide for the oversight and maintenance of national cybersecurity in
+Singapore, and to establish a framework for the protection of critical information
+infrastructure against cybersecurity threats.
+
+Section 7. Designation of critical information infrastructure. The Commissioner may, by
+written notice, designate a computer or computer system as a critical information
+infrastructure for the purposes of this Act if the Commissioner is satisfied that the
+computer or computer system is necessary for the continuous delivery of an essential
+service, and the loss or compromise of the computer or computer system will have a
+debilitating effect on the availability of the essential service in Singapore.
+
+Section 11. Codes of practice and standards of performance. The Commissioner may issue
+or approve one or more codes of practice or standards of performance for the regulation
+of the owners of critical information infrastructure with respect to measures to be
+taken by them to ensure the cybersecurity of the critical information infrastructure.
+
+Section 14. Duty to report cybersecurity incidents. The owner of a critical information
+infrastructure must notify the Commissioner of the occurrence of any prescribed
+cybersecurity incident in respect of the critical information infrastructure within the
+prescribed period after becoming aware of such occurrence.
+
+Section 19. National cybersecurity. The Commissioner is responsible for the oversight
+and promotion of cybersecurity in Singapore at the national level, including the
+establishment of cybersecurity codes of practice and national response measures.

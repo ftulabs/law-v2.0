@@ -1,0 +1,65 @@
+"""JSON export for technical reviewers.
+
+Carries everything the CSV omits: processing_time, OCR quality metrics, raw_context,
+source metadata, model version, retrieval logs, and the confidence-scoring
+explanation per mapping. This is the machine-auditable artefact.
+"""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from ..config import settings
+from ..schemas import EvidenceMapping, RunResult
+
+
+def build_payload(result: RunResult) -> dict:
+    return {
+        "run": result.meta.model_dump(),
+        "provider_versions": {
+            "ocr_provider": result.meta.ocr_provider,
+            "llm_provider": result.meta.llm_provider,
+            "model_version": result.meta.model_version,
+        },
+        "summary": _summary(result.mappings),
+        "mappings": [_mapping_payload(m) for m in result.mappings],
+    }
+
+
+def _summary(mappings: list[EvidenceMapping]) -> dict:
+    by_status: dict[str, int] = {}
+    for m in mappings:
+        by_status[m.review_status.value] = by_status.get(m.review_status.value, 0) + 1
+    return {"total": len(mappings), "by_status": by_status}
+
+
+def _mapping_payload(m: EvidenceMapping) -> dict:
+    return {
+        "mapping_id": m.mapping_id,
+        "economy": m.economy.value,
+        "pillar": m.pillar,
+        "indicator_id": m.indicator_id,
+        "law_name": m.law_name,
+        "article_section": m.article_section,
+        "verbatim_snippet": m.verbatim_snippet,
+        "source_url": m.source_url,
+        "mapping_rationale": m.mapping_rationale,
+        "confidence_score": m.confidence_score,
+        "confidence_breakdown": m.confidence.model_dump(),       # scoring explanation
+        "discovery_tag": m.discovery_tag.value,
+        "review_status": m.review_status.value,
+        "scope_flag": m.scope_flag,
+        "provision_id": m.provision_id,
+        "raw_context": m.raw_context,                            # what the model saw
+        "ocr_metrics": m.ocr.model_dump(),                       # OCR quality
+        "model_version": m.model_version,
+        "retrieval_log": m.retrieval_log,                        # retrieval logs
+        "human_note": m.human_note,
+    }
+
+
+def export_json(result: RunResult, out_dir: Path | None = None) -> Path:
+    out_dir = out_dir or settings.output_path
+    path = Path(out_dir) / f"veritrade_{result.meta.run_id}.json"
+    path.write_text(json.dumps(build_payload(result), indent=2, ensure_ascii=False), encoding="utf-8")
+    return path

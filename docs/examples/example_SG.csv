@@ -1,0 +1,191 @@
+﻿"economy","pillar","indicator_id","law_name","article_section","verbatim_snippet","source_url","mapping_rationale","confidence_score","discovery_tag","review_status"
+"SG","7","P7.3","Personal Data Protection Act 2012 (Singapore)","Section 24","Protection of personal data. An organisation shall protect personal data
+in its possession or under its control by making reasonable security arrangements to
+prevent unauthorised access, collection, use, disclosure, copying, modification,
+disposal or similar risks.
+Part VIA — Notification of Data Breaches","https://sso.agc.gov.sg/Act/PDPA2012","Provision contains indicator language (reasonable security arrangements, protect personal data). Binding obligation language present. Assessed as legally relevant.","0.992","KNOWN","auto_accepted"
+"SG","7","P7.4","Personal Data Protection Act 2012 (Singapore)","Section 26D","Duty to notify. Where an organisation assesses that a data breach is a
+notifiable data breach, the organisation must notify the Commission as soon as is
+practicable, and in any case no later than 3 calendar days after making that
+assessment, and must notify affected individuals where the breach is likely to result
+in significant harm.
+Part IX — Transfer of Personal Data Outside Singapore","https://sso.agc.gov.sg/Act/PDPA2012","Provision contains indicator language (notify the commission, notifiable data breach, notify affected individuals). Binding obligation language present. Assessed as legally relevant.","0.992","KNOWN","auto_accepted"
+"SG","6","P6.1","Personal Data Protection Act 2012 (Singapore)","Section 26","Transfer of personal data outside Singapore. An organisation shall not
+transfer any personal data to a country or territory outside Singapore except in
+accordance with requirements prescribed under this Act to ensure that the transferred
+personal data will be accorded a standard of protection that is comparable to the
+protection under this Act.","https://sso.agc.gov.sg/Act/PDPA2012","Provision contains indicator language (transfer of personal data outside). Binding obligation language present. Assessed as legally relevant.","0.892","KNOWN","auto_accepted"
+"SG","7","P7.1","Personal Data Protection Act 2012 (Singapore)","Section 24","Protection of personal data. An organisation shall protect personal data
+in its possession or under its control by making reasonable security arrangements to
+prevent unauthorised access, collection, use, disclosure, copying, modification,
+disposal or similar risks.
+Part VIA — Notification of Data Breaches","https://sso.agc.gov.sg/Act/PDPA2012","Provision contains indicator language (protection of personal data). Binding obligation language present. Assessed as legally relevant.","0.874","KNOWN","auto_accepted"
+"SG","7","P7.5","Cybersecurity Act 2018 (Singapore)","Section 7","Designation of critical information infrastructure. The Commissioner may, by
+written notice, designate a computer or computer system as a critical information
+infrastructure for the purposes of this Act if the Commissioner is satisfied that the
+computer or computer system is necessary for the continuous delivery of an essential
+service, and the loss or compromise of the computer or computer system will have a
+debilitating effect on the availability of the essential service in Singapore.","https://sso.agc.gov.sg/Act/CA2018","Provision contains indicator language (critical information infrastructure). No clearly binding obligation detected. Assessed as legally relevant.","0.832","KNOWN","pending_review"
+"SG","7","P7.5","Cybersecurity Act 2018 (Singapore)","Section 14","Duty to report cybersecurity incidents. The owner of a critical information
+infrastructure must notify the Commissioner of the occurrence of any prescribed
+cybersecurity incident in respect of the critical information infrastructure within the
+prescribed period after becoming aware of such occurrence.","https://sso.agc.gov.sg/Act/CA2018","Provision contains indicator language (critical information infrastructure). Binding obligation language present. Assessed as legally relevant.","0.828","KNOWN","pending_review"
+"SG","7","P7.5","Cybersecurity Act 2018 (Singapore)","Section 19","National cybersecurity. The Commissioner is responsible for the oversight
+and promotion of cybersecurity in Singapore at the national level, including the
+establishment of cybersecurity codes of practice and national response measures.","https://sso.agc.gov.sg/Act/CA2018","Provision contains indicator language (national cybersecurity). No clearly binding obligation detected. Assessed as legally relevant.","0.797","KNOWN","pending_review"
+"SG","6","P6.2","Personal Data Protection Act 2012 (Singapore)","Section 26","Transfer of personal data outside Singapore. An organisation shall not
+transfer any personal data to a country or territory outside Singapore except in
+accordance with requirements prescribed under this Act to ensure that the transferred
+personal data will be accorded a standard of protection that is comparable to the
+protection under this Act.","https://sso.agc.gov.sg/Act/PDPA2012","No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.","0.792","KNOWN","pending_review"
+"SG","6","P6.3","Personal Data Protection Act 2012 (Singapore)","Section 26","Transfer of personal data outside Singapore. An organisation shall not
+transfer any personal data to a country or territory outside Singapore except in
+accordance with requirements prescribed under this Act to ensure that the transferred
+personal data will be accorded a standard of protection that is comparable to the
+protection under this Act.","https://sso.agc.gov.sg/Act/PDPA2012","No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.","0.792","KNOWN","pending_review"
+"SG","7","P7.1","Personal Data Protection Act 2012 (Singapore)","Section 26","Transfer of personal data outside Singapore. An organisation shall not
+transfer any personal data to a country or territory outside Singapore except in
+accordance with requirements prescribed under this Act to ensure that the transferred
+personal data will be accorded a standard of protection that is comparable to the
+protection under this Act.","https://sso.agc.gov.sg/Act/PDPA2012","No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.","0.792","KNOWN","pending_review"
+"SG","7","P7.2","Personal Data Protection Act 2012 (Singapore)","Section 13","Consent required. An organisation shall not, on or after the appointed
+day, collect, use or disclose personal data about an individual unless the individual
+gives, or is deemed to have given, his or her consent under this Act to the collection,
+use or disclosure of the personal data.","https://sso.agc.gov.sg/Act/PDPA2012","No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.","0.792","KNOWN","pending_review"
+"SG","6","P6.1","Personal Data Protection Act 2012 (Singapore)","Section 26D","Duty to notify. Where an organisation assesses that a data breach is a
+notifiable data breach, the organisation must notify the Commission as soon as is
+practicable, and in any case no later than 3 calendar days after making that
+assessment, and must notify affected individuals where the breach is likely to result
+in significant harm.
+Part IX — Transfer of Personal Data Outside Singapore","https://sso.agc.gov.sg/Act/PDPA2012","Provision contains indicator language (transfer of personal data outside). Binding obligation language present. Assessed as legally relevant.","0.78","KNOWN","pending_review"
+"SG","7","P7.2","Personal Data Protection Act 2012 (Singapore)","Section 18","Purpose limitation. An organisation may collect, use or disclose
+personal data about an individual only for purposes that a reasonable person would
+consider appropriate in the circumstances.
+Part VI — Care of Personal Data","https://sso.agc.gov.sg/Act/PDPA2012","Provision contains indicator language (purpose limitation). No clearly binding obligation detected. Assessed as legally relevant.","0.766","KNOWN","pending_review"
+"SG","6","P6.3","Cybersecurity Act 2018 (Singapore)","Section 14","Duty to report cybersecurity incidents. The owner of a critical information
+infrastructure must notify the Commissioner of the occurrence of any prescribed
+cybersecurity incident in respect of the critical information infrastructure within the
+prescribed period after becoming aware of such occurrence.","https://sso.agc.gov.sg/Act/CA2018","No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.","0.762","KNOWN","pending_review"
+"SG","7","P7.5","Cybersecurity Act 2018 (Singapore)","Section 11","Codes of practice and standards of performance. The Commissioner may issue
+or approve one or more codes of practice or standards of performance for the regulation
+of the owners of critical information infrastructure with respect to measures to be
+taken by them to ensure the cybersecurity of the critical information infrastructure.","https://sso.agc.gov.sg/Act/CA2018","Provision contains indicator language (critical information infrastructure). No clearly binding obligation detected. Assessed as legally relevant.","0.751","KNOWN","pending_review"
+"SG","7","P7.1","Personal Data Protection Act 2012 (Singapore)","Section 13","Consent required. An organisation shall not, on or after the appointed
+day, collect, use or disclose personal data about an individual unless the individual
+gives, or is deemed to have given, his or her consent under this Act to the collection,
+use or disclosure of the personal data.","https://sso.agc.gov.sg/Act/PDPA2012","No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.","0.747","KNOWN","pending_review"
+"SG","7","P7.1","Personal Data Protection Act 2012 (Singapore)","Section 26D","Duty to notify. Where an organisation assesses that a data breach is a
+notifiable data breach, the organisation must notify the Commission as soon as is
+practicable, and in any case no later than 3 calendar days after making that
+assessment, and must notify affected individuals where the breach is likely to result
+in significant harm.
+Part IX — Transfer of Personal Data Outside Singapore","https://sso.agc.gov.sg/Act/PDPA2012","No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.","0.718","KNOWN","pending_review"
+"SG","6","P6.3","Personal Data Protection Act 2012 (Singapore)","Section 26D","Duty to notify. Where an organisation assesses that a data breach is a
+notifiable data breach, the organisation must notify the Commission as soon as is
+practicable, and in any case no later than 3 calendar days after making that
+assessment, and must notify affected individuals where the breach is likely to result
+in significant harm.
+Part IX — Transfer of Personal Data Outside Singapore","https://sso.agc.gov.sg/Act/PDPA2012","No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.","0.699","KNOWN","pending_review"
+"SG","7","P7.1","Personal Data Protection Act 2012 (Singapore)","Section 18","Purpose limitation. An organisation may collect, use or disclose
+personal data about an individual only for purposes that a reasonable person would
+consider appropriate in the circumstances.
+Part VI — Care of Personal Data","https://sso.agc.gov.sg/Act/PDPA2012","No indicator-specific legal language found in the snippet. No clearly binding obligation detected. Not sufficient for a legal mapping.","0.696","KNOWN","pending_review"
+"SG","7","P7.4","Cybersecurity Act 2018 (Singapore)","Section 14","Duty to report cybersecurity incidents. The owner of a critical information
+infrastructure must notify the Commissioner of the occurrence of any prescribed
+cybersecurity incident in respect of the critical information infrastructure within the
+prescribed period after becoming aware of such occurrence.","https://sso.agc.gov.sg/Act/CA2018","Provision contains indicator language (notify the commission). Binding obligation language present. Assessed as legally relevant.","0.684","KNOWN","pending_review"
+"SG","6","P6.3","Personal Data Protection Act 2012 (Singapore)","Section 24","Protection of personal data. An organisation shall protect personal data
+in its possession or under its control by making reasonable security arrangements to
+prevent unauthorised access, collection, use, disclosure, copying, modification,
+disposal or similar risks.
+Part VIA — Notification of Data Breaches","https://sso.agc.gov.sg/Act/PDPA2012","No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.","0.658","KNOWN","pending_review"
+"SG","7","P7.3","MAS Notice 655 — Cyber Hygiene (Banks)","Paragraph 5","Security patches. A bank must apply security patches to address security
+vulnerabilities in every system in a timely manner.","https://www.mas.gov.sg/regulation/notices/notice-655","No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.","0.646","KNOWN","pending_review"
+"SG","6","P6.3","Personal Data Protection Act 2012 (Singapore)","Section 18","Purpose limitation. An organisation may collect, use or disclose
+personal data about an individual only for purposes that a reasonable person would
+consider appropriate in the circumstances.
+Part VI — Care of Personal Data","https://sso.agc.gov.sg/Act/PDPA2012","No indicator-specific legal language found in the snippet. No clearly binding obligation detected. Not sufficient for a legal mapping.","0.624","KNOWN","pending_review"
+"SG","6","P6.2","Personal Data Protection Act 2012 (Singapore)","Section 26D","Duty to notify. Where an organisation assesses that a data breach is a
+notifiable data breach, the organisation must notify the Commission as soon as is
+practicable, and in any case no later than 3 calendar days after making that
+assessment, and must notify affected individuals where the breach is likely to result
+in significant harm.
+Part IX — Transfer of Personal Data Outside Singapore","https://sso.agc.gov.sg/Act/PDPA2012","No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.","0.618","KNOWN","pending_review"
+"SG","6","P6.2","Cybersecurity Act 2018 (Singapore)","Section 14","Duty to report cybersecurity incidents. The owner of a critical information
+infrastructure must notify the Commissioner of the occurrence of any prescribed
+cybersecurity incident in respect of the critical information infrastructure within the
+prescribed period after becoming aware of such occurrence.","https://sso.agc.gov.sg/Act/CA2018","No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.","0.615","KNOWN","pending_review"
+"SG","6","P6.1","Personal Data Protection Act 2012 (Singapore)","Section 24","Protection of personal data. An organisation shall protect personal data
+in its possession or under its control by making reasonable security arrangements to
+prevent unauthorised access, collection, use, disclosure, copying, modification,
+disposal or similar risks.
+Part VIA — Notification of Data Breaches","https://sso.agc.gov.sg/Act/PDPA2012","No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.","0.608","KNOWN","pending_review"
+"SG","7","P7.4","Personal Data Protection Act 2012 (Singapore)","Section 24","Protection of personal data. An organisation shall protect personal data
+in its possession or under its control by making reasonable security arrangements to
+prevent unauthorised access, collection, use, disclosure, copying, modification,
+disposal or similar risks.
+Part VIA — Notification of Data Breaches","https://sso.agc.gov.sg/Act/PDPA2012","No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.","0.607","KNOWN","pending_review"
+"SG","7","P7.3","MAS Notice 655 — Cyber Hygiene (Banks)","Paragraph 4","Administrative accounts. A bank must ensure that every administrative
+account in respect of any operating system, database, application, security appliance
+or network device is secured to prevent unauthorised access.","https://www.mas.gov.sg/regulation/notices/notice-655","No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.","0.606","KNOWN","pending_review"
+"SG","7","P7.2","Personal Data Protection Act 2012 (Singapore)","Section 26","Transfer of personal data outside Singapore. An organisation shall not
+transfer any personal data to a country or territory outside Singapore except in
+accordance with requirements prescribed under this Act to ensure that the transferred
+personal data will be accorded a standard of protection that is comparable to the
+protection under this Act.","https://sso.agc.gov.sg/Act/PDPA2012","No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.","0.603","KNOWN","pending_review"
+"SG","6","P6.2","Personal Data Protection Act 2012 (Singapore)","Section 24","Protection of personal data. An organisation shall protect personal data
+in its possession or under its control by making reasonable security arrangements to
+prevent unauthorised access, collection, use, disclosure, copying, modification,
+disposal or similar risks.
+Part VIA — Notification of Data Breaches","https://sso.agc.gov.sg/Act/PDPA2012","No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.","0.568","KNOWN","quarantined"
+"SG","7","P7.4","Personal Data Protection Act 2012 (Singapore)","Section 13","Consent required. An organisation shall not, on or after the appointed
+day, collect, use or disclose personal data about an individual unless the individual
+gives, or is deemed to have given, his or her consent under this Act to the collection,
+use or disclosure of the personal data.","https://sso.agc.gov.sg/Act/PDPA2012","No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.","0.567","KNOWN","quarantined"
+"SG","7","P7.4","Personal Data Protection Act 2012 (Singapore)","Section 26","Transfer of personal data outside Singapore. An organisation shall not
+transfer any personal data to a country or territory outside Singapore except in
+accordance with requirements prescribed under this Act to ensure that the transferred
+personal data will be accorded a standard of protection that is comparable to the
+protection under this Act.","https://sso.agc.gov.sg/Act/PDPA2012","No indicator-specific legal language found in the snippet. Binding obligation language present. Assessed as legally relevant.","0.566","KNOWN","quarantined"
+"SG","7","P7.3","Personal Data Protection Act 2012 (Singapore)","Section 18","Purpose limitation. An organisation may collect, use or disclose
+personal data about an individual only for purposes that a reasonable person would
+consider appropriate in the circumstances.
+Part VI — Care of Personal Data","https://sso.agc.gov.sg/Act/PDPA2012","No indicator-specific legal language found in the snippet. No clearly binding obligation detected. Not sufficient for a legal mapping.","0.56","KNOWN","quarantined"
+"SG","6","P6.2","Personal Data Protection Act 2012 (Singapore)","Section 18","Purpose limitation. An organisation may collect, use or disclose
+personal data about an individual only for purposes that a reasonable person would
+consider appropriate in the circumstances.
+Part VI — Care of Personal Data","https://sso.agc.gov.sg/Act/PDPA2012","No indicator-specific legal language found in the snippet. No clearly binding obligation detected. Not sufficient for a legal mapping.","0.558","KNOWN","quarantined"
+"SG","7","P7.3","MAS Notice 655 — Cyber Hygiene (Banks)","Paragraph 6","Security standards. A bank must establish and implement written security
+standards for every system, and must ensure that each system conforms to the security
+standards.
+
+This Notice applies only to the financial sector and does not constitute a national
+cybersecurity framework of general application.","https://www.mas.gov.sg/regulation/notices/notice-655","No indicator-specific legal language found in the snippet. Binding obligation language present. Text is sector-specific; flagged as SECTORAL_NOT_NATIONAL against a national-scope indicator. Not sufficient for a legal mapping.","0.55","KNOWN","quarantined"
+"SG","7","P7.5","MAS Notice 655 — Cyber Hygiene (Banks)","Paragraph 6","Security standards. A bank must establish and implement written security
+standards for every system, and must ensure that each system conforms to the security
+standards.
+
+This Notice applies only to the financial sector and does not constitute a national
+cybersecurity framework of general application.","https://www.mas.gov.sg/regulation/notices/notice-655","No indicator-specific legal language found in the snippet. Binding obligation language present. Text is sector-specific; flagged as SECTORAL_NOT_NATIONAL against a national-scope indicator. Not sufficient for a legal mapping.","0.55","KNOWN","quarantined"
+"SG","6","P6.1","Personal Data Protection Act 2012 (Singapore)","Section 18","Purpose limitation. An organisation may collect, use or disclose
+personal data about an individual only for purposes that a reasonable person would
+consider appropriate in the circumstances.
+Part VI — Care of Personal Data","https://sso.agc.gov.sg/Act/PDPA2012","No indicator-specific legal language found in the snippet. No clearly binding obligation detected. Not sufficient for a legal mapping.","0.541","KNOWN","quarantined"
+"SG","7","P7.2","Cybersecurity Act 2018 (Singapore)","Section 7","Designation of critical information infrastructure. The Commissioner may, by
+written notice, designate a computer or computer system as a critical information
+infrastructure for the purposes of this Act if the Commissioner is satisfied that the
+computer or computer system is necessary for the continuous delivery of an essential
+service, and the loss or compromise of the computer or computer system will have a
+debilitating effect on the availability of the essential service in Singapore.","https://sso.agc.gov.sg/Act/CA2018","No indicator-specific legal language found in the snippet. No clearly binding obligation detected. Not sufficient for a legal mapping.","0.522","KNOWN","quarantined"
+"SG","6","P6.1","MAS Notice 655 — Cyber Hygiene (Banks)","Paragraph 6","Security standards. A bank must establish and implement written security
+standards for every system, and must ensure that each system conforms to the security
+standards.
+
+This Notice applies only to the financial sector and does not constitute a national
+cybersecurity framework of general application.","https://www.mas.gov.sg/regulation/notices/notice-655","No indicator-specific legal language found in the snippet. Binding obligation language present. Text is sector-specific; flagged as SECTORAL_NOT_NATIONAL against a national-scope indicator. Not sufficient for a legal mapping.","0.511","KNOWN","quarantined"
+"SG","7","P7.2","MAS Notice 655 — Cyber Hygiene (Banks)","Paragraph 6","Security standards. A bank must establish and implement written security
+standards for every system, and must ensure that each system conforms to the security
+standards.
+
+This Notice applies only to the financial sector and does not constitute a national
+cybersecurity framework of general application.","https://www.mas.gov.sg/regulation/notices/notice-655","No indicator-specific legal language found in the snippet. Binding obligation language present. Text is sector-specific; flagged as SECTORAL_NOT_NATIONAL against a national-scope indicator. Not sufficient for a legal mapping.","0.5","KNOWN","quarantined"
