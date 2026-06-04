@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 132" width="620" height="132" role="img" aria-label="VeriTrade">
+  <defs>
+    <linearGradient id="vt-v" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5bbcff"/>
+      <stop offset="1" stop-color="#1b3fa0"/>
+    </linearGradient>
+    <linearGradient id="vt-veri" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4aa6ff"/>
+      <stop offset="1" stop-color="#13348f"/>
+    </linearGradient>
+  </defs>
+  <!-- V mark with integrated check stroke -->
+  <path d="M16 26 L52 26 L74 92 L96 26 L132 26 L92 120 L56 120 Z" fill="url(#vt-v)"/>
+  <path d="M40 70 L70 96 L120 36" fill="none" stroke="#eaf4ff" stroke-width="9"
+        stroke-linecap="round" stroke-linejoin="round" opacity="0.92"/>
+  <!-- wordmark -->
+  <text x="138" y="98" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
+        font-weight="800" font-size="92" letter-spacing="-3">
+    <tspan fill="url(#vt-veri)">eri</tspan><tspan fill="#5bc6ff">Trade</tspan>
+  </text>
+  <!-- circuit-arrow motif -->
+  <g fill="#3aa0ff">
+    <rect x="566" y="58" width="34" height="7" rx="3"/>
+    <rect x="566" y="72" width="24" height="7" rx="3"/>
+    <circle cx="610" cy="48" r="3.5"/><circle cx="610" cy="61.5" r="3.5"/>
+    <circle cx="610" cy="75" r="3.5"/><circle cx="598" cy="89" r="3.5"/>
+  </g>
+</svg>

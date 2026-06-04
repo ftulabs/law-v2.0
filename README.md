@@ -1,7 +1,7 @@
 # VeriTrade — AI Tool for Digital Trade Regulatory Analysis
 
 UN Global Hackathon on AI for Digital Trade Regulatory Analysis
-Team: **ftulabs** | Round: 1
+Team: **VeriTrade** (Foreign Trade University) | Round: 1
 Last updated: 2026-06-04
 
 > **Round 1 requirement:** the **Quick Start** below lets a reviewer set up and run the
@@ -343,6 +343,8 @@ The dashboard reads `st.secrets` first, then env/`.env`. Locally, copy
 ---
 
 ## Team
+
+**Team VeriTrade** — Foreign Trade University (FTU).
 
 | Role | Name | Responsibility |
 | :---- | :---- | :---- |

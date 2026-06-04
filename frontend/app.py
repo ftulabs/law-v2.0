@@ -15,6 +15,8 @@ import sys
 from pathlib import Path
 
 import pandas as pd
+import base64
+
 import streamlit as st
 
 # allow `import backend...` when launched via `streamlit run frontend/app.py`
@@ -28,7 +30,36 @@ from backend.review import workflow  # noqa: E402
 from backend.schemas import Economy, RunResult  # noqa: E402
 from backend.storage import db  # noqa: E402
 
-st.set_page_config(page_title="VeriTrade · Evidence Dossier", page_icon="§", layout="wide")
+# ── brand assets (drop files in frontend/assets/ — see ASSETS.md) ──────────
+ASSETS = Path(__file__).resolve().parent / "assets"
+
+
+def _asset(*names: str) -> Path | None:
+    for n in names:
+        p = ASSETS / n
+        if p.exists():
+            return p
+    return None
+
+
+def _img_b64(path: Path) -> str:
+    return base64.b64encode(path.read_bytes()).decode()
+
+
+def logo_html() -> str:
+    """VeriTrade hero logo: prefer a transparent PNG, fall back to the brand SVG."""
+    png = _asset("veritrade_logo.png", "veritrade_logo.webp")
+    if png:
+        return (f'<img class="vt-logo" alt="VeriTrade" '
+                f'src="data:image/{png.suffix[1:]};base64,{_img_b64(png)}"/>')
+    svg = _asset("veritrade_logo.svg")
+    if svg:
+        return f'<div class="vt-logo">{svg.read_text(encoding="utf-8")}</div>'
+    return '<h1>Veri<span class="mark">Trade</span></h1>'
+
+
+_favicon = _asset("ftu_logo.png", "ftu_logo.webp", "ftu_logo.jpg")
+st.set_page_config(page_title="VeriTrade", page_icon=str(_favicon) if _favicon else "§", layout="wide")
 
 # ── design system ────────────────────────────────────────────────────────
 GRAIN = (
@@ -37,31 +68,53 @@ GRAIN = (
     "%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E"
 )
 
+# ── theme: dark (brand navy, default) or light (legal-dossier parchment) ──
+DARK = st.session_state.get("dark_mode", True)
+if DARK:
+    PALETTE = (
+        "--paper:#0a1024; --paper-2:#0d1630; --paper-3:#142146;"
+        "--ink:#e8eeff; --ink-soft:#9db0dc; --ink-faint:#6f81ad;"
+        "--rule:#21315e; --rule-soft:#18254a;"
+        "--oxblood:#ff6b6b; --forest:#3ddc84; --ochre:#f3b34a; --gold:#5bc8ff;"
+        "--accent:#3aa0ff; --panel:rgba(120,170,255,.05); --panel-2:rgba(120,170,255,.09);"
+    )
+    APP_BG = (f"background-color:#0a1024;"
+              f"background-image:radial-gradient(1000px 420px at 50% -140px, rgba(40,120,255,.30), transparent 70%),"
+              f"radial-gradient(700px 320px at 88% 8%, rgba(30,90,220,.18), transparent 70%),"
+              f"url(\"{GRAIN}\");")
+    LOGO_FX = "filter:drop-shadow(0 0 18px rgba(46,140,255,.45));"
+else:
+    PALETTE = (
+        "--paper:#f4f1ea; --paper-2:#ece6d8; --paper-3:#e3dccb;"
+        "--ink:#1c1a16; --ink-soft:#5b554a; --ink-faint:#8a8270;"
+        "--rule:#cdc4b0; --rule-soft:#ddd5c2;"
+        "--oxblood:#7c2d2d; --forest:#2f5d3a; --ochre:#a9742a; --gold:#9a7b3f;"
+        "--accent:#7c2d2d; --panel:rgba(255,255,255,.40); --panel-2:rgba(255,255,255,.55);"
+    )
+    APP_BG = f"background-color:var(--paper); background-image:url(\"{GRAIN}\");"
+    LOGO_FX = ""
+
 st.markdown(
     f"""
     <style>
       @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900;9..144,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
-      :root {{
-        --paper:#f4f1ea; --paper-2:#ece6d8; --paper-3:#e3dccb;
-        --ink:#1c1a16; --ink-soft:#5b554a; --ink-faint:#8a8270;
-        --rule:#cdc4b0; --rule-soft:#ddd5c2;
-        --oxblood:#7c2d2d; --forest:#2f5d3a; --ochre:#a9742a; --gold:#9a7b3f;
-      }}
+      :root {{ {PALETTE} }}
 
       .stApp {{
-        background-color: var(--paper);
-        background-image: url("{GRAIN}");
+        {APP_BG}
         color: var(--ink);
         font-family: 'Newsreader', Georgia, 'Times New Roman', serif;
         font-size: 16px;
       }}
+      .vt-logo {{ line-height:0; }}
+      .vt-logo img, .vt-logo svg {{ height:64px; width:auto; max-width:520px; {LOGO_FX} }}
       .block-container {{padding-top: 1.4rem; max-width: 1320px;}}
       [data-testid="stHeader"] {{background: transparent;}}
 
       h1,h2,h3,h4 {{font-family:'Fraunces','Newsreader',serif; color:var(--ink); letter-spacing:-.01em;}}
-      a {{color:var(--oxblood); text-decoration:none; border-bottom:1px solid var(--rule);}}
-      a:hover {{border-bottom-color:var(--oxblood);}}
+      a {{color:var(--accent); text-decoration:none; border-bottom:1px solid var(--rule);}}
+      a:hover {{border-bottom-color:var(--accent);}}
 
       .mono {{font-family:'IBM Plex Mono',ui-monospace,monospace;}}
       .kicker {{font-family:'IBM Plex Mono',monospace; font-size:.7rem; letter-spacing:.28em;
@@ -72,13 +125,13 @@ st.markdown(
                   animation: rise .6s ease both;}}
       .masthead .row {{display:flex; align-items:baseline; justify-content:space-between; gap:1rem;}}
       .masthead h1 {{font-weight:900; font-size:3.1rem; line-height:1; margin:.1rem 0 0;}}
-      .masthead .mark {{color:var(--oxblood);}}
+      .masthead .mark {{color:var(--accent);}}
       .masthead .strap {{font-style:italic; color:var(--ink-soft); font-size:1.02rem; margin-top:.35rem;}}
       .masthead .edition {{text-align:right; font-family:'IBM Plex Mono',monospace; font-size:.72rem;
                            color:var(--ink-faint); line-height:1.5; white-space:nowrap;}}
 
       /* ── ledger (summary strip) ── */
-      .ledger {{display:flex; gap:0; border:1px solid var(--rule); background:rgba(255,255,255,.35);
+      .ledger {{display:flex; gap:0; border:1px solid var(--rule); background:var(--panel);
                 margin:1.1rem 0 .4rem; animation: rise .7s ease both;}}
       .ledger .cell {{flex:1; padding:.7rem 1rem; border-right:1px solid var(--rule-soft);}}
       .ledger .cell:last-child {{border-right:none;}}
@@ -110,7 +163,7 @@ st.markdown(
 
       /* ── evidence card ── */
       .vt-card {{border:1px solid var(--rule); border-left:3px solid var(--c,var(--rule));
-                 background:rgba(255,255,255,.4); padding:.9rem 1.1rem; margin-bottom:.7rem;
+                 background:var(--panel); padding:.9rem 1.1rem; margin-bottom:.7rem;
                  display:grid; grid-template-columns: 92px 1fr 168px; gap:1rem; align-items:start;
                  animation: rise .5s ease both;}}
       .vt-card .docket {{font-family:'IBM Plex Mono',monospace;}}
@@ -129,16 +182,16 @@ st.markdown(
       .stTabs [data-baseweb="tab-list"] {{gap:1.4rem; border-bottom:1px solid var(--rule);}}
       .stTabs [data-baseweb="tab"] {{font-family:'IBM Plex Mono',monospace; font-size:.74rem;
               letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint); padding:.4rem 0;}}
-      .stTabs [aria-selected="true"] {{color:var(--oxblood) !important;}}
-      .stTabs [data-baseweb="tab-highlight"] {{background:var(--oxblood);}}
+      .stTabs [aria-selected="true"] {{color:var(--accent) !important;}}
+      .stTabs [data-baseweb="tab-highlight"] {{background:var(--accent);}}
 
       /* ── sidebar ── */
       [data-testid="stSidebar"] {{background:var(--paper-2); border-right:1px solid var(--rule);}}
       [data-testid="stSidebar"] h2,[data-testid="stSidebar"] h3 {{font-family:'Fraunces',serif;}}
 
       .stButton button {{font-family:'IBM Plex Mono',monospace; font-size:.74rem; letter-spacing:.06em;
-              border-radius:1px; border:1px solid var(--ink);}}
-      .stButton button:hover {{border-color:var(--oxblood); color:var(--oxblood);}}
+              border-radius:1px; border:1px solid var(--rule); background:var(--panel); color:var(--ink);}}
+      .stButton button:hover {{border-color:var(--accent); color:var(--accent);}}
 
       /* ── breakdown bars (audit) ── */
       .bd {{display:grid; grid-template-columns:130px 1fr 48px; align-items:center; gap:.6rem; margin:.3rem 0;}}
@@ -200,9 +253,9 @@ def _secret(name: str, fallback: str = "") -> str:
 st.markdown(
     '<div class="masthead"><div class="row">'
     '<div><div class="kicker">UNESCAP RDTII 2.1 &middot; Evidence Dossier</div>'
-    '<h1>Veri<span class="mark">Trade</span></h1>'
-    '<div class="strap">Auditable legal evidence extraction &mdash; Pillars VI &amp; VII '
-    '&middot; Singapore &middot; Australia &middot; Malaysia</div></div>'
+    f'{logo_html()}'
+    '<div class="strap">Where legal expertise meets AI &mdash; auditable RDTII evidence, '
+    'Pillars 6 &amp; 7 &middot; Singapore &middot; Australia &middot; Malaysia</div></div>'
     f'<div class="edition">No. 2.0<br>engines chosen at left<br>'
     f'auto &ge; {settings.conf_auto_accept} &middot; rev &ge; {settings.conf_review_floor}</div>'
     '</div></div>',
@@ -211,6 +264,9 @@ st.markdown(
 
 # ── sidebar: run controls ────────────────────────────────────────────────
 with st.sidebar:
+    st.session_state.setdefault("dark_mode", True)
+    st.toggle("🌙 Dark mode", key="dark_mode", help="Brand navy theme (on) / parchment dossier (off)")
+    st.markdown('<hr class="hr-thin">', unsafe_allow_html=True)
     st.markdown('<div class="kicker">Commission a run</div>', unsafe_allow_html=True)
     economy = st.selectbox("Economy", [e.value for e in Economy], format_func=lambda v: ECON_NAME[v])
     pillars = st.multiselect("Pillars", [6, 7], default=[6, 7])
