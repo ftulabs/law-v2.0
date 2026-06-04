@@ -108,8 +108,8 @@ st.markdown(
         font-size: 16px;
       }}
       .vt-logo {{ line-height:0; margin:.2rem 0; }}
-      img.vt-logo, .vt-logo img, .vt-logo svg {{ height:72px !important; width:auto !important;
-              max-width:340px; display:block; {LOGO_FX} }}
+      img.vt-logo, .vt-logo img, .vt-logo svg {{ height:100px !important; width:auto !important;
+              max-width:480px; display:block; {LOGO_FX} }}
       .block-container {{padding-top: 1.4rem; max-width: 1320px;}}
       [data-testid="stHeader"] {{background: transparent;}}
 
@@ -189,6 +189,12 @@ st.markdown(
       /* ── sidebar ── */
       [data-testid="stSidebar"] {{background:var(--paper-2); border-right:1px solid var(--rule);}}
       [data-testid="stSidebar"] h2,[data-testid="stSidebar"] h3 {{font-family:'Fraunces',serif;}}
+      /* sidebar collapse / expand (and header) controls — visible in both themes */
+      [data-testid="stSidebarCollapseButton"] svg, [data-testid="collapsedControl"] svg,
+      [data-testid="stSidebarCollapsedControl"] svg, [data-testid="stExpandSidebarButton"] svg,
+      [data-testid="stSidebarCollapseButton"] button, [data-testid="collapsedControl"] button {{
+              color:var(--accent) !important; fill:var(--accent) !important; opacity:1 !important;}}
+      [data-testid="collapsedControl"] {{background:var(--paper-2) !important; border-radius:8px;}}
 
       .stButton button {{font-family:'IBM Plex Mono',monospace; font-size:.74rem; letter-spacing:.06em;
               border-radius:1px; border:1px solid var(--rule); background:var(--panel); color:var(--ink);}}
@@ -222,22 +228,25 @@ st.markdown(
               border-color:var(--rule) !important; }}
       div[data-baseweb="select"] * {{ color:var(--ink) !important; }}
       /* dropdown menus (selectbox/multiselect) rendered in body portals */
-      [data-baseweb="popover"] [role="listbox"], [data-baseweb="menu"], ul[role="listbox"] {{
-              background:var(--paper-2) !important; }}
-      [data-baseweb="menu"] *, [data-baseweb="popover"] li, [role="option"], [role="option"] * {{
+      [data-baseweb="popover"] > div, [data-baseweb="popover"] div, [data-baseweb="popover"] ul,
+      [data-baseweb="menu"], ul[role="listbox"], div[role="listbox"] {{
+              background-color:var(--paper-2) !important; }}
+      [role="option"], [role="option"] *, [data-baseweb="menu"] li {{
               background-color:transparent !important; color:var(--ink) !important; }}
-      [role="option"]:hover, li[role="option"][aria-selected="true"] {{ background:var(--paper-3) !important; }}
-      [data-baseweb="tag"] {{ background:var(--accent) !important; color:#fff !important; }}
-      [data-baseweb="tag"] * {{ color:#fff !important; }}
+      [role="option"]:hover, li[role="option"][aria-selected="true"] {{ background-color:var(--paper-3) !important; }}
+      /* multiselect chips (pillars) — brand blue, white text, both themes */
+      [data-baseweb="tag"] {{ background:#2f6df0 !important; border-color:#2f6df0 !important; }}
+      [data-baseweb="tag"], [data-baseweb="tag"] * {{ color:#ffffff !important; }}
       [data-testid="stSliderThumbValue"], [data-testid="stTickBarMin"], [data-testid="stTickBarMax"] {{
               color:var(--ink-soft) !important; }}
       pre, code, .stCode, [data-testid="stJson"], [data-testid="stJson"] * {{
               background:var(--paper-3) !important; color:var(--ink) !important; }}
 
-      /* top-right theme button — visible pill */
+      /* top-right ⋮ overflow menu — small, clean, right-aligned */
+      [data-testid="stPopover"] {{ display:flex; justify-content:flex-end; }}
       [data-testid="stPopover"] button {{background:var(--panel) !important; border:1px solid var(--rule) !important;
-              color:var(--ink-soft) !important; font-family:'IBM Plex Mono',monospace !important;
-              font-size:.72rem !important; letter-spacing:.06em; border-radius:999px; padding:.25rem .8rem;}}
+              color:var(--ink-soft) !important; font-size:1.05rem !important; line-height:1; min-height:unset !important;
+              border-radius:8px; padding:.1rem .55rem;}}
       [data-testid="stPopover"] button:hover {{color:var(--accent) !important; border-color:var(--accent) !important;}}
       .hr-thin {{border:none; border-top:1px solid var(--rule-soft); margin:.4rem 0;}}
       @keyframes rise {{from{{opacity:0; transform:translateY(8px);}} to{{opacity:1; transform:none;}}}}
@@ -285,9 +294,11 @@ def _secret(name: str, fallback: str = "") -> str:
 
 # ── top-right overflow menu (dark-mode toggle tucked away) ─────────────────
 st.session_state.setdefault("dark_mode", True)
-_spacer, _tog = st.columns([10, 2])
-with _tog:
-    st.toggle("🌙 Dark", key="dark_mode", help="Switch dark / light theme")
+_spacer, _menu = st.columns([15, 1])
+with _menu:
+    with st.popover("⋮"):
+        st.markdown('<div class="kicker">Display</div>', unsafe_allow_html=True)
+        st.toggle("🌙 Dark mode", key="dark_mode", help="Switch dark / light theme")
 
 # ── masthead ─────────────────────────────────────────────────────────────
 st.markdown(
