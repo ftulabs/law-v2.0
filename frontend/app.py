@@ -107,8 +107,9 @@ st.markdown(
         font-family: 'Newsreader', Georgia, 'Times New Roman', serif;
         font-size: 16px;
       }}
-      .vt-logo {{ line-height:0; margin:.1rem 0; }}
-      .vt-logo img, .vt-logo svg {{ height:44px; width:auto; max-width:360px; {LOGO_FX} }}
+      .vt-logo {{ line-height:0; margin:.15rem 0; }}
+      img.vt-logo, .vt-logo img, .vt-logo svg {{ height:40px !important; width:auto !important;
+              max-width:300px; display:block; {LOGO_FX} }}
       .block-container {{padding-top: 1.4rem; max-width: 1320px;}}
       [data-testid="stHeader"] {{background: transparent;}}
 
@@ -227,10 +228,11 @@ st.markdown(
       pre, code, .stCode, [data-testid="stJson"], [data-testid="stJson"] * {{
               background:var(--paper-3) !important; color:var(--ink) !important; }}
 
-      /* top-right overflow (⋮) menu button — subtle, borderless */
-      [data-testid="stPopover"] button {{background:transparent !important; border:none !important;
-              color:var(--ink-faint) !important; font-size:1.4rem; line-height:1; padding:.1rem .4rem;}}
-      [data-testid="stPopover"] button:hover {{color:var(--accent) !important;}}
+      /* top-right theme button — visible pill */
+      [data-testid="stPopover"] button {{background:var(--panel) !important; border:1px solid var(--rule) !important;
+              color:var(--ink-soft) !important; font-family:'IBM Plex Mono',monospace !important;
+              font-size:.72rem !important; letter-spacing:.06em; border-radius:999px; padding:.25rem .8rem;}}
+      [data-testid="stPopover"] button:hover {{color:var(--accent) !important; border-color:var(--accent) !important;}}
       .hr-thin {{border:none; border-top:1px solid var(--rule-soft); margin:.4rem 0;}}
       @keyframes rise {{from{{opacity:0; transform:translateY(8px);}} to{{opacity:1; transform:none;}}}}
     </style>
@@ -276,9 +278,9 @@ def _secret(name: str, fallback: str = "") -> str:
 
 
 # ── top-right overflow menu (dark-mode toggle tucked away) ─────────────────
-_spacer, _menu = st.columns([13, 1])
+_spacer, _menu = st.columns([11, 2])
 with _menu:
-    with st.popover("⋮"):
+    with st.popover("🌙 Theme"):
         st.session_state.setdefault("dark_mode", True)
         st.toggle("🌙 Dark mode", key="dark_mode",
                   help="Brand navy theme (on) / parchment dossier (off)")
