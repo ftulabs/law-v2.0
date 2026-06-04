@@ -33,9 +33,12 @@ numpy>=1.26
 # paddlepaddle>=2.6
 # azure-ai-vision-imageanalysis>=1.0
 
-# --- LLM providers (optional — install what you use) ---
-# anthropic>=0.39
-# openai>=1.30
+# --- LLM providers ---
+openai>=1.30               # also used for OpenRouter (OpenAI-compatible endpoint)
+# anthropic>=0.39          # optional: only if LLM_PROVIDER=anthropic
+
+# --- Tests ---
+pytest>=8.0
 
 # --- Crawling (optional — sample mode needs none of these) ---
 # playwright>=1.43

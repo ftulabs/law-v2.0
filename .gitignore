@@ -5,12 +5,15 @@ __pycache__/
 venv/
 *.egg-info/
 
-# env / secrets
+# env / secrets — NEVER commit real keys
 .env
+.env.local
+.streamlit/secrets.toml
 
 # runtime outputs (keep the dir, not the artefacts)
 outputs/*
 !outputs/.gitkeep
+logs/
 
 # OS / editor
 .DS_Store

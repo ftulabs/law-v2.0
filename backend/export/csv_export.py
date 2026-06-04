@@ -34,10 +34,10 @@ def _row(m: EvidenceMapping) -> dict[str, str]:
 
 
 def export_csv(mappings: list[EvidenceMapping], run_id: str, out_dir: Path | None = None,
-               submission_only: bool = True) -> Path:
+               submission_only: bool = True, out_stem: str | None = None) -> Path:
     out_dir = out_dir or settings.output_path
     rows = [m for m in mappings if (not submission_only or m.review_status.value in SUBMITTABLE_STATUSES)]
-    path = Path(out_dir) / f"veritrade_{run_id}.csv"
+    path = Path(out_dir) / f"{out_stem or ('veritrade_' + run_id)}.csv"
     with path.open("w", newline="", encoding="utf-8-sig") as f:
         writer = csv.DictWriter(f, fieldnames=SUBMISSION_COLUMNS, quoting=csv.QUOTE_ALL)
         writer.writeheader()

@@ -12,11 +12,21 @@ from dataclasses import dataclass
 from ..config import settings
 
 OCR_PROVIDERS = ["markitdown", "mock", "tesseract", "paddle", "azure"]
-LLM_PROVIDERS = ["mock", "anthropic", "openai"]
+LLM_PROVIDERS = ["openrouter", "mock", "anthropic", "openai"]
 
 OCR_LABELS = {"markitdown": "MarkItDown (default)", "mock": "Mock (offline)",
               "tesseract": "Tesseract", "paddle": "PaddleOCR", "azure": "Azure Vision"}
-LLM_LABELS = {"mock": "Mock grader (offline)", "anthropic": "Anthropic Claude", "openai": "OpenAI"}
+LLM_LABELS = {"openrouter": "OpenRouter (free models)", "mock": "Mock grader (offline)",
+              "anthropic": "Anthropic Claude", "openai": "OpenAI"}
+
+# Curated free models on OpenRouter (verified available; availability can change).
+OPENROUTER_FREE_MODELS = [
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "qwen/qwen3-next-80b-a3b-instruct:free",
+    "openai/gpt-oss-120b:free",
+    "z-ai/glm-4.5-air:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
+]
 
 
 @dataclass
@@ -75,4 +85,10 @@ def llm_availability(name: str, api_key: str | None = None) -> Availability:
         if not (api_key or settings.openai_api_key):
             return Availability(False, "needs API key")
         return Availability(True, "ready")
+    if name == "openrouter":
+        if not _have("openai"):
+            return Availability(False, "pip install openai")
+        if not (api_key or settings.openrouter_api_key):
+            return Availability(False, "needs OPENROUTER_API_KEY (env/secrets)")
+        return Availability(True, "ready (free models)")
     return Availability(False, "unknown")

@@ -178,4 +178,7 @@ def get_llm_provider(name: str | None = None, model: str | None = None,
     if name == "openai":
         from .llm_openai import OpenAILLM
         return OpenAILLM(api_key or settings.openai_api_key, model or settings.openai_model)
+    if name == "openrouter":
+        from .llm_openrouter import OpenRouterLLM
+        return OpenRouterLLM(api_key or settings.openrouter_api_key, model or settings.openrouter_model)
     raise ValueError(f"Unknown LLM_PROVIDER: {name}")

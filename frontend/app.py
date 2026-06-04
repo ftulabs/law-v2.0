@@ -186,6 +186,16 @@ def seal_html(s: str) -> str:
     return f'<span class="seal {SEAL.get(s, "s-review")}">{s.replace("_", " ")}</span>'
 
 
+def _secret(name: str, fallback: str = "") -> str:
+    """Read a secret from st.secrets (deployed app) → falling back to env/.env."""
+    try:
+        if name in st.secrets:
+            return str(st.secrets[name])
+    except Exception:
+        pass
+    return fallback
+
+
 # ── masthead ─────────────────────────────────────────────────────────────
 st.markdown(
     '<div class="masthead"><div class="row">'
@@ -224,14 +234,24 @@ with st.sidebar:
     def _llm_fmt(n):
         return f"{reg.LLM_LABELS[n]}  {'✓' if reg.llm_availability(n).ready else '⚙'}"
 
-    llm_choice = st.selectbox("LLM model", reg.LLM_PROVIDERS, format_func=_llm_fmt,
-                              index=reg.LLM_PROVIDERS.index(settings.llm_provider))
+    _llm_index = reg.LLM_PROVIDERS.index(settings.llm_provider) if settings.llm_provider in reg.LLM_PROVIDERS else 0
+    llm_choice = st.selectbox("LLM provider", reg.LLM_PROVIDERS, format_func=_llm_fmt, index=_llm_index)
     llm_model, llm_key = None, None
-    if llm_choice != "mock":
+    if llm_choice == "openrouter":
+        # key comes from st.secrets (deployed) or env/.env (local) — judges don't retype it
+        llm_key = _secret("OPENROUTER_API_KEY", settings.openrouter_api_key)
+        _models = reg.OPENROUTER_FREE_MODELS
+        _idx = _models.index(settings.openrouter_model) if settings.openrouter_model in _models else 0
+        llm_model = st.selectbox("Free model", _models, index=_idx,
+                                 help="Free OpenRouter models; auto-fails over to another if rate-limited")
+        if not llm_key:
+            llm_key = st.text_input("OpenRouter API key", type="password",
+                                    placeholder="set OPENROUTER_API_KEY in Secrets, or paste here") or None
+    elif llm_choice != "mock":
         _default_model = settings.anthropic_model if llm_choice == "anthropic" else settings.openai_model
         llm_model = st.text_input("Model name", value=_default_model, key="llm_model_in")
         llm_key = st.text_input("API key", type="password", key="llm_key_in",
-                                placeholder="paste to enable live calls")
+                                placeholder="paste to enable live calls") or None
     _la = reg.llm_availability(llm_choice, api_key=llm_key or None)
     if llm_choice != "mock":
         st.markdown(f'<div class="prov-note {"ready" if _la.ready else ""}">'

@@ -71,8 +71,8 @@ def _mapping_payload(m: EvidenceMapping) -> dict:
     }
 
 
-def export_json(result: RunResult, out_dir: Path | None = None) -> Path:
+def export_json(result: RunResult, out_dir: Path | None = None, out_stem: str | None = None) -> Path:
     out_dir = out_dir or settings.output_path
-    path = Path(out_dir) / f"veritrade_{result.meta.run_id}.json"
+    path = Path(out_dir) / f"{out_stem or ('veritrade_' + result.meta.run_id)}.json"
     path.write_text(json.dumps(build_payload(result), indent=2, ensure_ascii=False), encoding="utf-8")
     return path

@@ -51,6 +51,7 @@ def run_pipeline(
     llm_provider: str | None = None,
     llm_model: str | None = None,
     llm_api_key: str | None = None,
+    pdf_path: str | None = None,
 ) -> RunResult:
     run_id = "run-" + uuid.uuid4().hex[:8]
     t0 = time.perf_counter()
@@ -64,14 +65,18 @@ def run_pipeline(
     db.init_db()
     db.start_run(run_id, economy.value, pillars, started, ocr.name, llm.name, llm.model_version)
 
-    log(f"[discovery] economy={economy.value} pillars={pillars} samples={use_samples}")
-    # discover across all requested pillars (union)
+    # discover across all requested pillars (union) — or use a single provided file
     seen, docs = set(), []
-    for pillar in pillars:
-        for d in discovery.discover(economy, pillar, use_samples=use_samples):
-            if d.doc_id not in seen:
-                seen.add(d.doc_id)
-                docs.append(d)
+    if pdf_path:
+        log(f"[discovery] single file (crawler bypassed): {pdf_path}")
+        docs = [discovery.doc_from_file(economy, pdf_path)]
+    else:
+        log(f"[discovery] economy={economy.value} pillars={pillars} samples={use_samples}")
+        for pillar in pillars:
+            for d in discovery.discover(economy, pillar, use_samples=use_samples):
+                if d.doc_id not in seen:
+                    seen.add(d.doc_id)
+                    docs.append(d)
     log(f"[discovery] {len(docs)} documents (NEW={sum(d.discovery_tag=='NEW' for d in docs)})")
     for d in docs:
         db.save_doc(run_id, d)

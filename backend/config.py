@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-opus-4-8"
     openai_api_key: str = ""
     openai_model: str = "gpt-4o"
+    # OpenRouter (free models). Key is read from env/.env/secrets — NEVER hardcode it
+    # in committed code. Default is empty on purpose.
+    openrouter_api_key: str = ""
+    openrouter_model: str = "meta-llama/llama-3.3-70b-instruct:free"
 
     # azure ocr
     azure_vision_endpoint: str = ""

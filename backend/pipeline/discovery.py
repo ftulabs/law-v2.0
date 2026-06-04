@@ -132,6 +132,21 @@ def discover_live(economy: Economy, pillar: int | None = None, max_docs: int = 1
     return docs[:max_docs]
 
 
+def doc_from_file(economy: Economy, path: str) -> DiscoveredDoc:
+    """Build a DiscoveredDoc from a local file (the `--pdf` bypass-crawler path)."""
+    p = Path(path)
+    ext = p.suffix.lower()
+    fmt = (DocFormat.PDF_TEXT if ext == ".pdf"
+           else DocFormat.HTML if ext in (".html", ".htm")
+           else DocFormat.TEXT)
+    return DiscoveredDoc(
+        doc_id=_doc_id(economy.value, str(p.resolve())),
+        economy=economy, title=p.stem, source_url=p.resolve().as_uri(),
+        portal="local-file", fmt=fmt, relevance_score=1.0,
+        discovery_tag=DiscoveryTag.NEW, local_path=str(p),
+    )
+
+
 def discover(economy: Economy, pillar: int | None = None, use_samples: bool = True) -> list[DiscoveredDoc]:
     if use_samples:
         return discover_from_samples(economy, pillar)
