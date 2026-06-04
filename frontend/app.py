@@ -236,9 +236,9 @@ st.markdown(
       [role="option"], [role="option"] *, [data-baseweb="menu"] li {{
               background-color:transparent !important; color:var(--ink) !important; }}
       [role="option"]:hover, li[role="option"][aria-selected="true"] {{ background-color:var(--paper-3) !important; }}
-      /* multiselect chips (pillars) — brand blue, white text, both themes */
-      [data-baseweb="tag"] {{ background:#2f6df0 !important; border-color:#2f6df0 !important; }}
-      [data-baseweb="tag"], [data-baseweb="tag"] * {{ color:#ffffff !important; }}
+      /* multiselect chips (pillars) — accent bg (oxblood in light, blue in dark) + white text */
+      [data-baseweb="tag"] {{ background:var(--accent) !important; border-color:var(--accent) !important; }}
+      [data-baseweb="tag"], [data-baseweb="tag"] * {{ color:#ffffff !important; fill:#ffffff !important; }}
       [data-testid="stSliderThumbValue"], [data-testid="stTickBarMin"], [data-testid="stTickBarMax"] {{
               color:var(--ink-soft) !important; }}
       pre, code, .stCode, [data-testid="stJson"], [data-testid="stJson"] * {{
