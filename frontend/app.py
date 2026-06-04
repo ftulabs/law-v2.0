@@ -68,16 +68,20 @@ GRAIN = (
     "%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E"
 )
 
-# ── theme follows Streamlit's NATIVE menu (⋮ → Settings → Choose app theme).
-#    Dark (brand navy) by default; Light = the legal-dossier parchment palette. ──
-_theme_ctx = getattr(st.context, "theme", None)
-DARK = getattr(_theme_ctx, "type", None) != "light"
+# ── theme: the app owns it. Streamlit hides the native theme switcher once a custom
+#    [theme] is set in config.toml, so a visible toggle (top-right, below) drives the
+#    palette via session_state. Dark (brand navy) default; Light = parchment dossier. ──
+if "dark" not in st.session_state:
+    _t0 = getattr(getattr(st.context, "theme", None), "type", None)
+    st.session_state["dark"] = (_t0 != "light")
+DARK = st.session_state["dark"]
 if DARK:
     PALETTE = (
         "--paper:#0a1024; --paper-2:#0d1630; --paper-3:#142146;"
         "--ink:#e8eeff; --ink-soft:#9db0dc; --ink-faint:#6f81ad;"
         "--rule:#21315e; --rule-soft:#18254a;"
         "--oxblood:#ff6b6b; --forest:#3ddc84; --ochre:#f3b34a; --gold:#5bc8ff;"
+        "--appr:#6f9bff; --flag:#d98bf0;"
         "--accent:#3aa0ff; --panel:rgba(120,170,255,.05); --panel-2:rgba(120,170,255,.09);"
     )
     APP_BG = (f"background-color:#0a1024;"
@@ -91,10 +95,16 @@ else:
         "--ink:#1c1a16; --ink-soft:#5b554a; --ink-faint:#8a8270;"
         "--rule:#cdc4b0; --rule-soft:#ddd5c2;"
         "--oxblood:#7c2d2d; --forest:#2f5d3a; --ochre:#a9742a; --gold:#9a7b3f;"
+        "--appr:#1e40af; --flag:#86198f;"
         "--accent:#7c2d2d; --panel:rgba(255,255,255,.40); --panel-2:rgba(255,255,255,.55);"
     )
     APP_BG = f"background-color:var(--paper); background-image:url(\"{GRAIN}\");"
     LOGO_FX = ""
+
+# Streamlit's native widgets (slider fill, toggle-on) use config primaryColor (#3aa0ff blue),
+# which our session palette can't reach. In light mode, hue-rotate the blue → oxblood-ish red;
+# neutral greys have no hue so the unfilled track / off-toggle stay put. Dark keeps the blue.
+PRIMARY_FILTER = "" if DARK else "filter:hue-rotate(150deg) saturate(1.08) brightness(.72);"
 
 st.markdown(
     f"""
@@ -157,12 +167,12 @@ st.markdown(
       .seal {{display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:.64rem;
               letter-spacing:.12em; text-transform:uppercase; padding:.13rem .5rem; border-radius:1px;
               border:1px solid; }}
-      .s-auto {{color:var(--forest); border-color:var(--forest); background:rgba(47,93,58,.07);}}
-      .s-review {{color:var(--ochre); border-color:var(--ochre); background:rgba(169,116,42,.08);}}
-      .s-quar {{color:var(--oxblood); border-color:var(--oxblood); background:rgba(124,45,45,.07);}}
-      .s-appr {{color:#1e40af; border-color:#1e40af; background:rgba(30,64,175,.06);}}
+      .s-auto {{color:var(--forest); border-color:var(--forest); background:color-mix(in srgb, var(--forest) 12%, transparent);}}
+      .s-review {{color:var(--ochre); border-color:var(--ochre); background:color-mix(in srgb, var(--ochre) 12%, transparent);}}
+      .s-quar {{color:var(--oxblood); border-color:var(--oxblood); background:color-mix(in srgb, var(--oxblood) 12%, transparent);}}
+      .s-appr {{color:var(--appr); border-color:var(--appr); background:color-mix(in srgb, var(--appr) 12%, transparent);}}
       .s-rej {{color:var(--ink-soft); border-color:var(--rule);}}
-      .s-flag {{color:#86198f; border-color:#86198f; background:rgba(134,25,143,.06);}}
+      .s-flag {{color:var(--flag); border-color:var(--flag); background:color-mix(in srgb, var(--flag) 12%, transparent);}}
 
       /* ── evidence card ── */
       .vt-card {{border:1px solid var(--rule); border-left:3px solid var(--c,var(--rule));
@@ -236,11 +246,18 @@ st.markdown(
       [role="option"], [role="option"] *, [data-baseweb="menu"] li {{
               background-color:transparent !important; color:var(--ink) !important; }}
       [role="option"]:hover, li[role="option"][aria-selected="true"] {{ background-color:var(--paper-3) !important; }}
+      /* native ⋮ menu: paint EVERY descendant — items, the Auto-rerun toggle, the version footer */
+      [data-baseweb="popover"]:has([role="menuitem"]), [data-baseweb="popover"]:has([role="menuitem"]) * {{
+              color:var(--ink) !important; }}
       /* multiselect chips (pillars) — accent bg (oxblood in light, blue in dark) + white text */
       [data-baseweb="tag"] {{ background:var(--accent) !important; border-color:var(--accent) !important; }}
-      [data-baseweb="tag"], [data-baseweb="tag"] * {{ color:#ffffff !important; fill:#ffffff !important; }}
+      [data-baseweb="tag"], [data-baseweb="tag"] *,
+      [data-testid="stMultiSelect"] [data-baseweb="tag"], [data-testid="stMultiSelect"] [data-baseweb="tag"] * {{
+              color:#ffffff !important; fill:#ffffff !important; }}
       [data-testid="stSliderThumbValue"], [data-testid="stTickBarMin"], [data-testid="stTickBarMax"] {{
               color:var(--ink-soft) !important; }}
+      /* native blue accent (slider fill/thumb, toggle-on) → theme red in light mode */
+      [data-testid="stSlider"], [data-testid="stCheckbox"] {{ {PRIMARY_FILTER} }}
       pre, code, .stCode, [data-testid="stJson"], [data-testid="stJson"] * {{
               background:var(--paper-3) !important; color:var(--ink) !important; }}
 
@@ -294,7 +311,14 @@ def _secret(name: str, fallback: str = "") -> str:
     return fallback
 
 
-# ── top-right overflow menu (dark-mode toggle tucked away) ─────────────────
+# ── theme toggle (top-right) ───────────────────────────────────────────────
+_, _theme_col = st.columns([9, 1])
+with _theme_col:
+    if st.button("☀ Light" if DARK else "☾ Dark", key="theme_toggle",
+                 help="Switch light / dark theme", width="stretch"):
+        st.session_state["dark"] = not DARK
+        st.rerun()
+
 # ── masthead ─────────────────────────────────────────────────────────────
 st.markdown(
     '<div class="masthead"><div class="row">'
@@ -302,7 +326,7 @@ st.markdown(
     f'{logo_html()}'
     '<div class="strap">Where legal expertise meets AI &mdash; auditable RDTII evidence, '
     'Pillars 6 &amp; 7 &middot; Singapore &middot; Australia &middot; Malaysia</div></div>'
-    f'<div class="edition">No. 2.0<br>theme &middot; &#8942; &rarr; Settings<br>'
+    f'<div class="edition">No. 2.0<br>'
     f'auto &ge; {settings.conf_auto_accept} &middot; rev &ge; {settings.conf_review_floor}</div>'
     '</div></div>',
     unsafe_allow_html=True,
@@ -385,7 +409,7 @@ elif chosen_prev and chosen_prev != "—":
 run_id = st.session_state.get("run_id")
 if not run_id:
     st.markdown(
-        '<div style="border:1px solid var(--rule); background:rgba(255,255,255,.4); padding:1.4rem 1.6rem;'
+        '<div style="border:1px solid var(--rule); background:var(--panel); padding:1.4rem 1.6rem;'
         ' margin-top:1.4rem; font-style:italic; color:var(--ink-soft);">'
         'Choose an economy and pillars at left, then <b>Run pipeline</b> to compile a fresh evidence '
         'dossier — or open a prior one. Everything runs offline on the sample corpus.</div>',
