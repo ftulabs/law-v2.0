@@ -15,6 +15,7 @@ from pathlib import Path
 
 from ..config import settings
 from ..providers import get_ocr_provider
+from ..providers.ocr_base import OCRProvider
 from ..schemas import DiscoveredDoc, DocFormat, OCRMetrics
 
 
@@ -39,7 +40,7 @@ def _pdf_text_layer(path: str) -> str:
             return ""
 
 
-def get_document_text(doc: DiscoveredDoc) -> tuple[str, OCRMetrics]:
+def get_document_text(doc: DiscoveredDoc, ocr_provider: OCRProvider | None = None) -> tuple[str, OCRMetrics]:
     metrics = OCRMetrics()
     path = doc.local_path
     fmt = doc.fmt
@@ -60,7 +61,7 @@ def get_document_text(doc: DiscoveredDoc) -> tuple[str, OCRMetrics]:
         fmt = DocFormat.PDF_SCANNED
 
     if fmt == DocFormat.PDF_SCANNED and path:
-        provider = get_ocr_provider(settings.ocr_provider)
+        provider = ocr_provider or get_ocr_provider(settings.ocr_provider)
         result = provider.ocr_pdf(path)
         metrics = OCRMetrics(
             used=True,

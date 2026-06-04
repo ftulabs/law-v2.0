@@ -75,11 +75,20 @@ uvicorn backend.main:app --reload
 
 Schemas: [docs/ARCHITECTURE.md#data-schemas](docs/ARCHITECTURE.md#data-schemas).
 
-## Modularity
+## Modularity — pick your engines
 
-Swap providers via `.env` — no code changes:
-- `OCR_PROVIDER=tesseract|paddle|azure|mock`
-- `LLM_PROVIDER=anthropic|openai|mock`
+Two ways to choose OCR + LLM, no code changes:
+
+1. **In the dashboard** (great for demos/judges): the sidebar **Engines** panel lets you
+   pick the OCR engine and LLM, paste a model name + API key, and shows which engines are
+   ready on this machine. Unavailable engines fall back to `mock` automatically so a run
+   never breaks.
+2. **Via `.env`** (default for CLI/API):
+   - `OCR_PROVIDER=tesseract|paddle|azure|mock`
+   - `LLM_PROVIDER=anthropic|openai|mock`
+
+CLI flags also override per-run: `--ocr tesseract --llm anthropic --llm-model claude-opus-4-8`.
+The API accepts the same on `POST /pipeline/run`; `GET /providers` reports availability.
 
 ## Project status
 

@@ -28,6 +28,11 @@ class RunRequest(BaseModel):
     pillars: list[int] = [6, 7]
     use_samples: bool = True
     top_k: int = 5
+    # runtime provider selection (override .env; null = use env defaults)
+    ocr_provider: str | None = None
+    llm_provider: str | None = None
+    llm_model: str | None = None
+    llm_api_key: str | None = None
 
 
 class CorrectRequest(BaseModel):
@@ -46,9 +51,22 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/providers")
+def providers():
+    """Which OCR/LLM engines are available on this host (for the UI to surface)."""
+    from .providers import registry as reg
+    return {
+        "ocr": [{"name": n, "label": reg.OCR_LABELS[n], **reg.ocr_availability(n).__dict__} for n in reg.OCR_PROVIDERS],
+        "llm": [{"name": n, "label": reg.LLM_LABELS[n], **reg.llm_availability(n).__dict__} for n in reg.LLM_PROVIDERS],
+    }
+
+
 @app.post("/pipeline/run")
 def pipeline_run(req: RunRequest):
-    result: RunResult = run_pipeline(req.economy, req.pillars, use_samples=req.use_samples, top_k=req.top_k, log=lambda *_: None)
+    result: RunResult = run_pipeline(
+        req.economy, req.pillars, use_samples=req.use_samples, top_k=req.top_k, log=lambda *_: None,
+        ocr_provider=req.ocr_provider, llm_provider=req.llm_provider,
+        llm_model=req.llm_model, llm_api_key=req.llm_api_key)
     csv_path = export_csv(result.mappings, result.meta.run_id)
     json_path = export_json(result)
     return {

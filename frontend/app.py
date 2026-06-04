@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from backend.config import settings  # noqa: E402
 from backend.export import export_csv, export_json  # noqa: E402
 from backend.pipeline.orchestrator import run_pipeline  # noqa: E402
+from backend.providers import registry as reg  # noqa: E402
 from backend.review import workflow  # noqa: E402
 from backend.schemas import Economy, RunResult  # noqa: E402
 from backend.storage import db  # noqa: E402
@@ -148,6 +149,9 @@ st.markdown(
       .bd .track > i.final {{background:var(--oxblood);}}
       .bd .val {{font-family:'IBM Plex Mono',monospace; font-size:.74rem; text-align:right;}}
 
+      .prov-note {{font-family:'IBM Plex Mono',monospace; font-size:.62rem; color:var(--ink-faint);
+                   margin:-.4rem 0 .5rem; line-height:1.4;}}
+      .prov-note.ready {{color:var(--forest);}}
       .hr-thin {{border:none; border-top:1px solid var(--rule-soft); margin:.4rem 0;}}
       @keyframes rise {{from{{opacity:0; transform:translateY(8px);}} to{{opacity:1; transform:none;}}}}
     </style>
@@ -189,7 +193,7 @@ st.markdown(
     '<h1>Veri<span class="mark">Trade</span></h1>'
     '<div class="strap">Auditable legal evidence extraction &mdash; Pillars VI &amp; VII '
     '&middot; Singapore &middot; Australia &middot; Malaysia</div></div>'
-    f'<div class="edition">No. 2.0<br>OCR &middot; {settings.ocr_provider}<br>LLM &middot; {settings.llm_provider}<br>'
+    f'<div class="edition">No. 2.0<br>engines chosen at left<br>'
     f'auto &ge; {settings.conf_auto_accept} &middot; rev &ge; {settings.conf_review_floor}</div>'
     '</div></div>',
     unsafe_allow_html=True,
@@ -203,6 +207,40 @@ with st.sidebar:
     use_samples = st.toggle("Sample corpus (offline)", value=True,
                             help="Off = live crawl of official portals (network + selectors required)")
     top_k = st.slider("Provisions retrieved / indicator", 1, 10, 5)
+
+    # ── engine selection (judges pick the stack here) ──
+    st.markdown('<hr class="hr-thin">', unsafe_allow_html=True)
+    st.markdown('<div class="kicker">Engines &middot; choose your stack</div>', unsafe_allow_html=True)
+
+    def _ocr_fmt(n):
+        return f"{reg.OCR_LABELS[n]}  {'✓' if reg.ocr_availability(n).ready else '⚙'}"
+
+    ocr_choice = st.selectbox("OCR engine", reg.OCR_PROVIDERS, format_func=_ocr_fmt,
+                              index=reg.OCR_PROVIDERS.index(settings.ocr_provider))
+    _oa = reg.ocr_availability(ocr_choice)
+    st.markdown(f'<div class="prov-note {"ready" if _oa.ready else ""}">'
+                f'{"✓ ready" if _oa.ready else "⚙ " + _oa.note}</div>', unsafe_allow_html=True)
+
+    def _llm_fmt(n):
+        return f"{reg.LLM_LABELS[n]}  {'✓' if reg.llm_availability(n).ready else '⚙'}"
+
+    llm_choice = st.selectbox("LLM model", reg.LLM_PROVIDERS, format_func=_llm_fmt,
+                              index=reg.LLM_PROVIDERS.index(settings.llm_provider))
+    llm_model, llm_key = None, None
+    if llm_choice != "mock":
+        _default_model = settings.anthropic_model if llm_choice == "anthropic" else settings.openai_model
+        llm_model = st.text_input("Model name", value=_default_model, key="llm_model_in")
+        llm_key = st.text_input("API key", type="password", key="llm_key_in",
+                                placeholder="paste to enable live calls")
+    _la = reg.llm_availability(llm_choice, api_key=llm_key or None)
+    if llm_choice != "mock":
+        st.markdown(f'<div class="prov-note {"ready" if _la.ready else ""}">'
+                    f'{"✓ ready — live calls enabled" if _la.ready else "⚙ " + _la.note}</div>',
+                    unsafe_allow_html=True)
+    if (ocr_choice != "mock" and not _oa.ready) or (llm_choice != "mock" and not _la.ready):
+        st.markdown('<div class="prov-note">Unavailable engines fall back to mock automatically — '
+                    'the run never breaks.</div>', unsafe_allow_html=True)
+
     run_clicked = st.button("⟢  Run pipeline", type="primary", width="stretch")
 
     st.markdown('<hr class="hr-thin">', unsafe_allow_html=True)
@@ -215,7 +253,9 @@ if run_clicked and pillars:
     with st.status("Compiling the dossier…", expanded=True) as status:
         def log(m):
             status.write(m)
-        result = run_pipeline(Economy(economy), pillars, use_samples=use_samples, top_k=top_k, log=log)
+        result = run_pipeline(Economy(economy), pillars, use_samples=use_samples, top_k=top_k, log=log,
+                              ocr_provider=ocr_choice, llm_provider=llm_choice,
+                              llm_model=llm_model or None, llm_api_key=llm_key or None)
         export_csv(result.mappings, result.meta.run_id)
         export_json(result)
         status.update(label=f"Filed — {result.meta.run_id}", state="complete")
@@ -246,6 +286,8 @@ bs = summ["by_status"]
 auto = bs.get("auto_accepted", 0) + bs.get("approved", 0)
 cells = [
     ("Dossier", run_id, ""), ("Economy", ECON_NAME.get(meta.economy.value, "—") if meta else "—", ""),
+    ("OCR engine", meta.ocr_provider if meta else "—", ""),
+    ("LLM model", meta.llm_provider if meta else "—", ""),
     ("Documents", meta.docs_discovered if meta else "—", ""),
     ("Provisions", meta.provisions_extracted if meta else "—", ""),
     ("Auto-accepted", auto, "fo"), ("Needs review", bs.get("pending_review", 0), "oc"),

@@ -49,7 +49,10 @@ def _chunk(text: str, size: int) -> list[str]:
     return [text[i : i + size] for i in range(0, len(text), size)] or [text]
 
 
-def get_ocr_provider(name: str | None = None) -> OCRProvider:
+def get_ocr_provider(name: str | None = None, azure_endpoint: str | None = None,
+                     azure_key: str | None = None) -> OCRProvider:
+    """Azure endpoint/key can be overridden at runtime (dashboard) — other providers
+    read their settings (tesseract path, poppler) from `.env`."""
     name = (name or settings.ocr_provider or "mock").lower()
     if name == "mock":
         return MockOCR()
@@ -61,5 +64,6 @@ def get_ocr_provider(name: str | None = None) -> OCRProvider:
         return PaddleOCRProvider()
     if name == "azure":
         from .ocr_azure import AzureOCR
-        return AzureOCR(settings.azure_vision_endpoint, settings.azure_vision_key)
+        return AzureOCR(azure_endpoint or settings.azure_vision_endpoint,
+                        azure_key or settings.azure_vision_key)
     raise ValueError(f"Unknown OCR_PROVIDER: {name}")

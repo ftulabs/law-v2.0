@@ -83,14 +83,17 @@ def _between(text: str, a: str, b: str) -> str:
     return m.group(1).strip() if m else ""
 
 
-def get_llm_provider(name: str | None = None) -> LLMProvider:
+def get_llm_provider(name: str | None = None, model: str | None = None,
+                     api_key: str | None = None) -> LLMProvider:
+    """`model` and `api_key` override the env defaults at runtime — this is what
+    lets the dashboard switch LLM/model/key without editing `.env`."""
     name = (name or settings.llm_provider or "mock").lower()
     if name == "mock":
         return MockLLM()
     if name == "anthropic":
         from .llm_anthropic import AnthropicLLM
-        return AnthropicLLM(settings.anthropic_api_key, settings.anthropic_model)
+        return AnthropicLLM(api_key or settings.anthropic_api_key, model or settings.anthropic_model)
     if name == "openai":
         from .llm_openai import OpenAILLM
-        return OpenAILLM(settings.openai_api_key, settings.openai_model)
+        return OpenAILLM(api_key or settings.openai_api_key, model or settings.openai_model)
     raise ValueError(f"Unknown LLM_PROVIDER: {name}")

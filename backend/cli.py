@@ -52,12 +52,16 @@ def run_pipeline_cmd(
     pillar: Optional[list[int]] = typer.Option(None, help="repeatable; default 6 and 7"),
     use_samples: bool = typer.Option(True, "--use-samples/--live"),
     top_k: int = 5,
+    ocr: Optional[str] = typer.Option(None, help="OCR provider: mock|tesseract|paddle|azure"),
+    llm: Optional[str] = typer.Option(None, help="LLM provider: mock|anthropic|openai"),
+    llm_model: Optional[str] = typer.Option(None, help="override LLM model name"),
     export: bool = typer.Option(True, help="write CSV+JSON"),
 ):
     """Run the full pipeline and export CSV + JSON."""
     pillars = pillar or [6, 7]
     result: RunResult = run_pipeline(_econ(economy), pillars, use_samples=use_samples, top_k=top_k,
-                                     log=lambda m: console.print(f"[dim]{m}[/dim]"))
+                                     log=lambda m: console.print(f"[dim]{m}[/dim]"),
+                                     ocr_provider=ocr, llm_provider=llm, llm_model=llm_model)
     _print_mappings(result.mappings)
     if export:
         csv_path = export_csv(result.mappings, result.meta.run_id)
@@ -66,7 +70,7 @@ def run_pipeline_cmd(
         console.print(f"[green]JSON[/green] {json_path}")
     console.print(f"\nrun_id = [bold cyan]{result.meta.run_id}[/bold cyan]  "
                   f"({result.meta.processing_time_seconds}s, providers: "
-                  f"OCR={settings.ocr_provider} / LLM={settings.llm_provider})")
+                  f"OCR={result.meta.ocr_provider} / LLM={result.meta.llm_provider})")
 
 
 @app.command()
