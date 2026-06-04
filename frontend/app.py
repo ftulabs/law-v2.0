@@ -205,6 +205,10 @@ st.markdown(
       .prov-note {{font-family:'IBM Plex Mono',monospace; font-size:.62rem; color:var(--ink-faint);
                    margin:-.4rem 0 .5rem; line-height:1.4;}}
       .prov-note.ready {{color:var(--forest);}}
+      /* top-right overflow (⋮) menu button — subtle, borderless */
+      [data-testid="stPopover"] button {{background:transparent !important; border:none !important;
+              color:var(--ink-faint) !important; font-size:1.4rem; line-height:1; padding:.1rem .4rem;}}
+      [data-testid="stPopover"] button:hover {{color:var(--accent) !important;}}
       .hr-thin {{border:none; border-top:1px solid var(--rule-soft); margin:.4rem 0;}}
       @keyframes rise {{from{{opacity:0; transform:translateY(8px);}} to{{opacity:1; transform:none;}}}}
     </style>
@@ -249,6 +253,14 @@ def _secret(name: str, fallback: str = "") -> str:
     return fallback
 
 
+# ── top-right overflow menu (dark-mode toggle tucked away) ─────────────────
+_spacer, _menu = st.columns([13, 1])
+with _menu:
+    with st.popover("⋮"):
+        st.session_state.setdefault("dark_mode", True)
+        st.toggle("🌙 Dark mode", key="dark_mode",
+                  help="Brand navy theme (on) / parchment dossier (off)")
+
 # ── masthead ─────────────────────────────────────────────────────────────
 st.markdown(
     '<div class="masthead"><div class="row">'
@@ -264,9 +276,6 @@ st.markdown(
 
 # ── sidebar: run controls ────────────────────────────────────────────────
 with st.sidebar:
-    st.session_state.setdefault("dark_mode", True)
-    st.toggle("🌙 Dark mode", key="dark_mode", help="Brand navy theme (on) / parchment dossier (off)")
-    st.markdown('<hr class="hr-thin">', unsafe_allow_html=True)
     st.markdown('<div class="kicker">Commission a run</div>', unsafe_allow_html=True)
     economy = st.selectbox("Economy", [e.value for e in Economy], format_func=lambda v: ECON_NAME[v])
     pillars = st.multiselect("Pillars", [6, 7], default=[6, 7])
