@@ -29,6 +29,13 @@ numpy>=1.26
 sentence-transformers>=2.7
 # faiss-cpu>=1.8          # optional: alternative vector index
 
+# --- LightRAG graph-RAG (Zone-2 retriever at live-crawl scale; RETRIEVER=lightrag|auto) ---
+# Knowledge-graph retrieval over the discovered corpus; embeddings reuse the local
+# sentence-transformers model and the indexing LLM is the pipeline's own provider
+# (no extra key). Falls back to the built-in hybrid retriever if absent.
+lightrag-hku>=1.4
+nest_asyncio>=1.6          # lets LightRAG's async loop run inside Streamlit
+
 # --- Live crawling (Zone 1): headless browser for JS/bot-gated portals ---
 # After install run:  python -m playwright install chromium   (on Jetson: arm64 build)
 playwright>=1.43

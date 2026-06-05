@@ -10,12 +10,32 @@ from __future__ import annotations
 
 import hashlib
 
+from ..config import settings
 from ..providers import get_llm_provider
 from ..providers.llm_base import LLMProvider
 from ..rdtii import get_indicator, siblings
 from ..schemas import DiscoveryTag, EvidenceMapping, Provision
 from . import confidence
 from .retrieval import retrieve
+
+
+def _select_retriever(indicators, provisions, top_k, llm, log):
+    """Decide the Zone-2 retriever. Returns a precomputed {indicator_id: [Retrieved]}
+    dict when LightRAG should drive retrieval (live-crawl scale), else None → the caller
+    uses the per-indicator hybrid retriever. Honours settings.retriever (auto|hybrid|lightrag)."""
+    mode = (settings.retriever or "auto").lower()
+    if mode == "hybrid":
+        return None
+    from . import retrieval_lightrag
+    has_key = bool(settings.openrouter_api_key or settings.openai_api_key or settings.gemini_api_key)
+    if mode == "auto":
+        # only worth the KG-build cost at scale, with a real indexing LLM available
+        if not (retrieval_lightrag.available() and has_key
+                and getattr(llm, "name", "mock") != "mock"
+                and len(provisions) >= settings.lightrag_min_provisions):
+            return None
+    log(f"[retrieval] using LightRAG graph-RAG ({len(provisions)} provisions)")
+    return retrieval_lightrag.retrieve_all(indicators, provisions, top_k=top_k, llm=llm, log=log)
 
 SYSTEM = (
     "You are a meticulous legal-evidence grader for the UNESCAP RDTII 2.1 framework "
@@ -119,8 +139,18 @@ def map_provisions(
     mappings: list[EvidenceMapping] = []
     failures = 0
 
+    # retrieval backend: LightRAG graph-RAG at scale, else built-in hybrid (citations
+    # preserved either way — the grader below still judges the verbatim snippet).
+    ranked_by_ind = _select_retriever(indicators, provisions, top_k, llm, log)
+
     for ind in indicators:
-        for r in retrieve(ind.indicator_id, provisions, top_k=top_k):
+        # LightRAG candidates when available, else (or when it returned nothing for this
+        # indicator — e.g. the KG build was rate-limited) fall back to the hybrid retriever
+        # so a retrieval-backend hiccup never silently drops an indicator's mappings.
+        candidates = ranked_by_ind.get(ind.indicator_id) if ranked_by_ind is not None else None
+        if not candidates:
+            candidates = retrieve(ind.indicator_id, provisions, top_k=top_k)
+        for r in candidates:
             if r.score < min_retrieval:
                 continue
             prov = r.provision

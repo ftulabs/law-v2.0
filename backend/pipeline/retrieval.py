@@ -135,6 +135,29 @@ def _dense_scores(query_text: str, provisions: list[Provision]):
     return [(float(s) + 1.0) / 2.0 for s in sims]   # map [-1,1] → [0,1]
 
 
+def _cross_scores(query_text: str, provisions: list[Provision], combined: list[float],
+                  top_k: int) -> list[float] | None:
+    """Cross-encoder relevance (0..1) for the hybrid shortlist; None if the model/setting
+    is off. Only the top ~3·top_k hybrid candidates are scored (the rest can't win), so
+    the rerank stays cheap. Non-shortlisted provisions keep score 0."""
+    from . import ranking
+    ce = ranking._cross_encoder()
+    if ce is None:
+        return None
+    import math
+    n = min(len(provisions), max(top_k * 3, 8))
+    shortlist = sorted(range(len(provisions)), key=lambda i: combined[i], reverse=True)[:n]
+    pairs = [(query_text, provisions[i].verbatim_snippet[:512]) for i in shortlist]
+    try:
+        raw = ce.predict(pairs)
+    except Exception:
+        return None
+    scores = [0.0] * len(provisions)
+    for i, s in zip(shortlist, raw):
+        scores[i] = 1.0 / (1.0 + math.exp(-float(s)))   # sigmoid → 0..1
+    return scores
+
+
 def retrieve(indicator_id: str, provisions: list[Provision], top_k: int = 5) -> list[Retrieved]:
     ind = get_indicator(indicator_id)
     if ind is None or not provisions:
@@ -151,6 +174,13 @@ def retrieve(indicator_id: str, provisions: list[Provision], top_k: int = 5) -> 
     alpha = settings.hybrid_alpha if dense is not None else 1.0
     combined = [alpha * bm_norm[i] + (1 - alpha) * (dense[i] if dense else 0.0)
                 for i in range(len(provisions))]
+
+    # cross-encoder precision rerank over a shortlist: bi-encoder/BM25 get RECALL, the
+    # cross-encoder reads (indicator, provision) jointly for PRECISION, pushing a merely
+    # keyword-overlapping provision below one that truly answers the indicator.
+    cross = _cross_scores(query_text, provisions, combined, top_k)
+    if cross is not None:
+        combined = [0.5 * combined[i] + 0.5 * cross[i] for i in range(len(provisions))]
 
     ranked = sorted(zip(range(len(provisions)), combined), key=lambda x: x[1], reverse=True)[:top_k]
     out: list[Retrieved] = []

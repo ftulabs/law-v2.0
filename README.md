@@ -219,6 +219,31 @@ for the noisiest gazette scans. The pipeline auto-detects a "secretly scanned" t
 
 ---
 
+## Zone 2 Retrieval — hybrid or LightRAG graph-RAG
+
+Each RDTII indicator is matched only against provisions a retriever surfaces (never the
+whole corpus) — that is what keeps every mapping citation-bound. Two backends, selected by
+`RETRIEVER` in `.env`:
+
+| `RETRIEVER` | Engine | When |
+| :---- | :---- | :---- |
+| `hybrid` | BM25 + dense MiniLM + **cross-encoder rerank**, RRF fusion (built-in) | Always available, fast; ideal for the sample corpus |
+| `lightrag` | [HKUDS **LightRAG**](https://github.com/HKUDS/LightRAG) knowledge-graph retrieval | Live-crawl scale — dozens of laws / hundreds of provisions |
+| `auto` (default) | LightRAG when it's installed, an LLM key is set, and the corpus is large (`LIGHTRAG_MIN_PROVISIONS`, default 40); else hybrid | Best of both with no manual switch |
+
+**Citations are preserved either way.** LightRAG is used for *retrieval only* (each
+provision is tagged so the exact verbatim snippet / article / URL is recovered from the
+retrieved context) — it never synthesises an answer. Embeddings reuse the local
+sentence-transformers model; the indexing LLM is the pipeline's own provider (no extra key).
+
+> ⚠️ LightRAG's knowledge-graph build makes many entity-extraction LLM calls, so it needs
+> an LLM with real budget (a funded OpenRouter/OpenAI key, or a **local Ollama** model via
+> `LLM_PROVIDER=local`). On a spend-capped free key the KG build is starved — the pipeline
+> detects the empty graph and **falls back to the hybrid retriever automatically**, so a run
+> never breaks. Install with `pip install lightrag-hku nest_asyncio`.
+
+---
+
 ## Supported Economies & Portals
 
 | Economy | Official Portal | Language | Notes |
@@ -338,6 +363,7 @@ pytest tests/
 | `tests/test_ocr.py` | MarkItDown is default + extracts the bundled PDF |
 | `tests/test_scanned_ocr.py` | Bundled scan is genuinely image-only; RapidOCR reads it at CER < 5%; pipeline measures + reports CER |
 | `tests/test_input.py` | Economy input tolerates codes, UN names and mis-spellings; rejects garbage clearly |
+| `tests/test_zone2_retriever.py` | Retriever selection (hybrid/lightrag/auto); mapper falls back to hybrid if LightRAG yields nothing |
 
 ---
 

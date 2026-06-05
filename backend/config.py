@@ -78,6 +78,16 @@ class Settings(BaseSettings):
     cross_encoder_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     rrf_k: int = 60                            # Reciprocal-Rank-Fusion constant
 
+    # Zone-2 retriever: auto | hybrid | lightrag.
+    #   hybrid   = built-in BM25+dense+cross-encoder (fast, always available)
+    #   lightrag = HKUDS LightRAG graph-RAG (semantic KG retrieval), citations preserved
+    #   auto     = LightRAG when it's installed, an LLM key is set, AND the corpus is large
+    #              enough to benefit (live-crawl scale); else hybrid. Tiny sample runs stay
+    #              on hybrid so they don't pay the KG-build cost for no recall gain.
+    retriever: str = "auto"
+    lightrag_min_provisions: int = 40          # auto-threshold: below this, use hybrid
+    lightrag_workdir: str = "data/cache/lightrag"
+
     # web-search discovery — keyless scraping rate-limits; a Serper key (serper.dev,
     # free tier) gives reliable Google deep-links. Falls back to DuckDuckGo/Mojeek.
     serper_api_key: str = ""
