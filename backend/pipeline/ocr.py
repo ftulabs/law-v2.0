@@ -27,6 +27,22 @@ def _html_to_text(html: str) -> str:
     return soup.get_text("\n", strip=True)
 
 
+def _page_count(path: str) -> int:
+    try:
+        import pypdfium2
+        doc = pypdfium2.PdfDocument(path)
+        try:
+            return len(doc)
+        finally:
+            doc.close()
+    except Exception:
+        try:
+            from pypdf import PdfReader
+            return len(PdfReader(path).pages)
+        except Exception:
+            return 1
+
+
 def _pdf_text_layer(path: str) -> str:
     # x_tolerance infers spaces from glyph gaps — without it, legal PDFs come out with
     # words jammed together ("Anorganisationmustnot"), which wrecks the Character Error
@@ -61,13 +77,14 @@ def get_document_text(doc: DiscoveredDoc, ocr_provider: OCRProvider | None = Non
 
         # For a real text-layer PDF, pdfplumber (with x_tolerance) gives the cleanest
         # text — proper word spacing + structure, low CER. Try it FIRST regardless of the
-        # configured engine; only fall back to OCR (MarkItDown/tesseract/azure) when the
-        # layer is thin, i.e. the PDF is genuinely scanned/image-based.
+        # configured engine; only fall back to OCR when the layer is thin PER PAGE, i.e.
+        # the PDF is genuinely scanned/image-based (a 300-page Act with ~0 chars/page).
         if fmt == DocFormat.PDF_TEXT:
             text = _pdf_text_layer(path)
-            if len(text.strip()) >= 200:
+            pages = _page_count(path)
+            if len(text.strip()) / max(pages, 1) >= 40:   # healthy text density → not scanned
                 return text, metrics
-            # thin text layer → genuinely scanned → run OCR
+            # thin per page → scanned → run OCR (rapidocr/tesseract/azure)
 
         return _run_provider(provider, path)
 

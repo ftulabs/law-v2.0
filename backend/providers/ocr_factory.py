@@ -65,6 +65,9 @@ def get_ocr_provider(name: str | None = None, azure_endpoint: str | None = None,
     if name == "paddle":
         from .ocr_paddle import PaddleOCRProvider
         return PaddleOCRProvider()
+    if name == "rapidocr":
+        from .ocr_rapidocr import RapidOCRProvider
+        return RapidOCRProvider()
     if name == "azure":
         from .ocr_azure import AzureOCR
         return AzureOCR(azure_endpoint or settings.azure_vision_endpoint,

@@ -11,10 +11,11 @@ from dataclasses import dataclass
 
 from ..config import settings
 
-OCR_PROVIDERS = ["markitdown", "mock", "tesseract", "paddle", "azure"]
+OCR_PROVIDERS = ["markitdown", "mock", "rapidocr", "tesseract", "paddle", "azure"]
 LLM_PROVIDERS = ["openrouter", "mock", "anthropic", "openai", "local"]
 
 OCR_LABELS = {"markitdown": "MarkItDown (default)", "mock": "Mock (offline)",
+              "rapidocr": "RapidOCR (scanned, pip-only)",
               "tesseract": "Tesseract", "paddle": "PaddleOCR", "azure": "Azure Vision"}
 LLM_LABELS = {"openrouter": "OpenRouter (free models)", "mock": "Mock grader (offline)",
               "anthropic": "Anthropic Claude", "openai": "OpenAI",
@@ -62,6 +63,10 @@ def ocr_availability(name: str) -> Availability:
         if not _have("paddleocr", "pdf2image"):
             return Availability(False, "pip install paddleocr paddlepaddle pdf2image")
         return Availability(True, "ready")
+    if name == "rapidocr":
+        if not _have("rapidocr_onnxruntime", "pypdfium2"):
+            return Availability(False, "pip install rapidocr_onnxruntime pypdfium2")
+        return Availability(True, "ready (scanned PDFs, no system binary)")
     if name == "azure":
         if not _have("azure.ai.vision.imageanalysis"):
             return Availability(False, "pip install azure-ai-vision-imageanalysis")
