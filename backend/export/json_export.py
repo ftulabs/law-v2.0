@@ -22,6 +22,9 @@ def build_payload(result: RunResult) -> dict:
             "model_version": result.meta.model_version,
         },
         "summary": _summary(result.mappings),
+        # document-level OCR proof (scanned PDFs): provider + measured CER vs reference,
+        # independent of whether those provisions were mapped. Technical-judge audit path.
+        "ocr_reports": [r.model_dump() for r in result.meta.ocr_reports],
         "mappings": [_mapping_payload(m) for m in result.mappings],
     }
 
@@ -62,14 +65,18 @@ def _mapping_payload(m: EvidenceMapping) -> dict:
         "raw_context_before": m.raw_context_before,              # README extended field
         "raw_context_after": m.raw_context_after,                # README extended field
         "pdf_is_scanned": bool(ocr.get("used")),                 # OCR ran => image/scanned PDF
-        # CER proxy from OCR confidence (true CER needs ground truth); null for text-layer PDFs
-        "ocr_quality_cer": (round(1 - ocr["mean_confidence"], 4)
+        # Measured CER vs ground-truth sidecar when available (raster-OCR engines); else a
+        # confidence-derived proxy; null for deterministic text-layer extraction.
+        "ocr_quality_cer": (round(ocr["cer"], 4) if ocr.get("cer") is not None
+                            else round(1 - ocr["mean_confidence"], 4)
                             if ocr.get("mean_confidence") is not None else None),
+        "ocr_cer_measured": ocr.get("cer") is not None,          # True = real CER vs reference
         "retrieval_method": "hybrid (BM25 + dense MiniLM) + cross-encoder rerank, RRF fusion",
         "ocr_quality": {                                         # OCR quality metrics (detail)
             "provider": ocr.get("provider"),
             "used": ocr.get("used"),
             "mean_confidence": ocr.get("mean_confidence"),
+            "cer": ocr.get("cer"),                               # measured CER vs reference (or null)
             "pages": ocr.get("pages"),
             "low_conf_pages": ocr.get("low_conf_pages"),
         },

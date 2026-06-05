@@ -15,12 +15,14 @@ from .ocr_base import OCRPageResult, OCRProvider, OCRResult
 class RapidOCRProvider(OCRProvider):
     name = "rapidocr"
 
-    def __init__(self, dpi: int = 200):
+    def __init__(self, dpi: int = 300):
         import pypdfium2  # noqa: F401
         from rapidocr_onnxruntime import RapidOCR
 
         self._pdfium = pypdfium2
         self._ocr = RapidOCR()
+        # 300 dpi is the OCR sweet spot: rendering a scanned page below it loses glyph
+        # detail and inflates the character-error rate (200 dpi pushed CER over 5% here).
         self._scale = dpi / 72.0          # pdfium renders at 72 dpi * scale
 
     def ocr_pdf(self, pdf_path: str) -> OCRResult:

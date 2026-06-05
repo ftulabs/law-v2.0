@@ -24,6 +24,34 @@ class Economy(str, Enum):
 # (https://www.unescap.org/about/member-states). The CSV must use these, not codes.
 ECONOMY_UN_NAME = {"SG": "Singapore", "AU": "Australia", "MY": "Malaysia"}
 
+# value the user may type → Economy. Includes codes, UN names and common variants.
+_ECONOMY_ALIASES = {
+    "sg": Economy.SG, "singapore": Economy.SG, "sgp": Economy.SG,
+    "au": Economy.AU, "australia": Economy.AU, "aus": Economy.AU, "commonwealth of australia": Economy.AU,
+    "my": Economy.MY, "malaysia": Economy.MY, "mys": Economy.MY,
+}
+
+
+def resolve_economy(value: str) -> Economy:
+    """Map free-text user input to an Economy, tolerating case, codes and MIS-SPELLINGS
+    (rubric: 'handles inputs you did not anticipate — mis-spelt country'). 'Singapor',
+    'austrlia', 'MALAYSIA ' all resolve. Raises ValueError only when nothing is close."""
+    import difflib
+    key = " ".join((value or "").strip().lower().split())
+    if not key:
+        raise ValueError("No economy given. Supported: Singapore, Australia, Malaysia.")
+    if key in _ECONOMY_ALIASES:
+        return _ECONOMY_ALIASES[key]
+    # fuzzy: nearest alias within an edit-distance ratio (catches typos like 'singapor')
+    near = difflib.get_close_matches(key, _ECONOMY_ALIASES.keys(), n=1, cutoff=0.7)
+    if near:
+        return _ECONOMY_ALIASES[near[0]]
+    # last resort: substring against full names ('rep of singapore' → Singapore)
+    for name, econ in _ECONOMY_ALIASES.items():
+        if len(name) > 3 and (name in key or key in name):
+            return econ
+    raise ValueError(f"Unknown economy '{value}'. Supported: Singapore, Australia, Malaysia.")
+
 
 class DiscoveryTag(str, Enum):
     KNOWN = "KNOWN"   # in the provided sample/reference dataset
@@ -91,6 +119,9 @@ class OCRMetrics(BaseModel):
     pages: int = 0
     chars: int = 0
     low_conf_pages: list[int] = Field(default_factory=list)
+    cer: Optional[float] = None                 # measured Character Error Rate vs ground-truth
+                                                # sidecar (raster-OCR engines only); None if no
+                                                # reference is available. Rubric bar: < 0.05.
 
 
 class Provision(BaseModel):
@@ -156,6 +187,22 @@ class EvidenceMapping(BaseModel):
 
 
 # ─────────────────────────── run envelope ───────────────────────────
+class OCRReport(BaseModel):
+    """Per-document OCR/extraction quality — surfaced at run level so the scanned-PDF
+    proof (provider, pages, measured CER vs reference) is visible even when none of the
+    document's provisions end up in the mapped output. Persisted inside RunMeta."""
+    doc_id: str
+    title: str
+    source_url: str
+    fmt: str
+    ocr_used: bool = False
+    provider: str = "none"
+    pages: int = 0
+    mean_confidence: Optional[float] = None
+    cer: Optional[float] = None              # measured CER vs ground-truth (raster OCR); else None
+    cer_under_5pct: Optional[bool] = None    # rubric pass/fail when CER was measured
+
+
 class RunMeta(BaseModel):
     run_id: str
     economy: Economy
@@ -169,6 +216,7 @@ class RunMeta(BaseModel):
     ocr_provider: str = "mock"
     llm_provider: str = "mock"
     model_version: str = ""
+    ocr_reports: list[OCRReport] = Field(default_factory=list)   # per-doc OCR/CER proof
     notes: str = ""
 
 

@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from ..config import settings
 from ..providers import get_llm_provider, get_ocr_provider
 from ..rdtii import get_indicators
-from ..schemas import Economy, RunMeta, RunResult
+from ..schemas import Economy, OCRReport, RunMeta, RunResult
 from ..storage import db
 from . import discovery, extraction, mapping
 from .ocr import get_document_text
@@ -98,7 +98,7 @@ def run_pipeline(
         db.save_doc(run_id, d)
 
     # extraction (+OCR) → provisions
-    provisions, source_texts, doc_tags = [], {}, {}
+    provisions, source_texts, doc_tags, ocr_reports = [], {}, {}, []
     for d in docs:
         raw, ocr_metrics = get_document_text(d, ocr_provider=ocr)
         source_texts[d.doc_id] = raw
@@ -106,7 +106,15 @@ def run_pipeline(
         provs = extraction.extract_provisions(d, raw, ocr_metrics)
         provisions.extend(provs)
         if ocr_metrics.used:
-            log(f"[ocr] {d.title[:48]} via {ocr_metrics.provider} conf={ocr_metrics.mean_confidence} pages={ocr_metrics.pages}")
+            cer_str = (f" CER={ocr_metrics.cer*100:.2f}% {'PASS<5%' if ocr_metrics.cer < 0.05 else 'OVER-5%'}"
+                       if ocr_metrics.cer is not None else "")
+            log(f"[ocr] {d.title[:48]} via {ocr_metrics.provider} conf={ocr_metrics.mean_confidence} pages={ocr_metrics.pages}{cer_str}")
+            ocr_reports.append(OCRReport(
+                doc_id=d.doc_id, title=d.title, source_url=d.source_url, fmt=d.fmt.value,
+                ocr_used=True, provider=ocr_metrics.provider, pages=ocr_metrics.pages,
+                mean_confidence=ocr_metrics.mean_confidence, cer=ocr_metrics.cer,
+                cer_under_5pct=(ocr_metrics.cer < 0.05 if ocr_metrics.cer is not None else None),
+            ))
         log(f"[extract] {d.title[:48]} -> {len(provs)} provisions")
     for p in provisions:
         db.save_provision(run_id, p)
@@ -160,6 +168,7 @@ def run_pipeline(
         ocr_provider=ocr.name,
         llm_provider=llm.name,
         model_version=llm.model_version,
+        ocr_reports=ocr_reports,
     )
     db.finish_run(meta)
     return RunResult(meta=meta, mappings=mappings)

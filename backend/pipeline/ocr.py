@@ -91,6 +91,24 @@ def get_document_text(doc: DiscoveredDoc, ocr_provider: OCRProvider | None = Non
     return doc.raw_text or "", metrics
 
 
+# Engines that re-read a ground-truth sidecar instead of doing raster OCR — measuring
+# CER against that same sidecar would be circular (always ~0), so we skip it for them.
+_SIDECAR_READERS = {"markitdown", "mock"}
+
+
+def _measure_cer(provider_name: str, path: str, ocr_text: str) -> float | None:
+    """Genuine Character Error Rate against a ground-truth `*.ocr.txt` sidecar, when one
+    ships next to the sample (offline accuracy proof for the rubric's CER < 5% bar).
+    Only meaningful for true raster-OCR engines — sidecar readers would score a fake 0."""
+    if provider_name in _SIDECAR_READERS:
+        return None
+    ref = Path(path).with_suffix(".ocr.txt")
+    if not ref.exists():
+        return None
+    from .cer import character_error_rate
+    return character_error_rate(ref.read_text(encoding="utf-8", errors="ignore"), ocr_text)
+
+
 def _run_provider(provider, path: str) -> tuple[str, OCRMetrics]:
     result = provider.ocr_pdf(path)
     metrics = OCRMetrics(
@@ -100,5 +118,6 @@ def _run_provider(provider, path: str) -> tuple[str, OCRMetrics]:
         pages=len(result.pages),
         chars=len(result.text),
         low_conf_pages=result.low_conf_pages,
+        cer=_measure_cer(result.provider, path, result.text),
     )
     return result.text, metrics

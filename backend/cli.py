@@ -27,10 +27,11 @@ console = Console()
 
 
 def _econ(value: str) -> Economy:
+    from .schemas import resolve_economy
     try:
-        return Economy(value.upper())
-    except ValueError:
-        raise typer.BadParameter(f"economy must be one of {[e.value for e in Economy]}")
+        return resolve_economy(value)   # codes, UN names, or mis-spellings
+    except ValueError as e:
+        raise typer.BadParameter(str(e))
 
 
 @app.command()

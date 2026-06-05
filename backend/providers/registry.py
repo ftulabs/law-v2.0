@@ -60,9 +60,9 @@ def ocr_availability(name: str) -> Availability:
             return Availability(False, "pip install pytesseract pdf2image + Tesseract/poppler")
         return Availability(True, "ready")
     if name == "paddle":
-        if not _have("paddleocr", "pdf2image"):
-            return Availability(False, "pip install paddleocr paddlepaddle pdf2image")
-        return Availability(True, "ready")
+        if not _have("paddleocr", "paddle", "pypdfium2"):
+            return Availability(False, "pip install paddlepaddle paddleocr")
+        return Availability(True, "ready (PP-OCRv5, scanned PDFs)")
     if name == "rapidocr":
         if not _have("rapidocr_onnxruntime", "pypdfium2"):
             return Availability(False, "pip install rapidocr_onnxruntime pypdfium2")

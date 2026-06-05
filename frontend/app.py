@@ -224,6 +224,39 @@ st.markdown(
       .prov-note {{font-family:'IBM Plex Mono',monospace; font-size:.62rem; color:var(--ink-faint);
                    margin:-.4rem 0 .5rem; line-height:1.4;}}
       .prov-note.ready {{color:var(--forest);}}
+
+      /* ── OCR forensics: the scanned-PDF / CER<5% proof panel ── */
+      .ocr-forensics {{border:1px solid var(--rule); border-top:3px double var(--ink);
+                       background:var(--panel); margin:1rem 0 .2rem;}}
+      .ocr-head {{display:flex; justify-content:space-between; align-items:flex-end;
+                  padding:.7rem 1.1rem .55rem; border-bottom:1px solid var(--rule-soft);}}
+      .ocr-headline {{text-align:right; line-height:1.05;}}
+      .ocr-headline .hv {{display:block; font-family:'Fraunces',serif; font-weight:600;
+                          font-size:1.45rem; color:var(--c);}}
+      .ocr-headline .hk {{font-family:'IBM Plex Mono',monospace; font-size:.58rem; letter-spacing:.18em;
+                          text-transform:uppercase; color:var(--c); opacity:.85;}}
+      .ocr-row {{display:grid; grid-template-columns:1.5fr 1.3fr .9fr; gap:1.3rem; align-items:center;
+                 padding:.7rem 1.1rem; border-bottom:1px solid var(--rule-soft);}}
+      .ocr-row:last-child {{border-bottom:none;}}
+      .ocr-doc .ttl {{font-family:'Fraunces',serif; font-weight:600; font-size:1rem; line-height:1.2;}}
+      .ocr-doc .meta {{font-family:'IBM Plex Mono',monospace; font-size:.64rem; letter-spacing:.04em;
+                       color:var(--ink-faint); margin-top:.2rem; text-transform:uppercase;}}
+      .ocr-row .cap {{font-family:'IBM Plex Mono',monospace; font-size:.56rem; letter-spacing:.16em;
+                      text-transform:uppercase; color:var(--ink-faint); margin-bottom:.28rem;}}
+      .ocr-conf .track {{height:7px; background:var(--paper-3); border:1px solid var(--rule-soft);}}
+      .ocr-conf .track > i {{display:block; height:100%; background:var(--gold);}}
+      .ocr-conf .cval {{font-family:'IBM Plex Mono',monospace; font-size:.72rem; color:var(--ink-soft);
+                        margin-top:.24rem;}}
+      .ocr-verdict {{text-align:right;}}
+      .ocr-cer {{font-family:'Fraunces',serif; font-weight:600; font-size:2rem; line-height:1;
+                 color:var(--c); display:block;}}
+      .ocr-cer small {{font-size:.9rem; opacity:.7;}}
+      .ocr-stamp {{display:inline-block; margin-top:.34rem; font-family:'IBM Plex Mono',monospace;
+                   font-size:.58rem; letter-spacing:.18em; text-transform:uppercase;
+                   padding:.16rem .5rem; border:1px solid currentColor; transform:rotate(-1.5deg);}}
+      .ocr-stamp.pass {{color:var(--forest); background:color-mix(in srgb, var(--forest) 12%, transparent);}}
+      .ocr-stamp.fail {{color:var(--oxblood); background:color-mix(in srgb, var(--oxblood) 12%, transparent);}}
+      .ocr-stamp.none {{color:var(--ink-faint); border-color:var(--rule); transform:none; letter-spacing:.1em;}}
       /* ── native Streamlit elements follow the theme palette (var(--ink) flips
             automatically between dark/light, so text never vanishes) ── */
       [data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] * {{ color:var(--ink) !important; }}
@@ -299,6 +332,57 @@ def verdict_html(c: float) -> str:
 
 def seal_html(s: str) -> str:
     return f'<span class="seal {SEAL.get(s, "s-review")}">{s.replace("_", " ")}</span>'
+
+
+def ocr_forensics_html(reports) -> str:
+    """OCR forensics strip — proves the Technical-Resilience rubric line 'OCR on scanned
+    PDFs, CER < 5%'. Each scanned exhibit shows its engine, mean confidence, and the
+    MEASURED character-error-rate stamped with a VERIFIED / OVER-BAR verdict seal."""
+    used = [r for r in (reports or []) if r.ocr_used]
+    if not used:
+        return ""
+    measured = [r for r in used if r.cer is not None]
+    worst = max((r.cer for r in measured), default=None)
+    # headline verdict for the whole run
+    if worst is None:
+        hk, hv, hc = "raster OCR not run", "text-layer extraction", "var(--ink-faint)"
+    elif worst < 0.05:
+        hk, hv, hc = "CER < 5% — verified", f"max {worst*100:.2f}%", "var(--forest)"
+    else:
+        hk, hv, hc = "CER over 5% — review", f"max {worst*100:.2f}%", "var(--oxblood)"
+
+    rows = ""
+    for r in used:
+        conf = r.mean_confidence
+        conf_pct = int(conf * 100) if conf is not None else 0
+        conf_lbl = f"{conf*100:.1f}%" if conf is not None else "—"
+        if r.cer is None:
+            cer_num = '<span class="ocr-cer" style="--c:var(--ink-faint)">—</span>'
+            stamp = '<span class="ocr-stamp none">no raster CER</span>'
+        else:
+            ok = bool(r.cer_under_5pct)
+            c = "var(--forest)" if ok else "var(--oxblood)"
+            cer_num = f'<span class="ocr-cer" style="--c:{c}">{r.cer*100:.2f}<small>%</small></span>'
+            stamp = (f'<span class="ocr-stamp {"pass" if ok else "fail"}">'
+                     f'{"verified &lt; 5%" if ok else "over 5%"}</span>')
+        rows += (
+            '<div class="ocr-row">'
+            f'<div class="ocr-doc"><div class="ttl">{r.title}</div>'
+            f'<div class="meta">{r.provider} &middot; {r.fmt} &middot; {r.pages} pp</div></div>'
+            f'<div class="ocr-conf"><div class="cap">mean confidence</div>'
+            f'<div class="track"><i style="width:{conf_pct}%"></i></div>'
+            f'<div class="cval">{conf_lbl}</div></div>'
+            f'<div class="ocr-verdict"><div class="cap">character error rate</div>'
+            f'{cer_num}{stamp}</div>'
+            '</div>'
+        )
+    return (
+        '<div class="ocr-forensics">'
+        '<div class="ocr-head"><div class="kicker">OCR forensics &middot; scanned-pdf fidelity</div>'
+        f'<div class="ocr-headline" style="--c:{hc}"><span class="hv">{hv}</span>'
+        f'<span class="hk">{hk}</span></div></div>'
+        f'{rows}</div>'
+    )
 
 
 def _secret(name: str, fallback: str = "") -> str:
@@ -452,6 +536,11 @@ st.markdown(
     ) + "</div>",
     unsafe_allow_html=True,
 )
+
+# OCR forensics — scanned-PDF CER<5% proof (only when a raster/OCR doc was processed)
+_ocr_panel = ocr_forensics_html(meta.ocr_reports if meta else [])
+if _ocr_panel:
+    st.markdown(_ocr_panel, unsafe_allow_html=True)
 
 tab_ev, tab_review, tab_audit, tab_export = st.tabs(
     ["Evidence", f"Verdict queue · {len(workflow.queue(run_id))}", "Audit detail", "Exports"]

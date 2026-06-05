@@ -137,10 +137,22 @@ def search(query: str, site: str | None = None, max_results: int = 10, log=print
     return results
 
 
+# portal landing/navigation pages that are not a specific law — never a useful result
+_NAV_PATHS = {"", "/", "/index", "/home", "/search", "/browse", "/login", "/about", "/help"}
+
+
+def _is_law_url(url: str) -> bool:
+    """Reject portal roots and nav pages (e.g. 'https://sso.agc.gov.sg/') so the homepage
+    can't outrank an actual statute; a real law URL always has a content path segment."""
+    path = urlparse(url).path.rstrip("/").lower()
+    return path not in _NAV_PATHS and len(path) > 1
+
+
 def find_law_urls(economy: Economy, topic: str, max_results: int = 10, log=print) -> list[tuple[str, str]]:
     """Discover candidate (url, title) primary-law results on the economy's official portal."""
     site = OFFICIAL_PORTAL.get(economy.value)
     results = search(topic, site=site, max_results=max_results, log=log)
     if site:   # keep only the official portal (drop news/blog noise the engine mixes in)
         results = [(u, t) for u, t in results if site in urlparse(u).netloc.lower()]
+    results = [(u, t) for u, t in results if _is_law_url(u)]   # drop homepage/nav noise
     return results

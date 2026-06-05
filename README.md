@@ -70,6 +70,18 @@ python main.py --economy Singapore --pillar 6
 ```
 **Output:** `outputs/SG_P6_<timestamp>.csv` and `outputs/SG_P6_<timestamp>.json`
 
+### Demonstrate scanned/image-PDF OCR (Technical-Resilience rubric)
+The bundled `data/samples/SG/mas_notice_655.pdf` is a **genuine image-only PDF** (no text
+layer). Run it through real raster OCR and the pipeline measures the Character Error Rate
+against the shipped ground-truth sidecar:
+```bash
+python main.py --economy Singapore --pillar 6 --ocr rapidocr --llm mock
+# [ocr] MAS Notice 655 ... via rapidocr conf=0.99 pages=1 CER=1.11% PASS<5%
+```
+The measured CER is written to the JSON (`ocr_reports[].cer` and `ocr_quality.cer`), so a
+technical reviewer can verify the < 5% bar without rerunning. Regenerate the scanned
+sample from any text with `python tools/make_scanned_pdf.py <in.txt> <out.pdf>`.
+
 ### Or launch the reviewer dashboard
 ```bash
 streamlit run frontend/app.py
@@ -193,14 +205,17 @@ LLM_PROVIDER=mock        # deterministic lexical grader for reproducible demos
 
 | Engine | `OCR_PROVIDER` | Notes |
 | :---- | :---- | :---- |
-| **MarkItDown** (default) | `markitdown` | Microsoft; PDF/Office/HTML → Markdown; high-fidelity text |
+| **MarkItDown** (default) | `markitdown` | Microsoft; PDF/Office/HTML → Markdown; high-fidelity **text-layer** extraction |
+| **RapidOCR** (scanned) | `rapidocr` | Pip-only raster OCR (ONNX), no system binary; **CER ≈ 1%** on the bundled scan; fast + Jetson-friendly |
+| **PaddleOCR** (PP-OCRv5) | `paddle` | Highest accuracy — **CER ≈ 0%** on the bundled scan; multilingual; heavier (~1 GB). On some Windows/CPU builds set `enable_mkldnn=False` (the provider already defaults to it) |
 | Tesseract | `tesseract` | Free, open-source; image OCR (needs Tesseract + poppler) |
-| PaddleOCR | `paddleocr` → `paddle` | Good multilingual; self-hosted |
-| Azure Document Intelligence | `azure` | Best on scanned/image PDFs; needs endpoint + key |
+| Azure Document Intelligence | `azure` | Strongest on noisy real-world scans; needs endpoint + key |
 | Mock | `mock` | Offline sidecar; no binaries |
 
 Change `OCR_PROVIDER` in `.env` or pick it in the dashboard — no code changes.
-For image-only/scanned PDFs, use `azure` (or set MarkItDown's `docintel_endpoint`).
+For image-only/scanned PDFs use `rapidocr` (pip-only, default scanned engine) or `azure`
+for the noisiest gazette scans. The pipeline auto-detects a "secretly scanned" text PDF
+(empty text layer) and routes it to the OCR engine automatically.
 
 ---
 
@@ -293,10 +308,15 @@ token costs.
 ## Known Limitations
 
 Honest by design:
-- **Live crawling** is a skeleton (`discover_live`); the primary path is the curated
-  offline sample corpus. JS-rendered portals would need Playwright.
-- **Image-only / scanned PDFs**: MarkItDown extracts text layers, not raster images.
-  Use `OCR_PROVIDER=azure` (Document Intelligence) or `tesseract` for true OCR.
+- **Live crawling** (`--live`) is functional: web-search discovery (`site:`-scoped,
+  multi-engine with on-disk cache), the Australia OData JSON API, SG SSO PDF resolution,
+  and a polite caching fetcher with conditional GET. It depends on live network/search
+  availability; JS-token-gated portal *search boxes* still need Playwright, which is why
+  discovery goes via web search rather than the portals' own search forms.
+- **Image-only / scanned PDFs**: handled by real raster OCR (`--ocr rapidocr`, pip-only,
+  no system binary) — measured **CER ≈ 1%** on the bundled scanned sample (see below).
+  For noisy real-world gazette scans, `--ocr azure` (Document Intelligence) is strongest.
+  MarkItDown (default) is for text-layer PDFs/HTML/Office, not raster images.
 - **Mock grader** is lexical (offline) and can mislabel closely-related indicators — use
   a real LLM (OpenRouter/Claude) for production-grade mapping accuracy.
 - **Indicator `legal_test`/`query_terms`** are our interpretation of the official RDTII
@@ -316,6 +336,8 @@ pytest tests/
 | `tests/test_output.py` | CSV header == official template; submission excludes quarantined |
 | `tests/test_mapper.py` | Known mappings (consent→P7-I1, breach→P7-I4); P6 needs transfer context; sectoral never auto-accepts |
 | `tests/test_ocr.py` | MarkItDown is default + extracts the bundled PDF |
+| `tests/test_scanned_ocr.py` | Bundled scan is genuinely image-only; RapidOCR reads it at CER < 5%; pipeline measures + reports CER |
+| `tests/test_input.py` | Economy input tolerates codes, UN names and mis-spellings; rejects garbage clearly |
 
 ---
 

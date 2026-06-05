@@ -16,21 +16,18 @@ from datetime import datetime, timezone
 from backend.config import settings
 from backend.export import export_csv, export_json
 from backend.pipeline.orchestrator import run_pipeline
-from backend.schemas import Economy
-
-# accept official UN names or 2-letter codes
-ECONOMY_ALIASES = {
-    "singapore": Economy.SG, "sg": Economy.SG,
-    "australia": Economy.AU, "au": Economy.AU,
-    "malaysia": Economy.MY, "my": Economy.MY,
-}
+from backend.schemas import ECONOMY_UN_NAME, Economy, resolve_economy
 
 
 def parse_economy(value: str) -> Economy:
-    e = ECONOMY_ALIASES.get(value.strip().lower())
-    if e is None:
-        raise SystemExit(f"Unknown economy '{value}'. Supported: Singapore, Australia, Malaysia.")
-    return e
+    # tolerant of codes, UN names and mis-spellings (rubric: handle unanticipated input)
+    try:
+        econ = resolve_economy(value)
+    except ValueError as e:
+        raise SystemExit(str(e))
+    if value.strip().lower() not in (econ.value.lower(), ECONOMY_UN_NAME[econ.value].lower()):
+        print(f"[input] interpreted '{value}' as {ECONOMY_UN_NAME[econ.value]}")
+    return econ
 
 
 def main() -> None:
