@@ -28,6 +28,13 @@ class Settings(BaseSettings):
     # in committed code. Default is empty on purpose.
     openrouter_api_key: str = ""
     openrouter_model: str = "meta-llama/llama-3.3-70b-instruct:free"
+    # Self-hosted / local LLM via any OpenAI-compatible endpoint (Ollama, vLLM, LM Studio,
+    # llama.cpp, LocalAI…). Point LOCAL_LLM_BASE_URL at the server's /v1. Ollama default
+    # below; for a lab box set e.g. LOCAL_LLM_BASE_URL=http://gpu-lab:11434/v1 in .env.
+    # Ollama ignores the key, so it stays empty.
+    local_llm_base_url: str = "http://localhost:11434/v1"
+    local_llm_model: str = "llama3.1"
+    local_llm_api_key: str = ""
 
     # azure ocr
     azure_vision_endpoint: str = ""

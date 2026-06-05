@@ -370,6 +370,15 @@ with st.sidebar:
         if not llm_key:
             llm_key = st.text_input("OpenRouter API key", type="password",
                                     placeholder="set OPENROUTER_API_KEY in Secrets, or paste here") or None
+    elif llm_choice == "local":
+        # self-hosted OpenAI-compatible endpoint (Ollama on the lab box, vLLM, …)
+        base_url = st.text_input("Base URL", value=settings.local_llm_base_url, key="local_url_in",
+                                 help="OpenAI-compatible /v1 — Ollama: http://<lab-host>:11434/v1")
+        settings.local_llm_base_url = base_url.strip()   # propagate to factory + availability probe
+        llm_model = st.text_input("Model name", value=settings.local_llm_model, key="local_model_in",
+                                  help="a model your server serves, e.g. llama3.1, qwen2.5:14b")
+        llm_key = st.text_input("API key (optional)", type="password", key="local_key_in",
+                                placeholder="leave blank for Ollama") or None
     elif llm_choice != "mock":
         _default_model = settings.anthropic_model if llm_choice == "anthropic" else settings.openai_model
         llm_model = st.text_input("Model name", value=_default_model, key="llm_model_in")

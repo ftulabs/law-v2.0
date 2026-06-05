@@ -181,4 +181,9 @@ def get_llm_provider(name: str | None = None, model: str | None = None,
     if name == "openrouter":
         from .llm_openrouter import OpenRouterLLM
         return OpenRouterLLM(api_key or settings.openrouter_api_key, model or settings.openrouter_model)
+    if name == "local":
+        from .llm_local import LocalLLM
+        # base_url is env/.env/dashboard-driven (settings); key optional (Ollama ignores it)
+        return LocalLLM(settings.local_llm_base_url, model or settings.local_llm_model,
+                        api_key or settings.local_llm_api_key)
     raise ValueError(f"Unknown LLM_PROVIDER: {name}")

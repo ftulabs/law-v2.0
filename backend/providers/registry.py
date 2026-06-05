@@ -12,12 +12,13 @@ from dataclasses import dataclass
 from ..config import settings
 
 OCR_PROVIDERS = ["markitdown", "mock", "tesseract", "paddle", "azure"]
-LLM_PROVIDERS = ["openrouter", "mock", "anthropic", "openai"]
+LLM_PROVIDERS = ["openrouter", "mock", "anthropic", "openai", "local"]
 
 OCR_LABELS = {"markitdown": "MarkItDown (default)", "mock": "Mock (offline)",
               "tesseract": "Tesseract", "paddle": "PaddleOCR", "azure": "Azure Vision"}
 LLM_LABELS = {"openrouter": "OpenRouter (free models)", "mock": "Mock grader (offline)",
-              "anthropic": "Anthropic Claude", "openai": "OpenAI"}
+              "anthropic": "Anthropic Claude", "openai": "OpenAI",
+              "local": "Self-hosted (Ollama/OpenAI-compatible)"}
 
 # Curated free models on OpenRouter (verified available; availability can change).
 OPENROUTER_FREE_MODELS = [
@@ -91,4 +92,10 @@ def llm_availability(name: str, api_key: str | None = None) -> Availability:
         if not (api_key or settings.openrouter_api_key):
             return Availability(False, "needs OPENROUTER_API_KEY (env/secrets)")
         return Availability(True, "ready (free models)")
+    if name == "local":
+        if not _have("openai"):
+            return Availability(False, "pip install openai")
+        if not settings.local_llm_base_url:
+            return Availability(False, "set Base URL (e.g. http://gpu-lab:11434/v1)")
+        return Availability(True, f"ready: {settings.local_llm_base_url}")
     return Availability(False, "unknown")
