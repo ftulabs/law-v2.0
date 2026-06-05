@@ -143,21 +143,47 @@ def fetch_to_cache(url: str, log: Callable[[str], None] = print) -> FetchResult 
                 etag = resp.headers.get("etag")
                 last_mod = resp.headers.get("last-modified")
     except Exception as e:  # noqa: BLE001 — network/HTTP errors must not crash a run
-        log(f"[fetch] failed ({type(e).__name__}: {e}): {url}")
-        return None
+        log(f"[fetch] httpx failed ({type(e).__name__}): {url}")
+        # ESCALATE to Scrapling — bypasses TLS/WAF fingerprint blocks (and JS challenges
+        # when the stealth browser is enabled) that defeat plain httpx. Falls through to
+        # None if Scrapling is unavailable or also fails.
+        return _scrapling_escalate(url, idx, log)
 
-    data = bytes(buf)
+    return _store(url, bytes(buf), content_type, idx, etag, last_mod, log)
+
+
+def _store(url, data: bytes, content_type: str, idx: dict, etag, last_mod, log,
+           engine: str = "httpx") -> FetchResult:
+    """Content-address `data` into the cache and update the resumable index. Shared by the
+    httpx and Scrapling fetch paths so both dedupe identically."""
     sha = hashlib.sha256(data).hexdigest()
     fmt, ext = _fmt_for(content_type, url)
     fname = f"{sha[:16]}.{ext}"
     path = settings.cache_path / fname
     if not path.exists():                       # content-addressed → identical bodies dedupe
         path.write_bytes(data)
-        log(f"[fetch] cached {len(data)//1000} KB -> {fname}  ({url})")
+        log(f"[fetch] cached {len(data)//1000} KB -> {fname} via {engine}  ({url})")
     else:
         log(f"[fetch] dedup (same content) -> {fname}  ({url})")
-
     idx[url] = {"file": fname, "sha256": sha, "fmt": fmt.value, "content_type": content_type,
-                "etag": etag, "last_modified": last_mod, "bytes": len(data)}
+                "etag": etag, "last_modified": last_mod, "bytes": len(data), "engine": engine}
     _save_index(idx)
     return FetchResult(str(path), fmt, sha, content_type, False)
+
+
+def _scrapling_escalate(url: str, idx: dict, log) -> FetchResult | None:
+    """Retry a bot-blocked/failed fetch through Scrapling, then store it like any body."""
+    try:
+        from . import scrapling_fetch
+    except Exception:
+        return None
+    if not scrapling_fetch.available():
+        return None
+    res = scrapling_fetch.fetch(url, log=log)
+    if not res:
+        return None
+    if len(res.body) > settings.fetch_max_bytes:
+        log(f"[fetch] scrapling body over cap: {url}")
+        return None
+    log(f"[fetch] recovered via {res.engine} (status {res.status}): {url}")
+    return _store(url, res.body, res.content_type, idx, None, None, log, engine=res.engine)

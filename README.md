@@ -335,9 +335,13 @@ token costs.
 Honest by design:
 - **Live crawling** (`--live`) is functional: web-search discovery (`site:`-scoped,
   multi-engine with on-disk cache), the Australia OData JSON API, SG SSO PDF resolution,
-  and a polite caching fetcher with conditional GET. It depends on live network/search
-  availability; JS-token-gated portal *search boxes* still need Playwright, which is why
-  discovery goes via web search rather than the portals' own search forms.
+  and a polite caching fetcher with conditional GET. **Bot-resistant fetching via
+  [Scrapling](https://github.com/D4Vinci/Scrapling)**: when plain httpx is blocked (a WAF
+  fingerprints its TLS handshake → 403), the fetch auto-escalates to Scrapling's
+  curl_cffi browser-impersonation, and to its stealth Camoufox browser for JS challenges
+  when `CRAWL_BROWSER=true` (run `scrapling install` first). Scrapling is also the
+  last-resort web-search engine when the httpx scrapers are rate-limited. All escalation
+  degrades gracefully — if Scrapling is absent or fails, the httpx result stands.
 - **Image-only / scanned PDFs**: handled by real raster OCR (`--ocr rapidocr`, pip-only,
   no system binary) — measured **CER ≈ 1%** on the bundled scanned sample (see below).
   For noisy real-world gazette scans, `--ocr azure` (Document Intelligence) is strongest.
@@ -364,6 +368,7 @@ pytest tests/
 | `tests/test_scanned_ocr.py` | Bundled scan is genuinely image-only; RapidOCR reads it at CER < 5%; pipeline measures + reports CER |
 | `tests/test_input.py` | Economy input tolerates codes, UN names and mis-spellings; rejects garbage clearly |
 | `tests/test_zone2_retriever.py` | Retriever selection (hybrid/lightrag/auto); mapper falls back to hybrid if LightRAG yields nothing |
+| `tests/test_scrapling_fetch.py` | Scrapling escalation stores recovered bodies, respects the byte cap, and degrades to None |
 
 ---
 

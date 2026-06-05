@@ -87,7 +87,24 @@ def _mojeek(client, q, n):
     return _parse(r.text, "a.title, ul.results-standard li a", n) if r.status_code == 200 else []
 
 
-_ENGINES = [_serper, _ddg_html, _ddg_lite, _mojeek]
+def _scrapling_ddg(client, q, n):
+    """Last-resort engine: fetch DuckDuckGo's HTML via Scrapling's impersonating Fetcher.
+    When the httpx engines above are rate-limited/blocked (their TLS fingerprint is flagged),
+    Scrapling's real-browser fingerprint often still gets through. Ignores the httpx client."""
+    try:
+        from . import scrapling_fetch
+    except Exception:
+        return []
+    if not scrapling_fetch.available():
+        return []
+    from urllib.parse import quote_plus
+    res = scrapling_fetch.fetch(f"https://html.duckduckgo.com/html/?q={quote_plus(q)}", log=lambda *_: None)
+    if not res:
+        return []
+    return _parse(res.body.decode("utf-8", "ignore"), "a.result__a", n)
+
+
+_ENGINES = [_serper, _ddg_html, _ddg_lite, _mojeek, _scrapling_ddg]
 
 
 def _cache_file():

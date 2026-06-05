@@ -22,3 +22,6 @@ data/cache/
 .DS_Store
 .vscode/
 .idea/
+
+# Claude Code personal settings (permission allowlist etc.)
+.claude/settings.local.json
