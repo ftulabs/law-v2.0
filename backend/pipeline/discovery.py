@@ -148,6 +148,48 @@ def _search_one(client, src: dict, query: str, economy: Economy, indicators, log
     return out
 
 
+def _search_au_api(client, src: dict, query: str, economy: Economy, indicators, log) -> list[DiscoveredDoc]:
+    """Australia: official OData JSON API. AU Acts are named by title not topic, so we
+    run TWO queries per term and merge: contains(name,…) nails flagship Acts by name
+    ('Privacy Act'→C2004A03712), while $search hits topic words in the full text to
+    surface topically-relevant Acts that lack an obvious keyword title."""
+    import re as _re
+    tmpl = src.get("detail_url_template", "https://www.legislation.gov.au/{id}")
+    qtok = {w for w in _re.findall(r"[a-z0-9]+", query.lower()) if len(w) > 2}
+    out: list[DiscoveredDoc] = []
+    seen: set[str] = set()
+    # contains(name,…) is precise and fast; $search (full-text) is slow and its
+    # content-only hits get filtered out by the title-overlap score anyway.
+    variants = [
+        {"$filter": f"contains(name,'{query}') and collection eq 'Act'", "$top": "40"},
+    ]
+    for params in variants:
+        try:
+            r = client.get(src["api_base"], params=params, headers={"Accept": "application/json"})
+            r.raise_for_status()
+            items = r.json().get("value", [])
+        except Exception as e:  # noqa: BLE001
+            log(f"[discover] AU API query='{query}' ({'search' if '$search' in params else 'name'}) "
+                f"failed ({type(e).__name__})")
+            continue
+        for it in items:
+            tid, name = it.get("id"), (it.get("name") or "")
+            if not tid or tid in seen:
+                continue
+            seen.add(tid)
+            # rank by how much of the search term appears in the TITLE — keeps flagship
+            # name-matches (Privacy Act → 1.0) and drops $search content-only noise (1901
+            # acts whose titles share no query word → 0.0, filtered out by the caller).
+            ntok = {w for w in _re.findall(r"[a-z0-9]+", name.lower()) if len(w) > 2}
+            score = round(len(qtok & ntok) / len(qtok), 3) if qtok else 0.0
+            url = tmpl.replace("{id}", tid)
+            out.append(DiscoveredDoc(
+                doc_id=_doc_id(economy.value, url), economy=economy, title=name[:200],
+                source_url=url, portal=src.get("name", "AU"), fmt=DocFormat.HTML,
+                law_number=tid, relevance_score=score, discovery_tag=DiscoveryTag.NEW))
+    return out
+
+
 def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | None = None) -> list[DiscoveredDoc]:
     """Search the economy's official portal(s) with coarse pillar keywords and return
     ranked candidate documents (NEW). Returns [] if httpx/bs4 or the network are
@@ -163,7 +205,8 @@ def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | N
     max_docs = max_docs or settings.discovery_max_docs
     indicators = get_indicators(pillar)
     queries = portal_search_queries(economy.value, pillar)
-    sources = [s for s in load_sources() if s.get("economy") == economy.value and s.get("search_url_template")]
+    sources = [s for s in load_sources() if s.get("economy") == economy.value
+               and (s.get("search_url_template") or s.get("adapter"))]
     if not sources:
         return []
 
@@ -171,8 +214,9 @@ def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | N
     by_url: dict[str, DiscoveredDoc] = {}
     with httpx.Client(timeout=settings.crawl_timeout_seconds, headers=_headers(), follow_redirects=True) as client:
         for src in sources:
+            searcher = _search_au_api if src.get("adapter") == "au_api" else _search_one
             for q in queries:
-                for d in _search_one(client, src, q, economy, indicators, log=print):
+                for d in searcher(client, src, q, economy, indicators, log=print):
                     # keep the best-scoring instance of each unique body URL
                     prev = by_url.get(d.source_url)
                     if prev is None or d.relevance_score > prev.relevance_score:
@@ -180,7 +224,8 @@ def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | N
                 if len(by_url) >= max_docs * 3:   # enough raw candidates; stop querying
                     break
 
-    docs = sorted(by_url.values(), key=lambda d: d.relevance_score, reverse=True)
+    docs = [d for d in by_url.values() if d.relevance_score > 0]   # drop content-only noise
+    docs.sort(key=lambda d: d.relevance_score, reverse=True)
     return docs[:max_docs]
 
 
