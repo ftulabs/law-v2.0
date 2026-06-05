@@ -123,6 +123,19 @@ def run_pipeline(
         top_k=top_k,
         log=log,
     )
+    # KNOWN/NEW tagging against the judges' sample kit (law-level). NEW = found on our
+    # own (worth the most points); KNOWN = the law was a sample-kit example.
+    from . import sample_kit
+    kit = sample_kit.load_known(settings.sample_kit_path or None)
+    if kit is not None:
+        from ..schemas import DiscoveryTag
+        n_known = 0
+        for m in mappings:
+            known = sample_kit.is_known(m.economy.value, m.pillar, m.law_name, m.source_url, kit)
+            m.discovery_tag = DiscoveryTag.KNOWN if known else DiscoveryTag.NEW
+            n_known += known
+        log(f"[tag] sample kit matched — KNOWN={n_known} NEW={len(mappings) - n_known}")
+
     for m in mappings:
         db.save_mapping(m)
 

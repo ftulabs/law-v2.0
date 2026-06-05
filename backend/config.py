@@ -79,6 +79,9 @@ class Settings(BaseSettings):
     # free tier) gives reliable Google deep-links. Falls back to DuckDuckGo/Mojeek.
     serper_api_key: str = ""
 
+    # sample kit (RDTII Round-1 Database) for KNOWN/NEW tagging. Empty = auto-discover.
+    sample_kit_path: str = ""
+
     @property
     def db_path(self) -> Path:
         p = (ROOT / self.veritrade_db) if not Path(self.veritrade_db).is_absolute() else Path(self.veritrade_db)
