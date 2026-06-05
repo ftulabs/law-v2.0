@@ -87,14 +87,17 @@ class MockLLM(LLMProvider):
         else:
             scope_alignment = 0.95 if not sectoral else 0.8
 
-        # Pillar-6 gate: a cross-border-transfer indicator only fits a provision that
-        # actually concerns transfer/cross-border movement. Stops a domestic consent/
-        # use clause (Pillar 7) from being mislabelled as a transfer-consent rule.
+        # Pillar-6 gate: the Pillar-6 (data-localisation) indicators only fit a provision
+        # that concerns cross-border movement OR a localisation requirement (store/process/
+        # host data in-country). Stops a generic domestic clause being mislabelled as a
+        # localisation rule. Covers transfer (6.1/6.4), storage (6.2) and infrastructure (6.3).
         pillar6 = ind_id.upper().startswith("P6")
-        transfer_ctx = any(k in snippet for k in (
-            "transfer", "cross-border", "cross border", "outside", "overseas",
-            "to a country", "place outside", "another country", "foreign"))
-        gate_ok = (not pillar6) or transfer_ctx
+        localisation_ctx = any(k in snippet for k in (
+            "transfer", "cross-border", "cross border", "outside", "overseas", "to a country",
+            "place outside", "another country", "foreign", "stored", "store", "storage",
+            "located in", "within the territory", "in the country", "locally", "local server",
+            "data centre", "data center", "infrastructure", "server"))
+        gate_ok = (not pillar6) or localisation_ctx
         if not gate_ok:
             legal_match = min(legal_match, 0.3)
 

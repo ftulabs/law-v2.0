@@ -18,19 +18,19 @@ from __future__ import annotations
 # Coarse, high-recall search phrases per pillar. Ordered most→least productive so an
 # adapter can stop early once it has enough candidates.
 PILLAR_SEARCH_TERMS: dict[int, list[str]] = {
-    6: [  # Cross-border data flows
+    6: [  # Cross-border Data Policies (localisation: ban / storage / infrastructure / conditional flow)
         "personal data protection",
         "cross-border transfer of personal data",
-        "transfer personal data outside",
         "data localisation",
-        "privacy",
+        "local storage of personal data",
+        "transfer personal data overseas conditions",
     ],
-    7: [  # Domestic data protection
+    7: [  # Domestic Data Protection & Privacy (framework / cybersecurity / retention / DPIA-DPO / gov access)
         "personal data protection",
-        "privacy",
-        "data breach notification",
-        "data retention",
-        "data protection",
+        "cybersecurity law",
+        "data retention period",
+        "data protection officer impact assessment",
+        "government access to personal data",
     ],
 }
 

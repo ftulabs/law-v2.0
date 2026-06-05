@@ -9,25 +9,31 @@ def _auto(economy):
     return [m for m in r.mappings if m.review_status.value == "auto_accepted"], r.mappings
 
 
-def test_sg_consent_maps_to_legal_basis():
+def test_sg_pdpa_maps_to_data_protection_framework():
     auto, _ = _auto(Economy.SG)
-    # PDPA s13 (consent) -> P7-I1 Legal basis for processing
+    # PDPA s13 (consent to collect/use) is evidence of the data-protection framework -> P7-I1
     hits = [m for m in auto if m.indicator_id == "P7-I1" and "13" in m.article_section]
-    assert hits, "SG PDPA s13 should auto-map to P7-I1"
+    assert hits, "SG PDPA s13 should auto-map to P7-I1 (data-protection framework)"
 
 
-def test_sg_breach_maps_to_breach_indicator():
+def test_sg_cybersecurity_act_maps_to_P7I2():
     auto, _ = _auto(Economy.SG)
-    assert any(m.indicator_id == "P7-I4" for m in auto), "expected a data breach notification mapping"
+    # the Cybersecurity Act establishes a dedicated cybersecurity framework -> P7-I2
+    hits = [m for m in auto if m.indicator_id == "P7-I2" and "Cybersecurity" in m.law_name]
+    assert hits, "SG Cybersecurity Act should auto-map to P7-I2"
 
 
-def test_p6_mappings_have_cross_border_context():
+def test_p6_mappings_have_localisation_context():
     _, ms = _auto(Economy.SG)
+    # Pillar 6 (localisation) provisions must concern cross-border movement OR a localisation
+    # requirement (store/process/host in-country), not a generic domestic clause.
     for m in ms:
         if m.indicator_id.startswith("P6"):
             text = m.verbatim_snippet.lower()
-            assert any(k in text for k in ("transfer", "outside", "overseas", "cross", "foreign")), \
-                f"P6 mapping without transfer context: {m.article_section}"
+            assert any(k in text for k in ("transfer", "outside", "overseas", "cross", "foreign",
+                                           "stored", "store", "storage", "located in", "territory",
+                                           "locally", "server", "data centre", "infrastructure")), \
+                f"P6 mapping without localisation context: {m.article_section}"
 
 
 def test_sectoral_notice_is_not_auto_accepted():
