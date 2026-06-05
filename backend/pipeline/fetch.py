@@ -153,9 +153,9 @@ def fetch_to_cache(url: str, log: Callable[[str], None] = print) -> FetchResult 
     path = settings.cache_path / fname
     if not path.exists():                       # content-addressed → identical bodies dedupe
         path.write_bytes(data)
-        log(f"[fetch] cached {len(data)//1000} KB → {fname}  ({url})")
+        log(f"[fetch] cached {len(data)//1000} KB -> {fname}  ({url})")
     else:
-        log(f"[fetch] dedup (same content) → {fname}  ({url})")
+        log(f"[fetch] dedup (same content) -> {fname}  ({url})")
 
     idx[url] = {"file": fname, "sha256": sha, "fmt": fmt.value, "content_type": content_type,
                 "etag": etag, "last_modified": last_mod, "bytes": len(data)}

@@ -86,3 +86,19 @@ def find_provisions(
         f"(dense={settings.dense_retrieval})")
 
     return Zone1Result(economy=economy, docs=docs, provisions=provisions, ranked=ranked)
+
+
+def rank_laws(economy: Economy, pillar: int, use_samples: bool = True,
+              ocr_provider: str | None = None, top_n: int = 5, log=print) -> dict:
+    """Zone-1 DOCUMENT ranking per indicator (the judges' output shape): for each
+    indicator, the top laws with component scores (keyword/semantic/cross/final) + URL,
+    ranked on PROVISION CONTENT (not title) so an irrelevant Act can't win on its name."""
+    from . import ranking
+    res = find_provisions(economy, pillar, use_samples=use_samples, top_k=8,
+                          ocr_provider=ocr_provider, log=log)
+    out: dict[str, list] = {}
+    for ind in get_indicators(pillar):
+        out[ind.indicator_id] = ranking.rank_documents(ind.indicator_id, res.provisions)[:top_n]
+    log(f"[zone1] document ranking ready for {len(out)} indicators "
+        f"(cross_encoder={settings.cross_encoder})")
+    return {"result": res, "by_indicator": out}

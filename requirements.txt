@@ -24,11 +24,14 @@ pdfplumber>=0.11           # fallback text-layer extractor for non-markitdown pr
 rank-bm25>=0.2.2
 numpy>=1.26
 # Dense/semantic stage (Zone 1). 'dense_retrieval=auto' uses it IF importable, else
-# falls back to BM25 — so the core install stays light. Uncomment to enable (pulls torch;
-# on Jetson use the NVIDIA L4T PyTorch wheel). Multilingual model handles Malay/etc.
-# sentence-transformers>=2.7
+# falls back to BM25. Pulls torch (~2-3GB); on Jetson use the NVIDIA L4T PyTorch wheel.
+# Multilingual model handles Malay/Thai/etc.
+sentence-transformers>=2.7
 # faiss-cpu>=1.8          # optional: alternative vector index
-# chromadb>=0.5           # optional: alternative vector store
+
+# --- Live crawling (Zone 1): headless browser for JS/bot-gated portals ---
+# After install run:  python -m playwright install chromium   (on Jetson: arm64 build)
+playwright>=1.43
 
 # --- OCR providers (optional — install what you use) ---
 # pytesseract>=0.3.10     # requires system Tesseract binary

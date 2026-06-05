@@ -28,10 +28,13 @@ def _html_to_text(html: str) -> str:
 
 
 def _pdf_text_layer(path: str) -> str:
+    # x_tolerance infers spaces from glyph gaps — without it, legal PDFs come out with
+    # words jammed together ("Anorganisationmustnot"), which wrecks the Character Error
+    # Rate and the downstream matching. pdfplumber preserves spacing + line structure.
     try:
         import pdfplumber
         with pdfplumber.open(path) as pdf:
-            return "\n\n".join((pg.extract_text() or "") for pg in pdf.pages)
+            return "\n\n".join((pg.extract_text(x_tolerance=2, y_tolerance=3) or "") for pg in pdf.pages)
     except Exception:
         try:
             from pypdf import PdfReader
@@ -55,16 +58,16 @@ def get_document_text(doc: DiscoveredDoc, ocr_provider: OCRProvider | None = Non
 
     if fmt in (DocFormat.PDF_TEXT, DocFormat.PDF_SCANNED) and path:
         provider = ocr_provider or get_ocr_provider(settings.ocr_provider)
-        is_markitdown = getattr(provider, "name", "") == "markitdown"
 
-        # MarkItDown is the default extraction engine: use it for ALL PDFs. For real
-        # OCR engines (tesseract/azure), prefer a clean text layer and only OCR when
-        # the layer is thin (genuinely scanned).
-        if fmt == DocFormat.PDF_TEXT and not is_markitdown:
+        # For a real text-layer PDF, pdfplumber (with x_tolerance) gives the cleanest
+        # text — proper word spacing + structure, low CER. Try it FIRST regardless of the
+        # configured engine; only fall back to OCR (MarkItDown/tesseract/azure) when the
+        # layer is thin, i.e. the PDF is genuinely scanned/image-based.
+        if fmt == DocFormat.PDF_TEXT:
             text = _pdf_text_layer(path)
             if len(text.strip()) >= 200:
                 return text, metrics
-            # fall through → scanned, run OCR
+            # thin text layer → genuinely scanned → run OCR
 
         return _run_provider(provider, path)
 

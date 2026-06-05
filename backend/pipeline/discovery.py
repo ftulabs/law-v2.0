@@ -190,6 +190,41 @@ def _search_au_api(client, src: dict, query: str, economy: Economy, indicators, 
     return out
 
 
+def _resolve_pdf_url(economy: Economy, url: str) -> tuple[str, DocFormat]:
+    """Turn a law's landing URL into a fetchable full-text body URL + its format.
+    SG SSO serves the whole Act as a PDF at ?ViewType=Pdf (verified); MY links are
+    already direct PDFs; others fall back to the page itself."""
+    from urllib.parse import urlsplit, urlunsplit
+    low = url.lower()
+    if low.endswith(".pdf"):
+        return url, DocFormat.PDF_TEXT
+    if economy.value == "SG" and ("/act/" in low or "/sl/" in low or "/acts-supp/" in low):
+        s = urlsplit(url)
+        return urlunsplit((s.scheme, s.netloc, s.path, "ViewType=Pdf", "")), DocFormat.PDF_TEXT
+    return url, DocFormat.HTML
+
+
+def discover_websearch(economy: Economy, pillar: int | None, max_docs: int) -> list[DiscoveredDoc]:
+    """Discover laws via web search (slide A: 'search ... and the web') — portal-agnostic,
+    generalises to any economy with an entry in websearch.OFFICIAL_PORTAL."""
+    from . import websearch
+    from ..rdtii.keywords import portal_search_queries
+    topics = portal_search_queries(economy.value, pillar)
+    by_url: dict[str, DiscoveredDoc] = {}
+    for topic in topics:
+        for url, title in websearch.find_law_urls(economy, topic, max_results=6):
+            body_url, fmt = _resolve_pdf_url(economy, url)
+            if body_url in by_url:
+                continue
+            by_url[body_url] = DiscoveredDoc(
+                doc_id=_doc_id(economy.value, body_url), economy=economy,
+                title=(title or url)[:200], source_url=body_url, portal=websearch.OFFICIAL_PORTAL.get(economy.value, "web"),
+                fmt=fmt, relevance_score=0.0, discovery_tag=DiscoveryTag.NEW)
+        if len(by_url) >= max_docs * 2:
+            break
+    return list(by_url.values())[:max_docs]
+
+
 def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | None = None) -> list[DiscoveredDoc]:
     """Search the economy's official portal(s) with coarse pillar keywords and return
     ranked candidate documents (NEW). Returns [] if httpx/bs4 or the network are
@@ -210,21 +245,31 @@ def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | N
     if not sources:
         return []
 
-    import httpx
     by_url: dict[str, DiscoveredDoc] = {}
-    with httpx.Client(timeout=settings.crawl_timeout_seconds, headers=_headers(), follow_redirects=True) as client:
-        for src in sources:
-            searcher = _search_au_api if src.get("adapter") == "au_api" else _search_one
-            for q in queries:
-                for d in searcher(client, src, q, economy, indicators, log=print):
-                    # keep the best-scoring instance of each unique body URL
-                    prev = by_url.get(d.source_url)
-                    if prev is None or d.relevance_score > prev.relevance_score:
-                        by_url[d.source_url] = d
-                if len(by_url) >= max_docs * 3:   # enough raw candidates; stop querying
-                    break
 
-    docs = [d for d in by_url.values() if d.relevance_score > 0]   # drop content-only noise
+    # web-search adapters (SG/MY/…): portal-agnostic, finds laws the JS search hides
+    if any(s.get("adapter") == "websearch" for s in sources):
+        for d in discover_websearch(economy, pillar, max_docs):
+            by_url[d.source_url] = d
+
+    # API / scrape adapters (AU JSON API; server-rendered portals)
+    api_sources = [s for s in sources if s.get("adapter") not in ("websearch",)]
+    if api_sources:
+        import httpx
+        with httpx.Client(timeout=settings.crawl_timeout_seconds, headers=_headers(), follow_redirects=True) as client:
+            for src in api_sources:
+                searcher = _search_au_api if src.get("adapter") == "au_api" else _search_one
+                for q in queries:
+                    for d in searcher(client, src, q, economy, indicators, log=print):
+                        prev = by_url.get(d.source_url)
+                        if prev is None or d.relevance_score > prev.relevance_score:
+                            by_url[d.source_url] = d
+                    if len(by_url) >= max_docs * 3:
+                        break
+
+    # web-search docs carry score 0 (ranked later by CONTENT); keep them. Only drop
+    # the API title-overlap zeros (content-only noise) when no web-search ran.
+    docs = list(by_url.values())
     docs.sort(key=lambda d: d.relevance_score, reverse=True)
     return docs[:max_docs]
 
@@ -247,5 +292,7 @@ def doc_from_file(economy: Economy, path: str) -> DiscoveredDoc:
 def discover(economy: Economy, pillar: int | None = None, use_samples: bool = True) -> list[DiscoveredDoc]:
     if use_samples:
         return discover_from_samples(economy, pillar)
-    live = discover_live(economy, pillar)
-    return live or discover_from_samples(economy, pillar)
+    # Live mode is the SCORED path: retrieve from live portals only. Do NOT fall back to
+    # the bundled sample corpus — the rubric forbids pre-downloaded files. An empty result
+    # surfaces a real discovery failure (e.g. search rate-limited) instead of masking it.
+    return discover_live(economy, pillar)

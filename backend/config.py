@@ -71,6 +71,13 @@ class Settings(BaseSettings):
     dense_retrieval: str = "auto"              # auto | on | off — 'auto' = dense if installed
     embed_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     hybrid_alpha: float = 0.5                  # final = alpha*bm25 + (1-alpha)*dense
+    cross_encoder: str = "auto"                # auto | on | off — cross-encoder rerank
+    cross_encoder_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    rrf_k: int = 60                            # Reciprocal-Rank-Fusion constant
+
+    # web-search discovery — keyless scraping rate-limits; a Serper key (serper.dev,
+    # free tier) gives reliable Google deep-links. Falls back to DuckDuckGo/Mojeek.
+    serper_api_key: str = ""
 
     @property
     def db_path(self) -> Path:

@@ -21,12 +21,9 @@ sources:
   - economy: SG
     name: Singapore Statutes Online
     base_url: https://sso.agc.gov.sg
-    search_url_template: https://sso.agc.gov.sg/Search/Content?Query={query}&WiAl=1
-    result_link_selector: a.non-ajax
-    link_must_contain: /Act/
-    download_url_template: "{href}"
-    verified: false
-    notes: Primary statute repository. Bot-protected — needs browser UA + rate limits.
+    adapter: websearch                    # on-portal search is token-AJAX; web search reaches the same Acts
+    verified: true
+    notes: Full-text body via /Act/{id}?ViewType=Pdf (verified, httpx). Discovery via web search.
 
   - economy: AU
     name: Federal Register of Legislation
@@ -40,9 +37,6 @@ sources:
   - economy: MY
     name: Laws of Malaysia (AGC)
     base_url: https://lom.agc.gov.my
-    search_url_template: https://lom.agc.gov.my/search-legislation.php?searchText={query}
-    result_link_selector: a
-    link_must_contain: .pdf
-    download_url_template: "{href}"
+    adapter: websearch                    # DataTables AJAX grid; web search reaches the PDFs
     verified: false
     notes: Many documents are scanned PDFs → OCR required. Multilingual (Malay/English).
