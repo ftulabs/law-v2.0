@@ -26,7 +26,8 @@ SECTION_RE = re.compile(
     r")\s*[.\-—:]?\s*"
 )
 
-MAX_SNIPPET = 1200   # keep snippets reviewable; verbatim within the bound
+MAX_SNIPPET = 20000  # the template asks for the FULL, exact provision text — quote the
+                     # whole section; only a pathological multi-page section is capped here.
 
 
 def _law_name(doc: DiscoveredDoc) -> str:

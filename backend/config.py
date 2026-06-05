@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     # in committed code. Default is empty on purpose.
     openrouter_api_key: str = ""
     openrouter_model: str = "meta-llama/llama-3.3-70b-instruct:free"
+    # Google Gemini (OpenAI-compatible endpoint). Key from env/.env/secrets — never commit.
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.0-flash"
     # Self-hosted / local LLM via any OpenAI-compatible endpoint (Ollama, vLLM, LM Studio,
     # llama.cpp, LocalAI…). Point LOCAL_LLM_BASE_URL at the server's /v1. Ollama default
     # below; for a lab box set e.g. LOCAL_LLM_BASE_URL=http://gpu-lab:11434/v1 in .env.

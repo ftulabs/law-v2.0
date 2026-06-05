@@ -82,11 +82,13 @@ def run_pipeline(
     # Zone 1b — fetch bodies for live-discovered docs (sample/file docs already have a path)
     if not use_samples and not pdf_path:
         from .fetch import fetch_to_cache
+        from .discovery import _resolve_pdf_url
         fetched = 0
         for d in docs:
             if d.local_path:
                 continue
-            fr = fetch_to_cache(d.source_url, log=log)
+            fetch_url, _ = _resolve_pdf_url(d.economy, d.source_url)   # landing -> PDF body
+            fr = fetch_to_cache(fetch_url, log=log)
             if fr:
                 d.local_path, d.fmt = fr.local_path, fr.fmt
                 fetched += 1

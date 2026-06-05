@@ -213,12 +213,14 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int) -> l
     by_url: dict[str, DiscoveredDoc] = {}
     for topic in topics:
         for url, title in websearch.find_law_urls(economy, topic, max_results=6):
-            body_url, fmt = _resolve_pdf_url(economy, url)
-            if body_url in by_url:
+            if url in by_url:
                 continue
-            by_url[body_url] = DiscoveredDoc(
-                doc_id=_doc_id(economy.value, body_url), economy=economy,
-                title=(title or url)[:200], source_url=body_url, portal=websearch.OFFICIAL_PORTAL.get(economy.value, "web"),
+            # source_url stays the human-facing LANDING page (judges prefer it); the PDF
+            # body URL is resolved only at fetch time (see _resolve_pdf_url).
+            _, fmt = _resolve_pdf_url(economy, url)
+            by_url[url] = DiscoveredDoc(
+                doc_id=_doc_id(economy.value, url), economy=economy,
+                title=(title or url)[:200], source_url=url, portal=websearch.OFFICIAL_PORTAL.get(economy.value, "web"),
                 fmt=fmt, relevance_score=0.0, discovery_tag=DiscoveryTag.NEW)
         if len(by_url) >= max_docs * 2:
             break

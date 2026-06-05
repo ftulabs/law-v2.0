@@ -184,6 +184,9 @@ def get_llm_provider(name: str | None = None, model: str | None = None,
     if name == "openrouter":
         from .llm_openrouter import OpenRouterLLM
         return OpenRouterLLM(api_key or settings.openrouter_api_key, model or settings.openrouter_model)
+    if name == "gemini":
+        from .llm_gemini import GeminiLLM
+        return GeminiLLM(api_key or settings.gemini_api_key, model or settings.gemini_model)
     if name == "local":
         from .llm_local import LocalLLM
         # base_url is env/.env/dashboard-driven (settings); key optional (Ollama ignores it)
