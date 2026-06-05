@@ -175,26 +175,23 @@ class RunResult(BaseModel):
     mappings: list[EvidenceMapping] = Field(default_factory=list)
 
 
-# Submission columns — aligned to the RDTII output template (slide B "Required Fields").
-# NOTE: verify exact header spelling/order against OUTPUT_TEMPLATE_*.xlsx before final
-# submission; judges may validate programmatically.
+# OFFICIAL submission columns — EXACT name + order of OUTPUT_TEMPLATE_31MAY.xlsx
+# ("Output Data" sheet). Instructions: "Do not rename columns. Column names and order
+# must match this template exactly. Judges validate programmatically." Do NOT add,
+# rename, or reorder. Extra fields (pillar, coverage, OCR/CER, etc.) live in the JSON.
 SUBMISSION_COLUMNS = [
     "Economy",
-    "Pillar",
-    "Indicator ID",
-    "Indicator",
     "Law Name",
     "Law Number / Ref",
-    "Coverage",
     "Last Amended",
+    "Indicator ID",
     "Article / Section",
+    "Discovery Tag",
     "Location Reference",
     "Verbatim Snippet",
     "Mapping Rationale",
     "Source URL",
     "Confidence",
-    "Discovery Tag",
-    "Flag for Review",
     "Notes",
 ]
 

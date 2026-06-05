@@ -52,6 +52,8 @@ def _mapping_payload(m: EvidenceMapping) -> dict:
         "confidence_score": m.confidence_score,
         "confidence_breakdown": m.confidence.model_dump(),       # scoring explanation
         "discovery_tag": m.discovery_tag.value,
+        "coverage": m.coverage,                                  # Horizontal | Sectoral
+        "flag_for_review": m.review_status.value in ("pending_review", "quarantined"),
         "notes": m.notes,
         "review_status": m.review_status.value,
         "scope_flag": m.scope_flag,

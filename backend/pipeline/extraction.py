@@ -67,6 +67,11 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
             continue
         snippet = body[:MAX_SNIPPET]
         norm = _normalise_label(label)
+        # template requires article AND paragraph ("never write just Art. 26"): if the
+        # section body opens with a sub-paragraph marker (e.g. "26.—(1)(a)"), append it.
+        para = re.match(r"^[\s.\-—:]*(\(\d+[A-Za-z]?\)(?:\([a-z]+\))?)", body)
+        if para:
+            norm = f"{norm}{para.group(1)}"
         loc = _location_ref(ocr, start, total, norm)
         provisions.append(_mk(doc, norm, snippet, (start, start + len(snippet)), loc, ocr, i))
     return provisions
