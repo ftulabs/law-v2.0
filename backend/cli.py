@@ -46,6 +46,25 @@ def discover(economy: str = typer.Option(...), pillar: Optional[int] = None,
     console.print(f"[bold]{len(docs)}[/bold] documents")
 
 
+@app.command()
+def zone1(economy: str = typer.Option(...), pillar: Optional[int] = None,
+          use_samples: bool = typer.Option(True, "--use-samples/--live"),
+          top_k: int = 5, ocr: Optional[str] = typer.Option(None)):
+    """Zone 1 deliverable: ranked list of relevant provisions per indicator
+    (discover → fetch → extract → hybrid retrieve), WITHOUT the Zone-2 LLM mapping."""
+    from .pipeline.zone1 import find_provisions
+    res = find_provisions(_econ(economy), pillar, use_samples=use_samples, top_k=top_k,
+                          ocr_provider=ocr, log=lambda m: console.print(f"[dim]{m}[/dim]"))
+    table = Table("score", "indicator", "econ", "article", "law", "source")
+    for rp in res.ranked[:60]:
+        p = rp.provision
+        table.add_row(f"{rp.score:.2f}", rp.indicator_id, p.economy.value,
+                      p.article_section[:18], p.law_name[:34], p.source_url[:42])
+    console.print(table)
+    console.print(f"[bold]{len(res.docs)}[/bold] docs · [bold]{len(res.provisions)}[/bold] provisions · "
+                  f"[bold]{len(res.ranked)}[/bold] ranked pairs")
+
+
 @app.command("run-pipeline")
 def run_pipeline_cmd(
     economy: str = typer.Option(...),

@@ -1,26 +1,50 @@
-# Official legal portals for live discovery (Zone 1, --live mode).
-# The sample pipeline does NOT need these; they document where real crawls go and
-# provide selectors the httpx/BeautifulSoup skeleton in discovery.py can use.
-# Swap in Playwright/Scrapy behind discover_live() for JS-heavy portals.
+# Official national legal portals for Zone 1 LIVE discovery (--live mode).
+#
+# The judges provide only these ROOT portals; the app must search them itself. Each
+# adapter below is CONFIG-DRIVEN so selectors can be tuned against the live site
+# without touching code (portals change markup and apply bot rules).
+#
+# Fields:
+#   search_url_template : {query} is URL-encoded and injected
+#   result_link_selector: CSS selector for result <a> links
+#   link_must_contain   : keep only result hrefs containing this substring (noise filter)
+#   id_regex            : optional — extract an Act id from a result href ({id} below)
+#   download_url_template: optional — turn a result into a fetchable body URL.
+#                          placeholders: {href}=absolute result URL, {id}=id_regex match
+#   verified            : has the selector been confirmed against the live site?
+#
+# ⚠ AU is JS-heavy (first results page is server-rendered; deep pagination needs
+#   Playwright) and SG applies bot protection (a browser User-Agent is set in config
+#   to get past the 403). Treat unverified selectors as live-tuning TODOs.
 
 sources:
   - economy: SG
     name: Singapore Statutes Online
     base_url: https://sso.agc.gov.sg
-    search_url_template: https://sso.agc.gov.sg/Search/Content?Query={query}
+    search_url_template: https://sso.agc.gov.sg/Search/Content?Query={query}&WiAl=1
     result_link_selector: a.non-ajax
-    notes: Primary statute repository. Respect robots.txt and rate limits.
+    link_must_contain: /Act/
+    download_url_template: "{href}"
+    verified: false
+    notes: Primary statute repository. Bot-protected — needs browser UA + rate limits.
 
   - economy: AU
     name: Federal Register of Legislation
     base_url: https://www.legislation.gov.au
-    search_url_template: https://www.legislation.gov.au/Search/{query}
-    result_link_selector: a.search-result-title
-    notes: Commonwealth legislation. JS-heavy — prefer Playwright for full crawl.
+    search_url_template: https://www.legislation.gov.au/search/text/{query}
+    result_link_selector: a
+    link_must_contain: "/C"
+    id_regex: "([CF]\\d{4}[A-Z]\\d{3,6})"
+    download_url_template: https://www.legislation.gov.au/{id}/latest/downloads
+    verified: false
+    notes: Commonwealth legislation. No public API; first results page server-rendered.
 
   - economy: MY
-    name: Attorney General's Chambers (AGC) Malaysia
+    name: Laws of Malaysia (AGC)
     base_url: https://lom.agc.gov.my
-    search_url_template: https://lom.agc.gov.my/search.php?q={query}
+    search_url_template: https://lom.agc.gov.my/search-legislation.php?searchText={query}
     result_link_selector: a
-    notes: Laws of Malaysia. Many documents are scanned PDFs → OCR required.
+    link_must_contain: .pdf
+    download_url_template: "{href}"
+    verified: false
+    notes: Many documents are scanned PDFs → OCR required. Multilingual (Malay/English).

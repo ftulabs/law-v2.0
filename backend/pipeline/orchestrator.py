@@ -78,6 +78,20 @@ def run_pipeline(
                     seen.add(d.doc_id)
                     docs.append(d)
     log(f"[discovery] {len(docs)} documents (NEW={sum(d.discovery_tag=='NEW' for d in docs)})")
+
+    # Zone 1b — fetch bodies for live-discovered docs (sample/file docs already have a path)
+    if not use_samples and not pdf_path:
+        from .fetch import fetch_to_cache
+        fetched = 0
+        for d in docs:
+            if d.local_path:
+                continue
+            fr = fetch_to_cache(d.source_url, log=log)
+            if fr:
+                d.local_path, d.fmt = fr.local_path, fr.fmt
+                fetched += 1
+        log(f"[fetch] retrieved {fetched}/{len(docs)} bodies into cache")
+
     for d in docs:
         db.save_doc(run_id, d)
 

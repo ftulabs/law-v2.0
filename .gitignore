@@ -15,6 +15,9 @@ outputs/*
 !outputs/.gitkeep
 logs/
 
+# Zone 1 downloaded law bodies — runtime, content-hashed, re-fetchable
+data/cache/
+
 # OS / editor
 .DS_Store
 .vscode/

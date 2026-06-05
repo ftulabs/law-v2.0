@@ -16,6 +16,7 @@ import re
 from collections import Counter
 from dataclasses import dataclass
 
+from ..config import settings
 from ..rdtii import get_indicator
 from ..schemas import Provision
 
@@ -72,25 +73,98 @@ def _build_bm25(corpus: list[list[str]]):
         return _FallbackBM25(corpus)
 
 
+# ── dense (semantic) stage — optional, lazy, cached ──────────────────────────
+_MODEL = None            # SentenceTransformer instance (loaded once per process)
+_MODEL_FAILED = False
+_EMB_CACHE: dict[str, "list[float]"] = {}   # provision_id → embedding (stable within a run)
+
+
+def _dense_enabled() -> bool:
+    mode = (settings.dense_retrieval or "auto").lower()
+    return mode in ("on", "auto")
+
+
+def _get_model():
+    """Load the embedding model once. Returns None if unavailable (→ BM25-only)."""
+    global _MODEL, _MODEL_FAILED
+    if _MODEL is not None or _MODEL_FAILED:
+        return _MODEL
+    try:
+        from sentence_transformers import SentenceTransformer
+        _MODEL = SentenceTransformer(settings.embed_model)
+    except Exception:
+        _MODEL_FAILED = True            # not installed / model not downloadable → fall back silently
+        _MODEL = None
+    return _MODEL
+
+
+def _embed(texts: list[str]):
+    model = _get_model()
+    if model is None:
+        return None
+    import numpy as np
+    vecs = model.encode(texts, normalize_embeddings=True, show_progress_bar=False)
+    return np.asarray(vecs, dtype="float32")
+
+
+def _dense_scores(query_text: str, provisions: list[Provision]):
+    """Cosine similarity (0..1) of each provision to the query, or None if disabled."""
+    if not _dense_enabled():
+        return None
+    import numpy as np
+    to_embed, idx_map = [], []
+    cached = [None] * len(provisions)
+    for i, p in enumerate(provisions):
+        if p.provision_id in _EMB_CACHE:
+            cached[i] = _EMB_CACHE[p.provision_id]
+        else:
+            idx_map.append(i)
+            to_embed.append(f"{p.law_name} {p.article_section} {p.verbatim_snippet}")
+    if to_embed:
+        embs = _embed(to_embed)
+        if embs is None:
+            return None                 # model unavailable → signal BM25-only
+        for j, i in enumerate(idx_map):
+            cached[i] = embs[j].tolist()
+            _EMB_CACHE[provisions[i].provision_id] = cached[i]
+    qv = _embed([query_text])
+    if qv is None:
+        return None
+    mat = np.asarray(cached, dtype="float32")
+    sims = (mat @ qv[0])                 # vectors are L2-normalised → dot == cosine
+    return [(float(s) + 1.0) / 2.0 for s in sims]   # map [-1,1] → [0,1]
+
+
 def retrieve(indicator_id: str, provisions: list[Provision], top_k: int = 5) -> list[Retrieved]:
     ind = get_indicator(indicator_id)
     if ind is None or not provisions:
         return []
     corpus = [_tok(p.law_name + " " + p.article_section + " " + p.verbatim_snippet) for p in provisions]
     bm25 = _build_bm25(corpus)
-    query = _tok(ind.title + " " + " ".join(ind.query_terms))
-    scores = list(bm25.get_scores(query))
-    smax = max(scores) if scores and max(scores) > 0 else 1.0
+    query_text = ind.title + " " + " ".join(ind.query_terms)
+    query = _tok(query_text)
+    bm = list(bm25.get_scores(query))
+    bmax = max(bm) if bm and max(bm) > 0 else 1.0
+    bm_norm = [s / bmax for s in bm]
 
-    ranked = sorted(zip(provisions, scores), key=lambda x: x[1], reverse=True)[:top_k]
+    dense = _dense_scores(query_text, provisions)   # None → BM25 only
+    alpha = settings.hybrid_alpha if dense is not None else 1.0
+    combined = [alpha * bm_norm[i] + (1 - alpha) * (dense[i] if dense else 0.0)
+                for i in range(len(provisions))]
+
+    ranked = sorted(zip(range(len(provisions)), combined), key=lambda x: x[1], reverse=True)[:top_k]
     out: list[Retrieved] = []
-    for p, raw in ranked:
-        norm = round(raw / smax, 3)
+    for i, score in ranked:
+        norm = round(score, 3)
         if norm <= 0:
             continue
+        p = provisions[i]
         log = [
             f"indicator={indicator_id} query='{' '.join(query[:8])}...'",
-            f"bm25_raw={round(raw,3)} normalised={norm} provision={p.provision_id}",
+            (f"hybrid={norm} (bm25={round(bm_norm[i],3)} dense={round(dense[i],3)} alpha={alpha})"
+             if dense is not None else
+             f"bm25={norm} (dense off) provision={p.provision_id}"),
+            f"provision={p.provision_id}",
         ]
         out.append(Retrieved(provision=p, score=norm, raw_context=p.verbatim_snippet, log=log))
     return out

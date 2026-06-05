@@ -52,10 +52,25 @@ class Settings(BaseSettings):
     veritrade_db: str = "outputs/veritrade.db"
     output_dir: str = "outputs"
 
-    # crawl
-    crawl_user_agent: str = "VeriTrade-Research/0.1 (+hackathon)"
-    crawl_delay_seconds: float = 2.0
+    # crawl / fetch (Zone 1 live discovery)
+    # A browser-like UA gets past the basic bot blocks some gov portals apply (SG SSO
+    # returns 403 to unknown agents); override in .env to identify your crawler instead.
+    crawl_user_agent: str = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0 Safari/537.36 VeriTrade-Research/0.2"
+    )
+    crawl_accept_language: str = "en,ms;q=0.8"
+    crawl_delay_seconds: float = 2.0           # polite gap between requests to the SAME host
     crawl_timeout_seconds: float = 30.0
+    cache_dir: str = "data/cache"              # downloaded law bodies live here (content-hashed)
+    fetch_max_bytes: int = 60_000_000          # 60 MB hard cap per document
+    discovery_max_docs: int = 12               # candidate cap per (economy, pillar)
+    discovery_max_pages: int = 1               # search-result pages to walk per query
+
+    # retrieval (Zone 1 ranking)
+    dense_retrieval: str = "auto"              # auto | on | off — 'auto' = dense if installed
+    embed_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    hybrid_alpha: float = 0.5                  # final = alpha*bm25 + (1-alpha)*dense
 
     @property
     def db_path(self) -> Path:
@@ -66,6 +81,12 @@ class Settings(BaseSettings):
     @property
     def output_path(self) -> Path:
         p = (ROOT / self.output_dir) if not Path(self.output_dir).is_absolute() else Path(self.output_dir)
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    @property
+    def cache_path(self) -> Path:
+        p = (ROOT / self.cache_dir) if not Path(self.cache_dir).is_absolute() else Path(self.cache_dir)
         p.mkdir(parents=True, exist_ok=True)
         return p
 

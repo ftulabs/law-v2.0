@@ -79,7 +79,7 @@ def discover_from_samples(economy: Economy, pillar: int | None = None) -> list[D
     return docs
 
 
-# ─────────────────────────── live mode (skeleton) ───────────────────────────
+# ─────────────────────────── live mode (config-driven adapters) ───────────────────────────
 def load_sources() -> list[dict]:
     f = ROOT / "data" / "sources.yaml"
     if not f.exists():
@@ -87,48 +87,100 @@ def load_sources() -> list[dict]:
     return (yaml.safe_load(f.read_text(encoding="utf-8")) or {}).get("sources", [])
 
 
-def discover_live(economy: Economy, pillar: int | None = None, max_docs: int = 10) -> list[DiscoveredDoc]:
-    """Polite crawler skeleton. Returns [] if httpx/network unavailable — callers
-    should fall back to sample mode. Real portal selectors go in sources.yaml."""
+def _headers() -> dict:
+    return {
+        "User-Agent": settings.crawl_user_agent,
+        "Accept-Language": settings.crawl_accept_language,
+        "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
+    }
+
+
+def _resolve_download(src: dict, abs_href: str) -> str:
+    """Turn a result link into a fetchable body URL via the adapter's template."""
+    import re as _re
+    tmpl = src.get("download_url_template")
+    if not tmpl:
+        return abs_href
+    doc_id = ""
+    rx = src.get("id_regex")
+    if rx:
+        m = _re.search(rx, abs_href)
+        doc_id = m.group(1) if m else ""
+    return tmpl.replace("{href}", abs_href).replace("{id}", doc_id)
+
+
+def _search_one(client, src: dict, query: str, economy: Economy, indicators, log) -> list[DiscoveredDoc]:
+    """Fire one query at one portal, parse result links into candidate docs."""
+    import httpx
+    from bs4 import BeautifulSoup
+
+    url = src["search_url_template"].replace("{query}", httpx.QueryParams({"q": query})["q"])
+    out: list[DiscoveredDoc] = []
     try:
-        import httpx
-        from bs4 import BeautifulSoup
+        resp = client.get(url)
+        resp.raise_for_status()
+    except Exception as e:  # noqa: BLE001 — bot blocks / network; report and move on
+        log(f"[discover] {src.get('name','?')} query='{query}' failed ({type(e).__name__})")
+        return out
+
+    soup = BeautifulSoup(resp.text, "lxml")
+    must = (src.get("link_must_contain") or "").lower()
+    for a in soup.select(src.get("result_link_selector", "a")):
+        href = a.get("href")
+        if not href:
+            continue
+        abs_href = httpx.URL(url).join(href).human_repr()
+        if must and must not in abs_href.lower():
+            continue
+        body_url = _resolve_download(src, abs_href)
+        title = a.get_text(" ", strip=True) or abs_href
+        fmt = DocFormat.PDF_TEXT if body_url.lower().endswith(".pdf") else DocFormat.HTML
+        out.append(DiscoveredDoc(
+            doc_id=_doc_id(economy.value, body_url),
+            economy=economy,
+            title=title[:200],
+            source_url=body_url,
+            portal=src.get("name", "live"),
+            fmt=fmt,
+            relevance_score=_score(title, indicators),
+            discovery_tag=DiscoveryTag.NEW,
+        ))
+    return out
+
+
+def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | None = None) -> list[DiscoveredDoc]:
+    """Search the economy's official portal(s) with coarse pillar keywords and return
+    ranked candidate documents (NEW). Returns [] if httpx/bs4 or the network are
+    unavailable — callers fall back to sample mode. Bodies are fetched later (Zone 1b).
+    """
+    try:
+        import httpx  # noqa: F401
+        from bs4 import BeautifulSoup  # noqa: F401
     except Exception:
         return []
 
+    from ..rdtii.keywords import portal_search_queries
+    max_docs = max_docs or settings.discovery_max_docs
     indicators = get_indicators(pillar)
-    query = " ".join(sorted({t for ind in indicators for t in ind.query_terms})[:5])
-    headers = {"User-Agent": settings.crawl_user_agent}
-    docs: list[DiscoveredDoc] = []
+    queries = portal_search_queries(economy.value, pillar)
+    sources = [s for s in load_sources() if s.get("economy") == economy.value and s.get("search_url_template")]
+    if not sources:
+        return []
 
-    for src in load_sources():
-        if src.get("economy") != economy.value or not src.get("search_url_template"):
-            continue
-        url = src["search_url_template"].replace("{query}", httpx.QueryParams({"q": query})["q"])
-        try:
-            with httpx.Client(timeout=settings.crawl_timeout_seconds, headers=headers, follow_redirects=True) as c:
-                resp = c.get(url)
-                resp.raise_for_status()
-                soup = BeautifulSoup(resp.text, "lxml")
-                for a in soup.select(src.get("result_link_selector", "a"))[:max_docs]:
-                    href = a.get("href")
-                    if not href:
-                        continue
-                    full = httpx.URL(url).join(href).human_repr()
-                    fmt = DocFormat.PDF_TEXT if full.lower().endswith(".pdf") else DocFormat.HTML
-                    docs.append(DiscoveredDoc(
-                        doc_id=_doc_id(economy.value, full),
-                        economy=economy,
-                        title=a.get_text(strip=True) or full,
-                        source_url=full,
-                        portal=src.get("name", "live"),
-                        fmt=fmt,
-                        relevance_score=_score(a.get_text(" ", strip=True), indicators),
-                        discovery_tag=DiscoveryTag.NEW,
-                    ))
-        except Exception:
-            continue
-    docs.sort(key=lambda d: d.relevance_score, reverse=True)
+    import httpx
+    by_url: dict[str, DiscoveredDoc] = {}
+    with httpx.Client(timeout=settings.crawl_timeout_seconds, headers=_headers(), follow_redirects=True) as client:
+        for src in sources:
+            for q in queries:
+                for d in _search_one(client, src, q, economy, indicators, log=print):
+                    # keep the best-scoring instance of each unique body URL
+                    prev = by_url.get(d.source_url)
+                    if prev is None or d.relevance_score > prev.relevance_score:
+                        by_url[d.source_url] = d
+                if len(by_url) >= max_docs * 3:   # enough raw candidates; stop querying
+                    break
+
+    docs = sorted(by_url.values(), key=lambda d: d.relevance_score, reverse=True)
     return docs[:max_docs]
 
 
