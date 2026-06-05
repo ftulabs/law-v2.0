@@ -149,9 +149,14 @@ def map_provisions(
             scope_flag = graded.get("scope_flag") or None
             rationale = graded.get("rationale", "")
 
-            grounding = confidence.snippet_grounding(
-                prov.verbatim_snippet, source_texts.get(prov.doc_id, prov.verbatim_snippet)
-            )
+            src_text = source_texts.get(prov.doc_id, prov.verbatim_snippet)
+            grounding = confidence.snippet_grounding(prov.verbatim_snippet, src_text)
+            # surrounding-context windows (technical reviewers / HITL verification)
+            ctx_before, ctx_after = "", ""
+            if prov.char_span and src_text:
+                s0, s1 = prov.char_span
+                ctx_before = src_text[max(0, s0 - 300):s0]
+                ctx_after = src_text[s1:s1 + 300]
             breakdown = confidence.score(
                 retrieval_score=r.score,
                 legal_match=legal_match,
@@ -183,6 +188,8 @@ def map_provisions(
                 provision_id=prov.provision_id,
                 source_pdf_path=prov.source_pdf_path,
                 raw_context=r.raw_context,
+                raw_context_before=ctx_before,
+                raw_context_after=ctx_after,
                 confidence=breakdown,
                 ocr=prov.ocr,
                 model_version=llm.model_version,

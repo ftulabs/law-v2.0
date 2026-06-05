@@ -59,11 +59,17 @@ def _mapping_payload(m: EvidenceMapping) -> dict:
         "scope_flag": m.scope_flag,
         "provision_id": m.provision_id,
         "raw_context": m.raw_context,                            # what the model saw (HITL)
-        "ocr_quality": {                                         # OCR quality metrics
+        "raw_context_before": m.raw_context_before,              # README extended field
+        "raw_context_after": m.raw_context_after,                # README extended field
+        "pdf_is_scanned": bool(ocr.get("used")),                 # OCR ran => image/scanned PDF
+        # CER proxy from OCR confidence (true CER needs ground truth); null for text-layer PDFs
+        "ocr_quality_cer": (round(1 - ocr["mean_confidence"], 4)
+                            if ocr.get("mean_confidence") is not None else None),
+        "retrieval_method": "hybrid (BM25 + dense MiniLM) + cross-encoder rerank, RRF fusion",
+        "ocr_quality": {                                         # OCR quality metrics (detail)
             "provider": ocr.get("provider"),
             "used": ocr.get("used"),
             "mean_confidence": ocr.get("mean_confidence"),
-            "cer": None,                                         # true CER needs ground truth
             "pages": ocr.get("pages"),
             "low_conf_pages": ocr.get("low_conf_pages"),
         },

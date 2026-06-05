@@ -145,6 +145,8 @@ class EvidenceMapping(BaseModel):
     provision_id: str
     source_pdf_path: Optional[str] = None         # local retrieved file
     raw_context: str = ""                         # retrieval window the LLM actually saw
+    raw_context_before: str = ""                  # source text immediately before the snippet
+    raw_context_after: str = ""                   # source text immediately after the snippet
     confidence: ConfidenceBreakdown = Field(default_factory=ConfidenceBreakdown)
     ocr: OCRMetrics = Field(default_factory=OCRMetrics)
     model_version: str = ""
