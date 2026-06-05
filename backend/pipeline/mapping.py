@@ -177,6 +177,7 @@ def map_provisions(
                 mapping_rationale=(rationale or "")[:300],
                 confidence_score=breakdown.final,
                 discovery_tag=doc_tags.get(prov.doc_id, DiscoveryTag.KNOWN),
+                coverage=("Sectoral" if scope_flag else "Horizontal"),
                 notes=_build_notes(prov, scope_flag),
                 review_status=status,
                 provision_id=prov.provision_id,

@@ -12,23 +12,38 @@ import csv
 from pathlib import Path
 
 from ..config import settings
+from ..rdtii import get_indicator
 from ..schemas import ECONOMY_UN_NAME, SUBMISSION_COLUMNS, SUBMITTABLE_STATUSES, EvidenceMapping
+
+# review_status -> "Flag for Review" (human attention needed before scoring)
+_FLAG_STATUSES = {"pending_review", "quarantined"}
+
+
+def _coverage(m: EvidenceMapping) -> str:
+    if m.coverage:
+        return m.coverage
+    return "Sectoral" if m.scope_flag else "Horizontal"
 
 
 def _row(m: EvidenceMapping) -> dict[str, str]:
+    ind = get_indicator(m.indicator_id)
     return {
         "Economy": ECONOMY_UN_NAME.get(m.economy.value, m.economy.value),
+        "Pillar": str(m.pillar),
+        "Indicator ID": m.indicator_id,
+        "Indicator": ind.title if ind else "",
         "Law Name": m.law_name,
         "Law Number / Ref": m.law_number or "",
+        "Coverage": _coverage(m),
         "Last Amended": m.last_amended or "",
-        "Indicator ID": m.indicator_id,
         "Article / Section": m.article_section,
-        "Discovery Tag": m.discovery_tag.value,
         "Location Reference": m.location_ref or "",
         "Verbatim Snippet": m.verbatim_snippet,          # EXACT — never paraphrased
         "Mapping Rationale": m.mapping_rationale or "",
         "Source URL": m.source_url,
         "Confidence": f"{m.confidence_score:.2f}",
+        "Discovery Tag": m.discovery_tag.value,
+        "Flag for Review": "Yes" if m.review_status.value in _FLAG_STATUSES else "No",
         "Notes": m.notes or "",
     }
 

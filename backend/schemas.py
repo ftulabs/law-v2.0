@@ -137,6 +137,7 @@ class EvidenceMapping(BaseModel):
     mapping_rationale: str
     confidence_score: float
     discovery_tag: DiscoveryTag
+    coverage: Optional[str] = None              # "Horizontal" | "Sectoral" (template field)
     notes: Optional[str] = None                 # OCR/scope/bilingual flags
     review_status: ReviewStatus
 
@@ -174,21 +175,26 @@ class RunResult(BaseModel):
     mappings: list[EvidenceMapping] = Field(default_factory=list)
 
 
-# OFFICIAL submission columns — must match the hackathon template EXACTLY
-# (name + order). Judges validate programmatically, so do not rename or reorder.
+# Submission columns — aligned to the RDTII output template (slide B "Required Fields").
+# NOTE: verify exact header spelling/order against OUTPUT_TEMPLATE_*.xlsx before final
+# submission; judges may validate programmatically.
 SUBMISSION_COLUMNS = [
     "Economy",
+    "Pillar",
+    "Indicator ID",
+    "Indicator",
     "Law Name",
     "Law Number / Ref",
+    "Coverage",
     "Last Amended",
-    "Indicator ID",
     "Article / Section",
-    "Discovery Tag",
     "Location Reference",
     "Verbatim Snippet",
     "Mapping Rationale",
     "Source URL",
     "Confidence",
+    "Discovery Tag",
+    "Flag for Review",
     "Notes",
 ]
 

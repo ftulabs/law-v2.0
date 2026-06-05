@@ -27,7 +27,7 @@ from backend.export import export_csv, export_json  # noqa: E402
 from backend.pipeline.orchestrator import run_pipeline  # noqa: E402
 from backend.providers import registry as reg  # noqa: E402
 from backend.review import workflow  # noqa: E402
-from backend.schemas import Economy, RunResult  # noqa: E402
+from backend.schemas import Economy, RunResult, SUBMISSION_COLUMNS  # noqa: E402
 from backend.storage import db  # noqa: E402
 
 # ── brand assets (drop files in frontend/assets/ — see ASSETS.md) ──────────
@@ -565,7 +565,7 @@ with tab_export:
     csv_path = export_csv(mappings, run_id, submission_only=sub_only)
     json_path = export_json(result)
     n_rows = sum(1 for ln in Path(csv_path).read_text(encoding="utf-8-sig").splitlines()) - 1
-    st.markdown(f'<div class="kicker">{n_rows} rows · 13 official columns</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="kicker">{n_rows} rows · {len(SUBMISSION_COLUMNS)} fields</div>', unsafe_allow_html=True)
     e1, e2 = st.columns(2)
     e1.download_button("⬇  Submission CSV · policy judge", Path(csv_path).read_bytes(),
                        file_name=Path(csv_path).name, mime="text/csv", width="stretch")
