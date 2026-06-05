@@ -93,83 +93,91 @@ INDICATORS: list[Indicator] = [
     Indicator(
         indicator_id="P7-I1",          # ≡ Methodology 7.1
         pillar=7,
-        title="Lack of comprehensive legal framework for data protection",
-        description="Does a (comprehensive, cross-sectoral) personal-data-protection legal framework exist?",
+        title="Comprehensive legal framework for data protection",
+        description="Does a personal-data-protection legal framework exist (horizontal, OR a sectoral data-privacy law)?",
         legal_test=(
-            "The provision establishes or constitutes a DATA-PROTECTION legal framework — a general personal-"
-            "data-protection law: its scope/application, core obligations on organisations to obtain consent and "
-            "to protect personal data, definitions, and the regulator. A horizontal (all-sector) law is a "
-            "comprehensive framework; a law limited to one sector is a sectoral framework. Distinguish from P7-I2 "
-            "(CYBERSECURITY framework, not personal-data protection) and from the SPECIFIC obligations P7-I3 "
+            "The provision establishes or constitutes a personal-DATA-PROTECTION framework: its scope/application, "
+            "core obligations to obtain consent and to protect personal data, definitions, or the regulator. RDTII "
+            "records BOTH a horizontal/comprehensive data-protection law (governs personal data generally) AND a "
+            "SECTORAL data-privacy law — e.g. one protecting telecom data or health data specifically — so a "
+            "sectoral privacy provision STILL maps here (mark Coverage = Sectoral; it does not disqualify). "
+            "Distinguish from P7-I2 (CYBERSECURITY, a different subject) and from the SPECIFIC obligations P7-I3 "
             "(retention), P7-I4 (DPIA/DPO) and P7-I5 (government access)."
         ),
         scope="national",
         query_terms=["personal data protection act", "this act applies to", "processing of personal data",
                      "protect personal data", "collect, use or disclose", "consent of the individual",
-                     "protection of personal data of individuals"],
+                     "protection of personal data", "privacy of telecommunications", "health information privacy"],
     ),
     Indicator(
         indicator_id="P7-I2",          # ≡ Methodology 7.2
         pillar=7,
-        title="Lack of dedicated legal framework for cybersecurity",
-        description="Does a dedicated (horizontal) cybersecurity legal framework exist?",
+        title="Dedicated legal framework for cybersecurity",
+        description="Does a dedicated cybersecurity legal framework / set of cybersecurity obligations exist?",
         legal_test=(
-            "The provision establishes a CYBERSECURITY legal framework — e.g. a Cybersecurity Act: protection of "
-            "critical information infrastructure, a cybersecurity authority/commissioner, duties to secure systems "
-            "or report cyber incidents. A dedicated horizontal cybersecurity law is the strongest case. Distinguish "
-            "from P7-I1 (personal-DATA protection, a different subject) — a cyber-incident duty is NOT a personal-"
-            "data measure."
+            "The provision is a CYBERSECURITY obligation — more than scattered data-security clauses: protection of "
+            "critical information infrastructure, ENCRYPTION / cryptographic controls, secure remote access, "
+            "network-security architecture, duties to secure systems or report cyber incidents, or a cybersecurity "
+            "authority. A dedicated cybersecurity framework is the strongest case. Distinguish from P7-I1 "
+            "(personal-DATA protection) — encryption / network-security duties are cybersecurity, not data-privacy."
         ),
         scope="national",
-        query_terms=["cybersecurity act", "critical information infrastructure", "cybersecurity",
-                     "secure computer systems", "cybersecurity incident", "commissioner of cybersecurity",
-                     "computer misuse"],
+        query_terms=["cybersecurity", "critical information infrastructure", "strong encryption",
+                     "cryptographic controls", "network security", "secure remote access",
+                     "mitigate cybersecurity risks", "cybersecurity incident", "secure computer systems"],
     ),
     Indicator(
         indicator_id="P7-I3",          # ≡ Methodology 7.3
         pillar=7,
         title="Minimum period of data retention requirements",
-        description="Does the law impose a MINIMUM period for which (personal) data/records must be retained?",
+        description="Does the law require data/records to be retained for AT LEAST a specified minimum period?",
         legal_test=(
-            "The operative rule mandates a MINIMUM RETENTION DURATION — data, records or information must be "
-            "kept for at least a stated period. The trigger is the time obligation ('keep for not less than N "
-            "years'). Distinguish from P6-I2 (WHERE data is stored, not how long) and from ordinary record-"
-            "keeping with no minimum period. (RDTII exception: retention applied only to GOVERNMENT data is "
+            "The operative rule mandates a MINIMUM RETENTION DURATION — data, records or information must be kept "
+            "for AT LEAST a stated period ('keep for not less than N years'; e.g. business e-commerce records kept "
+            "6 years). It is NOT the same as 'do not keep data longer than necessary' (a purpose-/storage-"
+            "limitation rule) — that is the OPPOSITE and does NOT satisfy this indicator. Distinguish from P6-I2 "
+            "(WHERE data is stored, not how long). (RDTII exception: retention applied only to GOVERNMENT data is "
             "out of scope.)"
         ),
         scope="national",
-        query_terms=["keep for a period of", "retain for at least", "minimum period", "retention period",
-                     "must be kept for", "not less than", "preserve the records for", "period for keeping"],
+        query_terms=["retain for at least", "kept for a period of", "minimum period", "not less than",
+                     "must be kept for", "retained for", "preserve the records for", "period for keeping",
+                     "store the records for at least"],
     ),
     Indicator(
         indicator_id="P7-I4",          # ≡ Methodology 7.4
         pillar=7,
-        title="Data Protection Impact Assessment (DPIA) or Data Protection Officer (DPO) requirements",
-        description="Does the law require a DPIA and/or the appointment of a Data Protection Officer?",
+        title="DPO and DPIA requirements",
+        description="Does the law require appointing a Data Protection Officer and/or conducting a DPIA?",
         legal_test=(
-            "The operative rule requires conducting a DATA PROTECTION IMPACT ASSESSMENT (DPIA) and/or appointing "
-            "a DATA PROTECTION OFFICER (DPO). Either obligation satisfies the indicator. Distinguish from the "
-            "general framework (P7-I1) — the trigger here is specifically the DPIA/DPO duty."
+            "The operative rule requires appointing a DATA PROTECTION OFFICER (DPO) and/or conducting a DATA "
+            "PROTECTION IMPACT ASSESSMENT (DPIA) — either obligation satisfies the indicator (related "
+            "accountability such as a mandated data auditor tied to the DPO/DPIA regime counts too). Distinguish "
+            "from the general framework (P7-I1) — the trigger here is specifically the DPO/DPIA duty."
         ),
         scope="national",
-        query_terms=["data protection officer", "data protection impact assessment", "appoint an officer",
-                     "designate a data protection officer", "impact assessment", "DPO", "DPIA"],
+        query_terms=["data protection officer", "data protection impact assessment", "appoint a data protection officer",
+                     "appoint one or more data protection officers", "impact assessment", "data auditor",
+                     "significant data fiduciary"],
     ),
     Indicator(
         indicator_id="P7-I5",          # ≡ Methodology 7.5
         pillar=7,
         title="Requirements to allow government access to personal data",
-        description="Does the law allow the government to ACCESS personal data (esp. without a court order)?",
+        description="Does the legal framework enable or require GOVERNMENT / law-enforcement access to personal data?",
         legal_test=(
-            "The operative rule ALLOWS the government / a public authority to ACCESS, intercept, or compel "
-            "disclosure of personal data. The strongest case is access WITHOUT a court order/warrant. Distinguish "
-            "from P7-I2 (cybersecurity duties) and from ordinary regulator powers tied to judicial authorisation. "
-            "The trigger is state access to personal data."
+            "The operative rule ENABLES or REQUIRES the government, police, or a public authority to ACCESS, search, "
+            "inspect, copy, intercept, or compel disclosure of personal data — often for law-enforcement, "
+            "surveillance, or national-security purposes. Such measures live BEYOND privacy law: in criminal "
+            "procedure codes, surveillance / lawful-access / interception laws, telecom law, etc. (e.g. a police "
+            "officer investigating an arrestable offence may access and copy any data on a computer). The strongest "
+            "case is access WITHOUT a court order. Distinguish from P7-I2 (cybersecurity duties on private entities, "
+            "not state access)."
         ),
         scope="national",
-        query_terms=["government may access", "without a warrant", "without a court order", "lawful interception",
-                     "disclose to the authority", "provide information to the Minister", "access by law enforcement",
-                     "require the production of"],
+        query_terms=["police officer", "authorised person", "arrestable offence", "access, inspect", "search any data",
+                     "make a copy of any such data", "lawful interception", "without a warrant", "law enforcement",
+                     "production order", "require the production of", "national security"],
     ),
 ]
 
