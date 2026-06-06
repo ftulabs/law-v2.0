@@ -1,118 +1,117 @@
-# VeriTrade — Bản tự giới thiệu & Câu hỏi cho buổi Mentor
+# VeriTrade — Status & Open Questions
 
-_Đọc trong ~10 phút. Phần 1–4 ai cũng hiểu; phần 5 (câu hỏi) mỗi câu đều kể rõ bối cảnh trước khi hỏi._
-
----
-
-## 1. Tụi em đang giải bài toán gì?
-
-Để xếp hạng RDTII, người ta phải đọc luật của từng nước, tìm xem luật nào nói gì về dữ liệu, rồi gán vào các tiêu chí. Hiện việc này làm **hoàn toàn bằng tay**: hơn 10 người, mỗi nước mất 1–4 tuần, đã rà hơn 2600 văn bản.
-
-**VeriTrade là phần mềm làm thay con người việc đó.** Bạn đưa vào *"nước nào + chủ đề gì"* (ví dụ: *Singapore + chuyển dữ liệu ra nước ngoài*), phần mềm tự đi tìm luật trên cổng chính phủ, tải về, đọc, và chỉ ra **đúng điều khoản** liên quan — kèm trích dẫn và link gốc.
-
-Hai nguyên tắc tụi em bám theo đề bài:
-- **Không "học thuộc" đáp án trước.** Phần mềm phải tự tìm luật lúc chạy, không được nhét sẵn danh sách luật vào máy. (Đề cấm điều này.)
-- **Không "mách" tên luật cho máy.** Chỉ đưa chủ đề, máy tự suy ra phải tìm luật nào.
+_A ~10-minute read. Sections 1–4 are plain enough for anyone; Section 6 lists the questions still open for the mentor, each with the background spelled out first._
 
 ---
 
-## 2. Phần mềm chạy thế nào? (kể như một người đi làm việc này)
+## 1. The problem we're solving
 
-Hãy hình dung một bạn researcher mới. Phần mềm làm đúng 6 bước bạn ấy làm:
+To build the RDTII ranking, researchers today read each country's laws by hand, work out which provisions say something about data, and map them to a set of indicators. It is slow and manual: more than ten researchers, one to four weeks per country, over 2,600 regulations reviewed so far.
 
-1. **Đi tìm luật.** Giống như gõ Google "luật bảo vệ dữ liệu Singapore" để ra đúng trang luật trên cổng chính phủ. (Cổng của 3 nước đều khó "đào" trực tiếp nên tụi em dùng công cụ tìm kiếm để ra đúng link, rồi mới vào cổng tải.)
+VeriTrade does that job automatically. You give it a country and a pillar (e.g. *Singapore, Pillar 6*), and the tool goes out to the official government legal portal, finds the relevant laws, downloads them, reads them, and points to the exact provisions that match each indicator — with a verbatim quote, an article-level citation, and a link back to the source.
 
-2. **Tải văn bản về.** Tải file PDF của luật về máy, có giới hạn dung lượng và lịch sự (không spam cổng), tải rồi thì lưu lại để lần sau khỏi tải lại.
-
-3. **Đọc và cắt nhỏ.** Biến file PDF thành chữ sạch, rồi cắt thành từng **điều/khoản** (Điều 13, Điều 26(1)...). Nếu PDF là **ảnh scan**, phần mềm "đọc chữ từ ảnh" (OCR).
-
-4. **Tìm điều khoản liên quan — bằng AI hiểu nghĩa.** Đây là chỗ then chốt. Máy **không chỉ so từ khoá** kiểu Ctrl+F (cách đó dễ sai: một luật tên có chữ "tài chính" sẽ bị lôi nhầm lên đầu dù nội dung chả liên quan — chính BGK đã cảnh báo lỗi này). Máy của tụi em **đọc hiểu nội dung từng điều khoản** và xếp hạng theo độ liên quan thật sự, rồi có thêm một "thẩm định viên AI" thứ hai chấm lại cho chắc.
-
-5. **Gán vào đúng tiêu chí RDTII.** Một mô hình ngôn ngữ (AI) đọc điều khoản + định nghĩa tiêu chí, rồi quyết định điều này ứng với tiêu chí nào (ví dụ "yêu cầu phải có đồng ý" → tiêu chí *Cơ sở pháp lý để xử lý dữ liệu*). Tụi em viết hướng dẫn rất kỹ để máy **không lẫn các tiêu chí gần giống nhau** và **không bỏ sót** điều khoản nào.
-
-6. **Xuất kết quả + tự đánh giá độ tin.** Mỗi điều khoản ra một dòng kết quả, kèm điểm tin cậy. Điểm thấp thì máy tự đánh dấu "cần người kiểm tra". Cuối cùng xuất ra **2 file**: một file bảng (CSV) cho giám khảo chính sách, một file chi tiết (JSON) cho giám khảo kỹ thuật.
+We follow two rules the brief insists on: the tool must **find the laws itself at run time** (no pre-loaded corpus of answers), and it must work from the **topic alone** — we never hand it the names of the laws to look for.
 
 ---
 
-## 3. Đã chạy được tới đâu? (kết quả thật, không phải lý thuyết)
+## 2. How it works, end to end
 
-Tụi em đã chạy thật trên dữ liệu sống và nó ra đúng:
+Think of a new researcher doing the task. The tool follows the same six steps.
 
-- **Tìm luật:** đưa "Singapore + chuyển dữ liệu xuyên biên giới" → máy tự ra đúng **Luật Bảo vệ Dữ liệu Cá nhân (PDPA)**, thậm chí trỏ đúng **Điều 26** (điều về chuyển dữ liệu ra nước ngoài). Với Úc, máy tìm đúng **Privacy Act 1988**.
-- **Tải + đọc:** tải PDF PDPA thật (461KB), cắt ra **218 điều/khoản**, chữ sạch (không dính chữ).
-- **Hiểu nghĩa:** hỏi "quyền của người dân với dữ liệu của mình" → máy chọn đúng điều về *Truy cập/Sửa dữ liệu* và **loại** đúng điều của luật An ninh mạng (dù điều đó cũng có vài từ trùng).
-- **Đánh dấu NEW/KNOWN:** luật nào đã có trong file mẫu của BGK thì đánh "KNOWN" (đã biết), luật tự tìm mới thì "NEW" (mới) — đúng.
-- **File kết quả:** bảng CSV ra **đúng 13 cột chuẩn** của BGK; file JSON có đủ thông tin kỹ thuật chi tiết.
-- **Đổi "động cơ" AI thoải mái:** phần mềm chạy được với nhiều loại AI khác nhau (kể cả AI **tự cài trên máy lab Xavier**, không tốn tiền API) và nhiều bộ OCR khác nhau — chỉ đổi 1 dòng cấu hình. (Đề bài yêu cầu "không phụ thuộc một nhà cung cấp".)
+1. **Find the law.** Much like typing a query into a search engine to land on the right law page on the government portal. The three portals are all awkward to crawl directly, so we search the web for the correct URL on the official site, then go there to download.
 
----
+2. **Download it.** We fetch the law's PDF, politely (size limits, no hammering the server) and cache it so we never download the same thing twice.
 
-## 4. Còn vướng gì? (nói thật để xin lời khuyên)
+3. **Read and split.** We turn the PDF into clean text and split it into individual articles/sections. If the PDF is a scanned image rather than real text, we run OCR to read the characters off the image.
 
-1. **Tìm luật đôi lúc bị nghẽn.** Công cụ tìm kiếm miễn phí nếu hỏi dồn dập sẽ bị chặn tạm. Đã có cách vá (dùng key tìm kiếm miễn phí + lưu cache), nhưng để demo chắc ăn nên có key.
-2. **Malaysia chưa chạy trọn vẹn.** Cổng Malaysia khó hơn, nhiều văn bản là **ảnh scan + tiếng Mã Lai** — phần này chưa test kỹ.
-3. **Chưa đo được "tỉ lệ đọc sai chữ" thật.** Đề đòi đọc sai dưới 5%, nhưng để đo cần bản chuẩn để so — tụi em chưa rõ BGK so với cái gì.
-4. **Phần gán tiêu chí mới test bằng "AI giả lập".** Tụi em chưa chạy với AI thật (Xavier/Ollama) nên chưa biết độ chính xác thực tế — mà đây là phần **40 điểm** quan trọng nhất.
-5. **Tên & số hiệu luật** đôi khi lấy từ tiêu đề kết quả tìm kiếm, chưa bóc chuẩn từ trang đầu của văn bản.
-6. **Deploy lên Jetson/Xavier chưa dựng**, mới có thiết kế.
-7. **Báo cáo chi phí + file README hướng dẫn** chưa điền số đo thật.
+4. **Find the relevant provisions — by meaning, not keywords.** This is the heart of it. We do **not** just keyword-match (that's the trap the judges flagged: a law with "financial" in its title gets pulled to the top even when its content is irrelevant). Instead the tool reads and understands each provision, ranks them by genuine relevance, and a second "AI reviewer" (a cross-encoder) re-checks the top ones for precision.
+
+5. **Map to the right indicator.** A language model reads the provision and the indicator's definition and decides which indicator it satisfies. We wrote the instructions carefully so the model doesn't confuse neighbouring indicators and doesn't drop a provision that legitimately matches more than one.
+
+6. **Write the output and self-rate confidence.** Each mapping becomes one row, with a confidence score; low-confidence rows are flagged for human review. We produce two files: a **CSV** in the official 13-column template (for the policy judges) and a richer **JSON** (for the technical judges).
 
 ---
 
-## 5. Những chỗ tôi (người làm app) thực sự đang ĐOÁN hoặc CHƯA BIẾT
+## 3. What's working today (tested on real data)
 
-> Đây không phải câu hỏi cho có. Đây là những chỗ khi code tôi **buộc phải tự quyết một hướng** mà không chắc đúng, hoặc **thiếu thông tin** nên đoán. Nếu mentor chốt giúp, app mới đúng hướng. Tôi xếp theo mức độ ảnh hưởng.
-
-**Q1 (ĐÃ GIẢI QUYẾT ✅) — Dùng bộ Methodology, không phải Indicator Reference.**
-_Trước đây tôi gán theo bản Output "Indicator Reference" (P6 = cơ chế chuyển dữ liệu) → SAI._
-Tài liệu BGK đã xác nhận: gán theo bản **Methodology** — P6 là **nội địa hoá** (6.1 cấm/xử-lý-nội-địa, 6.2 lưu trữ nội địa, 6.3 hạ tầng, 6.4 luồng có điều kiện — **chỉ 4 tiêu chí, không phải 5**); P7 là **khung pháp lý** (7.1 khung bảo vệ dữ liệu, 7.2 an ninh mạng, 7.3 thời hạn lưu, 7.4 DPIA/DPO, 7.5 chính phủ truy cập). Mã output `P6-I4 ≡ 6.4`, `P7-I3 ≡ 7.3`… (khớp theo số). Đã **viết lại `indicators.py`** và kiểm chứng bằng 3 ví dụ BGK — Armenia→6.4, Kazakhstan→6.2, Việt Nam→6.3 — đều khớp. (Cột 4&5 Methodology = chấm điểm 0/0.5/1 = Zone 3, để sau.)
-
-**Q2 — Mỗi tiêu chí, app nên trả ÍT-mà-chuẩn hay NHIỀU-cho-đủ?**
-App tôi hiện với mỗi tiêu chí lôi ra **nhiều** điều khoản ứng viên rồi xếp hạng. Nhưng nhìn file mẫu, mỗi (nước, tiêu chí) thường chỉ chốt **1 luật**. Tôi không biết BGK muốn output **một câu trả lời tốt nhất / tiêu chí**, hay **liệt kê mọi điều khoản liên quan**. Cái này quyết định tôi để app **lọc gắt** (ít, chính xác, ít bị trừ) hay **bao phủ rộng** (nhiều, nhưng rủi ro gán thừa). **Gán thừa có bị trừ điểm không?**
-
-**Q3 — Định nghĩa từng tiêu chí tôi tự soạn có chuẩn không?**
-Phần "định nghĩa pháp lý + cách phân biệt với tiêu chí gần giống" cho mỗi indicator là **do tôi (AI) tự viết** theo hiểu biết của mình — tôi không phải dân luật. Cả app dựa vào mấy định nghĩa này để gán. Ví dụ ranh giới giữa P7-I1 (cần cơ sở pháp lý để xử lý) và P7-I2 (giới hạn theo mục đích) là tôi tự vạch. **BGK có tài liệu định nghĩa/hướng dẫn chấm chính thức cho từng tiêu chí không, để tôi thay phần tôi tự đoán bằng bản chuẩn?**
-
-**Q4 — Phần gán tiêu chí tôi MỚI test bằng "AI giả lập", chưa chạy AI thật.**
-Phần quan trọng nhất (gán điều khoản → tiêu chí) tôi viết hướng dẫn (prompt) rất kỹ để AI không lẫn/không sót, nhưng **chưa chạy với AI thật** (mới chạy bản giả lập cho nhanh). Nên tôi **chưa biết prompt của mình thực sự chính xác bao nhiêu phần trăm**. → **BGK có bộ ví dụ chuẩn (điều khoản này → đúng tiêu chí kia) để tôi đo độ chính xác và tinh chỉnh không?** Có thì tôi dò theo đó.
-
-**Q5 — Input lúc chấm là gì: "chủ đề tự do", hay "pillar", hay "từng tiêu chí"?**
-Slide ví dụ ghi input là "Economy = Thailand, Topic = Cross-border data transfers". App tôi đang chạy theo **(nước, pillar)** rồi map vào cả 5 tiêu chí của pillar đó. Nếu thực ra input là **một chủ đề tự do do giám khảo gõ**, tôi phải đổi cách tạo truy vấn tìm kiếm và phạm vi output. **Lúc chấm BGK đưa input dạng nào?**
-
-**Q6 — "Trích nguyên văn" là cả ĐIỀU hay chỉ KHOẢN khớp? (ảnh hưởng cách tôi cắt văn bản)**
-App tôi cắt mỗi **điều** thành một mẩu và lấy cả điều làm "trích nguyên văn". Nhưng hướng dẫn đòi ghi tới **khoản** (Điều 26(2)). Nếu nội dung khớp nằm ở khoản (3): tôi nên (a) để cả điều + ghi "Điều 26", hay (b) **cắt nhỏ tới từng khoản**, chỉ trích khoản (3) + ghi "Điều 26(3)"? Cách (b) chuẩn hơn nhưng phải làm lại phần cắt văn bản và phần tìm kiếm. **Đi hướng nào?**
-
-**Q7 — Cột Coverage tôi đang điền SAI định dạng?**
-Tôi điền "Horizontal" / "Sectoral". Nhưng cột Coverage trong file mẫu lại ghi giá trị cụ thể: "Cross-cutting", "Financial sector", "Telecommunications services"... **Vậy phải ghi tên ngành cụ thể, hay Horizontal/Sectoral là đủ?** (Tôi cần biết để sửa cho khớp.)
-
-**Q8 — KNOWN / NEW: tôi gán ở cấp LUẬT vì file mẫu không tới điều khoản — có ổn không?**
-File mẫu chỉ liệt kê **tên luật**, không ghi điều khoản nào. Nên tôi tự quyết: luật nào nằm trong file mẫu thì **mọi điều khoản của nó = KNOWN**, còn lại = NEW. Đây là lựa chọn của tôi vì không còn cách nào mịn hơn. **(1) Cách này được chấp nhận không? (2) Nếu tôi tìm được điều khoản MỚI trong một luật ĐÃ có trong mẫu, nó tính NEW hay KNOWN?** (NEW = 20/40 điểm nên rất quan trọng tôi gán đúng.)
-
-**Q9 — Tôi không đo được CER (tỉ lệ đọc sai chữ) vì thiếu bản chuẩn.**
-Để biết app đọc chữ sai dưới 5% hay không, tôi cần một **bản văn bản chuẩn** để so với cái app đọc ra. Tôi không có. **BGK đo CER bằng cách nào — có phát bản chuẩn không, hay so với chính PDF gốc? Tính trên mỗi điều khoản hay cả văn bản? Ngưỡng 5% áp cho mọi PDF hay chỉ PDF ảnh scan?** Không rõ cái này thì tôi không tự kiểm chứng phần OCR được.
-
-**Q10 — Số hiệu luật ("Act 709", "B.E. 2562") — tôi gần như lấy không được.**
-Với luật tự tìm, app tôi mới lấy được **tên**, chưa lấy được **số hiệu**. Bóc từ trang đầu PDF thì mỗi nước một định dạng. **Trường này quan trọng tới đâu khi chấm, và BGK có nguồn chuẩn (vd metadata trên cổng) để lấy không?**
-
-**Q11 — Cách tôi tìm luật (qua công cụ tìm kiếm) có bị coi là "không tự crawl" → mất điểm Zone 1?**
-Vì cổng chặn bot / tải bằng JavaScript, tôi tự chọn hướng **dùng công cụ tìm kiếm để ra link luật rồi tải**, thay vì bò trong menu cổng. Slide đề bài ghi quy trình người là "tìm trên CSDL chính thức, web chính phủ, **và cả internet**" nên tôi nghĩ được. Nhưng đây là quyết định kiến trúc của tôi. **Nếu BGK coi đây không phải "autonomous crawling" thì tôi phải làm lại bằng trình duyệt ẩn bò trực tiếp (chậm, nặng hơn). Cách của tôi có được chấp nhận?**
-
-**Q12 — Mấy con số tôi tự đặt (ngưỡng tin cậy) có ý nghĩa gì với BGK không?**
-Tôi tự đặt: tin cậy ≥0.85 thì tự nhận, <0.60 thì loại, ở giữa thì "cần người xem". Và tôi tự nghĩ ra cách tính điểm tin cậy (gộp mấy tín hiệu). **Mấy con số/cách tính này là tôi bịa cho hợp lý — BGK có chuẩn nào về confidence không, hay nó chỉ phục vụ nội bộ để tôi lọc?**
-
-**Q13 — Zone 3 (chấm điểm 0 / 0.5 / 1) có cần làm ở Round 1 không?**
-File mẫu có cột "Raw Score" 0/0.5/1 cho mỗi tiêu chí. App tôi mới làm tới Zone 1+2 (tìm + gán), **chưa tự chấm điểm**. **Round 1 có cần Zone 3 không, hay để con người chấm?**
-
-**Q14 — Link nguồn: PDF trực tiếp hay trang web? (nhỏ nhưng tôi cần chốt để chuẩn hoá)**
-App tôi xuất link **tải PDF trực tiếp** (vd `.../Act/PDPA2012?ViewType=Pdf`); ví dụ template lại để link **trang web** (`.../Act/PDPA2012`). **Cái nào hợp lệ khi chấm?**
-
-**Q15 — Lúc chấm mà cổng luật đổi/sập thì sao?**
-App tải **trực tiếp lúc chạy**. Cổng thật đổi địa chỉ/sập theo thời gian là chuyện thường. **Nếu lúc giám khảo chấm mà cổng trục trặc thì xử lý thế nào — có cho phép tôi lưu bản chụp (cache) để chấm không?**
+- **Discovery:** "Singapore + cross-border data transfer" finds the **Personal Data Protection Act (PDPA)** on the official portal — it even points at **Section 26**, the cross-border transfer clause. For Australia it finds the **Privacy Act 1988** through the portal's official JSON API.
+- **Download + read:** we pulled the real PDPA PDF (461 KB) and split it into **218 provisions** with clean spacing, and we now keep the **full, exact text** of each provision (per the template).
+- **Understanding:** asked about "individuals' rights over their data", the tool picks the right access/correction provisions and correctly **rejects** a cybersecurity clause that merely shares a few words.
+- **Correct indicator set:** we rewrote the indicators to match the **RDTII Methodology** (Pillar 6 = data-localisation: ban / local storage / infrastructure / conditional flow; Pillar 7 = framework: data-protection law / cybersecurity / retention / DPIA-DPO / government access). We checked this against **all six of the judges' worked examples** (Armenia→6.4, Kazakhstan→6.2, Vietnam→6.3, India→7.4, Singapore CPC→7.5, Bhutan→7.2) — every one maps correctly.
+- **KNOWN vs NEW:** any law that appears in the judges' sample database is tagged KNOWN; anything the tool finds on its own is tagged NEW (the higher-value tag).
+- **OCR quality / CER:** when a scanned PDF has a reference text, we now **measure the real Character Error Rate** and record whether it's under the 5% bar; the JSON carries this per document.
+- **Robust input:** the tool accepts mis-spelt or alternate country names ("Singapor", "austrlia", "MALAYSIA ") — the brief asks for tolerance to inputs you didn't anticipate.
+- **No vendor lock-in:** the LLM and OCR engines are swappable with one config line. The tool runs with Gemini, OpenRouter, a self-hosted model, or fully offline; OCR can be MarkItDown, RapidOCR, Tesseract, etc.
+- **Runs from the command line** (the GUI is optional) and passes its test suite.
 
 ---
 
-## 6. Ba điểm tụi em tự tin nhất khi pitch
+## 4. What's still rough or unfinished
 
-1. **Không bị lừa bởi tên luật.** Chính BGK cảnh báo: nếu chỉ so từ khoá trên *tên luật* thì một luật vô quan hệ sẽ lên top chỉ vì tên có chữ "tài chính". Tụi em chấm trên **nội dung điều khoản** + có "thẩm định viên AI" thứ hai → tránh đúng lỗi đó.
-2. **Không lẫn các tiêu chí gần giống nhau.** Các tiêu chí RDTII rất dễ nhầm; tụi em viết hướng dẫn cho AI tách bạch "điều này có đúng tiêu chí đang xét không" với "có tiêu chí khác hợp hơn không" → vừa **không nhầm**, vừa **không bỏ sót**.
-3. **Tự chủ & rẻ.** Đổi loại AI/OCR thoải mái, chạy được **AI tự host** trên máy lab → đáp ứng tiêu chí "không phụ thuộc nhà cung cấp" và "bền vững về chi phí".
+1. **Discovery can stall.** Free search engines rate-limit us if we query too fast. We've softened this (a free search API key plus caching), but for a live demo a key makes it reliable.
+2. **Malaysia isn't fully proven end-to-end.** Its portal is the hardest, and many documents are scanned images in Malay — we haven't tested that path thoroughly.
+3. **The mapping hasn't been validated on a strong real LLM yet.** We tuned the prompt against an offline stand-in and the judges' examples, but we haven't yet run it through a real model at scale — and this is the biggest scoring block (substantive accuracy). We have a Gemini integration ready; its free quota is currently exhausted, and a 4× V100 GPU box is coming online to host our own model (see Section 7).
+4. **Law numbers** ("Act 709", "B.E. 2562") aren't reliably extracted yet for laws the tool finds itself.
+5. **Deployment to the Jetson/GPU box** is designed but not built.
+6. **The cost report and README quick-start** still need real measured numbers filled in.
+
+---
+
+## 5. Things the mentor has already settled (so we don't re-ask)
+
+- **Indicator set:** use the **Methodology** indicators (6.1–6.4 / 7.1–7.5), not the "Indicator Reference" sheet. ✅ Done and validated.
+- **Input at judging:** **country + pillar**. ✅ Matches how the tool already runs.
+- **Verbatim snippet:** quote the **full, exact provision**. ✅ Done.
+- **Scoring (the 0 / 0.5 / 1 step):** optional, worth **extra points only**; criteria provided. We'll add it if time allows.
+- **Source URL:** the **landing page** is preferred but a direct PDF link is also fine. ✅ We now output the landing page.
+
+---
+
+## 6. Open questions for the mentor
+
+**6.1 — One best provision per indicator, or every relevant one?**
+For each indicator we currently surface several ranked candidates, but the sample database usually records just one law per (country, indicator). Do you want a single best-fit provision per indicator, or an exhaustive list of everything that touches it? And if we include an extra mapping that turns out wrong, does that cost points, or is it simply ignored? This decides whether we tune the tool to be strict (fewer, very precise) or broad (more coverage, some over-tagging risk).
+
+**6.2 — Is there a labelled set of (provision → correct indicator) we can test against?**
+The mapping is the largest scoring block, but we can only check it against the few worked examples in your slides. A labelled set would let us measure accuracy properly and tune the prompt. Do you have one we can use? (The RDTII documents you offered to share may already cover the per-indicator definitions we've been guessing at.)
+
+**6.3 — Coverage column: "Horizontal/Sectoral", or the specific sector name?**
+We fill Coverage with "Horizontal" or "Sectoral". Your sample database uses more specific values like "Cross-cutting", "Financial sector", or "Telecommunications services". Should we output the specific sector, or is Horizontal/Sectoral enough?
+
+**6.4 — KNOWN/NEW at law level, and how do you treat a new provision in a known law?**
+Your sample list identifies known examples at the law level — it doesn't name a specific article — so we mark a mapping KNOWN if its law is on the list and NEW otherwise. Two questions: (1) is law-level KNOWN/NEW acceptable? (2) If we discover a genuinely new provision inside a law that's already on the list, does that provision count as NEW or KNOWN? Since NEW carries most of the points, we want to get this exactly right.
+
+**6.5 — How exactly do you measure CER, and against what?**
+We can now measure Character Error Rate on our side, but to match your bar we need to know your method: do you compare our text to a reference you hold, or to the source PDF? Is it measured per provision or per whole document? And does the 5% limit apply to every PDF, or only to scanned/image PDFs?
+
+**6.6 — Law Number: how important, and is there a clean source?**
+For laws the tool finds itself, we reliably get the title but rarely the official law number; parsing it from the first page is inconsistent across countries. How heavily is this field weighted, and is there a clean source (e.g. portal metadata) you expect us to use?
+
+**6.7 — Is using a web search engine to locate the law accepted as "autonomous crawling"?**
+The three portals are hard to crawl directly (Singapore blocks bots; Malaysia loads results with JavaScript). Your slides describe the human workflow as searching "official databases, government websites, and the web", so we search for the correct law URL on the official portal and download it from there. Does this count as autonomous discovery, or do you require us to navigate the portal's own menus directly?
+
+**6.8 — Do our confidence numbers matter to you, or are they just for us?**
+We set our own thresholds (auto-accept at 0.85, flag for review below 0.60) and our own confidence formula. Is there a calibration you expect, or is confidence purely an internal triage signal that helps us flag rows for review?
+
+**6.9 — What happens if a portal changes or is down during judging?**
+The tool fetches live at run time, and real portals occasionally change URLs or go offline. If a portal is unreachable when you grade us, how is that handled — may we keep a cached snapshot to fall back on?
+
+**6.10 — Which exact indicator code do you want in the file — "P6-I4" or "6.4"?**
+We write "P6-I4"; your Methodology and examples write "6.4". They're the same by number, but we want to print exactly the string you validate against.
+
+**6.11 — Per run, one pillar at a time, or both Pillars 6 and 7 together?**
+We've confirmed the input is (country + pillar). Just to be sure on packaging: when you test a country, do you run each pillar separately, or expect a single output file covering both pillars?
+
+---
+
+## 7. Infrastructure note (self-hosted model)
+
+A 4× Tesla V100 GPU server is being brought into production. Because our LLM layer is already abstracted, this needs **no code changes**: the box runs an OpenAI-compatible model server, and we point one config line at it. The payoff is large — it lets us run the indicator mapping on a strong open-weight model that is **free, private, and unlimited** (no Gemini quota), which is exactly the model we want for the 40-point substantive-accuracy step. It also speeds up the embedding/re-ranking and OCR by moving them onto the GPU, and it makes the cost story clean: self-hosted on owned hardware is effectively $0 per document.
+
+---
+
+## 8. What we're proudest of
+
+1. **It isn't fooled by law titles.** The judges warned that keyword-matching on a law's name promotes irrelevant laws. We rank on the actual provision text and add a second AI reviewer, which avoids exactly that failure.
+2. **It doesn't confuse or drop indicators.** RDTII's indicators are easy to mix up. Our prompt separates "does this provision satisfy the target indicator?" from "is a neighbouring indicator a better fit?" — so it neither mislabels nor silently drops a provision that matches more than one.
+3. **It's self-reliant and cheap.** LLM and OCR are swappable, and the whole thing can run on a self-hosted model — meeting both the "no vendor lock-in" and the cost/sustainability criteria.
