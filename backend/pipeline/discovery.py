@@ -15,6 +15,7 @@ sample explicitly flagged new).
 from __future__ import annotations
 
 import hashlib
+import re
 from pathlib import Path
 
 import yaml
@@ -39,6 +40,115 @@ def _score(text_blob: str, indicators: list[Indicator]) -> float:
         return 0.0
     hits = sum(1 for t in all_terms if t in blob)
     return round(min(1.0, hits / max(4, len(all_terms) * 0.25)), 3)
+
+
+# ─────────────────────── version-resolution helpers (live mode) ──────────────
+_YEAR_RE = re.compile(r'\b(19|20)\d{2}\b')
+_AMEND_RE = re.compile(r'\b(amendment|amending|supplementary|supplemental)\b', re.I)
+_CONSOL_RE = re.compile(r'\b(consolidated|compilation|reprint|revised|current)\b', re.I)
+_DEAD_URL_RE = re.compile(r'historical|repealed|superseded|revoked|expired|mansuh|archive', re.I)
+# Strip disambiguation suffixes like "(No. 2)", "No.3", "(Number 2)" so that
+# "Overseas Telecommunications Act (No. 2) 1968" groups with "... Act 1946" etc.
+_LAWNO_RE = re.compile(r'\(?\bno\.?\s*\d+\b\)?|\bnumber\s+\d+\b', re.I)
+
+# Malaysia (MY): detect Malay-language documents so we can prefer the English versions.
+# lom.agc.gov.my publishes acts in both Bahasa Malaysia and English:
+#   Malay PDF:   akta_709.pdf   (no language suffix, or /akta/ in path)
+#   English PDF: akta_709e.pdf  (trailing 'e' before .pdf, or /act/ in path)
+# The title from web-search results is the clearest signal.
+_MY_MALAY_TITLE_RE = re.compile(
+    r'\b(akta|perlindungan|peribadi|pindaan|kaedah|warta|jadual|bahagian|peraturan)\b',
+    re.I,
+)
+# URL pattern for Malay PDFs: has 'akta' in path but does NOT end with 'e.pdf'
+# (AGC English convention: akta_709.pdf → Malay, akta_709e.pdf → English)
+_MY_MALAY_PDF_RE = re.compile(r'akta', re.I)   # used together with endswith check below
+
+
+def _law_key(title: str) -> str:
+    """Canonical key for grouping law variants.
+
+    Strips: years (1988, 2012…), 'Amendment/Amending', 'Consolidated/Compilation',
+    and disambiguation suffixes like '(No. 2)' so that e.g. all variants of
+    'Overseas Telecommunications Act' collapse to one group regardless of year or
+    session number.
+    """
+    t = _YEAR_RE.sub('', title)
+    t = _AMEND_RE.sub('', t)
+    t = _CONSOL_RE.sub('', t)
+    t = _LAWNO_RE.sub('', t)
+    t = re.sub(r'[^\w\s]', ' ', t)
+    return re.sub(r'\s+', ' ', t).strip().lower()
+
+
+def _is_superseded(url: str, title: str) -> bool:
+    """True when URL or title signals the document is no longer in force."""
+    return bool(_DEAD_URL_RE.search(url) or _DEAD_URL_RE.search(title))
+
+
+def _pick_best(docs: list[DiscoveredDoc]) -> DiscoveredDoc:
+    """From a group of same-normalized-title docs pick the most current/consolidated one."""
+    if len(docs) == 1:
+        return docs[0]
+
+    def _key(d: DiscoveredDoc) -> tuple:
+        # Higher tuple = better
+        alive = 0 if _is_superseded(d.source_url, d.title) else 1
+        consolidated = 1 if _CONSOL_RE.search(d.title) else 0
+        # Base acts (e.g. "Privacy Act") outrank amendment-only acts
+        is_amendment = 0 if _AMEND_RE.search(d.title) else 1
+        date = d.amendment_date or "0000-00-00"
+        return (alive, consolidated, is_amendment, date)
+
+    return max(docs, key=_key)
+
+
+def _dedup_by_law_title(docs: list[DiscoveredDoc]) -> list[DiscoveredDoc]:
+    """Collapse multiple versions/compilations of the same law into the best one.
+
+    Steps:
+    1. Pre-filter: remove documents whose URL or title signals they are no longer in
+       force (repealed, historical, superseded, …).  If ALL docs would be removed we
+       keep the full list so the caller surfaces a real discovery failure rather than
+       silently returning nothing.
+    2. Group remaining docs by a normalised title key (years, 'amendment', and
+       'consolidated' words stripped).
+    3. Within each group pick the most current/consolidated/in-force document.
+
+    Applied exclusively in live mode so the manually-curated sample corpus is untouched.
+    """
+    alive = [d for d in docs if not _is_superseded(d.source_url, d.title)]
+    working = alive if alive else docs   # safety: never return empty when input isn't
+
+    groups: dict[str, list[DiscoveredDoc]] = {}
+    for d in working:
+        key = _law_key(d.title) or d.doc_id  # fallback to doc_id if title is empty
+        groups.setdefault(key, []).append(d)
+    return [_pick_best(g) for g in groups.values()]
+
+
+def _prefer_english_my(docs: list[DiscoveredDoc]) -> list[DiscoveredDoc]:
+    """MY only: drop Malay-language documents when an English version exists.
+
+    lom.agc.gov.my publishes most Acts in both Bahasa Malaysia and English.
+    Processing Malay text with an English-only cross-encoder degrades retrieval
+    quality, so we filter them out.  Falls back to the full list when NO English
+    document can be identified (e.g. the act was never translated), so we still
+    surface something rather than returning nothing.
+    """
+    def _is_malay(d: DiscoveredDoc) -> bool:
+        if _MY_MALAY_TITLE_RE.search(d.title):
+            return True
+        url_low = d.source_url.lower()
+        # Malay PDF: 'akta' in URL path, does NOT end with 'e.pdf'
+        # (AGC English convention: akta_709.pdf=Malay, akta_709e.pdf=English)
+        if url_low.endswith(".pdf") and not url_low.endswith("e.pdf"):
+            if _MY_MALAY_PDF_RE.search(url_low):
+                return True
+        return False
+
+    english = [d for d in docs if not _is_malay(d)]
+    return english if english else docs
 
 
 # ─────────────────────────── sample mode ───────────────────────────
@@ -158,35 +268,54 @@ def _search_au_api(client, src: dict, query: str, economy: Economy, indicators, 
     qtok = {w for w in _re.findall(r"[a-z0-9]+", query.lower()) if len(w) > 2}
     out: list[DiscoveredDoc] = []
     seen: set[str] = set()
-    # contains(name,…) is precise and fast; $search (full-text) is slow and its
-    # content-only hits get filtered out by the title-overlap score anyway.
+    # Prefer InForce filter so superseded/historical compilations are excluded from the
+    # result set. Fall back to no status filter if the field is unsupported by this API
+    # version (the title-level _dedup_by_law_title handles remaining duplicates).
+    _base = f"contains(name,'{query}') and collection eq 'Act'"
     variants = [
-        {"$filter": f"contains(name,'{query}') and collection eq 'Act'", "$top": "40"},
+        {"$filter": f"{_base} and inForce eq true", "$top": "40"},
+        {"$filter": _base, "$top": "40"},  # fallback: title dedup handles version collapse
     ]
+    items: list = []
     for params in variants:
         try:
             r = client.get(src["api_base"], params=params, headers={"Accept": "application/json"})
             r.raise_for_status()
             items = r.json().get("value", [])
+            break  # success — don't try fallback
         except Exception as e:  # noqa: BLE001
-            log(f"[discover] AU API query='{query}' ({'search' if '$search' in params else 'name'}) "
-                f"failed ({type(e).__name__})")
+            label = "retrying without inForce" if "inForce" in str(params) else "skipping"
+            log(f"[discover] AU API query='{query}' filter='{params.get('$filter','')}' "
+                f"failed ({type(e).__name__}) — {label}")
+    for it in items:
+        tid, name = it.get("id"), (it.get("name") or "")
+        if not tid or tid in seen:
             continue
-        for it in items:
-            tid, name = it.get("id"), (it.get("name") or "")
-            if not tid or tid in seen:
-                continue
-            seen.add(tid)
-            # rank by how much of the search term appears in the TITLE — keeps flagship
-            # name-matches (Privacy Act → 1.0) and drops $search content-only noise (1901
-            # acts whose titles share no query word → 0.0, filtered out by the caller).
-            ntok = {w for w in _re.findall(r"[a-z0-9]+", name.lower()) if len(w) > 2}
-            score = round(len(qtok & ntok) / len(qtok), 3) if qtok else 0.0
-            url = tmpl.replace("{id}", tid)
-            out.append(DiscoveredDoc(
-                doc_id=_doc_id(economy.value, url), economy=economy, title=name[:200],
-                source_url=url, portal=src.get("name", "AU"), fmt=DocFormat.HTML,
-                law_number=tid, relevance_score=score, discovery_tag=DiscoveryTag.NEW))
+        seen.add(tid)
+
+        # Defence-in-depth: even when the $filter=inForce eq true worked at the API
+        # level, some portals return 200 OK but ignore the filter.  Read the field from
+        # the item itself and skip anything explicitly marked as not-in-force.
+        # Default to True (include) when the field is absent (API didn't return it).
+        if it.get("inForce") is False:
+            continue
+
+        # rank by how much of the search term appears in the TITLE — keeps flagship
+        # name-matches (Privacy Act → 1.0) and drops $search content-only noise (1901
+        # acts whose titles share no query word → 0.0, filtered out by the caller).
+        ntok = {w for w in _re.findall(r"[a-z0-9]+", name.lower()) if len(w) > 2}
+        score = round(len(qtok & ntok) / len(qtok), 3) if qtok else 0.0
+        url = tmpl.replace("{id}", tid)
+
+        # Use lastModified as amendment_date so _pick_best can rank by recency.
+        last_mod = it.get("lastModified") or it.get("registerDate") or ""
+        amendment_date = last_mod[:10] if last_mod else None  # ISO date only
+
+        out.append(DiscoveredDoc(
+            doc_id=_doc_id(economy.value, url), economy=economy, title=name[:200],
+            source_url=url, portal=src.get("name", "AU"), fmt=DocFormat.HTML,
+            law_number=tid, relevance_score=score, discovery_tag=DiscoveryTag.NEW,
+            amendment_date=amendment_date))
     return out
 
 
@@ -202,6 +331,21 @@ def _resolve_pdf_url(economy: Economy, url: str) -> tuple[str, DocFormat]:
         s = urlsplit(url)
         return urlunsplit((s.scheme, s.netloc, s.path, "ViewType=Pdf", "")), DocFormat.PDF_TEXT
     return url, DocFormat.HTML
+
+
+def _my_english_pdf_url(url: str) -> str | None:
+    """MY: derive the English-sibling PDF URL from a Malay PDF URL.
+
+    AGC convention: Malay act = ``akta_709.pdf``, English act = ``akta_709e.pdf``
+    (trailing 'e' before the extension).  Returns None when the URL doesn't look
+    like a Malay PDF (already English, or not a PDF at all).
+    """
+    low = url.lower()
+    if not low.endswith(".pdf"):
+        return None
+    if low.endswith("e.pdf"):
+        return None  # already English (or at least has the 'e' suffix)
+    return url[:-4] + "e.pdf"
 
 
 def discover_websearch(economy: Economy, pillar: int | None, max_docs: int) -> list[DiscoveredDoc]:
@@ -224,7 +368,12 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int) -> l
                 fmt=fmt, relevance_score=0.0, discovery_tag=DiscoveryTag.NEW)
         if len(by_url) >= max_docs * 2:
             break
-    return list(by_url.values())[:max_docs]
+    # Collapse multiple URL variants of the same law into the most current/in-force version.
+    docs = _dedup_by_law_title(list(by_url.values()))
+    # For MY: prefer English-language documents over Bahasa Malaysia equivalents.
+    if economy.value == "MY":
+        docs = _prefer_english_my(docs)
+    return docs[:max_docs]
 
 
 def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | None = None) -> list[DiscoveredDoc]:
@@ -272,6 +421,12 @@ def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | N
     # web-search docs carry score 0 (ranked later by CONTENT); keep them. Only drop
     # the API title-overlap zeros (content-only noise) when no web-search ran.
     docs = list(by_url.values())
+    # Collapse multiple URL variants / year-compilations of the same law into one,
+    # preferring the most current/consolidated/in-force version.
+    docs = _dedup_by_law_title(docs)
+    # For MY: prefer English-language documents over Bahasa Malaysia equivalents.
+    if economy.value == "MY":
+        docs = _prefer_english_my(docs)
     docs.sort(key=lambda d: d.relevance_score, reverse=True)
     return docs[:max_docs]
 

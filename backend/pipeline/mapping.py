@@ -226,7 +226,7 @@ def map_provisions(
                 scored = {r.provision.provision_id: r
                           for r in retrieve(ind.indicator_id, provisions, top_k=n)}
                 candidates = [scored.get(p.provision_id)
-                              or Retrieved(provision=p, score=0.0, raw_context=p.verbatim_snippet)
+                              or Retrieved(provision=p, score=0.0, raw_context=p.verbatim_snippet, log=[])
                               for p in provisions]
             else:
                 candidates = retrieve(ind.indicator_id, provisions, top_k=eff_top_k)

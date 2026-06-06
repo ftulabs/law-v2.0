@@ -60,11 +60,24 @@ def find_provisions(
     # ② fetch bodies for live-discovered docs (sample docs already have local_path)
     if not use_samples:
         from .fetch import fetch_to_cache
-        from .discovery import _resolve_pdf_url
+        from .discovery import _my_english_pdf_url, _resolve_pdf_url
         for d in docs:
             if d.local_path:
                 continue
             fetch_url, _ = _resolve_pdf_url(d.economy, d.source_url)   # landing -> PDF body
+
+            # MY: try the English-sibling PDF first (akta_709.pdf → akta_709e.pdf).
+            # Fall back to the original URL if the English version doesn't exist (404).
+            if d.economy.value == "MY":
+                en_url = _my_english_pdf_url(fetch_url)
+                if en_url:
+                    fr = fetch_to_cache(en_url, log=log)
+                    if fr:
+                        d.local_path, d.fmt = fr.local_path, fr.fmt
+                        log(f"[zone1] MY English PDF found: {en_url}")
+                        continue
+                    log(f"[zone1] MY English PDF not found ({en_url}), falling back to original")
+
             fr = fetch_to_cache(fetch_url, log=log)
             if fr:
                 d.local_path, d.fmt = fr.local_path, fr.fmt
