@@ -101,12 +101,19 @@ class MockLLM(LLMProvider):
         if not gate_ok:
             legal_match = min(legal_match, 0.3)
 
-        relevant = target_wins and gate_ok and legal_match >= 0.5 and scope_alignment >= 0.5
+        # Mirror the real-LLM schema (operative_rule / satisfies_target / better_sibling /
+        # relevant) so the offline grader exercises the SAME contract the prompt asks for.
+        satisfies_target = target_wins and gate_ok and legal_match >= 0.5 and scope_alignment >= 0.5
+        better_sibling = best_id if (best_id and best_id != ind_id and not satisfies_target) else None
+        relevant = satisfies_target and not better_sibling
         rationale = _rationale(article, ind_id, ind_title, snippet, binding, sectoral,
                                indicator_scope, relevant, best_id)
         return {
+            "operative_rule": f"This {article} {_verb(snippet)} {ind_title.lower()}.",
+            "satisfies_target": satisfies_target,
+            "better_sibling": better_sibling,
             "relevant": relevant,
-            "best_fit_indicator": best_id,
+            "best_fit_indicator": best_id,   # kept for back-compat / debugging
             "legal_match": round(legal_match, 3),
             "scope_alignment": round(scope_alignment, 3),
             "scope_flag": scope_flag,

@@ -1,13 +1,24 @@
 """RDTII 2.1 indicators — Pillars 6 & 7 (OFFICIAL Methodology).
 
-Source of truth = the RDTII Methodology sheet (and the ESCAP indicator slides), confirmed
-by the judges' worked examples (Armenia Art.27 -> 6.4; Kazakhstan Art.12(2) -> 6.2).
+Source of truth = the "RDTII 2.1 Methodology" sheet in the official Round-1 Database
+(ESCAP-RDTII-2.1_ Round 1 Database.xlsx, in repo root), confirmed indicator-by-indicator by
+the worked answer key for the mandatory economies, e.g. Singapore:
+  6.1 ← PDPA (no ban)  · 6.2 ← Companies Act §199  · 6.4 ← PDPA §26 (conditional transfer)
+  7.1 ← PDPA  · 7.2 ← Cybersecurity Act 2018  · 7.3 ← PDPA §25 / Telecom / Income Tax
+  7.4 ← PDPA §11(3) DPO  · 7.5 ← Criminal Procedure Code §39-40 (police access).
 
 IMPORTANT — these are the LOCALISATION-centric Pillar-6 indicators (ban / storage /
 infrastructure / conditional-flow) and the FRAMEWORK-centric Pillar-7 indicators
 (data-protection framework / cybersecurity / retention / DPIA-DPO / government access).
 The output `indicator_id` uses the template format P6-I1..P6-I4 / P7-I1..P7-I5, which map
-1:1 by number to Methodology 6.1..6.4 / 7.1..7.5. Pillar 6 has FOUR indicators (no I5).
+1:1 by number to Methodology 6.1..6.4 / 7.1..7.5. Pillar 6 has FOUR extractable indicators
+(6.5 "binding commitments" is a non-regulatory, third-party-sourced indicator — out of crawl
+scope per the internal guide, so it is excluded here).
+
+CAVEAT (do not "fix" the definitions to match it): the OUTPUT_TEMPLATE_31MAY.xlsx
+"Indicator Reference" sheet mislabels these with generic GDPR names (P6-I1 "general
+prohibition", P7-I2 "purpose limitation"). That sheet is an erroneous artifact — the scored
+answer key (the Database above) uses the localisation/framework definitions coded below.
 
 The Methodology's scoring criteria (1/0.5/0) live in the scoring layer (Zone 3, optional);
 here we keep what's needed to IDENTIFY which indicator a provision satisfies:

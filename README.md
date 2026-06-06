@@ -4,8 +4,13 @@ UN Global Hackathon on AI for Digital Trade Regulatory Analysis
 Team: **VeriTrade** (Foreign Trade University) | Round: 1
 Last updated: 2026-06-04
 
-> **Round 1 requirement:** the **Quick Start** below lets a reviewer set up and run the
-> tool in under 10 minutes. It runs fully offline by default (no API key needed).
+> **Two ways to run, by design:**
+> **① Live crawl (`--live`) — the scored path.** This is what the rubric grades:
+> autonomous discovery + retrieval + OCR straight from the official portals, no seed URLs.
+> **② Offline sample (default) — the safe fallback.** Deterministic, no key, no network —
+> so a reviewer can reproduce a full run in under 10 minutes even if a portal is down.
+> The two paths share the *same* extraction → mapping → confidence → export code; only the
+> document source differs. **Demo and screen-recording should lead with `--live`.**
 
 ---
 
@@ -31,9 +36,35 @@ the single best fit. Low-confidence and sector-scope mappings are routed to huma
 
 ---
 
-## Quick Start
+## ▶ Live Crawl — the scored path
 
-⏱ **Required for Round 1.** Works offline with the bundled sample corpus — no key needed.
+This is the run the judges grade: give it **only an economy and a pillar**; it discovers the
+legislation on the official portal itself (no seed URLs), fetches it past bot-protection,
+OCRs scanned pages, extracts provisions, and maps each to an RDTII 2.1 indicator.
+
+```bash
+# end-to-end, live, real LLM — nothing pre-downloaded
+python main.py --economy Singapore --pillar 6 --live --llm openrouter
+python main.py --economy Malaysia  --pillar all --live --llm openrouter --ocr rapidocr
+```
+
+- **Zone 1 fetch:** Scrapling (real-browser TLS impersonation) is the default fetcher, so
+  gov portals that 403 a plain HTTP client still resolve; httpx is the fallback.
+- **No seed list:** discovery is `site:`-scoped web search over the portal in
+  `data/sources.yaml`, not a hardcoded URL per law.
+- **Same code as the sample path** — only the document *source* changes, so a green sample
+  run is an honest preview of the live run.
+
+> A live run depends on the portal being reachable at demo time. If you need a guaranteed
+> reproducible run (offline, no key, ~10 min) — e.g. for the Round-1 setup check — use the
+> **sample Quick Start** below; it exercises the identical pipeline on a bundled corpus.
+
+---
+
+## Quick Start (offline sample — safe fallback)
+
+⏱ **Reproducible setup check for Round 1.** Works offline with the bundled sample corpus —
+no key, no network. For the *scored* demo use **`--live`** (above).
 
 ### 1. Clone the repository
 ```bash
@@ -66,7 +97,8 @@ OCR_PROVIDER=markitdown          # or: tesseract, paddle, azure, mock
 
 ### 4. Run the tool
 ```bash
-python main.py --economy Singapore --pillar 6
+python main.py --economy Singapore --pillar 6            # offline sample (this Quick Start)
+python main.py --economy Singapore --pillar 6 --live     # the scored path — crawl live
 ```
 **Output:** `outputs/SG_P6_<timestamp>.csv` and `outputs/SG_P6_<timestamp>.json`
 
@@ -293,16 +325,25 @@ mean_confidence, pages), `raw_context`, `source_pdf_path`, `retrieval_log`,
 
 ## RDTII Indicators (Pillars 6 & 7)
 
-| Pillar 6 — Cross-border Data Flows | Pillar 7 — Domestic Data Protection |
+| Pillar 6 — Cross-border Data Policies | Pillar 7 — Domestic Data Protection |
 | :---- | :---- |
-| P6-I1 General prohibition / restriction | P7-I1 Legal basis for processing |
-| P6-I2 Adequacy standard | P7-I2 Purpose limitation |
-| P6-I3 Contractual safeguards | P7-I3 Data subject rights |
-| P6-I4 Consent exception | P7-I4 Data breach notification |
-| P6-I5 Other exceptions | P7-I5 Enforcement & penalties |
+| P6-I1 Ban and local processing requirements | P7-I1 Comprehensive data-protection framework |
+| P6-I2 Local storage requirements | P7-I2 Dedicated cybersecurity framework |
+| P6-I3 Infrastructure requirements | P7-I3 Minimum data-retention requirements |
+| P6-I4 Conditional flow regimes | P7-I4 DPO / DPIA requirements |
+| | P7-I5 Government access to personal data |
 
-IDs/titles/questions follow the official RDTII 2.1 reference. The `legal_test`/
-`query_terms` in `backend/rdtii/indicators.py` are our interpretation to drive mapping.
+These titles, and the `legal_test`/`query_terms` in `backend/rdtii/indicators.py`, follow the
+**official "RDTII 2.1 Methodology"** sheet in the Round-1 Database (in repo root) and are
+verified against its worked answer key (e.g. Singapore: 6.4 ← PDPA §26 conditional transfer;
+7.2 ← Cybersecurity Act 2018; 7.5 ← Criminal Procedure Code §39-40). Pillar 6 has four
+extractable indicators — 6.5 ("binding commitments") is a non-regulatory, third-party-sourced
+indicator outside crawl scope.
+
+> ⚠️ The `OUTPUT_TEMPLATE_31MAY.xlsx` "Indicator Reference" sheet lists *generic GDPR* names
+> (P6-I1 "general prohibition", P7-I2 "purpose limitation"). That sheet conflicts with the
+> scored methodology above — we map to the **Database/Methodology** definitions, which the
+> answer key uses.
 
 ---
 

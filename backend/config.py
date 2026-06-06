@@ -87,6 +87,15 @@ class Settings(BaseSettings):
     cross_encoder_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     rrf_k: int = 60                            # Reciprocal-Rank-Fusion constant
 
+    # Zone-2 coverage: when a run has <= grade_all_max_provisions provisions, EVERY provision
+    # is graded against EVERY indicator (no top-k cap) so nothing relevant is missed — the
+    # rubric rewards coverage. Above that (full Acts at live-crawl scale) we fall back to a
+    # retrieval shortlist whose size scales with the corpus (retrieve_fraction of provisions,
+    # at least retrieve_top_k). A provision may map to several indicators either way.
+    grade_all_max_provisions: int = 80
+    retrieve_top_k: int = 8                     # min shortlist size in retrieval (large-corpus) mode
+    retrieve_fraction: float = 0.30            # shortlist = this fraction of the corpus, min retrieve_top_k
+
     # Zone-2 retriever: auto | hybrid | lightrag.
     #   hybrid   = built-in BM25+dense+cross-encoder (fast, always available)
     #   lightrag = HKUDS LightRAG graph-RAG (semantic KG retrieval), citations preserved

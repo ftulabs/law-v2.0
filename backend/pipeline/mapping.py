@@ -9,6 +9,7 @@ extraction, not generation. That separation is the core anti-hallucination contr
 from __future__ import annotations
 
 import hashlib
+import math
 
 from ..config import settings
 from ..providers import get_llm_provider
@@ -16,7 +17,7 @@ from ..providers.llm_base import LLMProvider
 from ..rdtii import get_indicator, siblings
 from ..schemas import DiscoveryTag, EvidenceMapping, Provision
 from . import confidence
-from .retrieval import retrieve
+from .retrieval import Retrieved, retrieve
 
 
 def _select_retriever(indicators, provisions, top_k, llm, log):
@@ -38,39 +39,85 @@ def _select_retriever(indicators, provisions, top_k, llm, log):
     return retrieval_lightrag.retrieve_all(indicators, provisions, top_k=top_k, llm=llm, log=log)
 
 SYSTEM = (
-    "You are a meticulous legal-evidence grader for the UNESCAP RDTII 2.1 framework "
-    "(Pillar 6 = cross-border data flows; Pillar 7 = domestic data protection). You decide "
-    "whether ONE statutory provision satisfies ONE specific TARGET indicator. The pillar's "
-    "indicators are deliberately close, so TWO opposite errors are equally serious:\n"
-    "  • OVER-ASSIGN: mapping a provision that only MENTIONS the topic but whose operative "
-    "rule does not actually satisfy the indicator's legal test.\n"
-    "  • MISS: rejecting a provision whose operative rule DOES satisfy the target, merely "
-    "because the provision also touches a neighbouring indicator.\n\n"
-    "Work in this exact order:\n"
-    "(1) OPERATIVE RULE — in one sentence, state what the snippet actually DOES (the binding "
-    "rule it enacts), ignoring incidental or definitional wording. A provision may enact more "
-    "than one rule (e.g. a default restriction AND an exception); note each.\n"
-    "(2) TARGET TEST — check the operative rule(s) against the TARGET indicator's legal_test, "
-    "OBEYING its 'Distinguish from …' notes. Set satisfies_target=true ONLY if a rule genuinely "
-    "meets the test (operative effect, not topical overlap or a bare definition).\n"
-    "(3) BETTER SIBLING — set better_sibling to a sibling id ONLY when the snippet contains NO "
-    "rule that satisfies the target AND a sibling clearly fits instead (i.e. the target is a "
-    "MISLABEL). If the snippet does satisfy the target — even partially, alongside other "
-    "content — leave better_sibling null. A provision may legitimately map to several indicators.\n"
-    "(4) relevant = satisfies_target AND (better_sibling is null).\n"
-    "(5) legal_match (0..1), calibrated: 1.0 = the operative rule IS exactly this indicator's "
-    "test; 0.7 = clearly satisfies with minor wording gaps; 0.5 = satisfies one element of a "
-    "multi-part test; <=0.3 = topical mention only (then satisfies_target=false).\n"
-    "(6) SCOPE — if the instrument is sector-specific (a financial / telecom / health notice or "
-    "code) while the indicator is national, set scope_flag='SECTORAL_NOT_NATIONAL' and lower "
-    "scope_alignment. RDTII excludes data-localisation/retention measures that apply ONLY to "
-    "GOVERNMENT data — treat those as NOT satisfying.\n"
-    "(7) Judge ONLY the snippet; never assert a conclusion it does not support.\n"
-    "(8) rationale <=300 chars, EXACT format: 'This [section] [prohibits/requires/permits/"
+    "You are a legal-evidence grader for the UNESCAP RDTII 2.1 framework (Pillar 6 = "
+    "cross-border data; Pillar 7 = domestic data protection). Decide whether ONE provision "
+    "satisfies ONE TARGET indicator. The sibling indicators are close, so two errors are "
+    "equally bad: OVER-ASSIGN (the snippet only MENTIONS the topic) and MISS (its operative "
+    "rule DOES satisfy the target but you reject it because it also touches a neighbour).\n\n"
+    "Steps:\n"
+    "1. OPERATIVE RULE — one sentence: what binding rule does the snippet enact? Ignore "
+    "definitions/recitals. It may enact several rules (a restriction AND an exception); note each.\n"
+    "2. TARGET TEST — check the rule(s) against the TARGET's legal_test, OBEYING its "
+    "'Distinguish from…' notes. satisfies_target=true ONLY for operative effect, not topical "
+    "overlap or a bare definition.\n"
+    "3. BETTER SIBLING — set better_sibling to a sibling id ONLY if NO rule satisfies the target "
+    "AND a sibling clearly fits (the target is a mislabel). If the target is satisfied even "
+    "partially, leave it null — one provision may map to several indicators.\n"
+    "4. relevant = satisfies_target AND better_sibling is null.\n"
+    "5. legal_match (0..1): 1.0 = rule IS exactly this test; 0.7 = satisfies, minor wording gap; "
+    "0.5 = one element of a multi-part test; <=0.3 = mention only (then satisfies_target=false).\n"
+    "6. SCOPE — sector-specific instrument (financial/telecom/health) vs a national indicator: "
+    "scope_flag='SECTORAL_NOT_NATIONAL', lower scope_alignment. Measures applying ONLY to "
+    "GOVERNMENT data do NOT satisfy (RDTII excludes them).\n"
+    "CONSERVATIVE DEFAULT: judge only the snippet; if you are unsure the rule truly meets the "
+    "test, set satisfies_target=false (a precise MISS beats a wrong OVER-ASSIGN).\n"
+    "rationale <=300 chars, EXACT format: 'This [section] [prohibits/requires/permits/"
     "establishes] [what]. Maps to [indicator] because [one-sentence legal logic].'\n\n"
-    "Output ONLY this JSON object: {operative_rule:str, satisfies_target:bool, "
-    "better_sibling:str|null, relevant:bool, legal_match:0..1, scope_alignment:0..1, "
-    "scope_flag:str|null, rationale:str}."
+    "Return ONLY this JSON: {operative_rule:str, satisfies_target:bool, better_sibling:str|null, "
+    "relevant:bool, legal_match:0..1, scope_alignment:0..1, scope_flag:str|null, rationale:str}\n\n"
+    "WORKED EXAMPLES (real RDTII items with verified answers — TARGET :: SNIPPET → JSON):\n"
+    # 1 — Armenia, Law on Protection of Personal Data 2015, Art.27 → 6.4 (NOT a ban)
+    "P6-I4 :: 'Personal data may be transferred to other country by the data subject's consent... "
+    "may be transferred to other state without the permission of the authorised body, where the "
+    "given State ensures an adequate level of protection of personal data.' → {\"operative_rule\":"
+    "\"Permits cross-border transfer on the data subject's consent or where the destination state "
+    "ensures adequate protection\",\"satisfies_target\":true,\"better_sibling\":null,\"relevant\":"
+    "true,\"legal_match\":0.95,\"scope_alignment\":1.0,\"scope_flag\":null,\"rationale\":\"This "
+    "Article permits cross-border transfer on consent or destination adequacy. Maps to P6-I4 "
+    "because transfer stays possible once a condition is met — conditional flow, not a ban (P6-I1).\"}\n"
+    # 2 — Kazakhstan, Law No.94-V 2013, Art.12(2) → 6.2 local storage
+    "P6-I2 :: 'Personal data shall be stored by the owner and/or operator, as well as by a third "
+    "party in a database located in the territory of the Republic of Kazakhstan.' → {\"operative_"
+    "rule\":\"Requires personal data to be stored in a database located in Kazakhstan\",\"satisfies"
+    "_target\":true,\"better_sibling\":null,\"relevant\":true,\"legal_match\":0.95,\"scope_"
+    "alignment\":1.0,\"scope_flag\":null,\"rationale\":\"This Article requires personal data to be "
+    "stored in a domestic database. Maps to P6-I2 because it is a local-storage obligation, not "
+    "mandated local servers/infrastructure (P6-I3).\"}\n"
+    # 3 — China, ride-hailing rules, Art.5 → 6.3 infrastructure
+    "P6-I3 :: 'Any applicant... shall... ensure that the database of the network service platform "
+    "is connected to the regulatory platform..., locate its servers within the territory of "
+    "Mainland China; and maintain network security management systems.' → {\"operative_rule\":"
+    "\"Requires ride-hailing operators to locate their servers within Mainland China to operate\","
+    "\"satisfies_target\":true,\"better_sibling\":null,\"relevant\":true,\"legal_match\":0.9,"
+    "\"scope_alignment\":1.0,\"scope_flag\":null,\"rationale\":\"This Article requires operators to "
+    "site servers domestically. Maps to P6-I3 because mandating local physical infrastructure goes "
+    "beyond where data is stored (P6-I2).\"}\n"
+    # 4 — Bhutan, Code of Practice for Info Security/Cybersecurity 2024 → 7.2 cybersecurity
+    "P7-I2 :: 'For remote access, the licensee must ensure connections have strong encryption...; "
+    "develop a policy on cryptographic controls...; restrict data flow to one-way... to mitigate "
+    "cybersecurity risks.' → {\"operative_rule\":\"Requires strong encryption, cryptographic "
+    "controls and network-security measures to mitigate cybersecurity risks\",\"satisfies_target\":"
+    "true,\"better_sibling\":null,\"relevant\":true,\"legal_match\":0.9,\"scope_alignment\":1.0,"
+    "\"scope_flag\":null,\"rationale\":\"These Sections require encryption, cryptographic controls "
+    "and network-security duties. Maps to P7-I2 because these are cybersecurity obligations, not "
+    "personal-data protection (P7-I1).\"}\n"
+    # 5 — Singapore, Criminal Procedure Code 2010, s39 → 7.5 government access
+    "P7-I5 :: 'A police officer or an authorised person investigating an arrestable offence may... "
+    "access, inspect and check the operation of a computer... to search any data contained... and "
+    "to make a copy of any such data.' → {\"operative_rule\":\"Empowers police to access, search "
+    "and copy data on a computer when investigating an arrestable offence\",\"satisfies_target\":"
+    "true,\"better_sibling\":null,\"relevant\":true,\"legal_match\":0.9,\"scope_alignment\":1.0,"
+    "\"scope_flag\":null,\"rationale\":\"This Section gives police power to access, search and copy "
+    "data for law-enforcement. Maps to P7-I5 because it enables government access to data, not a "
+    "cybersecurity duty on private entities (P7-I2).\"}\n"
+    # 6 — India, Digital Personal Data Protection Act 2023, s10 → 7.4 DPO/DPIA
+    "P7-I4 :: 'The Significant Data Fiduciary shall (a) appoint a Data Protection Officer...; (b) "
+    "appoint an independent data auditor...; (c) undertake... Data Protection Impact Assessment.' "
+    "→ {\"operative_rule\":\"Requires a Significant Data Fiduciary to appoint a DPO and data "
+    "auditor and conduct a DPIA\",\"satisfies_target\":true,\"better_sibling\":null,\"relevant\":"
+    "true,\"legal_match\":0.95,\"scope_alignment\":1.0,\"scope_flag\":null,\"rationale\":\"This "
+    "Section requires appointing a DPO and conducting a DPIA. Maps to P7-I4 because it imposes the "
+    "DPO/DPIA accountability duties, distinct from the general framework (P7-I1).\"}"
 )
 
 
@@ -143,15 +190,40 @@ def map_provisions(
     # preserved either way — the grader below still judges the verbatim snippet).
     ranked_by_ind = _select_retriever(indicators, provisions, top_k, llm, log)
 
+    # Coverage policy. A small corpus (a sample run, a single Act) → grade EVERY provision
+    # against EVERY indicator so nothing relevant is missed: the rubric rewards coverage and
+    # one provision may legitimately satisfy several indicators. A large corpus (full live
+    # crawl) → a retrieval shortlist whose size SCALES with the corpus (retrieve_fraction of
+    # the provisions, floor retrieve_top_k) instead of a fixed cap, so long Acts aren't
+    # under-covered yet the run stays tractable.
+    n = len(provisions)
+    grade_all = ranked_by_ind is None and n <= settings.grade_all_max_provisions
+    eff_top_k = top_k
+    if ranked_by_ind is None and not grade_all:
+        eff_top_k = min(n, max(settings.retrieve_top_k, math.ceil(n * settings.retrieve_fraction)))
+    if ranked_by_ind is None:
+        log(f"[mapping] {'grade-all: every' if grade_all else f'retrieval shortlist top_k={eff_top_k} of'} "
+            f"{n} provisions x {len(indicators)} indicators")
+
     for ind in indicators:
         # LightRAG candidates when available, else (or when it returned nothing for this
         # indicator — e.g. the KG build was rate-limited) fall back to the hybrid retriever
         # so a retrieval-backend hiccup never silently drops an indicator's mappings.
         candidates = ranked_by_ind.get(ind.indicator_id) if ranked_by_ind is not None else None
         if not candidates:
-            candidates = retrieve(ind.indicator_id, provisions, top_k=top_k)
+            if grade_all:
+                # every provision is a candidate; keep its real retrieval score (so confidence
+                # stays meaningful) where the retriever surfaced it, default 0 for the rest —
+                # but grade them ALL rather than dropping any below a top-k or score floor.
+                scored = {r.provision.provision_id: r
+                          for r in retrieve(ind.indicator_id, provisions, top_k=n)}
+                candidates = [scored.get(p.provision_id)
+                              or Retrieved(provision=p, score=0.0, raw_context=p.verbatim_snippet)
+                              for p in provisions]
+            else:
+                candidates = retrieve(ind.indicator_id, provisions, top_k=eff_top_k)
         for r in candidates:
-            if r.score < min_retrieval:
+            if not grade_all and r.score < min_retrieval:
                 continue
             prov = r.provision
             # Resilience: a single LLM failure (e.g. all free models rate-limited)
