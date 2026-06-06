@@ -1,0 +1,25 @@
+# keep the image small & never leak secrets / local state into it
+.git
+.gitignore
+venv
+.venv
+env
+__pycache__
+**/__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.mypy_cache
+.ruff_cache
+outputs/
+data/cache/
+*.log
+.env
+.env.*
+!.env.example
+.claude/
+.vscode/
+.idea/
+node_modules
+*.md
+!README.md
