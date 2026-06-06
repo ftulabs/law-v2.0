@@ -79,10 +79,15 @@ def rank_documents(indicator_id: str, provisions: list[Provision]) -> list[DocRa
     kw = [s / kwmax for s in kw]
     sem = retrieval._dense_scores(query, provisions) or [0.0] * len(provisions)
 
+    # ── phrase-presence bonus per provision ──
+    phrases = [qt for qt in (ind.query_terms or []) if len(qt.split()) >= 2]
+    phrase_bonus = [0.15 if any(ph.lower() in p.verbatim_snippet.lower() for ph in phrases) else 0.0
+                    for p in provisions]
+
     # ── aggregate to the law: keep its single best-matching provision (the evidence) ──
     best: dict[str, tuple[int, float]] = {}
     for i, p in enumerate(provisions):
-        combined = sem[i] + kw[i]
+        combined = sem[i] + kw[i] + phrase_bonus[i]
         if p.doc_id not in best or combined > best[p.doc_id][1]:
             best[p.doc_id] = (i, combined)
     doc_kw = {d: kw[i] for d, (i, _) in best.items()}

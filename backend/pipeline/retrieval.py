@@ -158,6 +158,24 @@ def _cross_scores(query_text: str, provisions: list[Provision], combined: list[f
     return scores
 
 
+def _phrase_bonus(ind, provisions: list[Provision]) -> list[float]:
+    """Add 0.15 to a provision's score if any multi-word query term appears literally in
+    its text. This rewards exact phrase matches (e.g. 'police officer', 'retain for at
+    least') so a provision that contains the indicator's own wording beats one that merely
+    sounds semantically similar."""
+    bonuses = [0.0] * len(provisions)
+    phrases = [qt for qt in (ind.query_terms or []) if len(qt.split()) >= 2]
+    if not phrases:
+        return bonuses
+    for i, p in enumerate(provisions):
+        text_lower = p.verbatim_snippet.lower()
+        for phrase in phrases:
+            if phrase.lower() in text_lower:
+                bonuses[i] = 0.15
+                break
+    return bonuses
+
+
 def retrieve(indicator_id: str, provisions: list[Provision], top_k: int = 5) -> list[Retrieved]:
     ind = get_indicator(indicator_id)
     if ind is None or not provisions:
@@ -175,10 +193,18 @@ def retrieve(indicator_id: str, provisions: list[Provision], top_k: int = 5) -> 
     combined = [alpha * bm_norm[i] + (1 - alpha) * (dense[i] if dense else 0.0)
                 for i in range(len(provisions))]
 
-    # cross-encoder precision rerank over a shortlist: bi-encoder/BM25 get RECALL, the
-    # cross-encoder reads (indicator, provision) jointly for PRECISION, pushing a merely
-    # keyword-overlapping provision below one that truly answers the indicator.
-    cross = _cross_scores(query_text, provisions, combined, top_k)
+    # Phrase-presence bonus: reward provisions that literally contain a multi-word
+    # query_term. This prevents a purely semantic overlap (e.g. "reporting within N hours"
+    # ≈ "retain for N years") from outranking a provision with the indicator's actual words.
+    bonus = _phrase_bonus(ind, provisions)
+    combined = [combined[i] + bonus[i] for i in range(len(provisions))]
+
+    # Cross-encoder precision rerank over a shortlist: bi-encoder/BM25 get RECALL, the
+    # cross-encoder reads (indicator, provision) jointly for PRECISION. Use legal_test
+    # (which contains "Distinguish from X" notes) as the cross-encoder query so it can
+    # discriminate between indicators with overlapping surface vocabulary.
+    ce_query = f"{ind.title}. {ind.legal_test} Keywords: {' '.join(ind.query_terms)}"
+    cross = _cross_scores(ce_query, provisions, combined, top_k)
     if cross is not None:
         combined = [0.5 * combined[i] + 0.5 * cross[i] for i in range(len(provisions))]
 
@@ -189,12 +215,14 @@ def retrieve(indicator_id: str, provisions: list[Provision], top_k: int = 5) -> 
         if norm <= 0:
             continue
         p = provisions[i]
+        phrase_hit = bonus[i] > 0
         log = [
             f"indicator={indicator_id} query='{' '.join(query[:8])}...'",
-            (f"hybrid={norm} (bm25={round(bm_norm[i],3)} dense={round(dense[i],3)} alpha={alpha})"
+            (f"hybrid={norm} (bm25={round(bm_norm[i],3)} dense={round(dense[i],3)} "
+             f"alpha={alpha} phrase_bonus={bonus[i]:.2f})"
              if dense is not None else
-             f"bm25={norm} (dense off) provision={p.provision_id}"),
-            f"provision={p.provision_id}",
+             f"bm25={norm} (dense off) phrase_bonus={bonus[i]:.2f} provision={p.provision_id}"),
+            f"provision={p.provision_id}" + (" [phrase_match]" if phrase_hit else ""),
         ]
         out.append(Retrieved(provision=p, score=norm, raw_context=p.verbatim_snippet, log=log))
     return out
