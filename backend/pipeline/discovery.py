@@ -51,6 +51,27 @@ _DEAD_URL_RE = re.compile(r'historical|repealed|superseded|revoked|expired|mansu
 # "Overseas Telecommunications Act (No. 2) 1968" groups with "... Act 1946" etc.
 _LAWNO_RE = re.compile(r'\(?\bno\.?\s*\d+\b\)?|\bnumber\s+\d+\b', re.I)
 
+# Search-result title noise: engines prefix "[PDF]"/"PDF"/"DOC" and append the portal
+# name/domain ("… - Singapore Statutes Online", "… | lom.agc.gov.my"). Stripping this so
+# that "Personal Data Protection Act 2012 - Singapore Statutes Online" and "Personal Data
+# Protection Act 2012" collapse to ONE law instead of being fetched + extracted twice.
+_TITLE_PREFIX_RE = re.compile(r'^\s*(\[?\b(?:pdf|doc|docx|html|htm)\b\]?[\s\-–—:|]*)+', re.I)
+_PORTAL_SUFFIX_RE = re.compile(
+    r'[\s\-–—|]+(?:singapore statutes online|laws of malaysia|'
+    r'malaysia federal legislation|federal register of legislation|'
+    r"attorney[- ]general'?s? chambers|"
+    r'(?:[\w-]+\.)+(?:gov|com|org|net|go|nic|int|edu)(?:\.[a-z]{2})?)\s*$', re.I)
+# Titles a search engine returns for a portal nav/landing page — never a real law name.
+# When the title IS one of these, dedup must key off the URL (not the title) so several
+# distinct laws sharing the same generic portal <title> are not collapsed into one.
+_GENERIC_TITLE_RE = re.compile(
+    r'^\s*(?:malaysia federal legislation|singapore statutes online|laws of malaysia|'
+    r'federal register of legislation|attorney[- ]general|home|search(?: results?)?|'
+    r'untitled|document|pdf'
+    # law-type + bare number/code only ("Act A1727", "Akta 709") — no descriptive name
+    r'|(?:act|akta|ordinance|enactment|p\.?u\.?)\s*\(?[a-z]?\d+[a-z]?\)?'
+    r')\s*$', re.I)
+
 # Malaysia (MY): detect Malay-language documents so we can prefer the English versions.
 # lom.agc.gov.my publishes acts in both Bahasa Malaysia and English:
 #   Malay PDF:   akta_709.pdf   (no language suffix, or /akta/ in path)
@@ -65,20 +86,74 @@ _MY_MALAY_TITLE_RE = re.compile(
 _MY_MALAY_PDF_RE = re.compile(r'akta', re.I)   # used together with endswith check below
 
 
+def _clean_title(title: str) -> str:
+    """Strip search-engine format prefixes and trailing portal-name/domain noise."""
+    t = _TITLE_PREFIX_RE.sub('', title or '')
+    # A title may carry several portal suffixes ("… - AGC - lom.agc.gov.my"); peel repeatedly.
+    prev = None
+    while prev != t:
+        prev = t
+        t = _PORTAL_SUFFIX_RE.sub('', t).strip()
+    return t.strip()
+
+
+def _is_generic_title(title: str) -> bool:
+    """True when the title is not a usable law name — a portal nav/landing label, a bare
+    law number, or a filename/UUID blob (e.g. 'PDF bc248903-f874-…'). Such titles trigger
+    content-based name recovery at extraction time."""
+    cleaned = _clean_title(title)
+    if not cleaned.strip():
+        return True
+    if _GENERIC_TITLE_RE.match(cleaned):
+        return True
+    # no real word (≥4 consecutive letters) → a UUID / filename / number blob, not a name
+    if not re.search(r"[A-Za-z]{4,}", cleaned):
+        return True
+    return False
+
+
+def _latest_year(*texts: str) -> int:
+    """Highest 19xx/20xx year found across the given strings (0 if none)."""
+    years = [int(m.group(0)) for s in texts if s for m in _YEAR_RE.finditer(s)]
+    return max(years) if years else 0
+
+
 def _law_key(title: str) -> str:
     """Canonical key for grouping law variants.
 
-    Strips: years (1988, 2012…), 'Amendment/Amending', 'Consolidated/Compilation',
-    and disambiguation suffixes like '(No. 2)' so that e.g. all variants of
-    'Overseas Telecommunications Act' collapse to one group regardless of year or
-    session number.
+    Strips: portal/format noise, years (1988, 2012…), 'Amendment/Amending',
+    'Consolidated/Compilation', and disambiguation suffixes like '(No. 2)' so that e.g.
+    all variants of 'Overseas Telecommunications Act' — and the same Act surfaced under a
+    "… - Singapore Statutes Online" search title — collapse to one group.
     """
-    t = _YEAR_RE.sub('', title)
+    t = _clean_title(title)
+    t = _YEAR_RE.sub('', t)
     t = _AMEND_RE.sub('', t)
     t = _CONSOL_RE.sub('', t)
     t = _LAWNO_RE.sub('', t)
     t = re.sub(r'[^\w\s]', ' ', t)
     return re.sub(r'\s+', ' ', t).strip().lower()
+
+
+def _url_law_key(url: str) -> str:
+    """Fallback grouping key from a URL's filename/last path segment, used when the title
+    is generic (e.g. MY's portal-wide "Malaysia Federal Legislation" <title>). Keeps the
+    document distinct (akta_709 ≠ akta_855) while collapsing pure query-string variants of
+    the same path. Years/'reprint' are stripped so 'akta709reprint2023' ≈ 'akta709'."""
+    from urllib.parse import urlsplit
+    path = urlsplit(url).path.rsplit('/', 1)[-1] or urlsplit(url).path
+    stem = re.sub(r'\.(pdf|html?|docx?|txt)$', '', path, flags=re.I)
+    stem = re.sub(r'[_\-.]+', ' ', stem)            # underscores would block \b boundaries
+    stem = _CONSOL_RE.sub('', _YEAR_RE.sub('', stem))
+    return re.sub(r'[^a-z0-9]', '', stem.lower()) or url.lower()
+
+
+def _dedup_key(d: DiscoveredDoc) -> str:
+    """Grouping key for a document: cleaned-title law key, or a URL key when the title is
+    a generic portal label (so distinct laws with identical portal <title>s don't merge)."""
+    if _is_generic_title(d.title):
+        return "url:" + _url_law_key(d.source_url)
+    return _law_key(d.title) or ("url:" + _url_law_key(d.source_url))
 
 
 def _is_superseded(url: str, title: str) -> bool:
@@ -87,18 +162,24 @@ def _is_superseded(url: str, title: str) -> bool:
 
 
 def _pick_best(docs: list[DiscoveredDoc]) -> DiscoveredDoc:
-    """From a group of same-normalized-title docs pick the most current/consolidated one."""
+    """From a group of same-law docs pick the most current IN-FORCE version.
+
+    Ranking (higher wins): in-force > principal(non-amendment) > consolidated > NEWEST
+    year > later amendment_date. The year term is the fix for "kept the 2 oldest" — when
+    amendment_date is absent (web-search docs), the year parsed from the title breaks the
+    tie toward the latest revision instead of falling back to first-encountered (oldest).
+    """
     if len(docs) == 1:
         return docs[0]
 
     def _key(d: DiscoveredDoc) -> tuple:
-        # Higher tuple = better
         alive = 0 if _is_superseded(d.source_url, d.title) else 1
         consolidated = 1 if _CONSOL_RE.search(d.title) else 0
         # Base acts (e.g. "Privacy Act") outrank amendment-only acts
         is_amendment = 0 if _AMEND_RE.search(d.title) else 1
+        year = _latest_year(d.amendment_date or "", d.title)
         date = d.amendment_date or "0000-00-00"
-        return (alive, consolidated, is_amendment, date)
+        return (alive, is_amendment, consolidated, year, date)
 
     return max(docs, key=_key)
 
@@ -122,8 +203,7 @@ def _dedup_by_law_title(docs: list[DiscoveredDoc]) -> list[DiscoveredDoc]:
 
     groups: dict[str, list[DiscoveredDoc]] = {}
     for d in working:
-        key = _law_key(d.title) or d.doc_id  # fallback to doc_id if title is empty
-        groups.setdefault(key, []).append(d)
+        groups.setdefault(_dedup_key(d), []).append(d)
     return [_pick_best(g) for g in groups.values()]
 
 
@@ -268,13 +348,15 @@ def _search_au_api(client, src: dict, query: str, economy: Economy, indicators, 
     qtok = {w for w in _re.findall(r"[a-z0-9]+", query.lower()) if len(w) > 2}
     out: list[DiscoveredDoc] = []
     seen: set[str] = set()
-    # Prefer InForce filter so superseded/historical compilations are excluded from the
-    # result set. Fall back to no status filter if the field is unsupported by this API
-    # version (the title-level _dedup_by_law_title handles remaining duplicates).
+    # `isInForce eq true` is the correct OData field on this API (the older `inForce`
+    # returns HTTP 400 and `isPrincipal`/`status` are read-only, not filterable). The
+    # filter alone excludes repealed/superseded compilations from the result set, so the
+    # 1946–1971 Overseas Telecommunications Acts never reach extraction. Fall back to no
+    # status filter only if the field is rejected, so a future API change can't blank the run.
     _base = f"contains(name,'{query}') and collection eq 'Act'"
     variants = [
-        {"$filter": f"{_base} and inForce eq true", "$top": "40"},
-        {"$filter": _base, "$top": "40"},  # fallback: title dedup handles version collapse
+        {"$filter": f"{_base} and isInForce eq true", "$top": "40"},
+        {"$filter": _base, "$top": "40"},  # fallback: item-level isInForce check still filters
     ]
     items: list = []
     for params in variants:
@@ -284,7 +366,7 @@ def _search_au_api(client, src: dict, query: str, economy: Economy, indicators, 
             items = r.json().get("value", [])
             break  # success — don't try fallback
         except Exception as e:  # noqa: BLE001
-            label = "retrying without inForce" if "inForce" in str(params) else "skipping"
+            label = "retrying without isInForce" if "isInForce" in params.get("$filter", "") else "skipping"
             log(f"[discover] AU API query='{query}' filter='{params.get('$filter','')}' "
                 f"failed ({type(e).__name__}) — {label}")
     for it in items:
@@ -293,11 +375,12 @@ def _search_au_api(client, src: dict, query: str, economy: Economy, indicators, 
             continue
         seen.add(tid)
 
-        # Defence-in-depth: even when the $filter=inForce eq true worked at the API
-        # level, some portals return 200 OK but ignore the filter.  Read the field from
-        # the item itself and skip anything explicitly marked as not-in-force.
-        # Default to True (include) when the field is absent (API didn't return it).
-        if it.get("inForce") is False:
+        # Defence-in-depth: even when `$filter=isInForce eq true` worked at the API level,
+        # the no-filter fallback returns historical acts — drop anything the item itself
+        # marks as not-in-force or repealed. Default to include when the field is absent.
+        if it.get("isInForce") is False:
+            continue
+        if (it.get("status") or "").lower() in ("repealed", "ceased", "revoked", "expired"):
             continue
 
         # rank by how much of the search term appears in the TITLE — keeps flagship
@@ -307,9 +390,12 @@ def _search_au_api(client, src: dict, query: str, economy: Economy, indicators, 
         score = round(len(qtok & ntok) / len(qtok), 3) if qtok else 0.0
         url = tmpl.replace("{id}", tid)
 
-        # Use lastModified as amendment_date so _pick_best can rank by recency.
-        last_mod = it.get("lastModified") or it.get("registerDate") or ""
-        amendment_date = last_mod[:10] if last_mod else None  # ISO date only
+        # Recency for _pick_best: prefer an explicit modified/register date, else fall back
+        # to makingDate / the numeric `year` field (always present on this API).
+        last_mod = (it.get("lastModified") or it.get("asMadeRegisteredAt")
+                    or it.get("makingDate") or "")
+        amendment_date = last_mod[:10] if last_mod else (
+            f"{it.get('year')}-01-01" if it.get("year") else None)
 
         out.append(DiscoveredDoc(
             doc_id=_doc_id(economy.value, url), economy=economy, title=name[:200],

@@ -30,8 +30,51 @@ MAX_SNIPPET = 20000  # the template asks for the FULL, exact provision text — 
                      # whole section; only a pathological multi-page section is capped here.
 
 
-def _law_name(doc: DiscoveredDoc) -> str:
-    return doc.title.strip()
+# A plausible law-title line: a law-type keyword, short, not a sentence. Used to recover
+# the real name when the discovery title is a generic portal label (MY's portal-wide
+# "Malaysia Federal Legislation" <title>, or a "[PDF] … - lom.agc.gov.my" search title).
+_LAW_TYPE_RE = re.compile(
+    r"\b(act|akta|ordinance|enactment|regulations?|rules|by[- ]?laws?|code|decree|order)\b",
+    re.I)
+_YEAR_RE = re.compile(r"\b(?:19|20)\d{2}\b")
+
+
+def _recover_law_name(text: str) -> str | None:
+    """Best-effort law name from a document's header region (first ~60 lines).
+
+    Picks the highest-scoring title-like line: contains a law-type word, is short, and
+    ideally carries a year. Returns None when nothing convincing is found so the caller
+    can fall back to the (cleaned) discovery title rather than inventing a name."""
+    best, best_score = None, 0.0
+    for raw in text[:6000].splitlines()[:60]:
+        line = raw.strip()
+        if not (6 <= len(line) <= 90) or not _LAW_TYPE_RE.search(line):
+            continue
+        letters = [c for c in line if c.isalpha()]
+        if not letters:
+            continue
+        upper_ratio = sum(c.isupper() for c in letters) / len(letters)
+        # title pages are TITLE CASE or UPPER CASE; skip running prose (mostly lowercase)
+        if upper_ratio < 0.3:
+            continue
+        score = upper_ratio + (1.0 if _YEAR_RE.search(line) else 0.0)
+        score -= 0.01 * len(line)            # prefer the tighter heading
+        if score > best_score:
+            best, best_score = line, score
+    return best
+
+
+def _law_name(doc: DiscoveredDoc, raw_text: str = "") -> str:
+    """Law name for a provision. Prefer the discovery title, but when it is a generic
+    portal label (no real law name) recover the name from the document's own header."""
+    from .discovery import _clean_title, _is_generic_title
+    title = doc.title.strip()
+    if _is_generic_title(title):
+        recovered = _recover_law_name(raw_text)
+        if recovered:
+            return recovered
+    cleaned = _clean_title(title)
+    return cleaned or title
 
 
 def _location_ref(ocr: OCRMetrics, start: int, total_len: int, label: str) -> str:
@@ -48,6 +91,7 @@ def _location_ref(ocr: OCRMetrics, start: int, total_len: int, label: str) -> st
 def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> list[Provision]:
     text = raw_text or ""
     total = len(text)
+    law_name = _law_name(doc, text)
     matches = list(SECTION_RE.finditer(text))
     provisions: list[Provision] = []
 
@@ -56,7 +100,7 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
         snippet = text.strip()[:MAX_SNIPPET]
         if snippet:
             loc = _location_ref(ocr, 0, total, "(document)")
-            provisions.append(_mk(doc, "(document)", snippet, (0, len(snippet)), loc, ocr, 0))
+            provisions.append(_mk(doc, "(document)", snippet, (0, len(snippet)), loc, ocr, 0, law_name))
         return provisions
 
     for i, m in enumerate(matches):
@@ -74,7 +118,7 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
         if para:
             norm = f"{norm}{para.group(1)}"
         loc = _location_ref(ocr, start, total, norm)
-        provisions.append(_mk(doc, norm, snippet, (start, start + len(snippet)), loc, ocr, i))
+        provisions.append(_mk(doc, norm, snippet, (start, start + len(snippet)), loc, ocr, i, law_name))
     return provisions
 
 
@@ -83,12 +127,13 @@ def _normalise_label(label: str) -> str:
     return label[:1].upper() + label[1:]
 
 
-def _mk(doc: DiscoveredDoc, label: str, snippet: str, span, location_ref: str, ocr: OCRMetrics, idx: int) -> Provision:
+def _mk(doc: DiscoveredDoc, label: str, snippet: str, span, location_ref: str, ocr: OCRMetrics,
+        idx: int, law_name: str) -> Provision:
     return Provision(
         provision_id=f"{doc.doc_id}#p{idx}",
         doc_id=doc.doc_id,
         economy=doc.economy,
-        law_name=_law_name(doc),
+        law_name=law_name,
         law_number=doc.law_number,
         article_section=label,
         verbatim_snippet=snippet,

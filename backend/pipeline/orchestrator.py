@@ -84,15 +84,31 @@ def run_pipeline(
         from .fetch import fetch_to_cache
         from .discovery import _resolve_pdf_url
         fetched = 0
+        kept, by_content = [], {}   # sha256 -> doc already kept
         for d in docs:
             if d.local_path:
+                kept.append(d)
                 continue
             fetch_url, _ = _resolve_pdf_url(d.economy, d.source_url)   # landing -> PDF body
             fr = fetch_to_cache(fetch_url, log=log)
-            if fr:
-                d.local_path, d.fmt = fr.local_path, fr.fmt
-                fetched += 1
-        log(f"[fetch] retrieved {fetched}/{len(docs)} bodies into cache")
+            if not fr:
+                continue
+            # Content-level dedup: title normalisation can miss a law surfaced under two
+            # very different search titles; here the fetched bytes are identical, so the
+            # SHA-256 is the ground truth. Drop the duplicate so the same Act isn't
+            # extracted and graded N times (the cause of the 1000+ provision blow-ups).
+            prior = by_content.get(fr.sha256)
+            if prior is not None:
+                log(f"[fetch] skip duplicate body (same SHA as '{prior.title[:48]}'): {d.title[:48]}")
+                continue
+            by_content[fr.sha256] = d
+            d.local_path, d.fmt = fr.local_path, fr.fmt
+            fetched += 1
+            kept.append(d)
+        dropped = len(docs) - len(kept)
+        docs = kept
+        log(f"[fetch] retrieved {fetched} bodies into cache"
+            + (f" ({dropped} duplicate/failed dropped)" if dropped else ""))
 
     for d in docs:
         db.save_doc(run_id, d)
