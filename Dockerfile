@@ -56,7 +56,7 @@ print('✓ Embedding + cross-encoder models baked into image')"
 # ── PaddleOCR (optional) ─────────────────────────────────────────────────────
 # PaddlePaddle does NOT publish Linux aarch64 wheels on PyPI, so this step is
 # intentionally non-fatal: it succeeds on x86_64 CI runners and silently skips
-# on the arm64 Xavier/TX2 target.  rapidocr_onnxruntime (always installed above)
+# on the arm64 Jetson TX2 target.  rapidocr_onnxruntime (always installed above)
 # is the active OCR engine when PaddleOCR is absent.
 RUN pip install "paddlepaddle>=3.0" "paddleocr>=3.0" \
     && echo "✓ PaddleOCR installed" \

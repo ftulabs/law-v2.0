@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Được gọi bởi GitHub Actions runner trên Xavier.
+# Được gọi bởi GitHub Actions runner trên TX2.
 # Build image native arm64 (nhanh hơn QEMU rất nhiều) rồi restart container.
 set -euo pipefail
 

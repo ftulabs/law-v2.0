@@ -22,7 +22,10 @@ pdfplumber>=0.11           # fallback text-layer extractor for non-markitdown pr
 
 # --- Retrieval (lightweight; dense optional) ---
 rank-bm25>=0.2.2
-numpy>=1.26
+# Pinned <2: the Jetson image installs CPU torch==2.2.2 (Dockerfile), whose C-extension is
+# built against the NumPy 1.x ABI. NumPy 2.x breaks `import torch` at runtime ("PyTorch was
+# not found" → NameError in transformers), which fails the model-bake step in the arm64 build.
+numpy>=1.26,<2
 # Dense/semantic stage (Zone 1). 'dense_retrieval=auto' uses it IF importable, else
 # falls back to BM25. Pulls torch (~2-3GB); on Jetson use the NVIDIA L4T PyTorch wheel.
 # Multilingual model handles Malay/Thai/etc.

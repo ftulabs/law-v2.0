@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Install cloudflared on Jetson Xavier/Nano (arm64) and run the VeriTrade tunnel as a
+# Install cloudflared on the Jetson TX2 (arm64) and run the VeriTrade tunnel as a
 # systemd service.  The tunnel token comes from the Zero Trust dashboard:
 #   dash.cloudflare.com → Zero Trust → Networks → Tunnels → <tunnel> → Configure → token
 #
-# Usage (run AS ROOT on the Xavier):
+# Usage (run AS ROOT on the TX2):
 #   TUNNEL_TOKEN=cfut_xxx bash setup_cf_tunnel.sh
 #
 # After this script the tunnel survives reboots — no cloudflared login needed.
@@ -60,4 +60,4 @@ echo "  systemctl status cloudflared-veritrade"
 echo "  journalctl -u cloudflared-veritrade -f"
 echo ""
 echo "If VeriTrade isn't running yet, start it first:"
-echo "  bash ~/veritrade/run_on_jetson.sh   (or run_on_xavier.sh)"
+echo "  bash ~/veritrade/run_on_jetson.sh   (or run_on_tx2.sh)"

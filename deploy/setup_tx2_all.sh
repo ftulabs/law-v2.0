@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # =============================================================================
-# VeriTrade — one-shot setup on Jetson Xavier
+# VeriTrade — one-shot setup on the Jetson TX2
 # Cài: Docker (nếu chưa có), cloudflared tunnel, GitHub Actions self-hosted runner
 #
-# Chạy trên Xavier (với sudo / root):
-#   sudo bash setup_xavier_all.sh
+# Chạy trên TX2 (với sudo / root):
+#   sudo CF_TUNNEL_TOKEN=cfut_xxx RUNNER_TOKEN=AXXXXX bash setup_tx2_all.sh
 #
-# Sau đó Xavier sẽ:
+# Sau đó TX2 sẽ:
 #   - tự expose app ra https://veritrade.ftu.fyi  (qua CF tunnel)
 #   - tự pull + rebuild + restart mỗi khi có push lên GitHub main
 # =============================================================================
@@ -19,8 +19,12 @@ APP_USER="${SUDO_USER:-$(logname 2>/dev/null || echo ubuntu)}"
 APP_HOME="/home/${APP_USER}"
 VERITRADE_DIR="${APP_HOME}/veritrade"
 
-# Cloudflare Tunnel token (từ Zero Trust dashboard → Tunnels → token)
-CF_TUNNEL_TOKEN="${CF_TUNNEL_TOKEN:-cfut_9z7IERyoY2lLR67DFpGWR9VcZsptjdHwsxoLcwNYe224b06c}"
+# Cloudflare Tunnel token (từ Zero Trust dashboard → Tunnels → token).
+# KHÔNG hardcode token vào repo — truyền qua env: CF_TUNNEL_TOKEN=cfut_xxx
+: "${CF_TUNNEL_TOKEN:?
+  Thiếu CF_TUNNEL_TOKEN. Lấy tại Zero Trust → Networks → Tunnels → <tunnel> → token.
+  Rồi chạy lại:  sudo CF_TUNNEL_TOKEN=cfut_xxx RUNNER_TOKEN=AXXXXX bash setup_tx2_all.sh
+}"
 
 # GitHub Actions runner registration token — lấy tại:
 # https://github.com/ftulabs/law-v2.0/settings/actions/runners/new
@@ -28,7 +32,7 @@ CF_TUNNEL_TOKEN="${CF_TUNNEL_TOKEN:-cfut_9z7IERyoY2lLR67DFpGWR9VcZsptjdHwsxoLcwN
 : "${RUNNER_TOKEN:?
   Thiếu RUNNER_TOKEN. Lấy tại:
   https://github.com/${GITHUB_REPO}/settings/actions/runners/new
-  Rồi chạy lại:  sudo RUNNER_TOKEN=AXXXXX bash setup_xavier_all.sh
+  Rồi chạy lại:  sudo CF_TUNNEL_TOKEN=cfut_xxx RUNNER_TOKEN=AXXXXX bash setup_tx2_all.sh
 }"
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -127,8 +131,8 @@ else
   sudo -u "${APP_USER}" "${RUNNER_DIR}/config.sh" \
     --url "https://github.com/${GITHUB_REPO}" \
     --token "${RUNNER_TOKEN}" \
-    --name "xavier-$(hostname -s)" \
-    --labels "self-hosted,arm64,xavier" \
+    --name "tx2-$(hostname -s)" \
+    --labels "self-hosted,arm64,tx2" \
     --work "${RUNNER_DIR}/_work" \
     --unattended \
     --replace
@@ -138,7 +142,7 @@ fi
 "${RUNNER_DIR}/svc.sh" install "${APP_USER}" 2>/dev/null || true
 "${RUNNER_DIR}/svc.sh" start 2>/dev/null || true
 
-RUNNER_SVC="actions.runner.${GITHUB_REPO//\//.}.xavier-$(hostname -s)"
+RUNNER_SVC="actions.runner.${GITHUB_REPO//\//.}.tx2-$(hostname -s)"
 echo "   Runner service: $(systemctl is-active "${RUNNER_SVC}" 2>/dev/null || echo 'started')"
 
 # ── Done ─────────────────────────────────────────────────────────────────────

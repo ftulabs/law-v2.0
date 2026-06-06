@@ -1,4 +1,4 @@
-name: Deploy to Xavier
+name: Deploy to TX2
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 
 # Chỉ chạy 1 deploy tại một thời điểm; deploy mới cancel deploy đang chạy
 concurrency:
-  group: deploy-xavier
+  group: deploy-tx2
   cancel-in-progress: true
 
 jobs:
@@ -16,9 +16,12 @@ jobs:
     uses: ./.github/workflows/ci.yml
 
   deploy:
-    name: Deploy to Xavier (arm64)
+    name: Deploy to TX2 (arm64)
     needs: ci
-    runs-on: [self-hosted, arm64, xavier]
+    # Repo-scoped self-hosted runner "tx2-veritrade" is the only self-hosted arm64
+    # runner on ftulabs/law-v2.0, so [self-hosted, arm64] targets it unambiguously
+    # without needing a device-specific label.
+    runs-on: [self-hosted, arm64]
     timeout-minutes: 30
 
     steps:

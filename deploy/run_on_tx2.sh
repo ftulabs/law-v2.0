@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Run the VeriTrade container on Jetson Xavier NX / AGX Xavier.
-# Xavier has 8–16 GB RAM vs Nano's 4 GB, so memory limits are relaxed.
+# Run the VeriTrade container on the Jetson TX2.
+# TX2 has 8 GB RAM vs Nano's 4 GB, so memory limits are relaxed.
 #
 # Prereqs: same as run_on_jetson.sh — image loaded + .env present.
 #   ~/veritrade/.env  (OPENROUTER_API_KEY, LLM_PROVIDER, OPENROUTER_MODEL, RETRIEVER)
