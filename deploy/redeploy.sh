@@ -9,6 +9,8 @@ IMG="veritrade:arm64"
 BASE="${VERITRADE_BASE:-/mnt/sd/veritrade}"
 [ -d "${BASE}" ] || BASE="${HOME}/veritrade"
 ENV_FILE="${BASE}/.env"
+# Ensure Docker client (runner user) can read .env — sudo cp sets root ownership
+chown "$(id -u):$(id -g)" "${ENV_FILE}" 2>/dev/null || true
 
 echo "▶ Build image từ ${REPO_DIR}"
 docker build -t "${IMG}" "${REPO_DIR}"
