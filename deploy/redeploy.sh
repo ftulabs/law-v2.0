@@ -5,7 +5,9 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 IMG="veritrade:arm64"
-BASE="${HOME}/veritrade"
+# SD card path on TX2; falls back to ~/veritrade (symlink also works)
+BASE="${VERITRADE_BASE:-/mnt/sd/veritrade}"
+[ -d "${BASE}" ] || BASE="${HOME}/veritrade"
 ENV_FILE="${BASE}/.env"
 
 echo "▶ Build image từ ${REPO_DIR}"
@@ -16,7 +18,7 @@ docker rm -f veritrade 2>/dev/null || true
 docker run -d --name veritrade --restart unless-stopped \
   -p 8501:8501 \
   --env-file "${ENV_FILE}" \
-  --memory=8g --memory-swap=12g \
+  --memory=6g --memory-swap=10g \
   -v "${BASE}/outputs:/app/outputs" \
   -v "${BASE}/cache:/app/data/cache" \
   "${IMG}"
