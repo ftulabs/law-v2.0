@@ -29,11 +29,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Deps first (own layer → rebuilds of app code don't reinstall torch). torch resolves to the
-# PyPI linux_aarch64 CPU wheel; MAX_JOBS=2 caps any source build so the QEMU build stays
-# within RAM. Everything else (pydantic-core, numpy, onnxruntime, lxml) has arm64 wheels.
+# Deps first (own layer → rebuilds of app code don't reinstall torch).
+# CPU-ONLY torch, pinned: torch 2.2.2's aarch64 wheel gates the nvidia-cu* CUDA deps to
+# x86_64 only, so arm64 gets a clean ~80MB CPU install. (torch >=2.7 added arm64-CUDA wheels
+# that drag in multi-GB nvidia-cudnn/cublas/nccl — useless on the Nano's JetPack-4.6 CUDA and
+# far too big for its disk.) The Nano never runs the LLM locally (that's remote OpenRouter),
+# so CPU torch for the embedding model is all it needs. MAX_JOBS=2 caps any source build.
 COPY requirements.txt ./
 RUN python -m pip install --upgrade pip \
+ && pip install torch==2.2.2 \
  && pip install -r requirements.txt
 
 COPY . .
