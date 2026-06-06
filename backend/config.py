@@ -65,9 +65,14 @@ class Settings(BaseSettings):
     crawl_accept_language: str = "en,ms;q=0.8"
     crawl_delay_seconds: float = 2.0           # polite gap between requests to the SAME host
     crawl_timeout_seconds: float = 30.0
-    # Scrapling escalation (Zone 1): when httpx is bot-blocked, retry with Scrapling's
-    # impersonating Fetcher. crawl_browser=true also allows the stealth (Camoufox) browser
-    # for JS-gated portals — needs `scrapling install` to download the browser first.
+    # Zone-1 fetch engine: scrapling (default) | httpx | auto.
+    #   scrapling = Scrapling primary (real-browser TLS impersonation — the more reliable
+    #               crawler against bot-protected portals), httpx fallback
+    #   httpx     = httpx primary, Scrapling escalation only when httpx is blocked
+    #   auto      = Scrapling if installed, else httpx
+    crawl_fetcher: str = "scrapling"
+    # crawl_browser=true also allows Scrapling's stealth (Camoufox) browser for JS-gated
+    # portals — needs `scrapling install` to download the browser first.
     crawl_browser: bool = False
     cache_dir: str = "data/cache"              # downloaded law bodies live here (content-hashed)
     fetch_max_bytes: int = 60_000_000          # 60 MB hard cap per document

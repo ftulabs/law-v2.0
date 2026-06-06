@@ -37,9 +37,9 @@ lightrag-hku>=1.4
 nest_asyncio>=1.6          # lets LightRAG's async loop run inside Streamlit
 
 # --- Live crawling (Zone 1) ---
-# Scrapling: bot-resistant fetching. Its curl_cffi Fetcher impersonates a real browser's
-# TLS fingerprint to beat WAF/403 blocks that defeat plain httpx — used as the automatic
-# escalation when httpx is blocked. For JS-gated portals set CRAWL_BROWSER=true and run
+# Scrapling: bot-resistant fetching — the DEFAULT Zone-1 fetcher (CRAWL_FETCHER=scrapling).
+# Its curl_cffi engine impersonates a real browser's TLS fingerprint to beat WAF/403 blocks
+# that defeat plain httpx. For JS-gated portals set CRAWL_BROWSER=true and run
 # `scrapling install` to download the stealth (Camoufox) browser.
 scrapling[fetchers]>=0.4
 # Playwright — alternative headless browser path (JS/deep-pagination portals).

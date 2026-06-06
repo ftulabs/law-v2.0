@@ -104,7 +104,17 @@ def _scrapling_ddg(client, q, n):
     return _parse(res.body.decode("utf-8", "ignore"), "a.result__a", n)
 
 
-_ENGINES = [_serper, _ddg_html, _ddg_lite, _mojeek, _scrapling_ddg]
+# Scrapling is the PRIMARY scraper (its real-browser fingerprint is the reliable path the
+# user trusts); Serper stays first only when an API key makes it a clean JSON call. The
+# plain-httpx engines drop to fallback. Order is reversed to httpx-first when
+# settings.crawl_fetcher == "httpx".
+_ENGINES_SCRAPLING_FIRST = [_serper, _scrapling_ddg, _ddg_html, _ddg_lite, _mojeek]
+_ENGINES_HTTPX_FIRST = [_serper, _ddg_html, _ddg_lite, _mojeek, _scrapling_ddg]
+
+
+def _engines() -> list:
+    return (_ENGINES_HTTPX_FIRST if (settings.crawl_fetcher or "scrapling").lower() == "httpx"
+            else _ENGINES_SCRAPLING_FIRST)
 
 
 def _cache_file():
@@ -138,7 +148,7 @@ def search(query: str, site: str | None = None, max_results: int = 10, log=print
                "Accept": "text/html,application/xhtml+xml,*/*;q=0.8"}
     results: list[tuple[str, str]] = []
     with httpx.Client(timeout=settings.crawl_timeout_seconds, headers=headers, follow_redirects=True) as client:
-        for engine in _ENGINES:
+        for engine in _engines():
             try:
                 results = engine(client, q, max_results)
             except Exception as e:  # noqa: BLE001

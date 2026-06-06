@@ -335,13 +335,14 @@ token costs.
 Honest by design:
 - **Live crawling** (`--live`) is functional: web-search discovery (`site:`-scoped,
   multi-engine with on-disk cache), the Australia OData JSON API, SG SSO PDF resolution,
-  and a polite caching fetcher with conditional GET. **Bot-resistant fetching via
-  [Scrapling](https://github.com/D4Vinci/Scrapling)**: when plain httpx is blocked (a WAF
-  fingerprints its TLS handshake → 403), the fetch auto-escalates to Scrapling's
-  curl_cffi browser-impersonation, and to its stealth Camoufox browser for JS challenges
-  when `CRAWL_BROWSER=true` (run `scrapling install` first). Scrapling is also the
-  last-resort web-search engine when the httpx scrapers are rate-limited. All escalation
-  degrades gracefully — if Scrapling is absent or fails, the httpx result stands.
+  and a content-addressed caching fetcher. **Fetching is done by
+  [Scrapling](https://github.com/D4Vinci/Scrapling) by default** (`CRAWL_FETCHER=scrapling`):
+  its curl_cffi engine impersonates a real browser's TLS fingerprint, so WAF/403 blocks
+  that defeat a plain HTTP client don't stop it — and with `CRAWL_BROWSER=true` it escalates
+  to a stealth Camoufox browser that executes JS and clears challenges (run `scrapling
+  install` first). Scrapling is also the primary web-search engine. httpx remains as an
+  automatic fallback (`CRAWL_FETCHER=httpx` flips the order); both share the same cache, so
+  switching engines never re-downloads a body.
 - **Image-only / scanned PDFs**: handled by real raster OCR (`--ocr rapidocr`, pip-only,
   no system binary) — measured **CER ≈ 1%** on the bundled scanned sample (see below).
   For noisy real-world gazette scans, `--ocr azure` (Document Intelligence) is strongest.

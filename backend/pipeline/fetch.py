@@ -90,23 +90,51 @@ def _fmt_for(content_type: str, url: str) -> tuple[DocFormat, str]:
     return DocFormat.TEXT, "txt"
 
 
+def _engine_order() -> list[str]:
+    """Which fetch engines to try, in order, from settings.crawl_fetcher:
+      scrapling (default) → Scrapling primary, httpx fallback
+      httpx               → httpx primary, Scrapling escalation
+      auto                → Scrapling if installed, else httpx
+    Default is Scrapling-first: its real-browser fingerprint is the more reliable crawler
+    against bot-protected government portals, so we don't wait for httpx to fail first."""
+    mode = (settings.crawl_fetcher or "scrapling").lower()
+    try:
+        from . import scrapling_fetch
+        has_scrapling = scrapling_fetch.available()
+    except Exception:
+        has_scrapling = False
+    if mode == "httpx" or not has_scrapling:
+        return ["httpx", "scrapling"] if has_scrapling else ["httpx"]
+    return ["scrapling", "httpx"]
+
+
 def fetch_to_cache(url: str, log: Callable[[str], None] = print) -> FetchResult | None:
     """Download `url` into the content-addressed cache. Returns None for non-HTTP URLs
-    (e.g. file://) or on failure — callers fall back to any existing local_path."""
+    (e.g. file://) or when every engine fails — callers fall back to any local_path.
+
+    Scrapling is the PRIMARY fetcher by default (settings.crawl_fetcher); httpx is the
+    fallback. Both store through the same content-addressed cache, so switching engines
+    never re-downloads an identical body."""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        return None
+    idx = _load_index()
+    for engine in _engine_order():
+        res = (_scrapling_fetch(url, idx, log) if engine == "scrapling"
+               else _httpx_fetch(url, idx, log))
+        if res:
+            return res
+    return None
+
+
+def _httpx_fetch(url: str, idx: dict, log) -> FetchResult | None:
+    """Fetch via httpx with conditional GET (ETag/Last-Modified → 304 reuse) and a byte cap."""
     try:
         import httpx
     except Exception:
         return None
-
-    parsed = urlparse(url)
-    if parsed.scheme not in ("http", "https"):
-        return None
-    host = parsed.netloc
-
-    idx = _load_index()
+    host = urlparse(url).netloc
     prior = idx.get(url)
-
-    # conditional GET if we've seen this URL before and still have the file
     cond: dict = {}
     if prior:
         cached_path = settings.cache_path / prior["file"]
@@ -144,11 +172,7 @@ def fetch_to_cache(url: str, log: Callable[[str], None] = print) -> FetchResult 
                 last_mod = resp.headers.get("last-modified")
     except Exception as e:  # noqa: BLE001 — network/HTTP errors must not crash a run
         log(f"[fetch] httpx failed ({type(e).__name__}): {url}")
-        # ESCALATE to Scrapling — bypasses TLS/WAF fingerprint blocks (and JS challenges
-        # when the stealth browser is enabled) that defeat plain httpx. Falls through to
-        # None if Scrapling is unavailable or also fails.
-        return _scrapling_escalate(url, idx, log)
-
+        return None
     return _store(url, bytes(buf), content_type, idx, etag, last_mod, log)
 
 
@@ -171,19 +195,22 @@ def _store(url, data: bytes, content_type: str, idx: dict, etag, last_mod, log,
     return FetchResult(str(path), fmt, sha, content_type, False)
 
 
-def _scrapling_escalate(url: str, idx: dict, log) -> FetchResult | None:
-    """Retry a bot-blocked/failed fetch through Scrapling, then store it like any body."""
+def _scrapling_fetch(url: str, idx: dict, log) -> FetchResult | None:
+    """Fetch through Scrapling (real-browser TLS impersonation; stealth browser when
+    CRAWL_BROWSER=true) and store the body like any other. Primary fetcher by default;
+    also the escalation when httpx is the primary and gets blocked."""
     try:
         from . import scrapling_fetch
     except Exception:
         return None
     if not scrapling_fetch.available():
         return None
+    _polite_wait(urlparse(url).netloc)
     res = scrapling_fetch.fetch(url, log=log)
     if not res:
         return None
     if len(res.body) > settings.fetch_max_bytes:
         log(f"[fetch] scrapling body over cap: {url}")
         return None
-    log(f"[fetch] recovered via {res.engine} (status {res.status}): {url}")
+    log(f"[fetch] fetched via {res.engine} (status {res.status}): {url}")
     return _store(url, res.body, res.content_type, idx, None, None, log, engine=res.engine)
