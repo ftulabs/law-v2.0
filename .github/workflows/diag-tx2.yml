@@ -1,0 +1,27 @@
+name: Diagnose TX2
+
+# Manual-only diagnostic: dumps container state on the self-hosted Jetson TX2 so we can
+# see why the running VeriTrade container is returning 502 after a successful deploy.
+on:
+  workflow_dispatch:
+
+jobs:
+  diag:
+    name: Inspect VeriTrade container on TX2
+    runs-on: [self-hosted, arm64]
+    timeout-minutes: 10
+    steps:
+      - name: Container + host state
+        run: |
+          echo "===== docker ps -a ====="
+          docker ps -a || true
+          echo "===== docker inspect (state) ====="
+          docker inspect veritrade --format '{{json .State}}' 2>/dev/null || echo "no container"
+          echo "===== docker logs --tail 120 ====="
+          docker logs --tail 120 veritrade 2>&1 || echo "no logs"
+          echo "===== free -h ====="
+          free -h || true
+          echo "===== dmesg (OOM / killed) ====="
+          (dmesg 2>/dev/null | grep -iE "oom|killed process|out of memory" | tail -20) || echo "dmesg not readable"
+          echo "===== health from host ====="
+          curl -sf -m 10 http://localhost:8501/_stcore/health && echo " <- origin OK" || echo "origin NOT healthy"
