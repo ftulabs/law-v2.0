@@ -30,6 +30,8 @@ from backend.review import workflow  # noqa: E402
 from backend.schemas import Economy, RunResult, SUBMISSION_COLUMNS  # noqa: E402
 from backend.storage import db  # noqa: E402
 
+db.init_db()  # ensure schema exists on fresh mounts (no-op if tables already present)
+
 # ── brand assets (drop files in frontend/assets/ — see ASSETS.md) ──────────
 ASSETS = Path(__file__).resolve().parent / "assets"
 
