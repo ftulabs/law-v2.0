@@ -42,6 +42,26 @@ RUN python -m pip install --upgrade pip \
 
 COPY . .
 
+# ── Bake HuggingFace models into the image ──────────────────────────────────
+# Pre-download the sentence-transformers embedding model and cross-encoder so that
+# LightRAG and the dense retrieval stage work immediately on cold start without
+# hitting the network.  Values must match backend/config.py defaults.
+# PIP_NO_CACHE_DIR=1 is set globally, but HF uses its own cache dir (HF_HOME).
+RUN python -c "\
+from sentence_transformers import SentenceTransformer, CrossEncoder; \
+SentenceTransformer('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2'); \
+CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2'); \
+print('✓ Embedding + cross-encoder models baked into image')"
+
+# ── PaddleOCR (optional) ─────────────────────────────────────────────────────
+# PaddlePaddle does NOT publish Linux aarch64 wheels on PyPI, so this step is
+# intentionally non-fatal: it succeeds on x86_64 CI runners and silently skips
+# on the arm64 Xavier/TX2 target.  rapidocr_onnxruntime (always installed above)
+# is the active OCR engine when PaddleOCR is absent.
+RUN pip install "paddlepaddle>=3.0" "paddleocr>=3.0" \
+    && echo "✓ PaddleOCR installed" \
+    || echo "⚠  PaddleOCR not available on this platform — rapidocr is active"
+
 # .env (OPENROUTER_API_KEY, RETRIEVER=lightrag, …) is MOUNTED at runtime, never baked in.
 EXPOSE 8501
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
