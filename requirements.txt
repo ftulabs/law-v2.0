@@ -30,6 +30,14 @@ numpy>=1.26,<2
 # falls back to BM25. Pulls torch (~2-3GB); on Jetson use the NVIDIA L4T PyTorch wheel.
 # Multilingual model handles Malay/Thai/etc.
 sentence-transformers>=2.7
+# Capped <5: transformers 5.x hard-requires torch>=2.4, but the Jetson image pins
+# torch==2.2.2 (Dockerfile). With torch 2.2.2, transformers 5.x disables PyTorch at import
+# ("PyTorch >= 2.4 is required but found 2.2.2") → `NameError: name 'nn' is not defined` in
+# transformers.integrations.accelerate, which crashes the sentence-transformers import and
+# fails the arm64 model-bake build step (CI on ubuntu installs newer torch so it stayed green
+# while Deploy-to-TX2 failed). 4.x works with torch 2.2.2 and satisfies sentence-transformers
+# (needs transformers>=4.41). Drop this cap only after bumping the Dockerfile torch to >=2.4.
+transformers>=4.41,<5
 # faiss-cpu>=1.8          # optional: alternative vector index
 
 # --- LightRAG graph-RAG (Zone-2 retriever at live-crawl scale; RETRIEVER=lightrag|auto) ---
