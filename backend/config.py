@@ -97,13 +97,16 @@ class Settings(BaseSettings):
     retrieve_fraction: float = 0.30            # shortlist = this fraction of the corpus, min retrieve_top_k
 
     # Zone-2 retriever: auto | hybrid | lightrag.
-    #   hybrid   = built-in BM25+dense+cross-encoder (fast, always available)
-    #   lightrag = HKUDS LightRAG graph-RAG (semantic KG retrieval), citations preserved
-    #   auto     = LightRAG when it's installed, an LLM key is set, AND the corpus is large
-    #              enough to benefit (live-crawl scale); else hybrid. Tiny sample runs stay
-    #              on hybrid so they don't pay the KG-build cost for no recall gain.
+    #   hybrid   = built-in BM25+dense+cross-encoder (fast, always available, no LLM)
+    #   lightrag = HKUDS LightRAG graph-RAG (semantic KG retrieval), citations preserved.
+    #              Forces LightRAG on every run regardless of corpus size — best with a funded
+    #              or local (Ollama/vLLM) LLM. Degrades to hybrid on any failure, never crashes.
+    #   auto     = LightRAG when it's installed, a real LLM key is set, AND the corpus is large
+    #              enough to benefit (>= lightrag_min_provisions, live-crawl scale); else hybrid.
+    #              Tiny sample runs stay on hybrid (grade-all already covers them) so they don't
+    #              pay the KG-build cost for no recall gain.
     retriever: str = "auto"
-    lightrag_min_provisions: int = 40          # auto-threshold: below this, use hybrid
+    lightrag_min_provisions: int = 40          # auto-threshold: below this, auto uses hybrid
     lightrag_workdir: str = "data/cache/lightrag"
 
     # web-search discovery — keyless scraping rate-limits; a Serper key (serper.dev,

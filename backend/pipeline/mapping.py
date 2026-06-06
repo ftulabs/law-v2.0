@@ -22,19 +22,27 @@ from .retrieval import Retrieved, retrieve
 
 def _select_retriever(indicators, provisions, top_k, llm, log):
     """Decide the Zone-2 retriever. Returns a precomputed {indicator_id: [Retrieved]}
-    dict when LightRAG should drive retrieval (live-crawl scale), else None → the caller
-    uses the per-indicator hybrid retriever. Honours settings.retriever (auto|hybrid|lightrag)."""
+    dict when LightRAG should drive retrieval, else None → the caller uses the per-indicator
+    hybrid retriever. Honours settings.retriever (auto|hybrid|lightrag).
+
+    auto = LightRAG when it is installed, a real (non-mock) indexing LLM + key are available,
+    and the corpus is large enough to benefit (live-crawl scale, >= lightrag_min_provisions);
+    else the built-in hybrid retriever. hybrid = always hybrid. lightrag = force LightRAG on
+    every run (any corpus size) — handy for a demo. With a funded/local LLM the KG build is
+    reliable; on a starved free key retrieve_all degrades to hybrid on ANY failure (never
+    crashes), so enabling it is always safe."""
     mode = (settings.retriever or "auto").lower()
     if mode == "hybrid":
         return None
     from . import retrieval_lightrag
     has_key = bool(settings.openrouter_api_key or settings.openai_api_key or settings.gemini_api_key)
-    if mode == "auto":
-        # only worth the KG-build cost at scale, with a real indexing LLM available
-        if not (retrieval_lightrag.available() and has_key
-                and getattr(llm, "name", "mock") != "mock"
-                and len(provisions) >= settings.lightrag_min_provisions):
-            return None
+    base_ok = (retrieval_lightrag.available() and has_key
+               and getattr(llm, "name", "mock") != "mock" and provisions)
+    if not base_ok:
+        return None
+    if mode == "auto" and len(provisions) < settings.lightrag_min_provisions:
+        # small corpus → grade-all on the hybrid path already covers everything; skip KG cost
+        return None
     log(f"[retrieval] using LightRAG graph-RAG ({len(provisions)} provisions)")
     return retrieval_lightrag.retrieve_all(indicators, provisions, top_k=top_k, llm=llm, log=log)
 

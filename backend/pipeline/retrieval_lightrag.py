@@ -168,15 +168,26 @@ def retrieve_all(indicators, provisions: list[Provision], top_k: int = 5,
         return None
     try:
         return asyncio.run(_run(indicators, provisions, top_k, llm, log))
+    except (KeyboardInterrupt, SystemExit):
+        raise
     except RuntimeError as e:
         # e.g. "asyncio.run() cannot be called from a running event loop" (Streamlit)
         if "running event loop" in str(e):
-            import nest_asyncio  # LightRAG ships this; re-enter the loop safely
-            nest_asyncio.apply()
-            return asyncio.get_event_loop().run_until_complete(
-                _run(indicators, provisions, top_k, llm, log))
+            try:
+                import nest_asyncio  # LightRAG ships this; re-enter the loop safely
+                nest_asyncio.apply()
+                return asyncio.get_event_loop().run_until_complete(
+                    _run(indicators, provisions, top_k, llm, log))
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except BaseException as e2:  # noqa: BLE001
+                log(f"[lightrag] disabled ({type(e2).__name__}: {e2}); using hybrid retriever")
+                return None
         log(f"[lightrag] disabled ({type(e).__name__}: {e}); using hybrid retriever")
         return None
-    except Exception as e:  # noqa: BLE001
+    # BaseException (not just Exception): a free-model 429 storm during KG build surfaces as
+    # asyncio.CancelledError / ExceptionGroup, which are NOT Exception subclasses — catching
+    # only Exception let them crash the whole run. Fall back to the hybrid retriever instead.
+    except BaseException as e:  # noqa: BLE001
         log(f"[lightrag] disabled ({type(e).__name__}: {e}); using hybrid retriever")
         return None
