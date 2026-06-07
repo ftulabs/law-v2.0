@@ -23,6 +23,52 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _law_identity(name: str) -> str:
+    """Normalised law-name key for same-law dedup. Folds case / punctuation / portal suffix
+    and drops a TRAILING edition/enactment year, so all of 'CYBERSECURITY ACT 2018',
+    'Cybersecurity Act 2018' and a title-less 'Cybersecurity Act' collapse together. The year
+    is only stripped at the end, and 'Amendment' is kept, so the 2024 Amendment Act
+    ('cybersecurity amendment act') never merges with the principal Act ('cybersecurity act')."""
+    import re
+    from .discovery import _clean_title
+    n = re.sub(r"[^a-z0-9]+", " ", _clean_title(name or "").lower()).strip()
+    return re.sub(r"\s+(?:19|20)\d{2}$", "", n).strip()
+
+
+def _dedup_provisions_by_law(provisions, docs, log):
+    """Drop duplicate documents that resolved to the same law, keeping the current version.
+
+    Groups extracted provisions by their (resolved) law name and, within each group, keeps
+    the document with the best version rank — a non-as-published URL beats a `/Published/`
+    gazette snapshot; ties break toward the fuller (more-provisions) text, i.e. the
+    consolidated edition. Provisions from the other documents are discarded."""
+    from collections import defaultdict
+    by_doc: dict[str, list] = defaultdict(list)
+    for p in provisions:
+        by_doc[p.doc_id].append(p)
+    doc_by_id = {d.doc_id: d for d in docs}
+
+    def _rank(doc_id: str) -> tuple:
+        url = (doc_by_id[doc_id].source_url or "").lower() if doc_id in doc_by_id else ""
+        not_aspublished = 0 if "/published/" in url else 1
+        return (not_aspublished, len(by_doc[doc_id]))
+
+    groups: dict[str, list[str]] = defaultdict(list)
+    for doc_id, plist in by_doc.items():
+        groups[_law_identity(plist[0].law_name) or doc_id].append(doc_id)
+
+    kept: set[str] = set()
+    for ids in groups.values():
+        best = max(ids, key=_rank)
+        kept.add(best)
+        for i in ids:
+            if i != best:
+                log(f"[dedup] '{by_doc[i][0].law_name[:42]}' — dropped duplicate "
+                    f"{doc_by_id[i].source_url[:58] if i in doc_by_id else i} "
+                    f"({len(by_doc[i])} prov) for the current version")
+    return [p for p in provisions if p.doc_id in kept]
+
+
 def _resolve_ocr(name, log):
     """Resolve the requested OCR provider, falling back to mock (with a clear log)
     if the library/keys are missing — a judge experimenting must never crash a run."""
@@ -139,6 +185,12 @@ def run_pipeline(
         # heading/UUID), so the log reflects what actually lands in the output CSV.
         shown = provs[0].law_name if provs else d.title
         log(f"[extract] {shown[:48]} -> {len(provs)} provisions")
+
+    # Same-law dedup by resolved name. A portal serves one law under several URLs whose
+    # bytes differ (an as-enacted gazette snapshot vs the current consolidated edition both
+    # recover to "Cybersecurity Act 2018"), which content-SHA dedup can't catch. Collapse
+    # them, keeping the CURRENT version: a non-as-published URL first, then the fuller text.
+    provisions = _dedup_provisions_by_law(provisions, docs, log)
     for p in provisions:
         db.save_provision(run_id, p)
 

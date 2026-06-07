@@ -49,11 +49,23 @@ _BOILERPLATE_RE = re.compile(
     r".*gazette|s\s*\d+\s*/|cap\.?\s|chapter\b|p\.?u\.?|\d)", re.I)
 
 
+_TITLE_CONNECTORS = {"and", "the", "for", "of", "to", "by", "in", "on", "under", "with", "a", "an"}
+
+
 def _is_title_line(line: str) -> bool:
-    letters = [c for c in line if c.isalpha()]
-    if len(letters) < 3:
+    """A heading line: ALL-CAPS, or Title Case (most significant words Capitalised). Accepts
+    both because SSO consolidated PDFs print the instrument name in Title Case ("Cybersecurity
+    Act 2018") while as-made gazettes print it ALL-CAPS — and rejects running prose.
+
+    A clause/sentence colon or semicolon (e.g. the enactment formula "…assented to by the
+    President on 2 March 2018:") is never part of a law title, so it disqualifies the line."""
+    if re.search(r"[:;]", line):
         return False
-    return sum(c.isupper() for c in letters) / len(letters) >= 0.6
+    words = [w for w in re.findall(r"[A-Za-z][A-Za-z'.-]*", line) if len(w) >= 2]
+    if not words:
+        return False
+    capish = sum(1 for w in words if w[0].isupper() or w.lower() in _TITLE_CONNECTORS)
+    return capish / len(words) >= 0.8
 
 
 def _recover_law_name(text: str) -> str | None:
@@ -68,24 +80,34 @@ def _recover_law_name(text: str) -> str | None:
 
     anchor = next((i for i, l in enumerate(lines) if _ANCHOR_RE.match(l)), None)
     if anchor is not None:
-        block: list[str] = []
-        for j in range(anchor - 1, -1, -1):
+        # Find the instrument-name line directly above the anchor, skipping the blank /
+        # citation / boilerplate lines ("(No. 9 of 2018)", "2020 Ed.", "Informal
+        # Consolidation") that sit between the name and the table of contents.
+        j = anchor - 1
+        while j >= 0:
             l = lines[j]
-            if not l:
-                if block:
-                    break
+            if not l or _CITATION_RE.match(l) or _BOILERPLATE_RE.match(l):
+                j -= 1
                 continue
-            if _CITATION_RE.match(l) or _BOILERPLATE_RE.match(l):
-                if block:           # separator below the name → name block is complete
+            break
+        if j >= 0 and _is_title_line(lines[j]):
+            block = [lines[j]]
+            # The name may wrap: a line that STARTS with a bare instrument-type word
+            # ("REGULATIONS 2021") needs its subject prefix ("PERSONAL DATA PROTECTION")
+            # from the line above. A line that starts with a subject ("Cybersecurity Act
+            # 2018", "PERSONAL DATA PROTECTION ACT 2010") is already complete — don't reach
+            # up into the jurisdiction/number header ("LAWS OF MALAYSIA", "Act 709").
+            k = j - 1
+            while k >= 0 and re.match(r"^(regulations?|rules|order|by[- ]?laws?|act|akta|code)\b",
+                                      block[0], re.I):
+                prev = lines[k]
+                if prev and not _CITATION_RE.match(prev) and not _BOILERPLATE_RE.match(prev) \
+                        and _is_title_line(prev):
+                    block.insert(0, prev)
+                    k -= 1
+                else:
                     break
-                continue            # citation/boilerplate above the name → keep scanning up
-            if _is_title_line(l):
-                block.append(l)
-                continue
-            if block:               # prose boundary → stop
-                break
-        if block:
-            name = re.sub(r"\s+", " ", " ".join(reversed(block))).strip()
+            name = re.sub(r"\s+", " ", " ".join(block)).strip()
             if _LAW_TYPE_RE.search(name):
                 return name
 
