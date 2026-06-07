@@ -29,14 +29,35 @@ def _provs(n):
 
 
 def test_large_corpus_shortlist_is_bounded():
-    """1200 provisions must grade at most retrieve_max_top_k per indicator — not a big
-    fraction of the corpus (the bug that made AU P6 ~1400 LLM calls / 30 min)."""
+    """1200 provisions (single law) must grade a BOUNDED shortlist per indicator — the
+    global top-k plus the dense-recall extra — not a fraction of the corpus (the old bug:
+    0.30*1200 ≈ 360/indicator → ~1400 LLM calls / 30 min)."""
     inds = get_indicators(6)
     llm = _CountingLLM()
     mapping.map_provisions(run_id="t", provisions=_provs(1200), pillar=6, indicators=inds,
                            llm=llm, top_k=5, log=lambda *_: None)
-    assert llm.calls <= settings.retrieve_max_top_k * len(inds)
-    assert llm.calls <= 40 * len(inds)        # concrete ceiling with the shipped cap
+    per_indicator_cap = settings.retrieve_max_top_k + settings.retrieve_max_top_k // 3 + 4
+    assert llm.calls <= per_indicator_cap * len(inds)
+    assert llm.calls < 0.30 * 1200 * len(inds)     # far below the old fraction explosion
+
+
+def test_short_law_provision_not_crowded_out():
+    """A short, on-point law must contribute candidates even when a verbose law dominates —
+    the AU crowding-out bug (My Health Records s77 missed because Privacy Act filled top-k)."""
+    big = [Provision(provision_id=f"b{i}", doc_id="big", economy=Economy.AU,
+                     law_name="Privacy Act 1988", article_section=f"Section {i}",
+                     verbatim_snippet="cross-border disclosure of personal information overseas "
+                     "recipient adequacy consent " * 6, source_url="u", ocr=OCRMetrics())
+           for i in range(400)]
+    small = [Provision(provision_id="s1", doc_id="small", economy=Economy.AU,
+                       law_name="My Health Records Act 2012", article_section="Section 77",
+                       verbatim_snippet="Requirement not to hold or take records outside Australia. "
+                       "The operator must not hold the records, or process them, outside Australia.",
+                       source_url="u", ocr=OCRMetrics())]
+    sl = mapping._diverse_shortlist("P6-I1", big + small, settings.retrieve_max_top_k,
+                                    settings.retrieve_per_law_k, log=lambda *_: None)
+    ids = {r.provision.provision_id for r in sl}
+    assert "s1" in ids        # the small law's on-point provision is graded, not crowded out
 
 
 def test_concurrent_matches_sequential():

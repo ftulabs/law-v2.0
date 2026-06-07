@@ -262,7 +262,25 @@ def retrieve(indicator_id: str, provisions: list[Provision], top_k: int = 5) -> 
     if cross is not None:
         combined = [0.5 * combined[i] + 0.5 * cross[i] for i in range(len(provisions))]
 
-    ranked = sorted(zip(range(len(provisions)), combined), key=lambda x: x[1], reverse=True)[:top_k]
+    order = sorted(range(len(provisions)), key=lambda i: combined[i], reverse=True)
+    keep = order[:top_k]
+    # Semantic-recall guarantee. The cross-encoder is general-domain + English, so it can
+    # bury a provision that states the indicator's concept in OTHER words — e.g. a localisation
+    # ban written "must not hold or take records outside Australia" (no "transfer"). The
+    # bi-encoder DOES capture it (highest dense score), so also admit the strongest pure-dense
+    # matches the blended/reranked cut dropped. The shortlist feeds the LLM grader, whose job
+    # is precision — better to over-include on recall than silently miss the right provision.
+    if dense is not None and len(provisions) > top_k:
+        seen = set(keep)
+        extra = max(2, top_k // 3)
+        for i in sorted(range(len(provisions)), key=lambda i: dense[i], reverse=True):
+            if extra <= 0:
+                break
+            if i not in seen and dense[i] >= settings.dense_recall_floor:
+                keep.append(i)
+                seen.add(i)
+                extra -= 1
+    ranked = sorted(((i, combined[i]) for i in keep), key=lambda x: x[1], reverse=True)
     out: list[Retrieved] = []
     for i, score in ranked:
         norm = round(score, 3)

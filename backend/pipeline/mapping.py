@@ -129,6 +129,35 @@ SYSTEM = (
 )
 
 
+def _diverse_shortlist(indicator_id, provisions, global_k, per_law_k, log):
+    """Per-indicator candidate shortlist that no single verbose law can monopolise.
+
+    Union of (a) the GLOBAL top-`global_k` provisions for the indicator and (b) each law's
+    OWN top-`per_law_k` — so a short, on-point Act is graded even when a 485-section Act
+    would otherwise fill the global top-k. Each provision keeps its best retrieval score."""
+    from collections import defaultdict
+    chosen: dict[str, Retrieved] = {}
+    for r in retrieve(indicator_id, provisions, top_k=global_k):
+        chosen[r.provision.provision_id] = r
+    if per_law_k > 0:
+        by_law: dict[str, list] = defaultdict(list)
+        for p in provisions:
+            by_law[p.doc_id].append(p)
+        if len(by_law) > 1:                       # diversity only matters across multiple laws
+            for law_provs in by_law.values():
+                k = min(per_law_k, len(law_provs))
+                for r in retrieve(indicator_id, law_provs, top_k=k):
+                    prev = chosen.get(r.provision.provision_id)
+                    if prev is None or r.score > prev.score:
+                        chosen[r.provision.provision_id] = r
+    out = sorted(chosen.values(), key=lambda r: r.score, reverse=True)
+    laws = len({r.provision.law_name for r in out})
+    top = out[0] if out else None
+    log(f"[retrieve] {indicator_id}: {len(out)} candidates from {laws} law(s)"
+        + (f" — best: {top.provision.law_name[:28]} {top.provision.article_section} ({round(top.score,2)})" if top else ""))
+    return out
+
+
 def _siblings_block(ind) -> str:
     # Format kept mock-parseable (id :: title — desc :: terms :: legal_test): the offline
     # grader reads field [2] (terms); a real LLM also gets each sibling's legal_test [3] to
@@ -235,7 +264,8 @@ def map_provisions(
                               or Retrieved(provision=p, score=0.0, raw_context=p.verbatim_snippet, log=[])
                               for p in provisions]
             else:
-                candidates = retrieve(ind.indicator_id, provisions, top_k=eff_top_k)
+                candidates = _diverse_shortlist(ind.indicator_id, provisions, eff_top_k,
+                                                settings.retrieve_per_law_k, log)
         for r in candidates:
             if grade_all or r.score >= min_retrieval:
                 work.append((ind, r))

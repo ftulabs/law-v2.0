@@ -101,7 +101,16 @@ class Settings(BaseSettings):
     # retrieve_top_k floor, retrieve_max_top_k cap); the cap bounds latency + cost.
     retrieve_top_k: int = 20                    # floor — always grade at least this many/indicator
     retrieve_fraction: float = 0.05             # scale gently with corpus size
-    retrieve_max_top_k: int = 40                # HARD cap/indicator (latency + cost ceiling)
+    retrieve_max_top_k: int = 40                # GLOBAL top-k/indicator (latency + cost ceiling)
+    # Per-law guarantee: also include each discovered law's top-N provisions for the indicator,
+    # so a short but on-point Act (e.g. My Health Records s77 "records outside Australia") is
+    # graded even when a verbose Act (Privacy Act, 485 provisions) would otherwise crowd the
+    # global top-k. Divide-by-law → retrieve each → merge. 0 disables (pure global top-k).
+    retrieve_per_law_k: int = 3
+    # Semantic-recall floor: also pull the strongest pure bi-encoder (dense) matches into the
+    # shortlist even when the cross-encoder demoted them — guards concept matches phrased in
+    # unexpected words. Dense scores are mapped to [0,1]; ~0.55 is "clearly on-topic".
+    dense_recall_floor: float = 0.55
     # Map provisions to indicators concurrently (independent LLM calls). Bounded so free-tier
     # keys aren't hammered into rate limits; the provider's auto-failover absorbs the rest.
     mapping_concurrency: int = 6
