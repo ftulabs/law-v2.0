@@ -38,42 +38,89 @@ _LAW_TYPE_RE = re.compile(
     re.I)
 _YEAR_RE = re.compile(r"\b(?:19|20)\d{2}\b")
 
+# Gazette/statute headers list the instrument's title as the UPPERCASE block immediately
+# before an "ARRANGEMENT OF SECTIONS/REGULATIONS" table of contents. The parent Act and a
+# "(Act 26 of 2012)" citation appear separately, so the citation acts as a separator that
+# isolates a subsidiary instrument's own name from its parent Act's.
+_ANCHOR_RE = re.compile(r"^\s*ARRANGEMENT OF\b", re.I)
+_CITATION_RE = re.compile(r"^\(.*\)\.?$")          # "(Act 26 of 2012)", "(Cap. 50)"
+_BOILERPLATE_RE = re.compile(
+    r"^(no\.|first published|informal consolidation|reprint|revised edition|"
+    r".*gazette|s\s*\d+\s*/|cap\.?\s|chapter\b|p\.?u\.?|\d)", re.I)
+
+
+def _is_title_line(line: str) -> bool:
+    letters = [c for c in line if c.isalpha()]
+    if len(letters) < 3:
+        return False
+    return sum(c.isupper() for c in letters) / len(letters) >= 0.6
+
 
 def _recover_law_name(text: str) -> str | None:
-    """Best-effort law name from a document's header region (first ~60 lines).
+    """Best-effort law name from a document's header region.
 
-    Picks the highest-scoring title-like line: contains a law-type word, is short, and
-    ideally carries a year. Returns None when nothing convincing is found so the caller
-    can fall back to the (cleaned) discovery title rather than inventing a name."""
+    Primary: the UPPERCASE title block directly above an "ARRANGEMENT OF …" table of
+    contents — joined across wrapped lines (e.g. "PERSONAL DATA PROTECTION" + "REGULATIONS
+    2021"), stopping at the citation/boilerplate that separates it from the parent Act.
+    Fallback (no such anchor): the best title-like line carrying a law-type word + year.
+    Returns None when nothing convincing is found so the caller keeps the discovery title."""
+    lines = [ln.strip() for ln in text[:8000].splitlines()[:80]]
+
+    anchor = next((i for i, l in enumerate(lines) if _ANCHOR_RE.match(l)), None)
+    if anchor is not None:
+        block: list[str] = []
+        for j in range(anchor - 1, -1, -1):
+            l = lines[j]
+            if not l:
+                if block:
+                    break
+                continue
+            if _CITATION_RE.match(l) or _BOILERPLATE_RE.match(l):
+                if block:           # separator below the name → name block is complete
+                    break
+                continue            # citation/boilerplate above the name → keep scanning up
+            if _is_title_line(l):
+                block.append(l)
+                continue
+            if block:               # prose boundary → stop
+                break
+        if block:
+            name = re.sub(r"\s+", " ", " ".join(reversed(block))).strip()
+            if _LAW_TYPE_RE.search(name):
+                return name
+
+    # Fallback: score individual title-like lines (skip bare citations).
     best, best_score = None, 0.0
-    for raw in text[:6000].splitlines()[:60]:
+    for raw in lines[:60]:
         line = raw.strip()
         if not (6 <= len(line) <= 90) or not _LAW_TYPE_RE.search(line):
             continue
+        if _CITATION_RE.match(line):
+            continue
         letters = [c for c in line if c.isalpha()]
-        if not letters:
+        if not letters or sum(c.isupper() for c in letters) / len(letters) < 0.3:
             continue
-        upper_ratio = sum(c.isupper() for c in letters) / len(letters)
-        # title pages are TITLE CASE or UPPER CASE; skip running prose (mostly lowercase)
-        if upper_ratio < 0.3:
+        words = [w for w in re.findall(r"[A-Za-z]+", line) if len(w) >= 2]
+        if len(words) < 2:
             continue
-        score = upper_ratio + (1.0 if _YEAR_RE.search(line) else 0.0)
-        score -= 0.01 * len(line)            # prefer the tighter heading
+        score = (1.0 if _YEAR_RE.search(line) else 0.0) + 0.15 * min(len(words), 8)
         if score > best_score:
             best, best_score = line, score
     return best
 
 
 def _law_name(doc: DiscoveredDoc, raw_text: str = "") -> str:
-    """Law name for a provision. Prefer the discovery title, but when it is a generic
-    portal label (no real law name) recover the name from the document's own header."""
+    """Law name for a provision. Prefer the discovery title, but recover the name from the
+    document's own header when the title is a generic portal label (MY's "Malaysia Federal
+    Legislation", a UUID) OR a section heading with no law-type word ("Transfer of Personal
+    Data Outside Singapore" — an SSO sub-provision title, not the regulation's name)."""
     from .discovery import _clean_title, _is_generic_title
     title = doc.title.strip()
-    if _is_generic_title(title):
+    cleaned = _clean_title(title)
+    if _is_generic_title(title) or not _LAW_TYPE_RE.search(cleaned):
         recovered = _recover_law_name(raw_text)
         if recovered:
             return recovered
-    cleaned = _clean_title(title)
     return cleaned or title
 
 

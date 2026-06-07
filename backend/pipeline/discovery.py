@@ -85,6 +85,38 @@ _MY_MALAY_TITLE_RE = re.compile(
 # (AGC English convention: akta_709.pdf → Malay, akta_709e.pdf → English)
 _MY_MALAY_PDF_RE = re.compile(r'akta', re.I)   # used together with endswith check below
 
+# A title that contains one of these reads like a real law name (vs a section heading
+# such as "Transfer of Personal Data Outside Singapore").
+_LAW_NAME_HINT_RE = re.compile(
+    r"\b(act|akta|ordinance|enactment|regulations?|rules|by[- ]?laws?|code|decree|order)\b",
+    re.I)
+
+# Singapore SSO statute identity from the URL. The portal exposes the SAME instrument under
+# many landing URLs (a consolidated /SL/ view, an as-published /SL-Supp/.../Published/
+# snapshot, and per-provision ?ProvIds= slices) with unrelated titles — but every URL
+# carries the unique subsidiary-legislation number, e.g. S63-2021. Keying dedup on that
+# number collapses all of them into one law even when titles and bytes differ.
+_SG_SL_RE = re.compile(r"S(\d+)-((?:19|20)\d{2})", re.I)
+
+
+def _sg_statute_id(url: str) -> str | None:
+    from urllib.parse import unquote, urlsplit
+    path = unquote(urlsplit(url).path)
+    m = _SG_SL_RE.search(path)
+    if m:
+        return f"sl-s{m.group(1)}-{m.group(2)}"
+    # principal Acts: /Act/PDPA2012, /Acts-Supp/1-2026/...
+    m = re.search(r"/(?:act|acts-supp)/([a-z0-9]+(?:-\d+)?)", path, re.I)
+    if m:
+        return f"act-{m.group(1).lower()}"
+    return None
+
+
+def _is_as_published(url: str) -> bool:
+    """SG as-published snapshot (…/Published/<timestamp>) — the as-made text, superseded by
+    the consolidated in-force view of the same statute."""
+    return "/published/" in url.lower()
+
 
 def _clean_title(title: str) -> str:
     """Strip search-engine format prefixes and trailing portal-name/domain noise."""
@@ -149,8 +181,16 @@ def _url_law_key(url: str) -> str:
 
 
 def _dedup_key(d: DiscoveredDoc) -> str:
-    """Grouping key for a document: cleaned-title law key, or a URL key when the title is
-    a generic portal label (so distinct laws with identical portal <title>s don't merge)."""
+    """Grouping key for a document.
+
+    SG: key on the SSO statute number from the URL (the only stable identity — titles are
+    section headings / UUIDs / portal labels). Otherwise: cleaned-title law key, falling
+    back to a URL key when the title is a generic portal label (so distinct laws with
+    identical portal <title>s don't merge)."""
+    if d.economy.value == "SG":
+        sid = _sg_statute_id(d.source_url)
+        if sid:
+            return "sg:" + sid
     if _is_generic_title(d.title):
         return "url:" + _url_law_key(d.source_url)
     return _law_key(d.title) or ("url:" + _url_law_key(d.source_url))
@@ -174,12 +214,17 @@ def _pick_best(docs: list[DiscoveredDoc]) -> DiscoveredDoc:
 
     def _key(d: DiscoveredDoc) -> tuple:
         alive = 0 if _is_superseded(d.source_url, d.title) else 1
+        # In-force consolidated view beats an as-published /Published/ snapshot of same law
+        not_aspublished = 0 if _is_as_published(d.source_url) else 1
+        # A proper law-name title ("… Regulations 2021") beats a section-heading or UUID
+        # title ("Transfer of Personal Data Outside Singapore"), so the kept doc is named.
+        has_lawname = 1 if _LAW_NAME_HINT_RE.search(_clean_title(d.title)) else 0
         consolidated = 1 if _CONSOL_RE.search(d.title) else 0
         # Base acts (e.g. "Privacy Act") outrank amendment-only acts
         is_amendment = 0 if _AMEND_RE.search(d.title) else 1
         year = _latest_year(d.amendment_date or "", d.title)
         date = d.amendment_date or "0000-00-00"
-        return (alive, is_amendment, consolidated, year, date)
+        return (alive, not_aspublished, has_lawname, is_amendment, consolidated, year, date)
 
     return max(docs, key=_key)
 

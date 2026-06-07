@@ -135,7 +135,10 @@ def run_pipeline(
                 mean_confidence=ocr_metrics.mean_confidence, cer=ocr_metrics.cer,
                 cer_under_5pct=(ocr_metrics.cer < 0.05 if ocr_metrics.cer is not None else None),
             ))
-        log(f"[extract] {d.title[:48]} -> {len(provs)} provisions")
+        # Show the resolved law name (recovered from content when the discovery title was a
+        # heading/UUID), so the log reflects what actually lands in the output CSV.
+        shown = provs[0].law_name if provs else d.title
+        log(f"[extract] {shown[:48]} -> {len(provs)} provisions")
     for p in provisions:
         db.save_provision(run_id, p)
 

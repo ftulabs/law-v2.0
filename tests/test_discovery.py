@@ -6,7 +6,7 @@ and law-name recovery. These guard the three failure modes seen in live testing:
 """
 from backend.pipeline.discovery import (
     _clean_title, _dedup_by_law_title, _dedup_key, _is_generic_title, _latest_year,
-    _law_key, _pick_best, _prefer_english_my, _url_law_key,
+    _law_key, _pick_best, _prefer_english_my, _sg_statute_id, _url_law_key,
 )
 from backend.pipeline.extraction import _law_name, _recover_law_name
 from backend.schemas import DiscoveredDoc, DiscoveryTag, DocFormat, Economy
@@ -115,6 +115,56 @@ def test_law_name_recovers_for_generic_title_else_cleans():
     # a good title is cleaned, not replaced
     good = _doc("Privacy Act 1988 - legislation.gov.au", "u", Economy.AU)
     assert _law_name(good, "") == "Privacy Act 1988"
+
+
+# ─────────────────── SG: statute-ID dedup (one law, many SSO URLs) ───────────────────
+def test_sg_statute_id_from_sso_urls():
+    assert _sg_statute_id("https://sso.agc.gov.sg/SL/PDPA2012-S63-2021?DocDate=20210930") == "sl-s63-2021"
+    assert _sg_statute_id("https://sso.agc.gov.sg/SL-Supp/S63-2021/Published/20210129170000") == "sl-s63-2021"
+    assert _sg_statute_id("https://sso.agc.gov.sg/Act/PDPA2012?ProvIds=pr26-") == "act-pdpa2012"
+    # distinct subsidiary instruments under the same parent Act stay distinct
+    assert _sg_statute_id("https://sso.agc.gov.sg/SL/PDPA2012-S64-2021") == "sl-s64-2021"
+
+
+def test_sg_same_regulation_under_three_urls_collapses_to_one_named_doc():
+    """The PDPA Regulations 2021 (S63-2021) is surfaced as a consolidated /SL/ view, an
+    as-published /SL-Supp/.../Published/ snapshot, and a per-provision section heading.
+    All three must collapse to ONE doc — and the kept one must be the properly-named,
+    in-force consolidated version (not the UUID/as-published or the section heading)."""
+    docs = [
+        _doc("Transfer of Personal Data Outside Singapore",
+             "https://sso.agc.gov.sg/SL/PDPA2012-S63-2021?DocDate=20210129&ProvIds=P13-"),
+        _doc("Personal Data Protection Regulations 2021",
+             "https://sso.agc.gov.sg/SL/PDPA2012-S63-2021?DocDate=20210930&ViewType=Advance"),
+        _doc("PDF bc248903-f874-4c36-9844-9e1935038a24 1",
+             "https://sso.agc.gov.sg/SL-Supp/S63-2021/Published/20210129170000?ViewType=Pdf"),
+    ]
+    out = _dedup_by_law_title(docs)
+    assert len(out) == 1
+    assert out[0].title == "Personal Data Protection Regulations 2021"
+    assert "/Published/" not in out[0].source_url     # as-published snapshot dropped
+
+
+def test_sg_distinct_statutes_not_merged():
+    docs = [_doc("Reg A", "https://sso.agc.gov.sg/SL/PDPA2012-S63-2021"),
+            _doc("Reg B", "https://sso.agc.gov.sg/SL/PDPA2012-S64-2021"),
+            _doc("Act", "https://sso.agc.gov.sg/Act/PDPA2012")]
+    assert len(_dedup_by_law_title(docs)) == 3
+
+
+# ─────────────────── name recovery: instrument vs parent Act ───────────────────
+def test_recover_picks_instrument_not_parent_act():
+    """SG subsidiary-legislation header lists the parent Act + citation ABOVE the
+    instrument's own name; recovery must return the instrument, not the Act."""
+    header = ("1 S 63/2021\nNo. S 63\nPERSONAL DATA PROTECTION ACT 2012\n(ACT 26 OF 2012)\n"
+              "PERSONAL DATA PROTECTION\nREGULATIONS 2021\nARRANGEMENT OF REGULATIONS\n"
+              "1. Citation and commencement")
+    assert _recover_law_name(header) == "PERSONAL DATA PROTECTION REGULATIONS 2021"
+
+
+def test_recover_skips_citation_line():
+    # the bare "(Act 26 of 2012)" citation must never be returned as a name
+    assert _recover_law_name("(ACT 26 OF 2012)\nsome running text about the act") != "(ACT 26 OF 2012)"
 
 
 # ─────────────────────── MY English-preference ───────────────────────
