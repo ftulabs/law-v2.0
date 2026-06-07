@@ -87,6 +87,12 @@ INDICATOR_SEARCH_TERMS: dict[str, list[str]] = {
         "tax records minimum storage requirement",
         "financial records kept in country",
         "business records must be maintained locally",
+        # general record-keeping vocabulary (matches the actual text of corporate/tax acts,
+        # e.g. SG Companies Act s199 "Accounting records and systems of control"), country-agnostic
+        "accounting records and systems of control",
+        "keeping of accounting records",
+        "records kept at registered office",
+        "books of account",
     ],
 
     # ── P6-I3 — INFRASTRUCTURE: mandatory local servers / data centres ──
@@ -182,6 +188,11 @@ INDICATOR_SEARCH_TERMS: dict[str, list[str]] = {
         "telecommunications records minimum retention",
         "financial records preservation minimum period",
         "business records kept minimum years",
+        # general retention vocabulary matching the operative wording of corporate/tax acts
+        "retain the records for a period of not less than",
+        "accounting records and systems of control",
+        "keeping of accounting records",
+        "preservation of records",
     ],
 
     # ── P7-I4 — DPO / DPIA ──

@@ -76,8 +76,15 @@ class Settings(BaseSettings):
     crawl_browser: bool = False
     cache_dir: str = "data/cache"              # downloaded law bodies live here (content-hashed)
     fetch_max_bytes: int = 60_000_000          # 60 MB hard cap per document
-    discovery_max_docs: int = 12               # candidate cap per (economy, pillar)
+    discovery_max_docs: int = 18               # candidate cap per (economy, pillar)
     discovery_max_pages: int = 1               # search-result pages to walk per query
+    # Web-search discovery breadth. Results are collected ROUND-ROBIN across queries — each
+    # query's top hit before any query's 2nd — so a specific law-type query ("companies act")
+    # is never crowded out by abundant data-protection results. per_query caps results pulled
+    # from each query; max_queries caps how many of the (deduped) keyword queries we fire
+    # (one search engine call each — keep modest on a rate-limited free engine; cache amortises).
+    discovery_per_query: int = 4
+    discovery_max_queries: int = 48
 
     # retrieval (Zone 1 ranking)
     dense_retrieval: str = "auto"              # auto | on | off — 'auto' = dense if installed

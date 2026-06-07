@@ -557,21 +557,37 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int) -> l
     generalises to any economy with an entry in websearch.OFFICIAL_PORTAL."""
     from . import websearch
     from ..rdtii.keywords import portal_search_queries
-    topics = portal_search_queries(economy.value, pillar)
-    by_url: dict[str, DiscoveredDoc] = {}
+    topics = portal_search_queries(economy.value, pillar)[:settings.discovery_max_queries]
+    # One search per query → a per-query result bucket. A law-type query ("companies act")
+    # returns few, niche hits that the old "fill the budget in query order" loop discarded
+    # once abundant data-protection queries had filled it. We instead collect ROUND-ROBIN
+    # below, so every query's TOP hit is taken before any query's 2nd.
+    buckets: list[list[tuple[str, str]]] = []
     for topic in topics:
-        for url, title in websearch.find_law_urls(economy, topic, max_results=6):
-            if url in by_url:
-                continue
-            # source_url stays the human-facing LANDING page (judges prefer it); the PDF
-            # body URL is resolved only at fetch time (see _resolve_pdf_url).
-            _, fmt = _resolve_pdf_url(economy, url)
-            by_url[url] = DiscoveredDoc(
-                doc_id=_doc_id(economy.value, url), economy=economy,
-                title=(title or url)[:200], source_url=_clean_source_url(economy, url),
-                portal=websearch.OFFICIAL_PORTAL.get(economy.value, "web"),
-                fmt=fmt, relevance_score=0.0, discovery_tag=DiscoveryTag.NEW)
-        if len(by_url) >= max_docs * 2:
+        res = websearch.find_law_urls(economy, topic, max_results=settings.discovery_per_query)
+        if res:
+            buckets.append(res)
+
+    by_url: dict[str, DiscoveredDoc] = {}
+
+    def _add(url: str, title: str) -> None:
+        if url in by_url:
+            return
+        # source_url stays the human-facing LANDING page (judges prefer it); the PDF body
+        # URL is resolved only at fetch time (see _resolve_pdf_url).
+        _, fmt = _resolve_pdf_url(economy, url)
+        by_url[url] = DiscoveredDoc(
+            doc_id=_doc_id(economy.value, url), economy=economy,
+            title=(title or url)[:200], source_url=_clean_source_url(economy, url),
+            portal=websearch.OFFICIAL_PORTAL.get(economy.value, "web"),
+            fmt=fmt, relevance_score=0.0, discovery_tag=DiscoveryTag.NEW)
+
+    depth = max((len(b) for b in buckets), default=0)
+    for rank in range(depth):                      # round-robin: rank-0 of every query first
+        for b in buckets:
+            if rank < len(b):
+                _add(b[rank][0], b[rank][1])
+        if len(by_url) >= max_docs * 3:
             break
     # Collapse multiple URL variants of the same law into the most current/in-force version.
     docs = _dedup_by_law_title(list(by_url.values()))

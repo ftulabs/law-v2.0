@@ -241,3 +241,25 @@ def test_my_act_number_dedup_collapses_reprints_and_landings():
     assert sorted(_my_act_id(d.source_url) for d in out) == ["my-709", "my-a1727"]
     act709 = [d for d in out if _my_act_id(d.source_url) == "my-709"][0]
     assert act709.source_url.endswith(".pdf")     # direct PDF kept over the act-detail landing
+
+
+# ─────────────────── round-robin breadth: niche law-type queries not crowded out ───────────────────
+def test_websearch_round_robin_keeps_niche_law_types(monkeypatch):
+    """Abundant data-protection queries must not fill the budget before a specific law-type
+    query ("companies act") runs — round-robin takes each query's top hit first."""
+    from backend.pipeline import discovery as D, websearch
+
+    def fake_find(economy, topic, max_results=4, log=None):
+        t = topic.lower()
+        if "companies act" in t:
+            return [("https://sso.agc.gov.sg/Act/CoA1967", "Companies Act 1967")]
+        if "income tax" in t:
+            return [("https://sso.agc.gov.sg/Act/ITA1947", "Income Tax Act 1947")]
+        import hashlib
+        h = hashlib.md5(t.encode()).hexdigest()[:6]
+        return [(f"https://sso.agc.gov.sg/SL/REG-{h}-{i}", f"Reg {h} {i}") for i in range(max_results)]
+
+    monkeypatch.setattr(websearch, "find_law_urls", fake_find)
+    names = [d.title for d in D.discover_websearch(Economy.SG, 6, max_docs=18)]
+    assert any("Companies Act" in n for n in names)
+    assert any("Income Tax" in n for n in names)
