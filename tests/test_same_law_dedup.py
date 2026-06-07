@@ -91,3 +91,12 @@ def test_recover_does_not_pull_jurisdiction_header():
     """MY-style header: name line is complete, must not absorb 'LAWS OF MALAYSIA' / 'Act 709'."""
     header = "LAWS OF MALAYSIA\nAct 709\nPERSONAL DATA PROTECTION ACT 2010\nARRANGEMENT OF SECTIONS\n1. Short"
     assert _recover_law_name(header) == "PERSONAL DATA PROTECTION ACT 2010"
+
+
+def test_recover_my_amendment_below_act_number_no_toc():
+    """A short MY amendment Act has no 'ARRANGEMENT OF' table — the wrapped name sits below
+    the 'Act A1727' number header. The 'ACT 2024' year line must not be read as the number."""
+    header = ("Personal Data Protection (Amendment) 1\nLAWS OF MALAYSIA\nAct A1727\n"
+              "PERSONAL DATA PROTECTION (AMENDMENT)\nACT 2024\n\n"
+              "An Act to amend the Personal Data Protection Act 2010.")
+    assert _recover_law_name(header) == "PERSONAL DATA PROTECTION (AMENDMENT) ACT 2024"

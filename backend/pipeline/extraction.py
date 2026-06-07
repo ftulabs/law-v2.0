@@ -111,6 +111,25 @@ def _recover_law_name(text: str) -> str | None:
             if _LAW_TYPE_RE.search(name):
                 return name
 
+    # Short amendment acts (MY) have no "ARRANGEMENT OF" — the name is the title block
+    # directly BELOW a "LAWS OF MALAYSIA / Act A1727" header (the act-number line, NOT a
+    # year line like "ACT 2024"). Collect the wrapped name lines after it.
+    for i, l in enumerate(lines):
+        m = re.match(r"^(?:act|akta)\s+([A-Za-z]?\d+[A-Za-z]?)$", l, re.I)
+        if not m or _YEAR_RE.fullmatch(m.group(1)):
+            continue
+        block = []
+        for n in lines[i + 1:i + 5]:
+            if not n or _CITATION_RE.match(n) or _BOILERPLATE_RE.match(n) or _ANCHOR_RE.match(n):
+                break
+            if _is_title_line(n):
+                block.append(n)
+            else:
+                break
+        name = re.sub(r"\s+", " ", " ".join(block)).strip()
+        if _LAW_TYPE_RE.search(name):
+            return name
+
     # Fallback: score individual title-like lines (skip bare citations).
     best, best_score = None, 0.0
     for raw in lines[:60]:

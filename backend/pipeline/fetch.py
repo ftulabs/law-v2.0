@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -123,8 +124,42 @@ def fetch_to_cache(url: str, log: Callable[[str], None] = print) -> FetchResult 
         res = (_scrapling_fetch(url, idx, log) if engine == "scrapling"
                else _httpx_fetch(url, idx, log))
         if res:
+            res = _maybe_resolve_embedded_pdf(url, res, idx, log)
             return _maybe_render_spa(url, res, idx, log)
     return None
+
+
+# A landing page that embeds the actual law in a PDF.js viewer, e.g. MY's
+# act-detail.php: <iframe src="pdfjs/web/viewer.html?file=../../../ilims/.../Act 709.pdf">.
+# The visible HTML is just chrome (≈1 KB → one bogus provision); the law text is the PDF.
+_EMBEDDED_PDF_RE = re.compile(r"""viewer\.html\?file=([^"'&]+\.pdf)""", re.I)
+
+
+def _maybe_resolve_embedded_pdf(url: str, res: "FetchResult", idx: dict, log) -> "FetchResult":
+    """If an HTML page embeds the real document in a PDF viewer, fetch that PDF instead so
+    extraction reads the law, not the landing-page chrome. Returns the PDF result, or the
+    original HTML unchanged when there is no embedded PDF (or it can't be fetched)."""
+    if res.fmt != DocFormat.HTML:
+        return res
+    try:
+        html = Path(res.local_path).read_text(encoding="utf-8", errors="ignore")
+        m = _EMBEDDED_PDF_RE.search(html)
+        if not m:
+            return res
+        from urllib.parse import urljoin, unquote
+        # the file= path is relative to the viewer's own location (…/pdfjs/web/viewer.html)
+        viewer_base = urljoin(url, "pdfjs/web/viewer.html")
+        pdf_url = urljoin(viewer_base, unquote(m.group(1)))
+        if pdf_url == url:
+            return res
+        log(f"[fetch] HTML embeds a PDF viewer, fetching the document: {pdf_url}")
+        pdf = (_scrapling_fetch(pdf_url, idx, log) if "scrapling" in _engine_order()
+               else None) or _httpx_fetch(pdf_url, idx, log)
+        if pdf and pdf.fmt in (DocFormat.PDF_TEXT, DocFormat.PDF_SCANNED):
+            return pdf
+    except Exception as e:  # noqa: BLE001 — resolution is best-effort; keep the HTML body
+        log(f"[fetch] embedded-PDF resolve skipped ({type(e).__name__}): {url}")
+    return res
 
 
 def _maybe_render_spa(url: str, res: "FetchResult", idx: dict, log) -> "FetchResult":
