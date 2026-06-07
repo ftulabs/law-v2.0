@@ -11,6 +11,7 @@ back to OCR automatically — a common real-world failure mode.
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from ..config import settings
@@ -63,6 +64,26 @@ def _page_count(path: str) -> int:
             return 1
 
 
+# A bold, number-led line is a section heading. Some PDFs (AU legislation.gov.au) number
+# sections "77 Requirement…" with NO keyword and NO period — invisible to SECTION_RE — but
+# they ARE typeset bold/larger than the body, so the font is the reliable signal. We mark
+# such lines with a record-separator (\x1e, never present in legal text) so extraction can
+# split on them; SG/MY PDFs don't bold their headings, so nothing is marked and they fall
+# back to the regex path unchanged.
+HEADING_MARK = "\x1e"
+_HEADING_NUM_RE = re.compile(r"^\s*\d{1,3}[A-Za-z]{0,2}\s+[A-Za-z]")
+
+
+def _is_bold_heading(text: str, chars: list) -> bool:
+    if not _HEADING_NUM_RE.match(text):
+        return False
+    glyphs = [c for c in (chars or []) if (c.get("text") or "").strip()]
+    if not glyphs:
+        return False
+    bold = sum(1 for c in glyphs if "bold" in (c.get("fontname") or "").lower())
+    return bold / len(glyphs) >= 0.6
+
+
 def _pdf_text_layer(path: str) -> str:
     # x_tolerance infers spaces from glyph gaps — without it, legal PDFs come out with
     # words jammed together ("Anorganisationmustnot"), which wrecks the Character Error
@@ -70,7 +91,19 @@ def _pdf_text_layer(path: str) -> str:
     try:
         import pdfplumber
         with pdfplumber.open(path) as pdf:
-            return "\n\n".join((pg.extract_text(x_tolerance=2, y_tolerance=3) or "") for pg in pdf.pages)
+            pages = []
+            for pg in pdf.pages:
+                try:
+                    lines = pg.extract_text_lines()      # per-line text + char fonts
+                except Exception:
+                    lines = None
+                if lines:
+                    pages.append("\n".join(
+                        (HEADING_MARK + ln["text"]) if _is_bold_heading(ln["text"], ln.get("chars"))
+                        else ln["text"] for ln in lines))
+                else:
+                    pages.append(pg.extract_text(x_tolerance=2, y_tolerance=3) or "")
+            return "\n\n".join(pages)
     except Exception:
         try:
             from pypdf import PdfReader

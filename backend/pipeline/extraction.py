@@ -14,17 +14,47 @@ import re
 
 from ..schemas import DiscoveredDoc, OCRMetrics, Provision
 
+HEADING_MARK = "\x1e"   # font-detected heading sentinel emitted by ocr._pdf_text_layer
+
+# Provision-boundary markers, line-anchored so cross-references mid-sentence ("apart from",
+# "under section 26") never match. Covers the drafting conventions across SG/AU/MY and the
+# Finals economies: keyword forms (Section/Article/Regulation/Paragraph/Clause/Rule/By-law/
+# Schedule/Part/Division), the Privacy-Act "Australian Privacy Principle N" (APP), and bare
+# numbered clauses ("26. Foo"). Part/Division/Schedule REQUIRE a following number so the
+# words alone ("Part from", "Schedule of fees") don't trigger.
 SECTION_RE = re.compile(
-    r"(?im)^\s*("
-    r"(?:section|sec\.?|s\.)\s*\d+[A-Z]?"        # Section 26 / S. 13
-    r"|(?:article|art\.?)\s*\d+[A-Z]?"            # Article 13 / Art. 13
-    r"|(?:regulation|reg\.?)\s*\d+[A-Z]?"
-    r"|(?:paragraph|para\.?)\s*\d+[A-Z]?"
-    r"|(?:clause)\s*\d+[A-Z]?"
-    r"|§\s*\d+[A-Z]?"
-    r"|\d+[A-Z]?\.\s+(?=[A-Z])"                   # "26.  Foo" bare numbered clause
-    r")\s*[.\-—:]?\s*"
+    r"(?im)^[ \t]*(?:"
+    r"\x1e[ \t]*(\d{1,3}[A-Za-z]{0,2})\b"                        # group 1: FONT-marked heading number ("77 Requirement…")
+    r"|("                                                         # group 2: keyword / numbered markers
+    r"(?:australian\s+privacy\s+principle|app)\s*\d+[A-Za-z]?"   #   APP 8 / Australian Privacy Principle 8
+    r"|(?:section|sec\.?|s\.)\s*\d+[A-Za-z]{0,2}"                #   Section 26 / Sec. 12B / S. 13
+    r"|(?:article|art\.?)\s*\d+[A-Za-z]{0,2}"                    #   Article 13
+    r"|(?:regulation|reg\.?)\s*\d+[A-Za-z]{0,2}"
+    r"|(?:paragraph|para\.?)\s*\d+[A-Za-z]{0,2}"
+    r"|(?:clause|cl\.?)\s*\d+[A-Za-z]{0,2}"
+    r"|(?:rule)\s*\d+[A-Za-z]{0,2}"
+    r"|(?:by[- ]?law)\s*\d+[A-Za-z]{0,2}"
+    r"|(?:schedule|sch\.?)\s+\d+[A-Za-z]{0,2}"                   #   Schedule 3 (needs a number)
+    r"|(?:part|division)\s+\d+[A-Za-z]{0,2}(?=\s|$)"             #   Part 5 / Division 2 (needs a number)
+    r"|(?:principle)\s+\d+[A-Za-z]?"                             #   Principle 8
+    r"|§\s*\d+[A-Za-z]{0,2}"
+    r"|\d+[A-Za-z]{0,2}\.\s+(?=[A-Z])"                           #   "26.  Foo" bare numbered clause
+    r")"
+    r")"
 )
+
+# On a font-marked PDF the markers already pin every numbered section, so we add ONLY the
+# structural dividers the number-markers can't see (APP/Schedule/Part/Division/Principle)
+# and skip the Section/bare-number regex — which on those PDFs only re-matches running
+# headers ("Section 77A" page tops) and list items, doubling the count.
+_MARK_RE = re.compile(r"(?im)^[ \t]*\x1e[ \t]*(\d{1,3}[A-Za-z]{0,2})\b")
+_STRUCT_RE = re.compile(
+    r"(?im)^[ \t]*("
+    r"(?:australian\s+privacy\s+principle|app)\s*\d+[A-Za-z]?"
+    r"|(?:schedule|sch\.?)\s+\d+[A-Za-z]{0,2}"
+    r"|(?:part|division)\s+\d+[A-Za-z]{0,2}(?=\s|$)"
+    r"|(?:principle)\s+\d+[A-Za-z]?"
+    r")")
 
 MAX_SNIPPET = 20000  # the template asks for the FULL, exact provision text — quote the
                      # whole section; only a pathological multi-page section is capped here.
@@ -176,30 +206,56 @@ def _location_ref(ocr: OCRMetrics, start: int, total_len: int, label: str) -> st
     return f"#{prefix}{num.group(0)}" if num else label
 
 
+def _boundaries(text: str) -> list[tuple]:
+    """Sorted (start, end, raw_label, marked) provision boundaries. Font-marked PDFs use
+    the markers + structural dividers; everything else uses the full SECTION_RE."""
+    out: list[tuple] = []
+    if HEADING_MARK in text:
+        out += [(m.start(), m.end(), m.group(1), True) for m in _MARK_RE.finditer(text)]
+        out += [(m.start(), m.end(), m.group(1), False) for m in _STRUCT_RE.finditer(text)]
+        out.sort(key=lambda b: b[0])
+    else:
+        out = [(m.start(), m.end(), m.group(2) or m.group(1), bool(m.group(1)))
+               for m in SECTION_RE.finditer(text)]
+    # drop boundaries that collide (within 2 chars) — keeps a marker over a regex re-match
+    merged: list[tuple] = []
+    for b in out:
+        if merged and b[0] - merged[-1][0] <= 2:
+            continue
+        merged.append(b)
+    return merged
+
+
 def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> list[Provision]:
     text = raw_text or ""
     total = len(text)
     law_name = _law_name(doc, text)
-    matches = list(SECTION_RE.finditer(text))
+    bounds = _boundaries(text)
     provisions: list[Provision] = []
 
-    if not matches:
+    if not bounds:
         # whole-doc fallback: still emit one provision so nothing is silently dropped
-        snippet = text.strip()[:MAX_SNIPPET]
+        snippet = text.replace(HEADING_MARK, "").strip()[:MAX_SNIPPET]
         if snippet:
             loc = _location_ref(ocr, 0, total, "(document)")
             provisions.append(_mk(doc, "(document)", snippet, (0, len(snippet)), loc, ocr, 0, law_name))
         return provisions
 
-    for i, m in enumerate(matches):
-        label = re.sub(r"\s+", " ", m.group(1)).strip().rstrip(".-—:").strip()
-        start = m.end()
-        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        body = text[start:end].strip()
-        if not body:
+    for i, (bstart, bend, raw_label, marked) in enumerate(bounds):
+        # a font-marked number heading ("77 Requirement…") keeps its TITLE in the body; a
+        # keyword/numbered marker ("Section 26") does not.
+        start = bend
+        end = bounds[i + 1][0] if i + 1 < len(bounds) else len(text)
+        body = text[start:end].replace(HEADING_MARK, "").strip()
+        if len(body) < 20:
+            # a Part/Division/Schedule heading stub, or a page running-header/footer
+            # ("Privacy Act 1988 2", "2020 Ed.") — no substantive provision text.
+            continue
+        # drop page-furniture boundaries whose own label is a bare year ("2020 Ed.")
+        if re.fullmatch(r"(?:19|20)\d{2}[A-Za-z.]*", raw_label.strip()):
             continue
         snippet = body[:MAX_SNIPPET]
-        norm = _normalise_label(label)
+        norm = _normalise_label(raw_label, marked=marked)
         # template requires article AND paragraph ("never write just Art. 26"): if the
         # section body opens with a sub-paragraph marker (e.g. "26.—(1)(a)"), append it.
         para = re.match(r"^[\s.\-—:]*(\(\d+[A-Za-z]?\)(?:\([a-z]+\))?)", body)
@@ -210,9 +266,35 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
     return provisions
 
 
-def _normalise_label(label: str) -> str:
-    label = label.replace("Sec.", "Section").replace("S.", "Section").replace("Art.", "Article").replace("Reg.", "Regulation")
-    return label[:1].upper() + label[1:]
+_ABBR = [(re.compile(r"^sec\.?(?=\s|\d|$)", re.I), "Section"), (re.compile(r"^s\.\s*", re.I), "Section "),
+         (re.compile(r"^art\.?(?=\s|\d|$)", re.I), "Article"), (re.compile(r"^reg\.?(?=\s|\d|$)", re.I), "Regulation"),
+         (re.compile(r"^para\.?(?=\s|\d|$)", re.I), "Paragraph"), (re.compile(r"^sch\.?(?=\s|\d|$)", re.I), "Schedule"),
+         (re.compile(r"^cl\.?(?=\s|\d|$)", re.I), "Clause"),
+         (re.compile(r"^(?:australian\s+privacy\s+principle|principle)\b", re.I), "APP")]
+
+
+def _normalise_label(label: str, marked: bool = False) -> str:
+    """Canonical, clean component label.
+      • font-marked AU headings ("77") → "Section 77"
+      • expand abbreviations (Sec.→Section, Sch.→Schedule, Australian Privacy Principle→APP)
+      • UPPERCASE a trailing letter suffix on the number ("12b"→"12B")
+      • collapse an APP sub-paragraph to the principle ("APP 1.2"→"APP 1")
+      • strip dangling brackets/punctuation ("Schedule 3)"→"Schedule 3")
+    """
+    s = re.sub(r"\s+", " ", label).strip()
+    if marked:
+        s = f"Section {s}"
+    for rx, rep in _ABBR:
+        s = rx.sub(rep, s, count=1)
+    s = re.sub(r"^(APP)\s*(\d+)\.\d+", r"\1 \2", s, flags=re.I)        # APP 1.2 → APP 1
+    s = re.sub(r"(\d+)([A-Za-z]{1,2})\b", lambda m: m.group(1) + m.group(2).upper(), s)  # 12b → 12B
+    s = re.sub(r"^([A-Za-z§]+)(\d)", r"\1 \2", s)                      # "Section26" → "Section 26"
+    s = re.sub(r"[)\]}.,;:\-—\s]+$", "", s).strip()                    # drop trailing "), ." etc.
+    if re.fullmatch(r"\d+[A-Za-z]{0,2}", s):                           # a bare "5" / "12B" → "Section 5"
+        s = "Section " + s
+    if not re.match(r"^(APP|§)\b", s):
+        s = s[:1].upper() + s[1:]
+    return s
 
 
 def _mk(doc: DiscoveredDoc, label: str, snippet: str, span, location_ref: str, ocr: OCRMetrics,
