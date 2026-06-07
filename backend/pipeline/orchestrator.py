@@ -121,6 +121,10 @@ def run_pipeline(
         doc_tags[d.doc_id] = d.discovery_tag
         provs = extraction.extract_provisions(d, raw, ocr_metrics)
         provisions.extend(provs)
+        if ocr_metrics.notes == "js_app_shell":
+            log(f"[extract] {d.title[:48]} -> JS-rendered page, no static law text "
+                f"(set CRAWL_BROWSER=true + run `scrapling install` to render it)")
+            continue
         if ocr_metrics.used:
             cer_str = (f" CER={ocr_metrics.cer*100:.2f}% {'PASS<5%' if ocr_metrics.cer < 0.05 else 'OVER-5%'}"
                        if ocr_metrics.cer is not None else "")

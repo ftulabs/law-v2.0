@@ -122,6 +122,8 @@ class OCRMetrics(BaseModel):
     cer: Optional[float] = None                 # measured Character Error Rate vs ground-truth
                                                 # sidecar (raster-OCR engines only); None if no
                                                 # reference is available. Rubric bar: < 0.05.
+    notes: Optional[str] = None                 # e.g. "js_app_shell" when an HTML page was an
+                                                # unrendered SPA (no extractable law text)
 
 
 class Provision(BaseModel):

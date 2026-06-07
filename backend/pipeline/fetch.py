@@ -123,8 +123,34 @@ def fetch_to_cache(url: str, log: Callable[[str], None] = print) -> FetchResult 
         res = (_scrapling_fetch(url, idx, log) if engine == "scrapling"
                else _httpx_fetch(url, idx, log))
         if res:
-            return res
+            return _maybe_render_spa(url, res, idx, log)
     return None
+
+
+def _maybe_render_spa(url: str, res: "FetchResult", idx: dict, log) -> "FetchResult":
+    """If a static fetch returned an unrendered single-page-app shell (e.g.
+    legislation.gov.au) and CRAWL_BROWSER is enabled, re-fetch through Scrapling's stealth
+    browser so the law text actually renders. Returns the original result unchanged when the
+    page isn't a shell, the feature is off, or rendering doesn't improve it."""
+    if res.fmt != DocFormat.HTML or not settings.crawl_browser:
+        return res
+    try:
+        html = Path(res.local_path).read_text(encoding="utf-8", errors="ignore")
+        from .ocr import is_js_app_shell
+        if not is_js_app_shell(html):
+            return res
+        from . import scrapling_fetch
+        if not scrapling_fetch.available():
+            return res
+        log(f"[fetch] SPA shell detected, rendering in stealth browser: {url}")
+        rendered = scrapling_fetch.fetch(url, browser=True, log=log)
+        if rendered and len(rendered.body) <= settings.fetch_max_bytes \
+                and not is_js_app_shell(rendered.body.decode("utf-8", "ignore")):
+            return _store(url, rendered.body, rendered.content_type, idx, None, None, log,
+                          engine=rendered.engine)
+    except Exception as e:  # noqa: BLE001 — rendering is best-effort; keep the static body
+        log(f"[fetch] SPA render skipped ({type(e).__name__}): {url}")
+    return res
 
 
 def _httpx_fetch(url: str, idx: dict, log) -> FetchResult | None:

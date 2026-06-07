@@ -27,6 +27,26 @@ def _html_to_text(html: str) -> str:
     return soup.get_text("\n", strip=True)
 
 
+# Single-page-app framework markers. A page carrying one of these renders its body with
+# JavaScript, so a static fetch returns only the app shell (site chrome, no law text).
+# legislation.gov.au (Angular: `ng-version`) is the Round-1 case.
+_SPA_MARKERS = ("ng-version=", "<app-root", "data-reactroot", "__next_data__",
+                "window.__nuxt", 'id="__nuxt"')
+
+
+def is_js_app_shell(html: str, text: str | None = None) -> bool:
+    """True when `html` is an UNRENDERED SPA shell — a JS framework marker is present AND
+    the de-chromed text has no legal structure (so extraction would otherwise emit the
+    site's navigation chrome as a bogus, non-verbatim 'provision'). If real section
+    markers ARE present the page carries server-rendered content and is kept."""
+    head = html[:400_000].lower()
+    if not any(m in head for m in _SPA_MARKERS):
+        return False
+    from .extraction import SECTION_RE
+    body = text if text is not None else _html_to_text(html)
+    return SECTION_RE.search(body) is None
+
+
 def _page_count(path: str) -> int:
     try:
         import pypdfium2
@@ -66,7 +86,13 @@ def get_document_text(doc: DiscoveredDoc, ocr_provider: OCRProvider | None = Non
 
     if fmt == DocFormat.HTML or (path and path.endswith(".html")):
         raw = Path(path).read_text(encoding="utf-8", errors="ignore") if path and Path(path).exists() else (doc.raw_text or "")
-        return _html_to_text(raw), metrics
+        text = _html_to_text(raw)
+        # An unrendered SPA shell (e.g. legislation.gov.au) carries only site chrome — return
+        # empty so extraction emits no provisions instead of mapping navigation text as a law.
+        if is_js_app_shell(raw, text):
+            metrics.notes = "js_app_shell"
+            return "", metrics
+        return text, metrics
 
     if fmt == DocFormat.TEXT or (path and path.endswith(".txt")):
         text = Path(path).read_text(encoding="utf-8", errors="ignore") if path and Path(path).exists() else (doc.raw_text or "")
