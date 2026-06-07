@@ -469,10 +469,36 @@ def _search_au_api(client, src: dict, query: str, economy: Economy, indicators, 
     return out
 
 
+def _au_pdf_download_url(title_id: str) -> str | None:
+    """AU: the authorised compilation PDF download URL for a title. legislation.gov.au is a
+    JS SPA (the /latest/text page renders only a collapsed outline), but the Download button
+    points at a static asset: /{id}/{date}/{date}/text/original/pdf, where {date} is the
+    latest compilation's start date from the OData /v1/documents feed. Returns None if the
+    API is unreachable so the caller falls back to the page (then the JS-shell guard)."""
+    try:
+        import httpx
+        r = httpx.get("https://api.prod.legislation.gov.au/v1/documents",
+                      params={"$filter": f"titleId eq '{title_id}' and format eq 'Pdf'",
+                              "$orderby": "start desc", "$top": "5"},
+                      headers={"Accept": "application/json"}, timeout=20)
+        items = r.json().get("value", [])
+    except Exception:  # noqa: BLE001
+        return None
+    items = [it for it in items if it.get("isAuthorised")] or items
+    start = (items[0].get("start") or "")[:10] if items else ""
+    if not start:
+        return None
+    return f"https://www.legislation.gov.au/{title_id}/{start}/{start}/text/original/pdf"
+
+
+_AU_TITLE_ID_RE = re.compile(r"legislation\.gov\.au/([A-Za-z]\d{4}[A-Za-z]\d+)", re.I)
+
+
 def _resolve_pdf_url(economy: Economy, url: str) -> tuple[str, DocFormat]:
     """Turn a law's landing URL into a fetchable full-text body URL + its format.
-    SG SSO serves the whole Act as a PDF at ?ViewType=Pdf (verified); MY links are
-    already direct PDFs; others fall back to the page itself."""
+    SG SSO serves the whole Act as a PDF at ?ViewType=Pdf (verified); AU resolves the
+    title to its authorised compilation PDF (the SPA page has no static text); MY links
+    are already direct PDFs; others fall back to the page itself."""
     from urllib.parse import urlsplit, urlunsplit
     low = url.lower()
     if low.endswith(".pdf"):
@@ -480,6 +506,12 @@ def _resolve_pdf_url(economy: Economy, url: str) -> tuple[str, DocFormat]:
     if economy.value == "SG" and ("/act/" in low or "/sl/" in low or "/acts-supp/" in low):
         s = urlsplit(url)
         return urlunsplit((s.scheme, s.netloc, s.path, "ViewType=Pdf", "")), DocFormat.PDF_TEXT
+    if economy.value == "AU":
+        m = _AU_TITLE_ID_RE.search(url)
+        if m:
+            pdf = _au_pdf_download_url(m.group(1))
+            if pdf:
+                return pdf, DocFormat.PDF_TEXT
     return url, DocFormat.HTML
 
 

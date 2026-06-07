@@ -152,6 +152,25 @@ def test_sg_distinct_statutes_not_merged():
     assert len(_dedup_by_law_title(docs)) == 3
 
 
+# ─────────────────── AU: resolve SPA page to authorised PDF ───────────────────
+def test_au_title_id_extracted_and_resolved(monkeypatch):
+    """legislation.gov.au/{id} is a JS SPA; _resolve_pdf_url must turn it into the static
+    authorised-PDF download URL (date from the OData feed, stubbed here)."""
+    from backend.pipeline import discovery as D
+    monkeypatch.setattr(D, "_au_pdf_download_url",
+                        lambda tid: f"https://www.legislation.gov.au/{tid}/2025-06-10/2025-06-10/text/original/pdf")
+    url, fmt = D._resolve_pdf_url(Economy.AU, "https://www.legislation.gov.au/C2004A03712")
+    assert fmt == DocFormat.PDF_TEXT
+    assert url == "https://www.legislation.gov.au/C2004A03712/2025-06-10/2025-06-10/text/original/pdf"
+
+
+def test_au_resolution_falls_back_to_page_when_api_down(monkeypatch):
+    from backend.pipeline import discovery as D
+    monkeypatch.setattr(D, "_au_pdf_download_url", lambda tid: None)
+    url, fmt = D._resolve_pdf_url(Economy.AU, "https://www.legislation.gov.au/C2004A03712/latest/text")
+    assert fmt == DocFormat.HTML  # falls back to the page → JS-shell guard handles it
+
+
 # ─────────────────── name recovery: instrument vs parent Act ───────────────────
 def test_recover_picks_instrument_not_parent_act():
     """SG subsidiary-legislation header lists the parent Act + citation ABOVE the
