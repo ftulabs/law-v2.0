@@ -117,6 +117,26 @@ def test_law_name_recovers_for_generic_title_else_cleans():
     assert _law_name(good, "") == "Privacy Act 1988"
 
 
+# ─────────────────── SG: drop redundant amendments + clean source URL ───────────────────
+def test_sg_amendment_docs_dropped():
+    from backend.pipeline.discovery import _drop_amendment_docs
+    docs = [_doc("Personal Data Protection Regulations 2021", "u1"),
+            _doc("Personal Data Protection (Amendment) Regulations 2026", "u2"),
+            _doc("Personal Data Protection Act 2012", "u3")]
+    kept = {d.title for d in _drop_amendment_docs(docs)}
+    assert "Personal Data Protection (Amendment) Regulations 2026" not in kept
+    assert "Personal Data Protection Regulations 2021" in kept
+
+
+def test_sg_source_url_stripped_to_law():
+    from backend.pipeline.discovery import _clean_source_url
+    assert _clean_source_url(Economy.SG, "https://sso.agc.gov.sg/Act/CoA1967?ProvIds=pr26-&DocDate=2020") \
+        == "https://sso.agc.gov.sg/Act/CoA1967"
+    # non-SG URLs are untouched
+    assert _clean_source_url(Economy.AU, "https://www.legislation.gov.au/C2004A03712/x") \
+        == "https://www.legislation.gov.au/C2004A03712/x"
+
+
 # ─────────────────── SG: statute-ID dedup (one law, many SSO URLs) ───────────────────
 def test_sg_statute_id_from_sso_urls():
     assert _sg_statute_id("https://sso.agc.gov.sg/SL/PDPA2012-S63-2021?DocDate=20210930") == "sl-s63-2021"

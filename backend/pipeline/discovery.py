@@ -295,6 +295,28 @@ def _prefer_english_my(docs: list[DiscoveredDoc]) -> list[DiscoveredDoc]:
     return english if english else docs
 
 
+def _clean_source_url(economy: Economy, url: str) -> str:
+    """SG: drop the section-specific query (?ProvIds=pr26-, DocDate, ViewType) so the cited
+    Source URL points to the LAW, not to whichever provision the search engine happened to
+    index — otherwise every section of an Act links to, say, section 26. The whole-Act page
+    is a correct, stable citation; a precise per-section anchor isn't reconstructable here."""
+    if economy.value != "SG":
+        return url
+    from urllib.parse import urlsplit, urlunsplit
+    s = urlsplit(url)
+    return urlunsplit((s.scheme, s.netloc, s.path, "", ""))
+
+
+def _drop_amendment_docs(docs: list[DiscoveredDoc]) -> list[DiscoveredDoc]:
+    """Drop standalone Amendment instruments. SG SSO publishes CONSOLIDATED in-force texts —
+    the principal Act/Regulations already incorporate their amendments — so fetching e.g.
+    'Personal Data Protection (Amendment) Regulations 2026' separately just re-extracts
+    changes already present in the consolidated 'Personal Data Protection Regulations 2021'.
+    Keeps the full list if EVERYTHING is an amendment, so a run never returns nothing."""
+    principal = [d for d in docs if not _AMEND_RE.search(d.title)]
+    return principal if principal else docs
+
+
 # ─────────────────────────── sample mode ───────────────────────────
 def discover_from_samples(economy: Economy, pillar: int | None = None) -> list[DiscoveredDoc]:
     if not MANIFEST.exists():
@@ -546,7 +568,8 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int) -> l
             _, fmt = _resolve_pdf_url(economy, url)
             by_url[url] = DiscoveredDoc(
                 doc_id=_doc_id(economy.value, url), economy=economy,
-                title=(title or url)[:200], source_url=url, portal=websearch.OFFICIAL_PORTAL.get(economy.value, "web"),
+                title=(title or url)[:200], source_url=_clean_source_url(economy, url),
+                portal=websearch.OFFICIAL_PORTAL.get(economy.value, "web"),
                 fmt=fmt, relevance_score=0.0, discovery_tag=DiscoveryTag.NEW)
         if len(by_url) >= max_docs * 2:
             break
@@ -555,6 +578,9 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int) -> l
     # For MY: prefer English-language documents over Bahasa Malaysia equivalents.
     if economy.value == "MY":
         docs = _prefer_english_my(docs)
+    # SG consolidates amendments into the principal text → drop redundant Amendment files.
+    if economy.value == "SG":
+        docs = _drop_amendment_docs(docs)
     return docs[:max_docs]
 
 
@@ -609,6 +635,9 @@ def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | N
     # For MY: prefer English-language documents over Bahasa Malaysia equivalents.
     if economy.value == "MY":
         docs = _prefer_english_my(docs)
+    # SG consolidates amendments into the principal text → drop redundant Amendment files.
+    if economy.value == "SG":
+        docs = _drop_amendment_docs(docs)
     docs.sort(key=lambda d: d.relevance_score, reverse=True)
     return docs[:max_docs]
 

@@ -38,10 +38,29 @@ SECTION_RE = re.compile(
     r"|(?:part|division)\s+\d+[A-Za-z]{0,2}(?=\s|$)"             #   Part 5 / Division 2 (needs a number)
     r"|(?:principle)\s+\d+[A-Za-z]?"                             #   Principle 8
     r"|§\s*\d+[A-Za-z]{0,2}"
+    r"|\d{1,4}[A-Za-z]{0,2}\.\s*[‐-―]\s*\(\d"          #   SG "199.—(1)" section body start
     r"|\d+[A-Za-z]{0,2}\.\s+(?=[A-Z])"                           #   "26.  Foo" bare numbered clause
     r")"
     r")"
 )
+
+# Singapore SSO PDFs open with an "Arrangement of Provisions" table — entries like
+# "199. Accounting records and systems of control" with no dotted leaders, so they slip past
+# the generic TOC filter and the bare-number rule turns each into a bogus provision whose
+# "body" is the next TOC entries. The real section body begins at the first "N.—(1)" form, so
+# we drop everything between "ARRANGEMENT OF" and that first em-dash section.
+_SG_BODY_START_RE = re.compile(r"(?m)^\s*\d{1,4}[A-Za-z]{0,2}\.\s*[‐-―]\s*\(\d")
+_ARRANGEMENT_HDR_RE = re.compile(r"ARRANGEMENT OF\b", re.I)
+
+
+def _strip_arrangement_toc(text: str) -> str:
+    hdr = _ARRANGEMENT_HDR_RE.search(text)
+    if not hdr:
+        return text
+    body = _SG_BODY_START_RE.search(text, hdr.end())
+    if not body:
+        return text
+    return text[:hdr.start()] + "\n" + text[body.start():]
 
 # On a font-marked PDF the markers already pin every numbered section, so we add ONLY the
 # structural dividers the number-markers can't see (APP/Schedule/Part/Division/Principle)
@@ -230,6 +249,7 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
     text = raw_text or ""
     total = len(text)
     law_name = _law_name(doc, text)
+    text = _strip_arrangement_toc(text)            # drop SG "Arrangement of Provisions" TOC
     bounds = _boundaries(text)
     provisions: list[Provision] = []
 
@@ -284,6 +304,9 @@ def _normalise_label(label: str, marked: bool = False) -> str:
     s = re.sub(r"\s+", " ", label).strip()
     if marked:
         s = f"Section {s}"
+    # SG body marker "199.—(1)" → keep just the section number ("199"); the bare-number rule
+    # below then makes it "Section 199" (subsection stays in the verbatim body).
+    s = re.sub(r"^(\d+[A-Za-z]{0,2})\.\s*[‐-―]\s*\(\d.*$", r"\1", s)
     for rx, rep in _ABBR:
         s = rx.sub(rep, s, count=1)
     s = re.sub(r"^(APP)\s*(\d+)\.\d+", r"\1 \2", s, flags=re.I)        # APP 1.2 → APP 1

@@ -67,6 +67,25 @@ def test_line_anchored_no_false_match_on_apart():
     assert _labels(text) == ["Section 1"]
 
 
+def test_sg_em_dash_section_split_and_toc_stripped():
+    """SG bodies are 'N.—(1)' (period+em-dash); the 'Arrangement of Provisions' TOC entry
+    'N. Name' must NOT become a bogus provision and the em-dash body MUST split correctly."""
+    text = (
+        "ARRANGEMENT OF PROVISIONS\n"
+        "199. Accounting records and systems of control\n"
+        "200. Something else\n"
+        "PART 6\n"
+        "Accounting records and systems of control\n"
+        "199.—(1) Every company must cause to be kept such accounting and other records "
+        "as will sufficiently explain the transactions and retain them for 5 years.\n"
+        "200.—(1) The next section body with enough text to be a real provision here.\n")
+    provs = extract_provisions(_doc(), text, OCRMetrics())
+    s199 = [p for p in provs if p.article_section == "Section 199"]
+    assert len(s199) == 1                                  # TOC entry stripped, one real body
+    assert "Every company must cause" in s199[0].verbatim_snippet
+    assert "retain them for 5 years" in s199[0].verbatim_snippet
+
+
 def test_short_stub_and_running_header_filtered():
     """Part heading stubs and page running-headers (short bodies / year labels) are dropped."""
     text = ("Part 1\nPreliminary\n"                           # stub: body "Preliminary" < 20 chars

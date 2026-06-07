@@ -94,7 +94,9 @@ def _pdf_text_layer(path: str) -> str:
             pages = []
             for pg in pdf.pages:
                 try:
-                    lines = pg.extract_text_lines()      # per-line text + char fonts
+                    # x_tolerance=2 infers spaces from glyph gaps — without it legal PDFs come
+                    # out jammed ("personaldatamustnot"); matches the old extract_text() spacing.
+                    lines = pg.extract_text_lines(x_tolerance=2)   # per-line text + char fonts
                 except Exception:
                     lines = None
                 if lines:
