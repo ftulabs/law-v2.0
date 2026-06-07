@@ -169,7 +169,36 @@ def test_recover_skips_citation_line():
 
 # ─────────────────────── MY English-preference ───────────────────────
 def test_prefer_english_drops_malay_when_english_present():
-    docs = [_doc("Akta Perlindungan Data Peribadi 2010", "https://lom.agc.gov.my/akta_709.pdf", Economy.MY),
-            _doc("Personal Data Protection Act 2010", "https://lom.agc.gov.my/akta_709e.pdf", Economy.MY)]
+    # Real lom.agc.gov.my convention: English under /LOM/EN/Act…, Malay under /BM/Akta…
+    docs = [_doc("Akta Perlindungan Data Peribadi 2010",
+                 "https://lom.agc.gov.my/ilims/upload/portal/akta/BM/Akta 709.pdf", Economy.MY),
+            _doc("Personal Data Protection Act 2010",
+                 "https://lom.agc.gov.my/ilims/upload/portal/akta/LOM/EN/Act 709 2016.pdf", Economy.MY)]
     out = _prefer_english_my(docs)
-    assert len(out) == 1 and out[0].source_url.endswith("e.pdf")
+    assert len(out) == 1 and "/EN/" in out[0].source_url
+
+
+def test_my_english_pdf_not_misclassified_as_malay():
+    """Regression: every MY act lives under /portal/akta/, so matching 'akta' anywhere
+    wrongly dropped English PDFs. The English /EN/Act… PDF must be kept."""
+    from backend.pipeline.discovery import _is_malay_my
+    en = _doc("Act 709", "https://lom.agc.gov.my/ilims/upload/portal/akta/LOM/EN/Act 709 14 6 2016.pdf", Economy.MY)
+    ms = _doc("Akta 709", "https://lom.agc.gov.my/ilims/upload/portal/akta/BM/Akta 709.pdf", Economy.MY)
+    assert not _is_malay_my(en) and _is_malay_my(ms)
+
+
+def test_my_act_number_dedup_collapses_reprints_and_landings():
+    """All reprints / language / landing-page forms of one MY act share its act number and
+    collapse to a single English direct-PDF document."""
+    docs = [
+        _doc("PDF Act 709-reprint 2023", "https://lom.agc.gov.my/ilims/upload/portal/akta/LOM/EN/Act 709 reprint 2023.pdf", Economy.MY),
+        _doc("PDF Online Version of Updated Text", "https://lom.agc.gov.my/ilims/upload/portal/akta/LOM/EN/Act 709 14 6 2016.pdf", Economy.MY),
+        _doc("Malaysia Federal Legislation", "https://lom.agc.gov.my/act-detail.php?language=BI&type=principal&act=709", Economy.MY),
+        _doc("PDF Act A1727", "https://lom.agc.gov.my/ilims/upload/portal/akta/LOM/EN/Act A1727.pdf", Economy.MY),
+    ]
+    out = _dedup_by_law_title(docs)
+    ids = sorted(_sg_statute_id(d.source_url) or d.source_url for d in out)  # noqa: F841
+    from backend.pipeline.discovery import _my_act_id
+    assert sorted(_my_act_id(d.source_url) for d in out) == ["my-709", "my-a1727"]
+    act709 = [d for d in out if _my_act_id(d.source_url) == "my-709"][0]
+    assert act709.source_url.endswith(".pdf")     # direct PDF kept over the act-detail landing
