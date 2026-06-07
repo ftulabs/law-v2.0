@@ -208,11 +208,17 @@ def map_provisions(
     grade_all = ranked_by_ind is None and n <= settings.grade_all_max_provisions
     eff_top_k = top_k
     if ranked_by_ind is None and not grade_all:
-        eff_top_k = min(n, max(settings.retrieve_top_k, math.ceil(n * settings.retrieve_fraction)))
+        # recall-safe shortlist: scale gently with the corpus but clamp to [floor, cap] so a
+        # 1200-provision crawl grades ~40/indicator (not 360) — the rerank already front-loads
+        # the relevant provisions, so a bigger shortlist only adds latency + cost, not recall.
+        eff_top_k = min(n, settings.retrieve_max_top_k,
+                        max(top_k, settings.retrieve_top_k, math.ceil(n * settings.retrieve_fraction)))
     if ranked_by_ind is None:
         log(f"[mapping] {'grade-all: every' if grade_all else f'retrieval shortlist top_k={eff_top_k} of'} "
             f"{n} provisions x {len(indicators)} indicators")
 
+    # ── build the (indicator, retrieved-provision) work list ──────────────────────────────
+    work: list[tuple] = []
     for ind in indicators:
         # LightRAG candidates when available, else (or when it returned nothing for this
         # indicator — e.g. the KG build was rate-limited) fall back to the hybrid retriever
@@ -231,81 +237,77 @@ def map_provisions(
             else:
                 candidates = retrieve(ind.indicator_id, provisions, top_k=eff_top_k)
         for r in candidates:
-            if not grade_all and r.score < min_retrieval:
-                continue
-            prov = r.provision
-            # Resilience: a single LLM failure (e.g. all free models rate-limited)
-            # must NOT crash the whole run — log and skip this pairing.
-            try:
-                graded = llm.complete_json(SYSTEM, _user_prompt(ind, prov))
-            except Exception as e:  # noqa: BLE001
-                failures += 1
-                if failures <= 3:
-                    log(f"[warn] LLM call failed ({type(e).__name__}); skipping {ind.indicator_id}/{prov.provision_id}")
-                continue
+            if grade_all or r.score >= min_retrieval:
+                work.append((ind, r))
 
-            # relevant = satisfies the target AND not a mislabel for a better sibling.
-            # Prefer the model's explicit `relevant`; otherwise derive it from the
-            # decoupled signals (real LLMs return satisfies_target/better_sibling; the
-            # offline mock returns `relevant` directly).
-            relevant = graded.get("relevant")
-            if relevant is None:
-                relevant = bool(graded.get("satisfies_target")) and not graded.get("better_sibling")
-            if not relevant:
-                continue
+    # ── grade each pairing (one independent LLM call) concurrently ────────────────────────
+    def _grade(item):
+        ind, r = item
+        prov = r.provision
+        try:
+            graded = llm.complete_json(SYSTEM, _user_prompt(ind, prov))
+        except Exception as e:  # noqa: BLE001 — one rate-limited call must not crash the run
+            return ("FAIL", type(e).__name__, ind.indicator_id, prov.provision_id)
 
-            legal_match = float(graded.get("legal_match", 0.0) or 0.0)
-            scope_alignment = float(graded.get("scope_alignment", 0.0) or 0.0)
-            scope_flag = graded.get("scope_flag") or None
-            rationale = graded.get("rationale", "")
+        # relevant = satisfies the target AND not a mislabel for a better sibling. Prefer the
+        # model's explicit `relevant`; else derive it (real LLMs return satisfies_target/
+        # better_sibling; the offline mock returns `relevant` directly).
+        relevant = graded.get("relevant")
+        if relevant is None:
+            relevant = bool(graded.get("satisfies_target")) and not graded.get("better_sibling")
+        if not relevant:
+            return None
 
-            src_text = source_texts.get(prov.doc_id, prov.verbatim_snippet)
-            grounding = confidence.snippet_grounding(prov.verbatim_snippet, src_text)
-            # surrounding-context windows (technical reviewers / HITL verification)
-            ctx_before, ctx_after = "", ""
-            if prov.char_span and src_text:
-                s0, s1 = prov.char_span
-                ctx_before = src_text[max(0, s0 - 300):s0]
-                ctx_after = src_text[s1:s1 + 300]
-            breakdown = confidence.score(
-                retrieval_score=r.score,
-                legal_match=legal_match,
-                grounding=grounding,
-                scope_alignment=scope_alignment,
-                scope_flag=scope_flag,
-            )
-            status = confidence.route(breakdown.final)
+        legal_match = float(graded.get("legal_match", 0.0) or 0.0)
+        scope_alignment = float(graded.get("scope_alignment", 0.0) or 0.0)
+        scope_flag = graded.get("scope_flag") or None
+        rationale = graded.get("rationale", "")
 
-            mappings.append(EvidenceMapping(
-                mapping_id=_mapping_id(run_id, ind.indicator_id, prov.provision_id),
-                run_id=run_id,
-                economy=prov.economy,
-                pillar=ind.pillar,
-                indicator_id=ind.indicator_id,
-                law_name=prov.law_name,
-                law_number=prov.law_number,
-                last_amended=(prov.amendment_date or "")[:4] or None,
-                article_section=prov.article_section,
-                location_ref=prov.location_ref,
-                verbatim_snippet=prov.verbatim_snippet,
-                source_url=prov.source_url,
-                mapping_rationale=(rationale or "")[:300],
-                confidence_score=breakdown.final,
-                discovery_tag=doc_tags.get(prov.doc_id, DiscoveryTag.KNOWN),
-                coverage=("Sectoral" if scope_flag else "Horizontal"),
-                notes=_build_notes(prov, scope_flag),
-                review_status=status,
-                provision_id=prov.provision_id,
-                source_pdf_path=prov.source_pdf_path,
-                raw_context=r.raw_context,
-                raw_context_before=ctx_before,
-                raw_context_after=ctx_after,
-                confidence=breakdown,
-                ocr=prov.ocr,
-                model_version=llm.model_version,
-                retrieval_log=r.log,
-                scope_flag=scope_flag,
-            ))
+        src_text = source_texts.get(prov.doc_id, prov.verbatim_snippet)
+        grounding = confidence.snippet_grounding(prov.verbatim_snippet, src_text)
+        ctx_before, ctx_after = "", ""
+        if prov.char_span and src_text:
+            s0, s1 = prov.char_span
+            ctx_before = src_text[max(0, s0 - 300):s0]
+            ctx_after = src_text[s1:s1 + 300]
+        breakdown = confidence.score(
+            retrieval_score=r.score, legal_match=legal_match, grounding=grounding,
+            scope_alignment=scope_alignment, scope_flag=scope_flag,
+        )
+        return EvidenceMapping(
+            mapping_id=_mapping_id(run_id, ind.indicator_id, prov.provision_id),
+            run_id=run_id, economy=prov.economy, pillar=ind.pillar, indicator_id=ind.indicator_id,
+            law_name=prov.law_name, law_number=prov.law_number,
+            last_amended=(prov.amendment_date or "")[:4] or None,
+            article_section=prov.article_section, location_ref=prov.location_ref,
+            verbatim_snippet=prov.verbatim_snippet, source_url=prov.source_url,
+            mapping_rationale=(rationale or "")[:300], confidence_score=breakdown.final,
+            discovery_tag=doc_tags.get(prov.doc_id, DiscoveryTag.KNOWN),
+            coverage=("Sectoral" if scope_flag else "Horizontal"),
+            notes=_build_notes(prov, scope_flag), review_status=confidence.route(breakdown.final),
+            provision_id=prov.provision_id, source_pdf_path=prov.source_pdf_path,
+            raw_context=r.raw_context, raw_context_before=ctx_before, raw_context_after=ctx_after,
+            confidence=breakdown, ocr=prov.ocr, model_version=llm.model_version,
+            retrieval_log=r.log, scope_flag=scope_flag,
+        )
+
+    workers = max(1, min(settings.mapping_concurrency, len(work) or 1))
+    if workers > 1 and work:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            results = list(ex.map(_grade, work))
+    else:
+        results = [_grade(it) for it in work]
+
+    for res in results:
+        if res is None:
+            continue
+        if isinstance(res, tuple):  # ("FAIL", err, ind, prov)
+            failures += 1
+            if failures <= 3:
+                log(f"[warn] LLM call failed ({res[1]}); skipping {res[2]}/{res[3]}")
+            continue
+        mappings.append(res)
     if failures:
         log(f"[warn] {failures} LLM call(s) failed and were skipped "
             f"(free-tier rate limits? try a paid key or fewer pillars)")

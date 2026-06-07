@@ -93,8 +93,18 @@ class Settings(BaseSettings):
     # retrieval shortlist whose size scales with the corpus (retrieve_fraction of provisions,
     # at least retrieve_top_k). A provision may map to several indicators either way.
     grade_all_max_provisions: int = 80
-    retrieve_top_k: int = 8                     # min shortlist size in retrieval (large-corpus) mode
-    retrieve_fraction: float = 0.30            # shortlist = this fraction of the corpus, min retrieve_top_k
+    # Large-corpus shortlist: how many top-ranked provisions per indicator go to the LLM. The
+    # hybrid retriever (BM25 + dense + cross-encoder rerank) puts the relevant provisions in
+    # the top handful (verified: AU Privacy Act APP 8 ranks #1 for P6-I4 out of 700+), so a
+    # small recall-safe shortlist captures them — grading 30% of 1200 provisions (the old
+    # default) was ~1400 LLM calls for no recall gain. Shortlist = clamp(corpus*fraction,
+    # retrieve_top_k floor, retrieve_max_top_k cap); the cap bounds latency + cost.
+    retrieve_top_k: int = 20                    # floor — always grade at least this many/indicator
+    retrieve_fraction: float = 0.05             # scale gently with corpus size
+    retrieve_max_top_k: int = 40                # HARD cap/indicator (latency + cost ceiling)
+    # Map provisions to indicators concurrently (independent LLM calls). Bounded so free-tier
+    # keys aren't hammered into rate limits; the provider's auto-failover absorbs the rest.
+    mapping_concurrency: int = 6
 
     # Zone-2 retriever: auto | hybrid | lightrag.
     #   hybrid   = built-in BM25+dense+cross-encoder (fast, always available, no LLM)
@@ -105,7 +115,11 @@ class Settings(BaseSettings):
     #              enough to benefit (>= lightrag_min_provisions, live-crawl scale); else hybrid.
     #              Tiny sample runs stay on hybrid (grade-all already covers them) so they don't
     #              pay the KG-build cost for no recall gain.
-    retriever: str = "auto"
+    # Default HYBRID: it needs no LLM and is fast + reliable. LightRAG's KG build calls the
+    # indexing LLM once per provision, so on a free/rate-limited key it stalls then yields an
+    # empty graph ("KG empty → falling back to hybrid") — wasting minutes before the real
+    # grading even starts. Opt into 'lightrag'/'auto' only with a funded or local LLM.
+    retriever: str = "hybrid"
     lightrag_min_provisions: int = 40          # auto-threshold: below this, auto uses hybrid
     lightrag_workdir: str = "data/cache/lightrag"
 
