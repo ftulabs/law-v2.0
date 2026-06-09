@@ -443,10 +443,10 @@ The dashboard reads `st.secrets` first, then env/`.env`. Locally, copy
 
 | Role | Name | Responsibility |
 | :---- | :---- | :---- |
-| Technical Lead | _[fill in]_ | AI architecture, OCR, pipeline |
-| Substantive Lead | _[fill in]_ | Legal/policy analysis, output QA |
+| Technical Lead | Minh Tran | AI architecture, OCR, pipeline |
+| Substantive Lead | Vo Minh Ngoc | Legal/policy analysis, output QA |
 
-Contact: minhtc.ftu@gmail.com
+Contact: minhtc@ftu.edu.vn
 
 ---
 
