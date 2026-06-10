@@ -29,16 +29,14 @@ def _provs(n):
 
 
 def test_large_corpus_shortlist_is_bounded():
-    """1200 provisions (single law) must grade a BOUNDED shortlist per indicator — the
-    global top-k plus the dense-recall extra — not a fraction of the corpus (the old bug:
-    0.30*1200 ≈ 360/indicator → ~1400 LLM calls / 30 min)."""
+    """1200 provisions must grade at most retrieve_max_top_k PER INDICATOR — a hard cap, not
+    a fraction of the corpus (old bug: 0.30*1200 ≈ 360/indicator → ~1400 calls / 30 min) and
+    not the per-law/dense extras stacked on top (the ~60/indicator regression)."""
     inds = get_indicators(6)
     llm = _CountingLLM()
     mapping.map_provisions(run_id="t", provisions=_provs(1200), pillar=6, indicators=inds,
                            llm=llm, top_k=5, log=lambda *_: None)
-    per_indicator_cap = settings.retrieve_max_top_k + settings.retrieve_max_top_k // 3 + 4
-    assert llm.calls <= per_indicator_cap * len(inds)
-    assert llm.calls < 0.30 * 1200 * len(inds)     # far below the old fraction explosion
+    assert llm.calls <= settings.retrieve_max_top_k * len(inds)
 
 
 def test_short_law_provision_not_crowded_out():

@@ -86,6 +86,25 @@ def test_sg_em_dash_section_split_and_toc_stripped():
     assert "retain them for 5 years" in s199[0].verbatim_snippet
 
 
+def test_my_space_paren_section_body_and_toc_stripped():
+    """MY bodies are 'N. (1)' (period+space+paren), not SG's em-dash. The TOC entry
+    'N. Name' must be stripped and the real body captured (not just the section name)."""
+    text = (
+        "ARRANGEMENT OF SECTIONS\n"
+        "20. Register of Data Users\n"
+        "21. Data user forum\n"
+        "ENACTED by the Parliament of Malaysia as follows:\n"
+        "Register of Data Users\n"
+        "20. (1) The Commissioner shall maintain a Register of Data Users in accordance "
+        "with section 128 and retain the particulars.\n"
+        "21. (1) A data user forum may be established under this Division for the purpose.\n")
+    provs = extract_provisions(_doc(), text, OCRMetrics())
+    s20 = [p for p in provs if p.article_section == "Section 20"]
+    assert len(s20) == 1                                   # TOC entry stripped
+    assert "The Commissioner shall maintain a Register" in s20[0].verbatim_snippet
+    assert not s20[0].verbatim_snippet.startswith(")")     # full "(1)" consumed, clean start
+
+
 def test_short_stub_and_running_header_filtered():
     """Part heading stubs and page running-headers (short bodies / year labels) are dropped."""
     text = ("Part 1\nPreliminary\n"                           # stub: body "Preliminary" < 20 chars

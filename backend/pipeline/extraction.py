@@ -38,29 +38,40 @@ SECTION_RE = re.compile(
     r"|(?:part|division)\s+\d+[A-Za-z]{0,2}(?=\s|$)"             #   Part 5 / Division 2 (needs a number)
     r"|(?:principle)\s+\d+[A-Za-z]?"                             #   Principle 8
     r"|§\s*\d+[A-Za-z]{0,2}"
-    r"|\d{1,4}[A-Za-z]{0,2}\.\s*[‐-―]\s*\(\d"          #   SG "199.—(1)" section body start
+    r"|\d{1,4}[A-Za-z]{0,2}\.\s*[‐-―]?\s*\(\d+[A-Za-z]?\)"   #   SG "199.—(1)" + MY "20. (1)" section body
     r"|\d+[A-Za-z]{0,2}\.\s+(?=[A-Z])"                           #   "26.  Foo" bare numbered clause
     r")"
     r")"
 )
 
-# Singapore SSO PDFs open with an "Arrangement of Provisions" table — entries like
-# "199. Accounting records and systems of control" with no dotted leaders, so they slip past
-# the generic TOC filter and the bare-number rule turns each into a bogus provision whose
-# "body" is the next TOC entries. The real section body begins at the first "N.—(1)" form, so
-# we drop everything between "ARRANGEMENT OF" and that first em-dash section.
-_SG_BODY_START_RE = re.compile(r"(?m)^\s*\d{1,4}[A-Za-z]{0,2}\.\s*[‐-―]\s*\(\d")
+# Statute PDFs (SG/MY/AU) open with an "Arrangement of Sections/Provisions" table whose
+# entries — "199. Accounting records…", "20. Register of Data Users" — have no dotted
+# leaders, so they slip past the generic TOC filter and the bare-number rule turns each into
+# a bogus provision whose "body" is the next TOC entries. The real body begins at the FIRST
+# of: the enacting formula, a section opening with a subsection ("N.—(1)" / "N. (1)"), or a
+# font-marked heading. Everything between "ARRANGEMENT OF" and that point is the TOC.
+_SECTION_BODY_RE = re.compile(r"(?m)^\s*\d{1,4}[A-Za-z]{0,2}\.\s*[‐-―]?\s*\(\d")
 _ARRANGEMENT_HDR_RE = re.compile(r"ARRANGEMENT OF\b", re.I)
+_ENACTING_RE = re.compile(r"\b(?:ENACTED by|Be it enacted|enacts as follows|hereby enact)", re.I)
 
 
 def _strip_arrangement_toc(text: str) -> str:
     hdr = _ARRANGEMENT_HDR_RE.search(text)
     if not hdr:
         return text
-    body = _SG_BODY_START_RE.search(text, hdr.end())
-    if not body:
+    cands = []
+    enact = _ENACTING_RE.search(text, hdr.end())
+    if enact:
+        cands.append(enact.start())
+    body = _SECTION_BODY_RE.search(text, hdr.end())
+    if body:
+        cands.append(body.start())
+    mark = text.find(HEADING_MARK, hdr.end())
+    if mark >= 0:
+        cands.append(mark)
+    if not cands:
         return text
-    return text[:hdr.start()] + "\n" + text[body.start():]
+    return text[:hdr.start()] + "\n" + text[min(cands):]
 
 # On a font-marked PDF the markers already pin every numbered section, so we add ONLY the
 # structural dividers the number-markers can't see (APP/Schedule/Part/Division/Principle)
@@ -306,7 +317,7 @@ def _normalise_label(label: str, marked: bool = False) -> str:
         s = f"Section {s}"
     # SG body marker "199.—(1)" → keep just the section number ("199"); the bare-number rule
     # below then makes it "Section 199" (subsection stays in the verbatim body).
-    s = re.sub(r"^(\d+[A-Za-z]{0,2})\.\s*[‐-―]\s*\(\d.*$", r"\1", s)
+    s = re.sub(r"^(\d+[A-Za-z]{0,2})\.\s*[‐-―]?\s*\(\d.*$", r"\1", s)
     for rx, rep in _ABBR:
         s = rx.sub(rep, s, count=1)
     s = re.sub(r"^(APP)\s*(\d+)\.\d+", r"\1 \2", s, flags=re.I)        # APP 1.2 → APP 1

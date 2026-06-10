@@ -130,26 +130,35 @@ SYSTEM = (
 
 
 def _diverse_shortlist(indicator_id, provisions, global_k, per_law_k, log):
-    """Per-indicator candidate shortlist that no single verbose law can monopolise.
-
-    Union of (a) the GLOBAL top-`global_k` provisions for the indicator and (b) each law's
-    OWN top-`per_law_k` — so a short, on-point Act is graded even when a 485-section Act
-    would otherwise fill the global top-k. Each provision keeps its best retrieval score."""
+    """Per-indicator candidate shortlist, capped at `global_k`, that no verbose law can
+    monopolise. We RESERVE each law's own top-`per_law_k` (round-robin: every law's #1 before
+    any law's #2), so a short on-point Act (My Health Records s77) is graded even when a
+    485-section Act would fill a pure global top-k; then we fill the rest of the budget with
+    the globally-best provisions. Total never exceeds global_k — the per-law guarantee is
+    carved OUT of the budget, not added on top (which had ballooned it to ~60/indicator)."""
     from collections import defaultdict
     chosen: dict[str, Retrieved] = {}
-    for r in retrieve(indicator_id, provisions, top_k=global_k):
-        chosen[r.provision.provision_id] = r
-    if per_law_k > 0:
-        by_law: dict[str, list] = defaultdict(list)
-        for p in provisions:
-            by_law[p.doc_id].append(p)
-        if len(by_law) > 1:                       # diversity only matters across multiple laws
-            for law_provs in by_law.values():
-                k = min(per_law_k, len(law_provs))
-                for r in retrieve(indicator_id, law_provs, top_k=k):
-                    prev = chosen.get(r.provision.provision_id)
-                    if prev is None or r.score > prev.score:
-                        chosen[r.provision.provision_id] = r
+
+    by_law: dict[str, list] = defaultdict(list)
+    for p in provisions:
+        by_law[p.doc_id].append(p)
+
+    # 1. reserved per-law slots, round-robin so no law is starved (caps at global_k)
+    if per_law_k > 0 and len(by_law) > 1:
+        per_law = [retrieve(indicator_id, lp, top_k=min(per_law_k, len(lp))) for lp in by_law.values()]
+        depth = max((len(lst) for lst in per_law), default=0)
+        for rank in range(depth):
+            for lst in per_law:
+                if rank < len(lst) and len(chosen) < global_k:
+                    chosen.setdefault(lst[rank].provision.provision_id, lst[rank])
+
+    # 2. fill the remaining budget with the globally-best provisions
+    if len(chosen) < global_k:
+        for r in retrieve(indicator_id, provisions, top_k=global_k):
+            if len(chosen) >= global_k:
+                break
+            chosen.setdefault(r.provision.provision_id, r)
+
     out = sorted(chosen.values(), key=lambda r: r.score, reverse=True)
     laws = len({r.provision.law_name for r in out})
     top = out[0] if out else None
