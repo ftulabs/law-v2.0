@@ -112,9 +112,26 @@ _ENGINES_SCRAPLING_FIRST = [_serper, _scrapling_ddg, _ddg_html, _ddg_lite, _moje
 _ENGINES_HTTPX_FIRST = [_serper, _ddg_html, _ddg_lite, _mojeek, _scrapling_ddg]
 
 
+# Circuit breaker for the keyless engines. DuckDuckGo resets the TLS connection after ~a dozen
+# queries; each further query then wastes ~60s on Scrapling's 3 retries, so a 48-query
+# round-robin run would hang ~50 min. We count CONSECUTIVE empty results: after _SOFT we drop
+# the slow Scrapling-retry engine (further probes fail in seconds), after _HARD we stop hitting
+# the network entirely and discovery proceeds with the laws already found. A keyed Serper run
+# never trips it (Serper is reliable). State is per-process; reset_circuit() clears it per run.
+_circuit = {"empties": 0}
+_SOFT, _HARD = 2, 6
+
+
+def reset_circuit() -> None:
+    _circuit["empties"] = 0
+
+
 def _engines() -> list:
-    return (_ENGINES_HTTPX_FIRST if (settings.crawl_fetcher or "scrapling").lower() == "httpx"
+    base = (_ENGINES_HTTPX_FIRST if (settings.crawl_fetcher or "scrapling").lower() == "httpx"
             else _ENGINES_SCRAPLING_FIRST)
+    if _circuit["empties"] >= _SOFT:
+        base = [e for e in base if e is not _scrapling_ddg]   # drop the ~60s retry path
+    return base
 
 
 def _cache_file():
@@ -142,6 +159,8 @@ def search(query: str, site: str | None = None, max_results: int = 10, log=print
     cache = _load_cache()
     if q in cache:                                  # cache hit — no network, no rate-limit
         return [(u, t) for u, t in cache[q]]
+    if _circuit["empties"] >= _HARD and not settings.serper_api_key:
+        return []                                   # circuit open — engines blocked, skip network
 
     headers = {"User-Agent": settings.crawl_user_agent,
                "Accept-Language": settings.crawl_accept_language,
@@ -157,10 +176,15 @@ def search(query: str, site: str | None = None, max_results: int = 10, log=print
             if results:
                 break
     if results:
+        _circuit["empties"] = 0
         cache[q] = results
         _cache_file().write_text(json.dumps(cache, indent=1), encoding="utf-8")
     else:
-        log(f"[websearch] all engines empty for '{q}'")
+        _circuit["empties"] += 1
+        msg = f"[websearch] all engines empty for '{q}'"
+        if _circuit["empties"] == _HARD and not settings.serper_api_key:
+            msg += " — engines blocked; circuit OPEN. Set SERPER_API_KEY for reliable discovery."
+        log(msg)
     return results
 
 

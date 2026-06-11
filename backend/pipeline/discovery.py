@@ -557,6 +557,7 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int) -> l
     generalises to any economy with an entry in websearch.OFFICIAL_PORTAL."""
     from . import websearch
     from ..rdtii.keywords import portal_search_queries
+    websearch.reset_circuit()                      # fresh circuit-breaker state per run
     topics = portal_search_queries(economy.value, pillar)[:settings.discovery_max_queries]
     # One search per query → a per-query result bucket. A law-type query ("companies act")
     # returns few, niche hits that the old "fill the budget in query order" loop discarded

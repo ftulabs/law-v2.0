@@ -263,3 +263,35 @@ def test_websearch_round_robin_keeps_niche_law_types(monkeypatch):
     names = [d.title for d in D.discover_websearch(Economy.SG, 6, max_docs=18)]
     assert any("Companies Act" in n for n in names)
     assert any("Income Tax" in n for n in names)
+
+
+# ─────────────────── circuit breaker: blocked search engines don't hang the run ───────────────────
+def test_websearch_circuit_breaker_stops_hammering_blocked_engines(monkeypatch):
+    """When the keyless engines are network-blocked (all return empty), the run must NOT keep
+    paying the ~60s Scrapling-retry cost on every remaining query: after _SOFT empties the slow
+    Scrapling engine is dropped, after _HARD the circuit opens and search() skips the network."""
+    from backend.pipeline import websearch
+
+    monkeypatch.setattr(websearch.settings, "serper_api_key", "")
+    monkeypatch.setattr(websearch, "_load_cache", lambda: {})
+    monkeypatch.setattr(websearch, "_cache_file", lambda: (_ for _ in ()).throw(AssertionError("no write")))
+    calls = {"scrapling": 0}
+
+    def empty(client, q, n):
+        return []
+
+    def slow(client, q, n):                          # stands in for the 60s Scrapling retry path
+        calls["scrapling"] += 1
+        return []
+
+    for name in ("_serper", "_ddg_html", "_ddg_lite", "_mojeek"):
+        monkeypatch.setattr(websearch, name, empty)
+    monkeypatch.setattr(websearch, "_scrapling_ddg", slow)
+    monkeypatch.setattr(websearch, "_ENGINES_SCRAPLING_FIRST",
+                        [websearch._serper, websearch._scrapling_ddg, websearch._ddg_html,
+                         websearch._ddg_lite, websearch._mojeek])
+    websearch.reset_circuit()
+    for i in range(40):
+        assert websearch.search(f"q{i}", site="x", max_results=4, log=lambda *a: None) == []
+    assert calls["scrapling"] <= websearch._SOFT      # slow path dropped early, not 40 times
+    assert websearch._circuit["empties"] == websearch._HARD   # opened and stays open
