@@ -145,3 +145,24 @@ def test_au_app_relabel_schedule_scope_and_cross_ref_suppressed():
     assert "8.1" in app8.verbatim_snippet and "8.2" in app8.verbatim_snippet  # full principle, not just 8.1
     s100 = next(p for p in provs if p.article_section == "Section 100")
     assert "prescribing a country" in s100.verbatim_snippet  # the cross-ref text stays in s100
+
+
+def test_au_page_furniture_stripped_mid_provision():
+    """AU prints page footers/headers WITHIN a provision that spans pages — a short-title ±
+    page footer ("My Health Records Act 2012 89") and a word-form page-top header ("Section
+    77A"). Their page numbers vary so the repeated-line stripper misses them; they must not
+    land in the verbatim snippet."""
+    M = HEADING_MARK
+    text = (
+        f"{M}77 Requirement not to hold or take records outside Australia\n"
+        "(1) The System Operator must not hold the records outside Australia.\n"
+        "My Health Records Act 2012 89\n"                   # footer (act title + page)
+        "Section 77A\n"                                     # word-form page-top header
+        "(2) Despite subsection (1), the System Operator is authorised to do certain things.\n"
+        f"{M}78 Something else entirely with a body long enough to be a real provision here.\n")
+    s77 = next(p for p in extract_provisions(_doc(Economy.AU), text, OCRMetrics())
+               if p.article_section == "Section 77")
+    assert "(1) The System Operator" in s77.verbatim_snippet
+    assert "(2) Despite subsection (1)" in s77.verbatim_snippet   # body continues across the page
+    assert "My Health Records Act 2012 89" not in s77.verbatim_snippet
+    assert "Section 77A" not in s77.verbatim_snippet

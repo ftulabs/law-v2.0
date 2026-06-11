@@ -68,6 +68,25 @@ _STRUCT_RE_AU = re.compile(
 _APP_HEADING_RE = re.compile(r"^\s*Australian Privacy Principle\s+(\d+[A-Za-z]?)\b", re.I)
 _DOTTED_TOC_RE = re.compile(r"(?m)^.*\.{4,}.*$")        # a table-of-contents dotted-leader line
 
+# AU consolidated PDFs print page furniture BETWEEN and WITHIN provisions that is not law text
+# and slips past the repeated-line stripper because the page number varies each page:
+#   • a short-title footer ± page number — "356 Privacy Act 1988", "My Health Records Act 2012 89"
+#   • a page-top header naming the current section/structural unit in WORD form — "Section 77A",
+#     "Schedule 1 Australian Privacy Principles". The REAL headings are font-marked (sections) or
+#     carry an em-dash (Schedule/Part), so these word forms are only running headers — note the
+#     structural pattern deliberately stops before an em-dash so it never eats a real heading.
+_AU_FURNITURE = [
+    re.compile(r"(?im)^[ \t]*\d{0,4}[ \t]*[A-Z][A-Za-z ]+? Act (?:19|20)\d{2}[ \t]*\d{0,4}[ \t]*$"),
+    re.compile(r"(?im)^[ \t]*Section\s+\d+[A-Za-z]?[ \t]*$"),
+    re.compile(r"(?im)^[ \t]*(?:Schedule|Part|Division)\s+\d+[A-Za-z]?(?:\s+[A-Z][^\n—–]*)?[ \t]*$"),
+]
+
+
+def _strip_au_chrome(text: str) -> str:
+    for rx in _AU_FURNITURE:
+        text = rx.sub("", text)
+    return text
+
 # SG/MY drafting: a section is NUMBERED at the margin — "11.—(1)" (SG em-dash), "20. (1)" (MY
 # space-paren), "26. Foo" (bare). The "Section/Regulation/Paragraph/Article N" keyword forms in
 # these statutes are ALWAYS cross-references to the parent Act ("…under section 28 of the Act"),
@@ -380,6 +399,8 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
         text = _DOTTED_TOC_RE.sub("", text)              # ("Schedule 1……… 5") — drop those lines so
         text = _strip_running_headers(text)              # their "Schedule N" entries aren't boundaries
     law_name = _law_name(doc, text)                     # needs the ARRANGEMENT anchor → before TOC strip
+    if doc.economy == Economy.AU:                        # drop act-title±page footers + word-form
+        text = _strip_au_chrome(text)                    # "Section 77A"/"Schedule 1 …" page headers
     text = _strip_arrangement_toc(text)                 # drop the table-of-contents block
     if doc.economy == Economy.AU:
         # AU's "Contents" lists "Schedule 1/2…" BEFORE the body; those entries would set the
