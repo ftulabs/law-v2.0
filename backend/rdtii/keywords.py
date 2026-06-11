@@ -136,12 +136,15 @@ INDICATOR_SEARCH_TERMS: dict[str, list[str]] = {
         "personal information protection act",
         "data protection act",
         "electronic health records act",   # health-sector frameworks also qualify
+        "data sharing act",                # public-sector data-sharing/availability frameworks
         # descriptive
         "data protection framework obligations",
         "consent personal data collection",
         "data subject rights protection",
         "personal information privacy law",
         "privacy legislation framework",
+        "public sector data sharing scheme",
+        "authorised data sharing accredited user",
     ],
 
     # ── P7-I2 — DEDICATED CYBERSECURITY FRAMEWORK ──
@@ -177,6 +180,7 @@ INDICATOR_SEARCH_TERMS: dict[str, list[str]] = {
         "employment act",              # employee records minimum (SG §95)
         "labour act",                  # variant for employment legislation
         "telecommunications act",      # call/billing records minimum period
+        "telecommunications regulations",  # telecom data-retention regulations
         "electronic communications act",  # variant for telecom legislation
         "banking act",                 # bank record retention requirements
         "financial services act",      # financial institution records
@@ -186,6 +190,8 @@ INDICATOR_SEARCH_TERMS: dict[str, list[str]] = {
         "tax records kept minimum years",
         "employment records retention period",
         "telecommunications records minimum retention",
+        "mandatory data retention period communications",
+        "service provider retain telecommunications data",
         "financial records preservation minimum period",
         "business records kept minimum years",
         # general retention vocabulary matching the operative wording of corporate/tax acts
@@ -213,21 +219,37 @@ INDICATOR_SEARCH_TERMS: dict[str, list[str]] = {
     # Police / authority empowered to access, search, compel disclosure.  Lives in criminal
     # procedure codes, security acts, cybersecurity acts, telecom laws — many instrument types.
     "P7-I5": [
-        # name fragments — generic law-type names shared across common-law jurisdictions
+        # name fragments — generic law-TYPE names shared across common-law jurisdictions (NOT
+        # specific titles): interception, surveillance, intelligence-agency, data-sharing and
+        # criminal-code instruments are the usual homes of state access powers everywhere.
         "criminal procedure code",         # common-law: SG, MY, IN, PK, etc.
         "criminal procedure act",          # variant naming
+        "criminal code act",               # criminal codes with investigation/access powers
         "security offences act",           # special security legislation
         "interception of communications act",  # lawful interception laws
-        "telecommunications interception act", # AU Telecommunications (Interception) Act
+        "telecommunications interception act", # interception/access of telecom data
+        "telecommunications interception and access act",  # interception + stored-access variant
+        "surveillance devices act",        # surveillance-warrant regimes (state & federal)
+        "surveillance legislation",        # surveillance amendment/powers statutes
+        "intelligence services act",       # intelligence-agency enabling acts
+        "security intelligence act",       # security-intelligence organisation acts
+        "data sharing act",                # public-sector data-sharing → government access
         "computer misuse act",             # access/hacking provisions used for investigation
         "cybersecurity act",               # cybersecurity laws with authority access powers
         "police act",                      # police powers acts
         "national security act",           # national-security data access powers
-        # descriptive
+        # descriptive — the regulatory MECHANISM/obligation (surfaces the law via full-text
+        # search without naming it): warrants, notices, orders that compel access to data.
         "police access computer data investigation",
         "law enforcement access personal data",
         "criminal investigation electronic records",
         "lawful interception of communications",
+        "stored communications access warrant",
+        "surveillance device warrant access data",
+        "intelligence agency access to personal data",
+        "technical assistance notice decryption",
+        "international production order cross-border data",
+        "compelled disclosure of telecommunications data",
         "government authority inspect computer",
         "national security data access powers",
         "production order disclosure personal data",
@@ -242,9 +264,14 @@ def portal_search_queries(economy: str, pillar: int | None = None) -> list[str]:
 
     Order:
       1. Broad pillar terms (highest recall, fewest assumptions)
-      2. Indicator-level terms — name fragments first (effective on portal name-based
-         search APIs like AU OData contains(name,…) and portal search boxes), then
-         descriptive phrases (effective on full-text web search via DDG/Serper).
+      2. Indicator-level terms, ROUND-ROBIN across indicators — each indicator's Nth term
+         before any indicator's (N+1)th. Within each indicator, name fragments come first
+         (effective on name-based portal APIs / search boxes), then descriptive phrases
+         (effective on full-text web search via DDG/Serper). The round-robin matters because
+         discovery fires only the first `discovery_max_queries` of this list and a search
+         engine often blocks after a dozen calls: a flat indicator-order list (P7-I1 … then
+         P7-I5) exhausted the budget on the framework indicator before government-access
+         (P7-I5) was ever queried, so those law types went undiscovered.
 
     Both sets are country-agnostic: the same queries work for any economy.  The
     `economy` parameter is kept for future language variants (Malay/Thai) but does
@@ -259,10 +286,15 @@ def portal_search_queries(economy: str, pillar: int | None = None) -> list[str]:
     for p in pillars:
         out.extend(PILLAR_SEARCH_TERMS.get(p, []))
 
-    # 2. Per-indicator terms (name fragments + descriptive), in indicator order
-    for p in pillars:
-        for ind in get_indicators(p):
-            out.extend(INDICATOR_SEARCH_TERMS.get(ind.indicator_id, []))
+    # 2. Per-indicator terms, interleaved round-robin so every indicator gets a fair share of
+    #    the query budget (no indicator is starved when the list is truncated/engine-blocked).
+    ind_lists = [list(INDICATOR_SEARCH_TERMS.get(ind.indicator_id, []))
+                 for p in pillars for ind in get_indicators(p)]
+    depth = max((len(l) for l in ind_lists), default=0)
+    for rank in range(depth):
+        for l in ind_lists:
+            if rank < len(l):
+                out.append(l[rank])
 
     # Deduplicate while preserving order (first occurrence wins)
     seen: set[str] = set()

@@ -81,10 +81,13 @@ class Settings(BaseSettings):
     # Web-search discovery breadth. Results are collected ROUND-ROBIN across queries — each
     # query's top hit before any query's 2nd — so a specific law-type query ("companies act")
     # is never crowded out by abundant data-protection results. per_query caps results pulled
-    # from each query; max_queries caps how many of the (deduped) keyword queries we fire
-    # (one search engine call each — keep modest on a rate-limited free engine; cache amortises).
+    # from each query; max_queries caps how many of the (deduped) keyword queries we fire (one
+    # search engine call each). Set to cover a full single-pillar keyword list (~90) so no
+    # indicator's queries are structurally truncated — esp. P7-I5 government-access law types.
+    # Safe on a rate-limited free engine: websearch's circuit breaker stops firing once the
+    # engine blocks (so a high cap never hangs), and a Serper key fires them all reliably.
     discovery_per_query: int = 4
-    discovery_max_queries: int = 48
+    discovery_max_queries: int = 90
 
     # retrieval (Zone 1 ranking)
     dense_retrieval: str = "auto"              # auto | on | off — 'auto' = dense if installed
