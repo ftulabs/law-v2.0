@@ -7,14 +7,48 @@ from backend.pipeline.extraction import (
 from backend.schemas import DiscoveredDoc, DiscoveryTag, DocFormat, Economy, OCRMetrics
 
 
-def _doc():
-    return DiscoveredDoc(doc_id="d", economy=Economy.AU, title="Test Act 2020",
+def _doc(economy=Economy.AU):
+    return DiscoveredDoc(doc_id="d", economy=economy, title="Test Act 2020",
                          source_url="u", portal="p", fmt=DocFormat.PDF_TEXT,
                          discovery_tag=DiscoveryTag.NEW)
 
 
 def _labels(text):
     return [p.article_section for p in extract_provisions(_doc(), text, OCRMetrics())]
+
+
+# ─────────────────────── SG subsidiary-legislation (per-country) ───────────────────────
+def test_sg_sso_chrome_and_cross_ref_and_heading():
+    """SG SSO PDFs: strip page chrome (incl. its bold HEADING_MARK), split em-dash sections
+    "11.—(1)" with the marginal heading attached, never the previous reg's tail, and IGNORE
+    "section N of the Act" cross-references (SG numbers its own sections, so the keyword form
+    is only ever a reference)."""
+    M = HEADING_MARK
+    text = (
+        "ARRANGEMENT OF PROVISIONS\n"
+        "10. Requirements for transfer\n"
+        "11. Legally enforceable obligations\n"
+        "Requirements for transfer\n"
+        "10.—(1) For the purposes of section 26 of the Act, a transferring organisation must "
+        "comply with the requirements, the fee allowed by the Commission under section 48H(2) "
+        "of the Act being payable.\n"
+        f"{M}1 S 63/2021\n"                                      # bold page footer (marked) → chrome
+        "(4) This Part does not prevent an individual from withdrawing consent.\n"
+        "Legally enforceable obligations\n"
+        "11.—(1) For the purposes of regulation 10(1), legally enforceable obligations include "
+        "obligations imposed on a recipient under any law.\n"
+        "Informal Consolidation – version in force from 2/3/2026\n"
+        "S 63/2021 14\n")
+    provs = extract_provisions(_doc(Economy.SG), text, OCRMetrics())
+    labels = [p.article_section for p in provs]
+    assert labels.count("Section 11") == 1 and "Section 10" in labels
+    assert "Section 48H" not in " ".join(labels)               # cross-ref is not a boundary
+    s11 = next(p for p in provs if p.article_section == "Section 11")
+    assert s11.verbatim_snippet.startswith("Legally enforceable obligations")  # starts at the heading
+    assert "11.—(1) For the purposes of regulation 10(1)" in s11.verbatim_snippet
+    assert "withdrawing consent" not in s11.verbatim_snippet    # no previous reg's tail
+    assert "S 63/2021" not in s11.verbatim_snippet              # chrome (and its mark) stripped
+    assert "Informal Consolidation" not in s11.verbatim_snippet
 
 
 # ─────────────────────── label normalization ───────────────────────

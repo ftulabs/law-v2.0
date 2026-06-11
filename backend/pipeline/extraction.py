@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import re
 
-from ..schemas import DiscoveredDoc, OCRMetrics, Provision
+from ..schemas import DiscoveredDoc, Economy, OCRMetrics, Provision
 
 HEADING_MARK = "\x1e"   # font-detected heading sentinel emitted by ocr._pdf_text_layer
 
@@ -38,6 +38,7 @@ SECTION_RE = re.compile(
     r"|(?:part|division)\s+\d+[A-Za-z]{0,2}(?=\s|$)"             #   Part 5 / Division 2 (needs a number)
     r"|(?:principle)\s+\d+[A-Za-z]?"                             #   Principle 8
     r"|§\s*\d+[A-Za-z]{0,2}"
+    r"|\d{1,4}[A-Za-z]{0,2}\.\s*[‐-―]?\s*\(\d+[A-Za-z]?\)"       #   SG "11.—(1)" / MY "20. (1)" section body
     r"|\d+[A-Za-z]{0,2}\.\s+(?=[A-Z])"                           #   "26.  Foo" bare numbered clause
     r")"
     r")"
@@ -56,8 +57,106 @@ _STRUCT_RE = re.compile(
     r"|(?:principle)\s+\d+[A-Za-z]?"
     r")")
 
+# SG/MY drafting: a section is NUMBERED at the margin — "11.—(1)" (SG em-dash), "20. (1)" (MY
+# space-paren), "26. Foo" (bare). The "Section/Regulation/Paragraph/Article N" keyword forms in
+# these statutes are ALWAYS cross-references to the parent Act ("…under section 28 of the Act"),
+# so treating them as boundaries shreds a provision into cross-ref fragments. This profile keeps
+# the numbered + structural (Part/Division/Schedule/APP) markers and DROPS the keyword forms.
+_NUMBERED_RE = re.compile(
+    r"(?im)^[ \t]*("
+    r"(?:australian\s+privacy\s+principle|app)\s*\d+[A-Za-z]?"
+    r"|(?:schedule|sch\.?)\s+\d+[A-Za-z]{0,2}"
+    r"|(?:part|division)\s+\d+[A-Za-z]{0,2}(?=\s|$)"
+    r"|(?:principle)\s+\d+[A-Za-z]?"
+    r"|\d{1,4}[A-Za-z]{0,2}\.\s*[‐-―]?\s*\(\d+[A-Za-z]?\)"       # "11.—(1)" / "20. (1)"
+    r"|\d+[A-Za-z]{0,2}\.\s+(?=[A-Z])"                           # "26. Foo" bare numbered clause
+    r")")
+
 MAX_SNIPPET = 20000  # the template asks for the FULL, exact provision text — quote the
                      # whole section; only a pathological multi-page section is capped here.
+
+
+# ── SG SSO page chrome ───────────────────────────────────────────────────────
+# Consolidated SSO PDFs print running headers/footers BETWEEN provisions that are NOT part of
+# the law text: the consolidation stamp, the statute number (± page number), and bracketed
+# amendment annotations on their own line. Left in, they pollute every verbatim snippet
+# ("S 63/2021\n(4) This Part…") and split sections at the wrong place. Worse, these footers are
+# BOLD, so ocr.py marks them with HEADING_MARK — and the page numbers in "1 S 63/2021" then
+# masquerade as font-marked section headings (labels 1,3,5,…), forcing the marked path so the
+# REAL sections are never found. So the leading mark is consumed here too, clearing the page
+# furniture AND its spurious marks; the doc then falls back to the regex path correctly.
+_M = r"[ \t]*\x1e?[ \t]*"                                                   # optional leading heading-mark
+_SG_CHROME = [
+    re.compile(rf"(?im)^{_M}Informal Consolidation\b.*$"),
+    re.compile(rf"(?im)^{_M}S\s*\d+/\d+(?:\s+\d+)?[ \t]*$"),                # "S 63/2021" / "S 63/2021 14"
+    re.compile(rf"(?im)^{_M}\d+\s+S\s*\d+/\d+[ \t]*$"),                     # "14 S 63/2021"
+    re.compile(rf"(?im)^{_M}\[\s*S?\s*\d+/\d+(?:\s+wef\b[^\]]*)?\s*\][ \t]*$"),  # "[40/2020]" / "[S 734/2021 wef …]"
+]
+
+
+def _strip_page_chrome(text: str, economy) -> str:
+    if economy != Economy.SG:                      # the patterns are SSO-specific
+        return text
+    for rx in _SG_CHROME:
+        text = rx.sub("", text)
+    return text
+
+
+# ── "Arrangement of Sections/Provisions" table of contents ───────────────────
+# Statute PDFs open with a TOC whose entries ("199. Accounting records…", "11. Legally
+# enforceable obligations") have no dotted leaders, so the bare-number rule would turn each
+# into a bogus provision. The real body begins at the FIRST of: the enacting formula, a
+# section opening with a subsection ("N.—(1)" / "N. (1)"), or a font-marked heading.
+_SECTION_BODY_RE = re.compile(r"(?m)^\s*\d{1,4}[A-Za-z]{0,2}\.\s*[‐-―]?\s*\(\d")
+_ARRANGEMENT_HDR_RE = re.compile(r"ARRANGEMENT OF\b", re.I)
+_ENACTING_RE = re.compile(r"\b(?:ENACTED by|Be it enacted|enacts as follows|hereby enact)", re.I)
+
+
+def _strip_arrangement_toc(text: str) -> str:
+    hdr = _ARRANGEMENT_HDR_RE.search(text)
+    if not hdr:
+        return text
+    cands = []
+    enact = _ENACTING_RE.search(text, hdr.end())
+    if enact:
+        cands.append(enact.start())
+    body = _SECTION_BODY_RE.search(text, hdr.end())
+    if body:
+        cands.append(body.start())
+    mark = text.find(HEADING_MARK, hdr.end())
+    if mark >= 0:
+        cands.append(mark)
+    if not cands:
+        return text
+    return text[:hdr.start()] + "\n" + text[min(cands):]
+
+
+# A marginal section heading (SG sentence-case "Legally enforceable obligations") sits on the
+# line directly above the numbered body "11.—(1)". It belongs to THIS section, so the snippet
+# should begin there — not leak into the previous section's tail (and the previous section
+# should END before it).
+def _is_marginal_heading(line: str) -> bool:
+    line = line.strip()
+    if not (3 <= len(line) <= 80):
+        return False
+    if line[-1] in ".;:,":                         # a sentence/clause end is body, not a heading
+        return False
+    if re.match(r"^[\d(\[]", line):                # numbered / subsection / annotation line
+        return False
+    return bool(line[0].isupper() and re.search(r"[A-Za-z]", line))
+
+
+def _heading_start(text: str, marker_start: int) -> int:
+    """Start of the marginal heading line directly above a numbered marker, else the marker's
+    own line start (so the 'N.—(1)' marker is kept in the body either way)."""
+    ls = text.rfind("\n", 0, marker_start) + 1
+    prev_end = ls - 1
+    if prev_end <= 0:
+        return ls
+    prev_start = text.rfind("\n", 0, prev_end) + 1
+    if _is_marginal_heading(text[prev_start:prev_end]):
+        return prev_start
+    return ls
 
 
 # A plausible law-title line: a law-type keyword, short, not a sentence. Used to recover
@@ -206,14 +305,21 @@ def _location_ref(ocr: OCRMetrics, start: int, total_len: int, label: str) -> st
     return f"#{prefix}{num.group(0)}" if num else label
 
 
-def _boundaries(text: str) -> list[tuple]:
-    """Sorted (start, end, raw_label, marked) provision boundaries. Font-marked PDFs use
-    the markers + structural dividers; everything else uses the full SECTION_RE."""
+def _boundaries(text: str, economy=None) -> list[tuple]:
+    """Sorted (start, end, raw_label, marked) provision boundaries, chosen PER COUNTRY since
+    statutes are not drafted alike: font-marked PDFs (AU) use the markers + structural
+    dividers; SG/MY use numbered + structural markers (their 'Section N' keyword forms are
+    only cross-references); everything else uses the full SECTION_RE (keyword + numbered)."""
     out: list[tuple] = []
     if HEADING_MARK in text:
         out += [(m.start(), m.end(), m.group(1), True) for m in _MARK_RE.finditer(text)]
         out += [(m.start(), m.end(), m.group(1), False) for m in _STRUCT_RE.finditer(text)]
         out.sort(key=lambda b: b[0])
+    elif economy in (Economy.SG, Economy.MY):
+        out = [(m.start(), m.end(), m.group(1), False) for m in _NUMBERED_RE.finditer(text)]
+        if len(out) < 3:                       # sparse → a keyword-style doc; use the full regex
+            out = [(m.start(), m.end(), m.group(2) or m.group(1), bool(m.group(1)))
+                   for m in SECTION_RE.finditer(text)]
     else:
         out = [(m.start(), m.end(), m.group(2) or m.group(1), bool(m.group(1)))
                for m in SECTION_RE.finditer(text)]
@@ -228,9 +334,11 @@ def _boundaries(text: str) -> list[tuple]:
 
 def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> list[Provision]:
     text = raw_text or ""
+    text = _strip_page_chrome(text, doc.economy)        # drop SSO running headers/footers
+    law_name = _law_name(doc, text)                     # needs the ARRANGEMENT anchor → before TOC strip
+    text = _strip_arrangement_toc(text)                 # drop the table-of-contents block
     total = len(text)
-    law_name = _law_name(doc, text)
-    bounds = _boundaries(text)
+    bounds = _boundaries(text, doc.economy)
     provisions: list[Provision] = []
 
     if not bounds:
@@ -241,11 +349,18 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
             provisions.append(_mk(doc, "(document)", snippet, (0, len(snippet)), loc, ocr, 0, law_name))
         return provisions
 
+    # A bare numbered marker ("11.—(1)", "26. Foo") is preceded by its own marginal heading and
+    # KEEPS the marker in the body; a keyword marker ("Section 26") and a font-marked number
+    # heading consume the marker. Each section's snippet therefore starts at its heading and
+    # ends where the NEXT section's heading begins — no previous-section tail, no next heading.
+    def _numbered(label: str, marked: bool) -> bool:
+        return bool(re.match(r"^\d", label.strip())) and not marked
+
+    heads = [_heading_start(text, b[0]) if _numbered(b[2], b[3]) else b[0] for b in bounds]
+
     for i, (bstart, bend, raw_label, marked) in enumerate(bounds):
-        # a font-marked number heading ("77 Requirement…") keeps its TITLE in the body; a
-        # keyword/numbered marker ("Section 26") does not.
-        start = bend
-        end = bounds[i + 1][0] if i + 1 < len(bounds) else len(text)
+        start = heads[i] if _numbered(raw_label, marked) else bend
+        end = heads[i + 1] if i + 1 < len(bounds) else len(text)
         body = text[start:end].replace(HEADING_MARK, "").strip()
         if len(body) < 20:
             # a Part/Division/Schedule heading stub, or a page running-header/footer
@@ -284,6 +399,9 @@ def _normalise_label(label: str, marked: bool = False) -> str:
     s = re.sub(r"\s+", " ", label).strip()
     if marked:
         s = f"Section {s}"
+    # SG/MY body marker "11.—(1)" / "20. (1)" → keep just the number ("11"); the bare-number
+    # rule below then makes it "Section 11" (the subsection stays in the verbatim body).
+    s = re.sub(r"^(\d+[A-Za-z]{0,2})\.\s*[‐-―]?\s*\(\d.*$", r"\1", s)
     for rx, rep in _ABBR:
         s = rx.sub(rep, s, count=1)
     s = re.sub(r"^(APP)\s*(\d+)\.\d+", r"\1 \2", s, flags=re.I)        # APP 1.2 → APP 1
