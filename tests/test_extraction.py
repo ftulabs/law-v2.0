@@ -157,7 +157,8 @@ def test_au_page_furniture_stripped_mid_provision():
         f"{M}77 Requirement not to hold or take records outside Australia\n"
         "(1) The System Operator must not hold the records outside Australia.\n"
         "My Health Records Act 2012 89\n"                   # footer (act title + page)
-        "Section 77A\n"                                     # word-form page-top header
+        "Section 77A\n"                                     # word-form page-top header (left)
+        "Assessments by, or at the direction of, the Commissioner Division 3A\n"  # right-aligned header
         "(2) Despite subsection (1), the System Operator is authorised to do certain things.\n"
         f"{M}78 Something else entirely with a body long enough to be a real provision here.\n")
     s77 = next(p for p in extract_provisions(_doc(Economy.AU), text, OCRMetrics())
@@ -166,3 +167,4 @@ def test_au_page_furniture_stripped_mid_provision():
     assert "(2) Despite subsection (1)" in s77.verbatim_snippet   # body continues across the page
     assert "My Health Records Act 2012 89" not in s77.verbatim_snippet
     assert "Section 77A" not in s77.verbatim_snippet
+    assert "Division 3A" not in s77.verbatim_snippet             # right-aligned page header stripped
