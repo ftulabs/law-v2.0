@@ -45,17 +45,28 @@ SECTION_RE = re.compile(
 )
 
 # On a font-marked PDF the markers already pin every numbered section, so we add ONLY the
-# structural dividers the number-markers can't see (APP/Schedule/Part/Division/Principle)
-# and skip the Section/bare-number regex — which on those PDFs only re-matches running
-# headers ("Section 77A" page tops) and list items, doubling the count.
+# structural dividers the number-markers can't see (Schedule/Part/Division) and skip the
+# Section/bare-number regex — which on those PDFs only re-matches running headers
+# ("Section 77A" page tops) and list items, doubling the count. NOTE: the APP keyword is
+# deliberately NOT here — in AU the real "Australian Privacy Principle N—…" headings are
+# font-marked (so _MARK_RE catches them, relabelled to "APP N" in extract_provisions), while
+# the keyword form ONLY ever appears as a cross-reference ("…Australian Privacy Principle 8.3
+# prescribing a country") or a page running-header — both of which it would wrongly split on.
 _MARK_RE = re.compile(r"(?im)^[ \t]*\x1e[ \t]*(\d{1,3}[A-Za-z]{0,2})\b")
 _STRUCT_RE = re.compile(
     r"(?im)^[ \t]*("
-    r"(?:australian\s+privacy\s+principle|app)\s*\d+[A-Za-z]?"
-    r"|(?:schedule|sch\.?)\s+\d+[A-Za-z]{0,2}"
+    r"(?:schedule|sch\.?)\s+\d+[A-Za-z]{0,2}"
     r"|(?:part|division)\s+\d+[A-Za-z]{0,2}(?=\s|$)"
-    r"|(?:principle)\s+\d+[A-Za-z]?"
     r")")
+# AU structural headings carry an em-dash + Title ("Schedule 1—Australian Privacy Principles",
+# "Part 1—Preliminary"); the inline CROSS-REFERENCES that would otherwise match ("set out in
+# Schedule 2 to the…", "Part IIIA of the Act", "My Health Record … Part 5") have no em-dash, so
+# requiring it skips them — the same cross-ref trap as the APP keyword. Without this, a stray
+# "Schedule N"/"Part N" reference becomes a boundary and mis-scopes the sections that follow.
+_STRUCT_RE_AU = re.compile(
+    r"(?im)^[ \t]*((?:schedule|part|division)\s+\d+[A-Za-z]?)\s*[—–]\s*(?=[A-Z])")
+_APP_HEADING_RE = re.compile(r"^\s*Australian Privacy Principle\s+(\d+[A-Za-z]?)\b", re.I)
+_DOTTED_TOC_RE = re.compile(r"(?m)^.*\.{4,}.*$")        # a table-of-contents dotted-leader line
 
 # SG/MY drafting: a section is NUMBERED at the margin — "11.—(1)" (SG em-dash), "20. (1)" (MY
 # space-paren), "26. Foo" (bare). The "Section/Regulation/Paragraph/Article N" keyword forms in
@@ -129,6 +140,35 @@ def _strip_arrangement_toc(text: str) -> str:
     if not cands:
         return text
     return text[:hdr.start()] + "\n" + text[min(cands):]
+
+
+def _strip_running_headers(text: str, min_repeats: int = 4, max_len: int = 80) -> str:
+    """Remove page running-headers/footers that repeat across pages — the act title, the
+    "Schedule 1 Australian Privacy Principles" banner, "Compilation No. N", page strips. They
+    otherwise match the Schedule/Part rules and fragment a provision at every page break (AU's
+    APP 8 was cut after 8.1 by the per-page "Schedule 1…" header). The FIRST occurrence of each
+    is KEPT so the real "Schedule N" heading that starts a schedule still anchors it."""
+    from collections import Counter
+    lines = text.split("\n")
+    def norm(l: str) -> str:
+        return l.replace(HEADING_MARK, "").strip()
+    counts: Counter = Counter()
+    for l in lines:
+        n = norm(l)
+        if 0 < len(n) <= max_len:
+            counts[n] += 1
+    repeated = {s for s, c in counts.items() if c >= min_repeats}
+    if not repeated:
+        return text
+    out, seen = [], set()
+    for l in lines:
+        n = norm(l)
+        if n in repeated:
+            if n in seen:
+                continue                            # drop all but the first occurrence
+            seen.add(n)
+        out.append(l)
+    return "\n".join(out)
 
 
 # A marginal section heading (SG sentence-case "Legally enforceable obligations") sits on the
@@ -312,8 +352,9 @@ def _boundaries(text: str, economy=None) -> list[tuple]:
     only cross-references); everything else uses the full SECTION_RE (keyword + numbered)."""
     out: list[tuple] = []
     if HEADING_MARK in text:
+        struct = _STRUCT_RE_AU if economy == Economy.AU else _STRUCT_RE
         out += [(m.start(), m.end(), m.group(1), True) for m in _MARK_RE.finditer(text)]
-        out += [(m.start(), m.end(), m.group(1), False) for m in _STRUCT_RE.finditer(text)]
+        out += [(m.start(), m.end(), m.group(1), False) for m in struct.finditer(text)]
         out.sort(key=lambda b: b[0])
     elif economy in (Economy.SG, Economy.MY):
         out = [(m.start(), m.end(), m.group(1), False) for m in _NUMBERED_RE.finditer(text)]
@@ -335,8 +376,18 @@ def _boundaries(text: str, economy=None) -> list[tuple]:
 def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> list[Provision]:
     text = raw_text or ""
     text = _strip_page_chrome(text, doc.economy)        # drop SSO running headers/footers
+    if doc.economy == Economy.AU:                        # AU PDFs: a dotted-leader "Contents" TOC
+        text = _DOTTED_TOC_RE.sub("", text)              # ("Schedule 1……… 5") — drop those lines so
+        text = _strip_running_headers(text)              # their "Schedule N" entries aren't boundaries
     law_name = _law_name(doc, text)                     # needs the ARRANGEMENT anchor → before TOC strip
     text = _strip_arrangement_toc(text)                 # drop the table-of-contents block
+    if doc.economy == Economy.AU:
+        # AU's "Contents" lists "Schedule 1/2…" BEFORE the body; those entries would set the
+        # schedule context early and mis-scope every main section ("Schedule 2, Section 13D").
+        # The real body starts at the first font-marked section, so drop everything before it.
+        fm = text.find(HEADING_MARK)
+        if fm > 0:
+            text = text[fm:]
     total = len(text)
     bounds = _boundaries(text, doc.economy)
     provisions: list[Provision] = []
@@ -358,6 +409,7 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
 
     heads = [_heading_start(text, b[0]) if _numbered(b[2], b[3]) else b[0] for b in bounds]
 
+    current_schedule = None                             # AU: provisions renumber inside each schedule
     for i, (bstart, bend, raw_label, marked) in enumerate(bounds):
         start = heads[i] if _numbered(raw_label, marked) else bend
         end = heads[i + 1] if i + 1 < len(bounds) else len(text)
@@ -371,6 +423,19 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
             continue
         snippet = body[:MAX_SNIPPET]
         norm = _normalise_label(raw_label, marked=marked)
+        if norm.startswith("Schedule "):
+            current_schedule = norm                     # subsequent sections belong to this schedule
+        if marked:
+            # A font-marked heading inside Schedule 1 is an Australian Privacy Principle —
+            # relabel "Section 8" → "APP 8" (its full text 8.1–8.x is now one provision, since
+            # the keyword/running-header boundaries that cut it after 8.1 are gone). A marked
+            # section in any OTHER schedule is scoped ("Schedule 2, Section 1") so its restarted
+            # numbering doesn't collide with the main body's "Section 1".
+            mapp = _APP_HEADING_RE.match(body)
+            if mapp:
+                norm = f"APP {mapp.group(1).upper()}"
+            elif current_schedule:
+                norm = f"{current_schedule}, {norm}"
         # template requires article AND paragraph ("never write just Art. 26"): if the
         # section body opens with a sub-paragraph marker (e.g. "26.—(1)(a)"), append it.
         para = re.match(r"^[\s.\-—:]*(\(\d+[A-Za-z]?\)(?:\([a-z]+\))?)", body)

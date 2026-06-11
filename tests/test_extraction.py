@@ -111,3 +111,37 @@ def test_short_stub_and_running_header_filtered():
     assert "Section 1" in labels
     assert "Part 1" not in labels        # stub dropped (no substantive body)
     assert not any(l.startswith("2020") for l in labels)
+
+
+# ─────────────────── AU: schedules, APPs, cross-reference traps (per-country) ───────────────────
+def test_au_app_relabel_schedule_scope_and_cross_ref_suppressed():
+    """AU font-marked PDF: a font-marked heading inside Schedule 1 is relabelled 'APP N' and
+    keeps its full text; a marked section in Schedule 2 is scoped so its restarted numbering
+    doesn't collide with the main body; and an 'Australian Privacy Principle 8.3' / 'Schedule 2'
+    CROSS-REFERENCE in a main section is NOT treated as a boundary."""
+    M = HEADING_MARK
+    text = (
+        f"{M}100 Regulations\n"
+        "(1A) Before the Governor-General makes regulations for the purposes of\n"
+        "Australian Privacy Principle 8.3 prescribing a country or binding scheme, the Minister "
+        "must be satisfied, including matters set out in Schedule 2 to the Act.\n"
+        "Schedule 1—Australian Privacy Principles\n"
+        f"{M}8 Australian Privacy Principle 8—cross-border disclosure of personal information\n"
+        "8.1 Before an APP entity discloses personal information about an individual to an "
+        "overseas recipient, the entity must take reasonable steps.\n"
+        "8.2 Subclause 8.1 does not apply to the disclosure in certain listed circumstances here.\n"
+        f"{M}9 Australian Privacy Principle 9—adoption of government related identifiers\n"
+        "9.1 An organisation must not adopt a government related identifier of an individual.\n"
+        "Schedule 2—Statutory Tort for Serious Invasions of Privacy\n"
+        f"{M}1 Objects of this Schedule\n"
+        "The objects of this Schedule are to establish a cause of action for serious invasions.\n")
+    provs = extract_provisions(_doc(Economy.AU), text, OCRMetrics())
+    labels = [p.article_section for p in provs]
+    assert "Section 100" in labels                         # main section kept, NOT scoped
+    assert "APP 8" in labels and "APP 9" in labels         # Schedule-1 headings relabelled
+    assert not any(l.startswith("APP 8") and l != "APP 8" for l in labels)  # no false APP from "8.3"
+    assert "Schedule 2, Section 1" in labels               # other-schedule section scoped
+    app8 = next(p for p in provs if p.article_section == "APP 8")
+    assert "8.1" in app8.verbatim_snippet and "8.2" in app8.verbatim_snippet  # full principle, not just 8.1
+    s100 = next(p for p in provs if p.article_section == "Section 100")
+    assert "prescribing a country" in s100.verbatim_snippet  # the cross-ref text stays in s100
