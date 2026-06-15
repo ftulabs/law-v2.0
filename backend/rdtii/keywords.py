@@ -30,7 +30,10 @@ from __future__ import annotations
 
 # Portals whose search matches the query ONLY against the law TITLE (no working full-text search).
 # For these we fire NAME FRAGMENTS ONLY — descriptive phrases can never match a title there.
-NAME_ONLY_PORTALS = {"AU"}   # legislation.gov.au OData: contains(name,'<q>'); $search is broken
+#   AU — legislation.gov.au OData: contains(name,'<q>'); its $search full-text is broken.
+#   MY — we filter the portal's own principal-acts JSON catalogue by name (Google barely indexes
+#        lom.agc.gov.my), so matching is title-only just like AU.
+NAME_ONLY_PORTALS = {"AU", "MY"}
 
 # ── BROAD: pillar-level, high recall (full-text engines only — concept phrases) ──────────────
 PILLAR_SEARCH_TERMS: dict[int, list[str]] = {
@@ -154,11 +157,13 @@ INDICATOR_SEARCH_TERMS: dict[str, dict[str, list[str]]] = {
     # ── P7-I2 — DEDICATED CYBERSECURITY FRAMEWORK ──
     "P7-I2": {
         "name": [
-            "cyber security act",                   # AU spells it two words (Cyber Security Act 2024)
-            "cybersecurity act",                    # SG/MY spelling
+            "cyber security act",                   # AU/MY: Cyber Security Act (two words)
+            "cybersecurity act",                    # SG spelling
             "security of critical infrastructure",  # AU SOCI Act
             "critical infrastructure act",
-            "computer misuse act",                  # cybercrime / misuse laws (SG/MY)
+            "computer misuse act",                  # SG cybercrime law
+            "computer crimes act",                  # MY/other variant of the cybercrime law
+            "communications and multimedia",        # MY CMA-type comms/network framework
             "criminal code act",                    # criminal codes with cyber offences
             "network security act",
         ],
@@ -220,12 +225,15 @@ INDICATOR_SEARCH_TERMS: dict[str, dict[str, list[str]]] = {
     "P7-I5": {
         "name": [
             "criminal procedure code", "criminal procedure act",  # common-law: SG/MY/IN/PK
-            "criminal code act", "crimes act",                    # criminal/crimes acts (search/seizure)
+            "criminal code act", "crimes act", "penal code",      # criminal/crimes/penal instruments
             "interception and access",                            # lawful interception + stored access
             "surveillance devices act", "surveillance legislation",  # surveillance-warrant regimes
             "intelligence services act", "security intelligence",    # intelligence-agency enabling acts
             "data availability", "data sharing act",              # public-sector data sharing → access
-            "computer misuse act", "cyber security act", "cybersecurity act",
+            "computer misuse act", "computer crimes act",         # cybercrime investigation powers
+            "cyber security act", "cybersecurity act",
+            "official secrets act",                               # state-secrecy / protected-info access
+            "communications and multimedia",                     # comms interception/access (MY CMA etc.)
             "telecommunications act", "data retention",           # compelled telecom data
             "police act", "national security act", "security offences act",
         ],

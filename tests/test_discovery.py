@@ -319,3 +319,47 @@ def test_websearch_circuit_breaker_stops_hammering_blocked_engines(monkeypatch):
         assert websearch.search(f"q{i}", site="x", max_results=4, log=lambda *a: None) == []
     assert calls["scrapling"] <= websearch._SOFT      # slow path dropped early, not 40 times
     assert websearch._circuit["empties"] == websearch._HARD   # opened and stays open
+
+
+# ─────────────────── Malaysia portal-catalogue adapter ───────────────────
+def test_my_extract_names_bilingual_picks_english():
+    """MY catalogue titles list both languages; the English name (anchor before 'As At') is
+    displayed, but matching uses the full bilingual text."""
+    from backend.pipeline.discovery import _my_extract_names
+    html = ('<a href="act-detail.php?act=854">AKTA KESELAMATAN SIBER 2024</a> '
+            '<i>Sebagaimana Pada</i> 26-06-2024<br>'
+            '<a href="act-detail.php?act=854&lang=BI">CYBER SECURITY ACT 2024</a> '
+            '<i>As At</i> 26-06-2024')
+    name, full = _my_extract_names(html)
+    assert name == "CYBER SECURITY ACT 2024"          # English anchor (before 'As At'), not Malay
+    assert "keselamatan siber" in full.lower()        # full text keeps both languages for matching
+
+
+def test_my_catalogue_search_matches_english_fragment(monkeypatch):
+    """A name fragment matches against the full bilingual text, so an Act whose Malay title
+    comes first is still found; the returned doc carries the English name + the _BI PDF URL."""
+    from backend.pipeline import discovery as D
+    from backend.schemas import Economy
+    # Seed the module cache so no network call is made.
+    monkeypatch.setattr(D, "_my_catalogue_cache", [
+        ("854", "CYBER SECURITY ACT 2024",
+         "akta keselamatan siber 2024 cyber security act 2024",
+         "https://lom.agc.gov.my/ilims/upload/portal/akta/x_BI/Act 854.pdf"),
+        ("709", "PERSONAL DATA PROTECTION ACT 2010",
+         "personal data protection act 2010",
+         "https://lom.agc.gov.my/ilims/upload/portal/akta/y_BI/ACT 709.pdf"),
+    ])
+    docs = D._search_my_catalogue(None, {"name": "MY"}, "cyber security act", Economy.MY, [], log=lambda *a: None)
+    assert len(docs) == 1
+    assert docs[0].title == "CYBER SECURITY ACT 2024"
+    assert docs[0].law_number == "854"
+    assert docs[0].source_url.endswith(".pdf")
+
+
+def test_my_is_name_only_portal():
+    """MY (catalogue name-filter) fires NAME fragments only — no long descriptive phrases."""
+    from backend.rdtii.keywords import portal_search_queries, NAME_ONLY_PORTALS
+    assert "MY" in NAME_ONLY_PORTALS
+    q = portal_search_queries("MY", 7)
+    assert not any(len(s.split()) >= 5 for s in q)     # descriptive phrases excluded
+    assert "personal data protection act" in q

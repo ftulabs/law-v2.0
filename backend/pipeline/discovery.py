@@ -585,6 +585,94 @@ def _my_english_pdf_url(url: str) -> str | None:
     return url[:-4] + "e.pdf"
 
 
+# ─────────────────────── Malaysia: portal catalogue (lom.agc.gov.my) ───────────────────────
+# Google barely indexes lom.agc.gov.my (a `site:` search returns only the homepage), so instead
+# of web search we hit the portal's OWN consolidated-principal-acts JSON — the data source behind
+# principal.php?type=updated (a DataTables grid). It returns ~880 in-force Acts, each carrying the
+# English law name (in a `title`/`LEGISLATIONTITLEBI` HTML field) and the English (_BI) PDF URL.
+# We fetch it ONCE per process and filter by the same name-fragment queries used for AU.
+_MY_PORTAL = "https://lom.agc.gov.my/"
+_MY_PDF_BI_RE = re.compile(r'href="([^"]+_BI/[^"]+\.pdf)"', re.I)   # English compilation PDF
+_MY_PDF_ANY_RE = re.compile(r'href="([^"]+\.pdf)"', re.I)
+_MY_ANCHOR_TEXT_RE = re.compile(r'>([^<]{4,})</a>')
+_MY_ANCHOR_AFTER_RE = re.compile(r'>([^<]{4,})</a>(.{0,40})', re.S)   # anchor text + raw HTML after it
+_my_catalogue_cache: list[tuple[str, str, str, str]] | None = None
+
+
+def _my_extract_names(html_field: str) -> tuple[str, str]:
+    """From a catalogue record's bilingual title HTML return (english_name, full_match_text).
+
+    The portal lists each Act in BOTH languages, e.g.
+      `<a>AKTA JENAYAH KOMPUTER 1997</a> Sebagaimana Pada …  <a>COMPUTER CRIMES ACT 1997</a> As At …`
+    The English title is the anchor followed by the English currency marker 'As At' (the Malay one
+    is followed by 'Sebagaimana Pada'). We display the English name but MATCH against the full text
+    (both languages) so an English name fragment still hits an Act whose Malay title comes first."""
+    html_field = html_field or ""
+    full = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html_field)).strip()
+    english = None
+    for m in _MY_ANCHOR_AFTER_RE.finditer(html_field):
+        after = re.sub(r"<[^>]+>", " ", m.group(2))     # the marker may be wrapped (e.g. <i>As At</i>)
+        if "As At" in after:                            # English currency marker → English title
+            english = m.group(1).strip().lstrip("*").strip()
+            break
+    if not english:
+        m = _MY_ANCHOR_TEXT_RE.search(html_field)
+        english = (m.group(1) if m else full[:90])
+        english = re.split(r"\bAs At\b|\bSebagaimana\b", english, 1)[0].strip().lstrip("*").strip()
+    return english, full
+
+
+def _my_pdf_url(dl_field: str) -> str | None:
+    """Absolute English PDF URL from a record's download HTML (prefers the _BI English link)."""
+    from urllib.parse import urljoin
+    m = _MY_PDF_BI_RE.search(dl_field or "") or _MY_PDF_ANY_RE.search(dl_field or "")
+    return urljoin(_MY_PORTAL, m.group(1).replace("../../../", "")) if m else None
+
+
+def _load_my_catalogue(client, src: dict, log) -> list[tuple[str, str, str]]:
+    """Fetch + parse the MY principal-acts catalogue once → [(act_no, english_name, pdf_url)]."""
+    global _my_catalogue_cache
+    if _my_catalogue_cache is not None:
+        return _my_catalogue_cache
+    url = src.get("catalogue_url", _MY_PORTAL + "json-updated-2024.php")
+    out: list[tuple[str, str, str]] = []
+    try:
+        r = client.post(url, data={"draw": "1", "start": "0", "length": "3000"},
+                        headers={"X-Requested-With": "XMLHttpRequest",
+                                 "Referer": src.get("referer", _MY_PORTAL + "principal.php?type=updated&lang=BI")})
+        r.raise_for_status()
+        records = r.json().get("records", [])
+    except Exception as e:  # noqa: BLE001
+        log(f"[discover] MY catalogue fetch failed ({type(e).__name__})")
+        records = []
+    for rec in records:
+        name, full = _my_extract_names(rec.get("title") or rec.get("LEGISLATIONTITLEBI") or "")
+        pdf = _my_pdf_url(rec.get("doc2download") or rec.get("DOC2DOWNLOADBI") or "")
+        act_no = str(rec.get("lgt_act_no") or rec.get("ACTNO_LEGISLATION") or "").strip()
+        if name and pdf:
+            out.append((act_no, name, full, pdf))
+    _my_catalogue_cache = out
+    log(f"[discover] MY catalogue loaded: {len(out)} acts")
+    return out
+
+
+def _search_my_catalogue(client, src: dict, query: str, economy: Economy, indicators, log) -> list[DiscoveredDoc]:
+    """Filter the MY catalogue by a name fragment (substring of the bilingual title) — the MY
+    analogue of AU's contains(name,…). Country-agnostic name fragments only (see NAME_ONLY_PORTALS)."""
+    recs = _load_my_catalogue(client, src, log)
+    ql = query.lower()
+    out: list[DiscoveredDoc] = []
+    for act_no, name, full, pdf in recs:
+        if ql in full.lower():
+            yr = _latest_year(name)
+            out.append(DiscoveredDoc(
+                doc_id=_doc_id(economy.value, pdf), economy=economy, title=name[:200],
+                source_url=pdf, portal=src.get("name", "Laws of Malaysia"), fmt=DocFormat.PDF_TEXT,
+                law_number=(act_no or None), relevance_score=1.0, discovery_tag=DiscoveryTag.NEW,
+                amendment_date=(f"{yr}-01-01" if yr else None)))
+    return out
+
+
 def discover_websearch(economy: Economy, pillar: int | None, max_docs: int) -> list[DiscoveredDoc]:
     """Discover laws via web search (slide A: 'search ... and the web') — portal-agnostic,
     generalises to any economy with an entry in websearch.OFFICIAL_PORTAL."""
@@ -688,8 +776,9 @@ def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | N
     if api_sources:
         import httpx
         with httpx.Client(timeout=settings.crawl_timeout_seconds, headers=_headers(), follow_redirects=True) as client:
+            _ADAPTERS = {"au_api": _search_au_api, "my_catalogue": _search_my_catalogue}
             for src in api_sources:
-                searcher = _search_au_api if src.get("adapter") == "au_api" else _search_one
+                searcher = _ADAPTERS.get(src.get("adapter"), _search_one)
                 for q in queries:
                     for d in searcher(client, src, q, economy, indicators, log=print):
                         prev = by_url.get(d.source_url)
@@ -707,11 +796,12 @@ def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | N
     # For MY: prefer English-language documents over Bahasa Malaysia equivalents.
     if economy.value == "MY":
         docs = _prefer_english_my(docs)
-    # SG & AU both serve CONSOLIDATED in-force texts (SSO; AU compilations resolve from the
-    # principal title id), so standalone Amendment instruments are redundant — and on AU a broad
-    # name token (e.g. "security intelligence") returns several "… Legislation Amendment Act"
-    # hits that would otherwise crowd the principal Act out of the capped result set. Drop them.
-    if economy.value in ("SG", "AU"):
+    # SG, AU & MY all serve CONSOLIDATED in-force texts (SSO; AU compilations resolve from the
+    # principal title id; MY's "updated" catalogue is the consolidated principal act), so standalone
+    # Amendment instruments are redundant — and a broad name token (AU "security intelligence")
+    # returns several "… Legislation Amendment Act" hits that would crowd the principal Act out of
+    # the capped result set. Drop them.
+    if economy.value in ("SG", "AU", "MY"):
         docs = _drop_amendment_docs(docs)
     docs.sort(key=lambda d: d.relevance_score, reverse=True)
     return docs[:max_docs]

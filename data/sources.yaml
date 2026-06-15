@@ -37,6 +37,13 @@ sources:
   - economy: MY
     name: Laws of Malaysia (AGC)
     base_url: https://lom.agc.gov.my
-    adapter: websearch                    # DataTables AJAX grid; web search reaches the PDFs
-    verified: false
-    notes: Many documents are scanned PDFs → OCR required. Multilingual (Malay/English).
+    adapter: my_catalogue                 # the portal's OWN DataTables JSON catalogue (no Google)
+    catalogue_url: https://lom.agc.gov.my/json-updated-2024.php
+    referer: https://lom.agc.gov.my/principal.php?type=updated&lang=BI
+    verified: true
+    notes: >
+      Google barely indexes lom.agc.gov.my (site: search returns only the homepage), so we hit the
+      portal's own consolidated-principal-acts JSON (the grid behind principal.php?type=updated):
+      ~880 in-force Acts, each with the English name (title field) + English PDF URL (_BI). We
+      filter that catalogue by the same name-fragment queries used for AU (name-only matching).
+      Many older PDFs are scanned → OCR. Multilingual (we take the English _BI PDF).
