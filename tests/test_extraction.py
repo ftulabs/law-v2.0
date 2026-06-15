@@ -51,6 +51,29 @@ def test_sg_sso_chrome_and_cross_ref_and_heading():
     assert "Informal Consolidation" not in s11.verbatim_snippet
 
 
+def test_sg_act_wrapped_edition_footer_stripped():
+    """SG SSO *Act* PDFs wrap the short-title footer across the page bottom with a page number
+    + revised-edition tag ("Personal Data Protection\\n33 Act 2012 2020 Ed."). It must not land
+    mid-provision when a section spans pages."""
+    doc = DiscoveredDoc(doc_id="d", economy=Economy.SG, title="Personal Data Protection Act 2012",
+                        source_url="u", portal="p", fmt=DocFormat.PDF_TEXT, discovery_tag=DiscoveryTag.NEW)
+    text = (
+        "Transfer of personal data outside Singapore\n"
+        "26.—(1) An organisation must not transfer any personal data outside Singapore except "
+        "in accordance with prescribed requirements.\n"
+        "Personal Data Protection\n"                            # wrapped title fragment (footer)
+        "33 Act 2012 2020 Ed.\n"                                # page + title-rest + edition (footer)
+        "(2) The Commission may, on application, exempt the organisation from any requirement.\n"
+        "Access to personal data\n"
+        "21.—(1) On request, an organisation must provide the individual's personal data.\n")
+    provs = extract_provisions(doc, text, OCRMetrics())
+    s26 = next(p for p in provs if p.article_section == "Section 26")
+    assert "(1) An organisation must not transfer" in s26.verbatim_snippet
+    assert "(2) The Commission may" in s26.verbatim_snippet     # body continues across the page
+    assert "Act 2012 2020 Ed." not in s26.verbatim_snippet
+    assert "Personal Data Protection\n" not in s26.verbatim_snippet  # title fragment stripped too
+
+
 # ─────────────────────── label normalization ───────────────────────
 def test_normalise_label_cases():
     assert _normalise_label("section 101") == "Section 101"

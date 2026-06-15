@@ -165,6 +165,34 @@ def _strip_page_chrome(text: str, economy) -> str:
     return text
 
 
+# SG SSO *Act* (vs subsidiary-legislation) PDFs print a footer where the short title WRAPS across
+# the page bottom with a page number + revised-edition tag — pdfplumber renders it as e.g.
+#   Personal Data Protection
+#   33 Act 2012 2020 Ed.
+# Anchor on the edition tag ("… 2020 Ed.") and drop that line + the title-fragment line above it.
+_SG_EDITION_RE = re.compile(r"\b(?:19|20)\d{2}\s+Ed\.\s*$")
+
+
+def _strip_sg_act_footer(text: str, law_name: str) -> str:
+    title_words = set(re.findall(r"[a-z]+", (law_name or "").lower()))
+    lines = text.split("\n")
+    drop: set[int] = set()
+    for i, ln in enumerate(lines):
+        if not _SG_EDITION_RE.search(ln):
+            continue
+        drop.add(i)                                # the "… 2020 Ed." footer line
+        j = i - 1
+        while j >= 0 and not lines[j].strip():
+            j -= 1
+        if j >= 0 and title_words:                 # the wrapped title fragment directly above
+            w = set(re.findall(r"[a-z]+", lines[j].lower()))
+            if w and w <= title_words and not re.search(r"[.;:]$", lines[j].strip()):
+                drop.add(j)
+    if not drop:
+        return text
+    return "\n".join(l for k, l in enumerate(lines) if k not in drop)
+
+
 # ── "Arrangement of Sections/Provisions" table of contents ───────────────────
 # Statute PDFs open with a TOC whose entries ("199. Accounting records…", "11. Legally
 # enforceable obligations") have no dotted leaders, so the bare-number rule would turn each
@@ -435,6 +463,8 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
     if doc.economy == Economy.AU:                        # drop act-title±page footers + word-form
         text = _strip_au_chrome(text)                    # "Section 77A"/"Clause 8"/"Schedule 1 …" headers
         text = _strip_au_table_continuation(text)        # repeated table caption + column header
+    if doc.economy == Economy.SG:
+        text = _strip_sg_act_footer(text, law_name)      # wrapped "… Act 2012 2020 Ed." page footer
     text = _strip_arrangement_toc(text)                 # drop the table-of-contents block
     if doc.economy == Economy.AU:
         # AU's "Contents" lists "Schedule 1/2…" BEFORE the body; those entries would set the
