@@ -65,8 +65,13 @@ SYSTEM = (
     "5. legal_match (0..1): 1.0 = rule IS exactly this test; 0.7 = satisfies, minor wording gap; "
     "0.5 = one element of a multi-part test; <=0.3 = mention only (then satisfies_target=false).\n"
     "6. SCOPE — 'sectoral' means the instrument binds ONLY a narrow regulated sector (e.g. only "
-    "licensed banks, telcos, insurers, healthcare providers): flag scope_flag='SECTORAL_NOT_"
-    "NATIONAL' and lower scope_alignment. A law of GENERAL application that binds every company, "
+    "licensed banks, telcos, insurers, healthcare providers). Scope matters ONLY for the "
+    "comprehensive-framework indicator P7-I1 (a sectoral rule is NOT a general framework): there, "
+    "flag scope_flag='SECTORAL_NOT_NATIONAL' and lower scope_alignment. For the LOCALISATION, "
+    "storage, retention and government-access indicators a sectoral instrument STILL fully "
+    "satisfies the test (e.g. a health-sector law banning records being held abroad is a valid "
+    "P6-I1 answer) — keep scope_alignment HIGH and do NOT set scope_flag. A law of GENERAL "
+    "application that binds every company, "
     "taxpayer or employer (e.g. a Companies/Corporations Act, Income Tax Act, Employment Act) is "
     "NATIONAL in scope — do NOT flag it sectoral. Note that the storage/retention indicators "
     "(P6-I2 local storage, P7-I3 minimum retention) are satisfied by requirements to keep records "
@@ -200,11 +205,14 @@ def _user_prompt(ind, prov: Provision) -> str:
     )
 
 
-def _build_notes(prov: Provision, scope_flag: str | None) -> str | None:
-    """Template 'Notes' — flag unusual cases: scope, OCR quality, etc."""
+def _build_notes(prov: Provision, scope_flag: str | None, topical_ok: bool = True) -> str | None:
+    """Template 'Notes' — flag unusual cases: scope, off-topic snippet, OCR quality, etc."""
     parts = []
     if scope_flag:
         parts.append(f"{scope_flag}: sectoral instrument — verify before treating as national.")
+    if not topical_ok:
+        parts.append("OFF_TOPIC_SNIPPET: snippet contains none of the pillar's concept terms — "
+                     "likely a mis-mapping; verify the provision actually concerns this indicator.")
     if prov.ocr.used:
         mc = prov.ocr.mean_confidence
         if prov.ocr.provider == "markitdown":
@@ -315,9 +323,16 @@ def map_provisions(
             s0, s1 = prov.char_span
             ctx_before = src_text[max(0, s0 - 300):s0]
             ctx_after = src_text[s1:s1 + 300]
+        # Sectoral scope only disqualifies for the comprehensive-framework indicator (P7-I1); for
+        # localisation/storage/retention/access a sectoral law is a valid answer, so don't cap it.
+        apply_scope_cap = ind.indicator_id in confidence.SCOPE_SENSITIVE_INDICATORS
+        # Topical guard: a snippet with no pillar concept vocabulary is almost certainly a
+        # fabricated mapping (weak grader inventing a reading of off-topic boilerplate).
+        topical_ok = confidence.topical_grounded(prov.verbatim_snippet, ind.pillar)
         breakdown = confidence.score(
             retrieval_score=r.score, legal_match=legal_match, grounding=grounding,
             scope_alignment=scope_alignment, scope_flag=scope_flag,
+            apply_scope_cap=apply_scope_cap, topical_ok=topical_ok,
         )
         return EvidenceMapping(
             mapping_id=_mapping_id(run_id, ind.indicator_id, prov.provision_id),
@@ -329,7 +344,7 @@ def map_provisions(
             mapping_rationale=(rationale or "")[:300], confidence_score=breakdown.final,
             discovery_tag=doc_tags.get(prov.doc_id, DiscoveryTag.KNOWN),
             coverage=("Sectoral" if scope_flag else "Horizontal"),
-            notes=_build_notes(prov, scope_flag), review_status=confidence.route(breakdown.final),
+            notes=_build_notes(prov, scope_flag, topical_ok), review_status=confidence.route(breakdown.final),
             provision_id=prov.provision_id, source_pdf_path=prov.source_pdf_path,
             raw_context=r.raw_context, raw_context_before=ctx_before, raw_context_after=ctx_after,
             confidence=breakdown, ocr=prov.ocr, model_version=llm.model_version,
