@@ -707,8 +707,11 @@ def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | N
     # For MY: prefer English-language documents over Bahasa Malaysia equivalents.
     if economy.value == "MY":
         docs = _prefer_english_my(docs)
-    # SG consolidates amendments into the principal text → drop redundant Amendment files.
-    if economy.value == "SG":
+    # SG & AU both serve CONSOLIDATED in-force texts (SSO; AU compilations resolve from the
+    # principal title id), so standalone Amendment instruments are redundant — and on AU a broad
+    # name token (e.g. "security intelligence") returns several "… Legislation Amendment Act"
+    # hits that would otherwise crowd the principal Act out of the capped result set. Drop them.
+    if economy.value in ("SG", "AU"):
         docs = _drop_amendment_docs(docs)
     docs.sort(key=lambda d: d.relevance_score, reverse=True)
     return docs[:max_docs]

@@ -1,31 +1,40 @@
 """Portal-search keyword packs (Zone 1 discovery).
 
-THREE vocabularies at three levels of specificity:
+Each indicator's terms are split into TWO sub-types, because the two discovery engines match
+very differently:
 
-  BROAD  — PILLAR_SEARCH_TERMS — one query per pillar topic; highest recall.
-  MID    — INDICATOR_SEARCH_TERMS — per-indicator, country-agnostic; two sub-types:
-             • NAME FRAGMENTS  — short terms that appear in law TITLES (e.g. "health
-               records", "critical infrastructure").  Required for portal-internal
-               name-based search (AU OData: contains(name,…)) and portal search boxes.
-               These are TYPE patterns, not economy-specific: "criminal procedure" finds
-               the Criminal Procedure Code in SG, MY, IN, PK, and most common-law
-               economies because every such jurisdiction names this instrument the same way.
-             • DESCRIPTIVE     — phrases describing the REGULATORY OBLIGATION the law
-               imposes.  Work on full-text web search (DuckDuckGo / Serper with site:
-               filter), where the crawler indexes the law's actual text, not just title.
-               Less effective on name-only portal APIs — the name-fragment queries above
-               are the supplement that covers those engines.
-  FINE   — indicators.query_terms — within-document discriminative phrases;
-            too specific for portal search boxes; used only by the retrieval layer.
+  • "name"  — NAME FRAGMENTS: short subject tokens that appear as a CONTIGUOUS substring of a
+              law's TITLE. These are what work on a name-only portal API — notably AU's OData
+              `contains(name,'<q>')`, which matches the query against the Act title and NOTHING
+              else (its `$search` full-text endpoint is broken — it ignores the term). They are
+              TYPE patterns, not economy-specific: "criminal code act", "surveillance devices act",
+              "interception and access", "security intelligence" name the same instrument family
+              across common-law jurisdictions. KEEP THEM SHORT: AU titles insert parentheses and
+              extra words ("Telecommunications (Interception and Access) Act", "...Security
+              Intelligence Organisation Act"), so a long guessed title misses — a 1–2 word
+              distinctive token (verified live against the AU OData API) is what hits.
 
-All MID and BROAD terms are COUNTRY-AGNOSTIC by design — the same set is used for
-SG/AU/MY and generalises to any Finals economy without modification.
+  • "desc"  — DESCRIPTIVE phrases describing the REGULATORY OBLIGATION. These only work on
+              FULL-TEXT web search (SG via Serper/DDG `site:sso.agc.gov.sg`, MY likewise), where
+              the engine indexes the law's body, not just its title. They are inert on a name-only
+              API, so they are NOT fired at one (see NAME_ONLY_PORTALS) — firing them there just
+              spends the query budget on calls that can never return a hit.
+
+  FINE  — indicators.query_terms — within-document discriminative phrases; too specific for
+          portal search; used only by the retrieval layer.
+
+All terms are COUNTRY-AGNOSTIC: name fragments are shared naming conventions, descriptive terms
+are obligations any satisfying law imposes. No specific law title is hardcoded as "the answer".
 """
 from __future__ import annotations
 
-# ── BROAD: pillar-level, high recall ─────────────────────────────────────────
+# Portals whose search matches the query ONLY against the law TITLE (no working full-text search).
+# For these we fire NAME FRAGMENTS ONLY — descriptive phrases can never match a title there.
+NAME_ONLY_PORTALS = {"AU"}   # legislation.gov.au OData: contains(name,'<q>'); $search is broken
+
+# ── BROAD: pillar-level, high recall (full-text engines only — concept phrases) ──────────────
 PILLAR_SEARCH_TERMS: dict[int, list[str]] = {
-    6: [  # Cross-border Data Policies — ban / storage / infrastructure / conditional flow
+    6: [
         "personal data protection",
         "cross-border transfer of personal data",
         "data localisation",
@@ -33,7 +42,7 @@ PILLAR_SEARCH_TERMS: dict[int, list[str]] = {
         "data transfer restriction",
         "data localisation requirement",
     ],
-    7: [  # Domestic Data Protection — framework / cybersecurity / retention / DPO / gov access
+    7: [
         "personal data protection",
         "cybersecurity act",
         "critical information infrastructure",
@@ -44,252 +53,241 @@ PILLAR_SEARCH_TERMS: dict[int, list[str]] = {
     ],
 }
 
-# ── MID: per-indicator, country-agnostic ─────────────────────────────────────
-# Each indicator lists NAME FRAGMENTS first (work on name-only portals like AU OData)
-# followed by DESCRIPTIVE terms (work on full-text web search via DDG / Serper).
-# Both sub-types are country-agnostic: name fragments describe naming conventions shared
-# across jurisdictions; descriptive terms describe regulatory obligations any country's
-# law would impose when it satisfies the indicator.
-INDICATOR_SEARCH_TERMS: dict[str, list[str]] = {
+# ── MID: per-indicator, country-agnostic, split into name fragments + descriptive obligations ──
+INDICATOR_SEARCH_TERMS: dict[str, dict[str, list[str]]] = {
 
     # ── P6-I1 — OUTRIGHT BAN on cross-border transfer OR local-processing requirement ──
-    # NAME FRAGMENTS: laws named after the regulated activity or commodity (health data, etc.)
-    # DESCRIPTIVE: the prohibition/mandate language appearing in the law's text
-    "P6-I1": [
-        # name fragments
-        "health records act",          # health-sector bans common (AU My Health Records Act)
-        "medical data transfer",       # countries with dedicated health-data law
-        "data transfer ban",           # laws with "ban" in title/headings
-        # descriptive
-        "personal data must not be transferred outside country",
-        "prohibition on transfer of personal data overseas",
-        "data must be processed locally",
-        "health data may not leave country",
-        "ban cross-border transfer personal data",
-    ],
+    "P6-I1": {
+        "name": [
+            "health records act",      # health-sector localisation bans (AU My Health Records s77)
+            "data protection act",
+            "privacy act",
+        ],
+        "desc": [
+            "medical data transfer prohibited",
+            "personal data must not be transferred outside country",
+            "prohibition on transfer of personal data overseas",
+            "data must be processed locally",
+            "records must not be held outside the country",
+            "health data may not leave country",
+            "ban cross-border transfer personal data",
+        ],
+    },
 
     # ── P6-I2 — LOCAL STORAGE: data / business records kept within national territory ──
-    # Satisfied by data-protection acts AND by corporate, tax, telecom laws requiring local
-    # record-keeping.  Cover all instrument types so the crawler surfaces each of them.
-    "P6-I2": [
-        # name fragments — types of law that impose storage obligations
-        "companies act",               # corporate accounting records (SG §199, MY, HK, etc.)
-        "corporations act",            # AU equivalent of Companies Act
-        "income tax act",              # tax records kept domestically
-        "revenue act",                 # variant naming for tax legislation
-        "employment act",              # employment / wage records
-        "labour act",                  # variant naming for employment legislation
-        "health records act",          # health data storage mandates
-        # descriptive
-        "personal data stored within country",
-        "data must be retained locally",
-        "accounting records kept within territory",
-        "tax records minimum storage requirement",
-        "financial records kept in country",
-        "business records must be maintained locally",
-        # general record-keeping vocabulary (matches the actual text of corporate/tax acts,
-        # e.g. SG Companies Act s199 "Accounting records and systems of control"), country-agnostic
-        "accounting records and systems of control",
-        "keeping of accounting records",
-        "records kept at registered office",
-        "books of account",
-    ],
+    "P6-I2": {
+        "name": [
+            "companies act", "corporations act",     # corporate accounting records (SG §199 / AU)
+            "income tax act", "revenue act",          # tax records kept domestically
+            "employment act", "labour act",           # employment / wage records
+            "health records act",                     # health-data storage mandates
+        ],
+        "desc": [
+            "personal data stored within country",
+            "data must be retained locally",
+            "accounting records kept within territory",
+            "tax records minimum storage requirement",
+            "financial records kept in country",
+            "business records must be maintained locally",
+            "accounting records and systems of control",
+            "keeping of accounting records",
+            "records kept at registered office",
+            "books of account",
+        ],
+    },
 
     # ── P6-I3 — INFRASTRUCTURE: mandatory local servers / data centres ──
-    # Rare indicator; narrowly scoped terms avoid false-positive recall.
-    "P6-I3": [
-        # name fragments
-        "online platform regulation",  # platform/service provider acts with server rules
-        "electronic commerce act",     # e-commerce acts may include server requirements
-        # descriptive
-        "local server requirement service provider",
-        "data centre within country territory",
-        "servers must be located domestically",
-        "infrastructure requirement digital services",
-        "maintain server within national territory",
-    ],
+    "P6-I3": {
+        "name": [
+            "electronic commerce act", "electronic transactions act",
+        ],
+        "desc": [
+            "online platform server requirement",
+            "local server requirement service provider",
+            "data centre within country territory",
+            "servers must be located domestically",
+            "infrastructure requirement digital services",
+            "maintain server within national territory",
+        ],
+    },
 
     # ── P6-I4 — CONDITIONAL FLOW: transfer allowed only on consent / adequacy / contract ──
-    # Central PDPA-type acts + sectoral codes (banking, telecom) both satisfy this.
-    "P6-I4": [
-        # name fragments
-        "personal data protection act",    # primary PDPA-type law in most ASEAN economies
-        "privacy act",                     # AU/NZ naming for PDPA equivalent
-        "banking sector code of practice", # banking sectoral data-transfer codes
-        "communications sector code",      # telecom/comms sectoral codes
-        # descriptive
-        "transfer personal data overseas with consent",
-        "cross-border transfer adequate level of protection",
-        "personal data transfer subject to conditions",
-        "overseas recipient data protection standard",
-        "binding corporate rules data transfer",
-        "standard contractual clauses data transfer",
-        "data export requires prior approval",
-    ],
+    "P6-I4": {
+        "name": [
+            "personal data protection act",     # PDPA-type law (SG/MY/ASEAN)
+            "privacy act",                      # AU/NZ naming
+            "data protection act",
+        ],
+        "desc": [
+            "banking sector code of practice cross-border",
+            "communications sector data code",
+            "transfer personal data overseas with consent",
+            "cross-border transfer adequate level of protection",
+            "personal data transfer subject to conditions",
+            "overseas recipient data protection standard",
+            "binding corporate rules data transfer",
+            "standard contractual clauses data transfer",
+            "data export requires prior approval",
+        ],
+    },
 
     # ── P7-I1 — COMPREHENSIVE DATA-PROTECTION FRAMEWORK ──
-    # Horizontal law or sectoral law establishing consent, obligations, and a regulator.
-    "P7-I1": [
-        # name fragments
-        "personal data protection act",
-        "privacy act",
-        "personal information protection act",
-        "data protection act",
-        "electronic health records act",   # health-sector frameworks also qualify
-        "data sharing act",                # public-sector data-sharing/availability frameworks
-        # descriptive
-        "data protection framework obligations",
-        "consent personal data collection",
-        "data subject rights protection",
-        "personal information privacy law",
-        "privacy legislation framework",
-        "public sector data sharing scheme",
-        "authorised data sharing accredited user",
-    ],
+    "P7-I1": {
+        "name": [
+            "personal data protection act", "privacy act",
+            "personal information protection act", "data protection act",
+            "health records act",               # health-sector frameworks also qualify
+            "data availability",                 # public-sector data frameworks (AU Data Availability)
+            "data sharing act",                  # data-sharing frameworks (other economies)
+        ],
+        "desc": [
+            "data protection framework obligations",
+            "consent personal data collection",
+            "data subject rights protection",
+            "personal information privacy law",
+            "privacy legislation framework",
+            "public sector data sharing scheme",
+            "authorised data sharing accredited user",
+        ],
+    },
 
     # ── P7-I2 — DEDICATED CYBERSECURITY FRAMEWORK ──
-    # Separate from data-protection law; covers CII protection, encryption, incident
-    # reporting.  Name fragments here are the clearest indicator of instrument type.
-    "P7-I2": [
-        # name fragments
-        "cybersecurity act",                    # direct (SG, MY Act 854, etc.)
-        "cyber security act",                   # variant spelling
-        "critical infrastructure act",          # SOCI-type laws
-        "security of critical infrastructure",  # AU naming pattern
-        "computer misuse act",                  # cybercrime / misuse laws
-        "criminal code act",                    # criminal codes with cyber offences
-        "network security act",                 # dedicated network security laws
-        # descriptive
-        "critical information infrastructure protection",
-        "cyber incident reporting obligation",
-        "network security encryption requirement",
-        "cybersecurity authority obligations",
-        "computer security law obligations",
-    ],
+    "P7-I2": {
+        "name": [
+            "cyber security act",                   # AU spells it two words (Cyber Security Act 2024)
+            "cybersecurity act",                    # SG/MY spelling
+            "security of critical infrastructure",  # AU SOCI Act
+            "critical infrastructure act",
+            "computer misuse act",                  # cybercrime / misuse laws (SG/MY)
+            "criminal code act",                    # criminal codes with cyber offences
+            "network security act",
+        ],
+        "desc": [
+            "critical information infrastructure protection",
+            "cyber incident reporting obligation",
+            "network security encryption requirement",
+            "cybersecurity authority obligations",
+            "computer security law obligations",
+        ],
+    },
 
     # ── P7-I3 — MINIMUM RETENTION DURATION ──
-    # "Must keep for AT LEAST N years."  Satisfied by many instrument types:
-    # data-protection acts, corporate acts, tax acts, employment acts, telecom licences.
-    # Include name fragments for ALL these types; the same pattern repeats across economies.
-    "P7-I3": [
-        # name fragments — instrument types that impose minimum retention
-        "companies act",               # accounting records minimum period (SG §199, etc.)
-        "corporations act",            # AU equivalent
-        "income tax act",              # tax records minimum (SG §67, MY §82)
-        "revenue act",                 # variant for tax legislation
-        "employment act",              # employee records minimum (SG §95)
-        "labour act",                  # variant for employment legislation
-        "telecommunications act",      # call/billing records minimum period
-        "telecommunications regulations",  # telecom data-retention regulations
-        "electronic communications act",  # variant for telecom legislation
-        "banking act",                 # bank record retention requirements
-        "financial services act",      # financial institution records
-        # descriptive
-        "records must be kept not less than years",
-        "accounting records retained minimum period",
-        "tax records kept minimum years",
-        "employment records retention period",
-        "telecommunications records minimum retention",
-        "mandatory data retention period communications",
-        "service provider retain telecommunications data",
-        "financial records preservation minimum period",
-        "business records kept minimum years",
-        # general retention vocabulary matching the operative wording of corporate/tax acts
-        "retain the records for a period of not less than",
-        "accounting records and systems of control",
-        "keeping of accounting records",
-        "preservation of records",
-    ],
+    "P7-I3": {
+        "name": [
+            "companies act", "corporations act",     # accounting-record minimum period
+            "income tax act", "revenue act",         # tax-record minimum
+            "employment act", "labour act",          # employee-record minimum
+            "telecommunications act",                # call/billing record retention
+            "interception and access",               # telecom data-retention regime (AU 1979 Act)
+            "data retention",                        # dedicated data-retention amendments
+            "electronic communications act",
+            "banking act", "financial services act", # financial-institution records
+        ],
+        "desc": [
+            "records must be kept not less than years",
+            "accounting records retained minimum period",
+            "tax records kept minimum years",
+            "employment records retention period",
+            "telecommunications records minimum retention",
+            "mandatory data retention period communications",
+            "service provider retain telecommunications data",
+            "financial records preservation minimum period",
+            "business records kept minimum years",
+            "retain the records for a period of not less than",
+            "preservation of records",
+        ],
+    },
 
     # ── P7-I4 — DPO / DPIA ──
-    # Narrow indicator: only laws that mandate appointing a DPO or conducting a DPIA.
-    "P7-I4": [
-        # name fragments
-        "personal data protection act",    # DPO/DPIA most commonly in PDPA-type laws
-        "privacy act",
-        # descriptive
-        "data protection officer appointment requirement",
-        "data protection impact assessment obligation",
-        "privacy impact assessment requirement",
-        "appoint data protection officer organisation",
-        "significant data fiduciary obligations",
-    ],
+    "P7-I4": {
+        "name": [
+            "personal data protection act", "privacy act", "data protection act",
+        ],
+        "desc": [
+            "data protection officer appointment requirement",
+            "data protection impact assessment obligation",
+            "privacy impact assessment requirement",
+            "appoint data protection officer organisation",
+            "significant data fiduciary obligations",
+        ],
+    },
 
     # ── P7-I5 — GOVERNMENT ACCESS TO PERSONAL DATA ──
-    # Police / authority empowered to access, search, compel disclosure.  Lives in criminal
-    # procedure codes, security acts, cybersecurity acts, telecom laws — many instrument types.
-    "P7-I5": [
-        # name fragments — generic law-TYPE names shared across common-law jurisdictions (NOT
-        # specific titles): interception, surveillance, intelligence-agency, data-sharing and
-        # criminal-code instruments are the usual homes of state access powers everywhere.
-        "criminal procedure code",         # common-law: SG, MY, IN, PK, etc.
-        "criminal procedure act",          # variant naming
-        "criminal code act",               # criminal codes with investigation/access powers
-        "security offences act",           # special security legislation
-        "interception of communications act",  # lawful interception laws
-        "telecommunications interception act", # interception/access of telecom data
-        "telecommunications interception and access act",  # interception + stored-access variant
-        "surveillance devices act",        # surveillance-warrant regimes (state & federal)
-        "surveillance legislation",        # surveillance amendment/powers statutes
-        "intelligence services act",       # intelligence-agency enabling acts
-        "security intelligence act",       # security-intelligence organisation acts
-        "data sharing act",                # public-sector data-sharing → government access
-        "computer misuse act",             # access/hacking provisions used for investigation
-        "cybersecurity act",               # cybersecurity laws with authority access powers
-        "police act",                      # police powers acts
-        "national security act",           # national-security data access powers
-        # descriptive — the regulatory MECHANISM/obligation (surfaces the law via full-text
-        # search without naming it): warrants, notices, orders that compel access to data.
-        "police access computer data investigation",
-        "law enforcement access personal data",
-        "criminal investigation electronic records",
-        "lawful interception of communications",
-        "stored communications access warrant",
-        "surveillance device warrant access data",
-        "intelligence agency access to personal data",
-        "technical assistance notice decryption",
-        "international production order cross-border data",
-        "compelled disclosure of telecommunications data",
-        "government authority inspect computer",
-        "national security data access powers",
-        "production order disclosure personal data",
-        "search and seizure electronic data",
-        "authorized person access computer records",
-    ],
+    # Police / authority powers to access, intercept, compel disclosure. These live in criminal,
+    # interception, surveillance, intelligence, data-sharing and telecom instruments. Name fragments
+    # are SHORT distinctive tokens verified to hit the AU OData API (e.g. "security intelligence" →
+    # ASIO Act 1979; "interception and access" → Telecommunications (Interception and Access) Act).
+    "P7-I5": {
+        "name": [
+            "criminal procedure code", "criminal procedure act",  # common-law: SG/MY/IN/PK
+            "criminal code act", "crimes act",                    # criminal/crimes acts (search/seizure)
+            "interception and access",                            # lawful interception + stored access
+            "surveillance devices act", "surveillance legislation",  # surveillance-warrant regimes
+            "intelligence services act", "security intelligence",    # intelligence-agency enabling acts
+            "data availability", "data sharing act",              # public-sector data sharing → access
+            "computer misuse act", "cyber security act", "cybersecurity act",
+            "telecommunications act", "data retention",           # compelled telecom data
+            "police act", "national security act", "security offences act",
+        ],
+        "desc": [
+            "police access computer data investigation",
+            "law enforcement access personal data",
+            "criminal investigation electronic records",
+            "lawful interception of communications",
+            "stored communications access warrant",
+            "surveillance device warrant access data",
+            "intelligence agency access to personal data",
+            "technical assistance notice decryption",
+            "international production order cross-border data",
+            "compelled disclosure of telecommunications data",
+            "government authority inspect computer",
+            "national security data access powers",
+            "production order disclosure personal data",
+            "search and seizure electronic data",
+            "authorized person access computer records",
+        ],
+    },
 }
 
 
 def portal_search_queries(economy: str, pillar: int | None = None) -> list[str]:
-    """De-duplicated, order-preserving list of search queries for (economy, pillar).
+    """De-duplicated, order-preserving search queries for (economy, pillar).
 
     Order:
-      1. Broad pillar terms (highest recall, fewest assumptions)
-      2. Indicator-level terms, ROUND-ROBIN across indicators — each indicator's Nth term
-         before any indicator's (N+1)th. Within each indicator, name fragments come first
-         (effective on name-based portal APIs / search boxes), then descriptive phrases
-         (effective on full-text web search via DDG/Serper). The round-robin matters because
-         discovery fires only the first `discovery_max_queries` of this list and a search
-         engine often blocks after a dozen calls: a flat indicator-order list (P7-I1 … then
-         P7-I5) exhausted the budget on the framework indicator before government-access
-         (P7-I5) was ever queried, so those law types went undiscovered.
+      1. Broad pillar terms (full-text engines only — they are concept phrases that can't match a
+         title, so they are SKIPPED for name-only portals).
+      2. Indicator terms, ROUND-ROBIN across indicators — each indicator's Nth term before any
+         indicator's (N+1)th, so no indicator is starved when the list is truncated. Within an
+         indicator, name fragments come first; descriptive phrases follow ONLY for full-text
+         portals.
 
-    Both sets are country-agnostic: the same queries work for any economy.  The
-    `economy` parameter is kept for future language variants (Malay/Thai) but does
-    not affect query content for Round 1 (SG/AU/MY, all English portals).
+    For a NAME_ONLY portal (AU OData) we fire NAME FRAGMENTS ONLY: descriptive phrases there are
+    dead-weight — `contains(name,…)` can't match them and `$search` is broken — so dropping them
+    keeps the whole query budget on queries that can actually return a law (the fix for AU P7
+    missing telecom/criminal-code/surveillance/intelligence/data-availability instruments).
     """
     from .indicators import get_indicators
     pillars = [6, 7] if pillar is None else [pillar]
+    name_only = (economy or "").upper() in NAME_ONLY_PORTALS
 
     out: list[str] = []
 
-    # 1. Broad pillar terms — maximum recall, fired first
-    for p in pillars:
-        out.extend(PILLAR_SEARCH_TERMS.get(p, []))
+    # 1. Broad pillar terms — full-text engines only (concept phrases never match a title).
+    if not name_only:
+        for p in pillars:
+            out.extend(PILLAR_SEARCH_TERMS.get(p, []))
 
-    # 2. Per-indicator terms, interleaved round-robin so every indicator gets a fair share of
-    #    the query budget (no indicator is starved when the list is truncated/engine-blocked).
-    ind_lists = [list(INDICATOR_SEARCH_TERMS.get(ind.indicator_id, []))
-                 for p in pillars for ind in get_indicators(p)]
+    # 2. Per-indicator terms, interleaved round-robin. Name fragments always; descriptive phrases
+    #    only where a full-text engine can index them.
+    ind_lists: list[list[str]] = []
+    for p in pillars:
+        for ind in get_indicators(p):
+            terms = INDICATOR_SEARCH_TERMS.get(ind.indicator_id, {})
+            frags = list(terms.get("name", []))
+            if not name_only:
+                frags += list(terms.get("desc", []))
+            if frags:
+                ind_lists.append(frags)
     depth = max((len(l) for l in ind_lists), default=0)
     for rank in range(depth):
         for l in ind_lists:
