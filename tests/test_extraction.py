@@ -125,6 +125,32 @@ def test_line_anchored_no_false_match_on_apart():
 
 
 
+def test_error_page_yields_no_provisions():
+    """A dead/redirected portal URL (e.g. an uncommenced act whose PDF 404s) returns a short
+    'Page Not Found' HTML page — it must produce ZERO provisions, not one bogus one."""
+    text = ("Page Not Found - Singapore Statutes Online\nFAQs | Feedback\n"
+            "Sorry, the page you are looking for cannot be found.\n"
+            "You can head back to the homepage. Singapore Statutes Online\n")
+    assert extract_provisions(_doc(Economy.SG), text, OCRMetrics()) == []
+
+
+def test_recover_wrapped_subsidiary_legislation_title():
+    """SG subsidiary-legislation titles wrap as SUBJECT / (QUALIFIER) / TYPE-YEAR. Recovery must
+    join all three — not stop at the parenthetical (which is part of the title, not a citation)
+    nor return just 'REGULATIONS 2021'."""
+    from backend.pipeline.extraction import _recover_law_name
+    text = (
+        "No. S 64\n"
+        "PERSONAL DATA PROTECTION ACT 2012\n"
+        "(ACT 26 OF 2012)\n"
+        "PERSONAL DATA PROTECTION\n"
+        "(NOTIFICATION OF DATA BREACHES)\n"
+        "REGULATIONS 2021\n"
+        "ARRANGEMENT OF PROVISIONS\n"
+        "1. Citation\n")
+    assert _recover_law_name(text) == "PERSONAL DATA PROTECTION (NOTIFICATION OF DATA BREACHES) REGULATIONS 2021"
+
+
 def test_short_stub_and_running_header_filtered():
     """Part heading stubs and page running-headers (short bodies / year labels) are dropped."""
     text = ("Part 1\nPreliminary\n"                           # stub: body "Preliminary" < 20 chars

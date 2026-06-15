@@ -292,7 +292,10 @@ _YEAR_RE = re.compile(r"\b(?:19|20)\d{2}\b")
 # "(Act 26 of 2012)" citation appear separately, so the citation acts as a separator that
 # isolates a subsidiary instrument's own name from its parent Act's.
 _ANCHOR_RE = re.compile(r"^\s*ARRANGEMENT OF\b", re.I)
-_CITATION_RE = re.compile(r"^\(.*\)\.?$")          # "(Act 26 of 2012)", "(Cap. 50)"
+# A statute CITATION in parens — "(Act 26 of 2012)", "(Cap. 50)", "(No. S 64)". Must contain a
+# digit or "Cap"; a parenthetical that is part of the TITLE ("(Notification of Data Breaches)")
+# has neither, so it is NOT treated as a citation and stays part of the recovered name.
+_CITATION_RE = re.compile(r"^\([^)]*(?:\d|\bcap\b)[^)]*\)\.?$", re.I)
 _BOILERPLATE_RE = re.compile(
     r"^(no\.|first published|informal consolidation|reprint|revised edition|"
     r".*gazette|s\s*\d+\s*/|cap\.?\s|chapter\b|p\.?u\.?|\d)", re.I)
@@ -347,8 +350,13 @@ def _recover_law_name(text: str) -> str | None:
             # 2018", "PERSONAL DATA PROTECTION ACT 2010") is already complete — don't reach
             # up into the jurisdiction/number header ("LAWS OF MALAYSIA", "Act 709").
             k = j - 1
-            while k >= 0 and re.match(r"^(regulations?|rules|order|by[- ]?laws?|act|akta|code)\b",
-                                      block[0], re.I):
+            while k >= 0:
+                # Keep reaching up while the assembled head is still a bare instrument-type word
+                # ("REGULATIONS 2021") OR a parenthetical qualifier ("(Notification of Data
+                # Breaches)") that still needs its subject prefix ("PERSONAL DATA PROTECTION").
+                if not (re.match(r"^(regulations?|rules|order|by[- ]?laws?|act|akta|code)\b",
+                                 block[0], re.I) or block[0].startswith("(")):
+                    break
                 prev = lines[k]
                 if prev and not _CITATION_RE.match(prev) and not _BOILERPLATE_RE.match(prev) \
                         and _is_title_line(prev):
@@ -453,8 +461,16 @@ def _boundaries(text: str, economy=None) -> list[tuple]:
     return merged
 
 
+_ERROR_PAGE_RE = re.compile(
+    r"page not found|page you are looking for cannot be found|404 not found|error 404", re.I)
+
+
 def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> list[Provision]:
     text = raw_text or ""
+    # A dead/redirected portal URL (e.g. an uncommenced act whose PDF 404s) yields a short
+    # "Page Not Found" HTML page — never a law. Drop it instead of emitting one bogus provision.
+    if _ERROR_PAGE_RE.search(text[:600]) and len(text) < 4000:
+        return []
     text = _strip_page_chrome(text, doc.economy)        # drop SSO running headers/footers
     if doc.economy == Economy.AU:                        # AU PDFs: a dotted-leader "Contents" TOC
         text = _DOTTED_TOC_RE.sub("", text)              # ("Schedule 1……… 5") — drop those lines so
