@@ -76,7 +76,9 @@ class Settings(BaseSettings):
     crawl_browser: bool = False
     cache_dir: str = "data/cache"              # downloaded law bodies live here (content-hashed)
     fetch_max_bytes: int = 60_000_000          # 60 MB hard cap per document
-    discovery_max_docs: int = 18               # candidate cap per (economy, pillar)
+    discovery_max_docs: int = 30               # candidate cap per (economy, pillar) — P7 spans many
+                                               # instrument types (PDPA, cyber, companies, tax, employment,
+                                               # telecom, banking, criminal); 18 cut financial-sector laws
     discovery_max_pages: int = 1               # search-result pages to walk per query
     # Web-search discovery breadth. Results are collected ROUND-ROBIN across queries — each
     # query's top hit before any query's 2nd — so a specific law-type query ("companies act")

@@ -169,7 +169,13 @@ INDICATORS: list[Indicator] = [
         scope="national",
         query_terms=["data protection officer", "data protection impact assessment", "appoint a data protection officer",
                      "appoint one or more data protection officers", "impact assessment", "data auditor",
-                     "significant data fiduciary"],
+                     "significant data fiduciary",
+                     # FUNCTIONAL phrasings — many laws impose the DPO/DPIA duty without the literal term
+                     # (SG PDPA s11(3): "designate one or more individuals to be responsible for ensuring …
+                     # complies"), which the lexical retriever otherwise never surfaces:
+                     "designate an individual responsible", "designate one or more individuals",
+                     "individual responsible for ensuring compliance", "responsible for ensuring the organisation complies",
+                     "person responsible for data protection", "assessment of the impact on the privacy"],
     ),
     Indicator(
         indicator_id="P7-I5",          # ≡ Methodology 7.5
