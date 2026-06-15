@@ -84,6 +84,36 @@ def _is_bold_heading(text: str, chars: list) -> bool:
     return bold / len(glyphs) >= 0.6
 
 
+def _strip_running_chrome(pages: list[str]) -> list[str]:
+    """General page running-header/footer removal — the robust alternative to per-law patterns.
+
+    A running header/footer (the act title + page number, "Section 77A" / "Division 1" banners,
+    "S 63/2021 14", "33 Act 2012 2020 Ed.") sits in the TOP or BOTTOM band of the page and
+    repeats across pages; only its page number changes. So: mask digit runs (page numbers),
+    look at the first 2 / last 3 lines of every page, and treat any normalised line that recurs
+    in that band on a large fraction of pages as chrome — then drop those lines everywhere.
+    Body text and one-off marginal headings don't repeat in the band, so they're kept."""
+    if len(pages) < 3:
+        return pages
+    from collections import Counter
+
+    def _norm(s: str) -> str:
+        return re.sub(r"\d+", "#", s.replace(HEADING_MARK, "")).strip()
+
+    counts: Counter = Counter()
+    for pg in pages:
+        ls = [l for l in pg.split("\n") if l.strip()]
+        for l in ls[:2] + ls[-3:]:                     # header band + footer band
+            n = _norm(l)
+            if 0 < len(n) <= 80:
+                counts[n] += 1
+    thresh = max(3, int(0.25 * len(pages)))            # recurs on ≥¼ of pages → chrome
+    chrome = {n for n, c in counts.items() if c >= thresh}
+    if not chrome:
+        return pages
+    return ["\n".join(l for l in pg.split("\n") if _norm(l) not in chrome) for pg in pages]
+
+
 def _pdf_text_layer(path: str) -> str:
     # x_tolerance infers spaces from glyph gaps — without it, legal PDFs come out with
     # words jammed together ("Anorganisationmustnot"), which wrecks the Character Error
@@ -105,7 +135,7 @@ def _pdf_text_layer(path: str) -> str:
                         else ln["text"] for ln in lines))
                 else:
                     pages.append(pg.extract_text(x_tolerance=2, y_tolerance=3) or "")
-            return "\n\n".join(pages)
+            return "\n\n".join(_strip_running_chrome(pages))
     except Exception:
         try:
             from pypdf import PdfReader
