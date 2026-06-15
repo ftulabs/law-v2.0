@@ -296,6 +296,11 @@ _ANCHOR_RE = re.compile(r"^\s*ARRANGEMENT OF\b", re.I)
 # digit or "Cap"; a parenthetical that is part of the TITLE ("(Notification of Data Breaches)")
 # has neither, so it is NOT treated as a citation and stays part of the recovered name.
 _CITATION_RE = re.compile(r"^\([^)]*(?:\d|\bcap\b)[^)]*\)\.?$", re.I)
+# A line opening with a structural-division word + number ("Part 1 AMENDMENTS TO ACTIVE
+# MOBILITY ACT 2017", "Division 3", "Schedule 2") is a heading INSIDE a document, never the
+# document's own name — so it must not be recovered as the law name even though it carries a
+# law-type word ("ACT") and a year. (Real instrument names don't begin "Part 1 …".)
+_STRUCT_TITLE_RE = re.compile(r"^(?:part|division|schedule|chapter)\s+[\dIVXLC]+\b", re.I)
 _BOILERPLATE_RE = re.compile(
     r"^(no\.|first published|informal consolidation|reprint|revised edition|"
     r".*gazette|s\s*\d+\s*/|cap\.?\s|chapter\b|p\.?u\.?|\d)", re.I)
@@ -342,7 +347,7 @@ def _recover_law_name(text: str) -> str | None:
                 j -= 1
                 continue
             break
-        if j >= 0 and _is_title_line(lines[j]):
+        if j >= 0 and _is_title_line(lines[j]) and not _STRUCT_TITLE_RE.match(lines[j]):
             block = [lines[j]]
             # The name may wrap: a line that STARTS with a bare instrument-type word
             # ("REGULATIONS 2021") needs its subject prefix ("PERSONAL DATA PROTECTION")
@@ -353,9 +358,12 @@ def _recover_law_name(text: str) -> str | None:
             while k >= 0:
                 # Keep reaching up while the assembled head is still a bare instrument-type word
                 # ("REGULATIONS 2021") OR a parenthetical qualifier ("(Notification of Data
-                # Breaches)") that still needs its subject prefix ("PERSONAL DATA PROTECTION").
+                # Breaches)") that still needs its subject prefix ("PERSONAL DATA PROTECTION") OR
+                # carries an UNMATCHED closing paren ("FINANCING) RULES 2023") — the title's
+                # opening "(" wrapped to the line above ("TERRORISM (SUPPRESSION OF").
                 if not (re.match(r"^(regulations?|rules|order|by[- ]?laws?|act|akta|code)\b",
-                                 block[0], re.I) or block[0].startswith("(")):
+                                 block[0], re.I) or block[0].startswith("(")
+                        or block[0].count(")") > block[0].count("(")):
                     break
                 prev = lines[k]
                 if prev and not _CITATION_RE.match(prev) and not _BOILERPLATE_RE.match(prev) \
@@ -393,7 +401,7 @@ def _recover_law_name(text: str) -> str | None:
         line = raw.strip()
         if not (6 <= len(line) <= 90) or not _LAW_TYPE_RE.search(line):
             continue
-        if _CITATION_RE.match(line):
+        if _CITATION_RE.match(line) or _STRUCT_TITLE_RE.match(line):
             continue
         letters = [c for c in line if c.isalpha()]
         if not letters or sum(c.isupper() for c in letters) / len(letters) < 0.3:

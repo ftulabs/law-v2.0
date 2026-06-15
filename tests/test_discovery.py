@@ -252,17 +252,41 @@ def test_websearch_round_robin_keeps_niche_law_types(monkeypatch):
     def fake_find(economy, topic, max_results=4, log=None):
         t = topic.lower()
         if "companies act" in t:
-            return [("https://sso.agc.gov.sg/Act/CoA1967", "Companies Act 1967")]
+            return [("https://sso.agc.gov.sg/Act/CoA1967", "Companies Act 1967", "")]
         if "income tax" in t:
-            return [("https://sso.agc.gov.sg/Act/ITA1947", "Income Tax Act 1947")]
+            return [("https://sso.agc.gov.sg/Act/ITA1947", "Income Tax Act 1947", "")]
         import hashlib
         h = hashlib.md5(t.encode()).hexdigest()[:6]
-        return [(f"https://sso.agc.gov.sg/SL/REG-{h}-{i}", f"Reg {h} {i}") for i in range(max_results)]
+        return [(f"https://sso.agc.gov.sg/SL/REG-{h}-{i}", f"Reg {h} {i}", "") for i in range(max_results)]
 
     monkeypatch.setattr(websearch, "find_law_urls", fake_find)
     names = [d.title for d in D.discover_websearch(Economy.SG, 6, max_docs=18)]
     assert any("Companies Act" in n for n in names)
     assert any("Income Tax" in n for n in names)
+
+
+# ─────────────────── content-relevance gate: snippet ranks on-topic laws above off-topic noise ──────
+def test_websearch_snippet_relevance_ranks_ontopic_first(monkeypatch):
+    """A law whose TITLE hides the provision (Companies Act → accounting-record storage) must
+    still survive the cap because its on-topic search snippet carries the indicator terms, while
+    a tangential law (Gambling) whose snippet is off-topic must be dropped when the budget is tight."""
+    from backend.pipeline import discovery as D, websearch
+
+    def fake_find(economy, topic, max_results=4, log=None):
+        t = topic.lower()
+        # On-topic P6 (cross-border / local storage) snippet, but a name with no data words.
+        if "storage" in t or "record" in t:
+            return [("https://sso.agc.gov.sg/Act/CoA1967", "Companies Act 1967",
+                     "A company must keep its accounting records and retain them, stored within "
+                     "Singapore; transfer of records outside Singapore requires approval.")]
+        # Off-topic law surfaced by a tangential term — snippet has no indicator coverage.
+        return [("https://sso.agc.gov.sg/Act/GamblingControl2022", "Gambling Control Act 2022",
+                 "An act to license and regulate gambling and casino operations.")]
+
+    monkeypatch.setattr(websearch, "find_law_urls", fake_find)
+    docs = D.discover_websearch(Economy.SG, 6, max_docs=1)   # tight budget forces a choice
+    assert docs and "Companies Act" in docs[0].title
+    assert docs[0].relevance_score > 0
 
 
 # ─────────────────── circuit breaker: blocked search engines don't hang the run ───────────────────

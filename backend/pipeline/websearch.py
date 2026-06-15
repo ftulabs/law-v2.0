@@ -37,7 +37,10 @@ def _clean_ddg(href: str) -> str:
     return href
 
 
-def _parse(html: str, selector: str, max_results: int) -> list[tuple[str, str]]:
+def _parse(html: str, selector: str, max_results: int) -> list[tuple[str, str, str]]:
+    """Return (url, title, snippet) results. Keyless HTML engines expose no reliable
+    per-result snippet, so snippet is "" — content-relevance ranking degrades gracefully
+    to title-only for them (the keyed Serper path below carries real snippets)."""
     from bs4 import BeautifulSoup
     soup = BeautifulSoup(html, "lxml")
     out, seen = [], set()
@@ -48,7 +51,7 @@ def _parse(html: str, selector: str, max_results: int) -> list[tuple[str, str]]:
         title = a.get_text(" ", strip=True)
         if href.startswith("http") and href not in seen:
             seen.add(href)
-            out.append((href, title))
+            out.append((href, title, ""))
         if len(out) >= max_results:
             break
     return out
@@ -67,7 +70,9 @@ def _serper(client, q, n):
     for it in r.json().get("organic", []):
         link = it.get("link", "")
         if link.startswith("http"):
-            out.append((link, it.get("title", "")))
+            # snippet = Google's query-biased content preview; the signal that lets discovery
+            # rank by what a law is ABOUT (generic indicator terms) rather than by its name.
+            out.append((link, it.get("title", ""), it.get("snippet", "")))
     return out[:n]
 
 
@@ -148,9 +153,10 @@ def _load_cache() -> dict:
     return {}
 
 
-def search(query: str, site: str | None = None, max_results: int = 10, log=print) -> list[tuple[str, str]]:
-    """Return (url, title) results. Tries Serper (if keyed) then scrapes DuckDuckGo/Mojeek
-    so a single rate-limit/captcha doesn't break discovery. Results are cached on disk."""
+def search(query: str, site: str | None = None, max_results: int = 10, log=print) -> list[tuple[str, str, str]]:
+    """Return (url, title, snippet) results. Tries Serper (if keyed) then scrapes
+    DuckDuckGo/Mojeek so a single rate-limit/captcha doesn't break discovery. Results are
+    cached on disk; older 2-tuple cache entries are padded with an empty snippet."""
     try:
         import httpx
     except Exception:
@@ -158,7 +164,7 @@ def search(query: str, site: str | None = None, max_results: int = 10, log=print
     q = query + (f" site:{site}" if site else "")
     cache = _load_cache()
     if q in cache:                                  # cache hit — no network, no rate-limit
-        return [(u, t) for u, t in cache[q]]
+        return [(r[0], r[1], r[2] if len(r) > 2 else "") for r in cache[q]]
     if _circuit["empties"] >= _HARD and not settings.serper_api_key:
         return []                                   # circuit open — engines blocked, skip network
 
@@ -199,11 +205,11 @@ def _is_law_url(url: str) -> bool:
     return path not in _NAV_PATHS and len(path) > 1
 
 
-def find_law_urls(economy: Economy, topic: str, max_results: int = 10, log=print) -> list[tuple[str, str]]:
-    """Discover candidate (url, title) primary-law results on the economy's official portal."""
+def find_law_urls(economy: Economy, topic: str, max_results: int = 10, log=print) -> list[tuple[str, str, str]]:
+    """Discover candidate (url, title, snippet) primary-law results on the economy's official portal."""
     site = OFFICIAL_PORTAL.get(economy.value)
     results = search(topic, site=site, max_results=max_results, log=log)
     if site:   # keep only the official portal (drop news/blog noise the engine mixes in)
-        results = [(u, t) for u, t in results if site in urlparse(u).netloc.lower()]
-    results = [(u, t) for u, t in results if _is_law_url(u)]   # drop homepage/nav noise
+        results = [r for r in results if site in urlparse(r[0]).netloc.lower()]
+    results = [r for r in results if _is_law_url(r[0])]   # drop homepage/nav noise
     return results

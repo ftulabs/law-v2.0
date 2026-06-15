@@ -151,6 +151,32 @@ def test_recover_wrapped_subsidiary_legislation_title():
     assert _recover_law_name(text) == "PERSONAL DATA PROTECTION (NOTIFICATION OF DATA BREACHES) REGULATIONS 2021"
 
 
+def test_recover_title_with_opening_paren_wrapped_above():
+    """A title whose opening '(' wrapped to the line above ("TERRORISM (SUPPRESSION OF" /
+    "FINANCING) RULES 2023") must be joined — recovery must not return the dangling
+    "FINANCING) RULES 2023" with an unmatched closing paren."""
+    from backend.pipeline.extraction import _recover_law_name
+    text = (
+        "No. S 100\n"
+        "TERRORISM (SUPPRESSION OF\n"
+        "FINANCING) RULES 2023\n"
+        "ARRANGEMENT OF PROVISIONS\n"
+        "1. Citation\n")
+    assert _recover_law_name(text) == "TERRORISM (SUPPRESSION OF FINANCING) RULES 2023"
+
+
+def test_recover_rejects_structural_part_heading_as_name():
+    """A 'Part 1 AMENDMENTS TO ACTIVE MOBILITY ACT 2017' line is a heading INSIDE an omnibus
+    statute, not the document's own name — it must never be recovered as the law name even
+    though it carries a law-type word and a year."""
+    from backend.pipeline.extraction import _recover_law_name
+    text = (
+        "STATUTES (MISCELLANEOUS AMENDMENTS) ACT 2024\n"
+        "Part 1 AMENDMENTS TO ACTIVE MOBILITY ACT 2017\n"
+        "1. Citation\n")
+    assert _recover_law_name(text) != "Part 1 AMENDMENTS TO ACTIVE MOBILITY ACT 2017"
+
+
 def test_short_stub_and_running_header_filtered():
     """Part heading stubs and page running-headers (short bodies / year labels) are dropped."""
     text = ("Part 1\nPreliminary\n"                           # stub: body "Preliminary" < 20 chars

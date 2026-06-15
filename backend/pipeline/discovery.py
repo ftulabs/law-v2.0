@@ -42,9 +42,42 @@ def _score(text_blob: str, indicators: list[Indicator]) -> float:
     return round(min(1.0, hits / max(4, len(all_terms) * 0.25)), 3)
 
 
+# Over-generic words that appear in almost any legal text — kept out of the snippet vocabulary
+# so they don't give an off-topic law spurious relevance (the snippet gate ranks on the
+# DISTINCTIVE indicator vocabulary: server/centre/cross-border/stored/transfer/…, not "data").
+_RELEVANCE_STOP = {
+    "data", "personal", "information", "protection", "shall", "with", "within", "must", "this",
+    "that", "from", "into", "under", "such", "which", "person", "public", "national", "country",
+    "territory", "located", "individual", "least", "level", "standard", "where", "unless", "been",
+}
+
+
+def _snippet_relevance(text_blob: str, indicators: list[Indicator]) -> float:
+    """Word-level indicator-term coverage — the right signal for a short SEARCH SNIPPET.
+
+    `_score` matches whole query phrases ("data shall be stored in"), which a Google snippet
+    almost never reproduces verbatim, so it would score real snippets 0 and silently disable the
+    gate. Here we split the query terms into their DISTINCTIVE words (server, centre, cross-border,
+    stored, transferred, infrastructure …) and measure how many appear in the title+snippet. An
+    on-topic law (Companies Act snippet: 'accounting records … stored … transfer … approval')
+    covers several; an off-topic one (Gambling: 'license … casino') covers none. Generic legal
+    words are dropped (see _RELEVANCE_STOP) so coverage reflects topical fit, not boilerplate."""
+    blob = text_blob.lower()
+    vocab: set[str] = set()
+    for ind in indicators:
+        for term in ind.query_terms:
+            for w in re.findall(r"[a-z][a-z-]{3,}", term.lower()):
+                if w not in _RELEVANCE_STOP:
+                    vocab.add(w)
+    if not vocab:
+        return 0.0
+    hits = sum(1 for w in vocab if w in blob)
+    return round(hits / len(vocab), 4)
+
+
 # ─────────────────────── version-resolution helpers (live mode) ──────────────
 _YEAR_RE = re.compile(r'\b(19|20)\d{2}\b')
-_AMEND_RE = re.compile(r'\b(amendment|amending|supplementary|supplemental)\b', re.I)
+_AMEND_RE = re.compile(r'\b(amendments?|amending|supplementary|supplemental)\b', re.I)
 _CONSOL_RE = re.compile(r'\b(consolidated|compilation|reprint|revised|current)\b', re.I)
 _DEAD_URL_RE = re.compile(r'historical|repealed|superseded|revoked|expired|mansuh|archive', re.I)
 # Strip disambiguation suffixes like "(No. 2)", "No.3", "(Number 2)" so that
@@ -563,23 +596,29 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int) -> l
     # returns few, niche hits that the old "fill the budget in query order" loop discarded
     # once abundant data-protection queries had filled it. We instead collect ROUND-ROBIN
     # below, so every query's TOP hit is taken before any query's 2nd.
-    buckets: list[list[tuple[str, str]]] = []
+    buckets: list[list[tuple[str, str, str]]] = []
     for topic in topics:
         res = websearch.find_law_urls(economy, topic, max_results=settings.discovery_per_query)
         if res:
             buckets.append(res)
 
     by_url: dict[str, DiscoveredDoc] = {}
+    # search snippet(s) per cleaned source_url — accumulated across every query that surfaced
+    # the law, so the content-relevance score below sees the fullest preview of what it's about.
+    snippets: dict[str, str] = {}
 
-    def _add(url: str, title: str) -> None:
-        if url in by_url:
-            return
+    def _add(url: str, title: str, snippet: str) -> None:
         # source_url stays the human-facing LANDING page (judges prefer it); the PDF body
         # URL is resolved only at fetch time (see _resolve_pdf_url).
+        su = _clean_source_url(economy, url)
+        if snippet:
+            snippets[su] = (snippets.get(su, "") + " " + snippet).strip()
+        if url in by_url:
+            return
         _, fmt = _resolve_pdf_url(economy, url)
         by_url[url] = DiscoveredDoc(
             doc_id=_doc_id(economy.value, url), economy=economy,
-            title=(title or url)[:200], source_url=_clean_source_url(economy, url),
+            title=(title or url)[:200], source_url=su,
             portal=websearch.OFFICIAL_PORTAL.get(economy.value, "web"),
             fmt=fmt, relevance_score=0.0, discovery_tag=DiscoveryTag.NEW)
 
@@ -587,7 +626,8 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int) -> l
     for rank in range(depth):                      # round-robin: rank-0 of every query first
         for b in buckets:
             if rank < len(b):
-                _add(b[rank][0], b[rank][1])
+                it = b[rank]
+                _add(it[0], it[1], it[2] if len(it) > 2 else "")
         if len(by_url) >= max_docs * 3:
             break
     # Collapse multiple URL variants of the same law into the most current/in-force version.
@@ -598,6 +638,21 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int) -> l
     # SG consolidates amendments into the principal text → drop redundant Amendment files.
     if economy.value == "SG":
         docs = _drop_amendment_docs(docs)
+
+    # Content-relevance gate. Round-robin gathered a BROAD candidate pool (every query's top
+    # hits) — but taking them in arrival order let off-topic laws a tangential query surfaced
+    # (Gambling/Active Mobility/Customs for a P6 cross-border-data run) fill the budget ahead
+    # of on-topic ones. So score each candidate by indicator-term coverage over its title +
+    # search snippet and keep the most relevant max_docs. This judges what a law is ABOUT, not
+    # its name, so a law whose title hides the provision (Companies Act → accounting-record
+    # storage) still ranks high: its snippet, from the on-topic query that found it, carries
+    # the matched terms. No law names are hardcoded — only the generic indicator query terms.
+    indicators = get_indicators(pillar)
+    if any(snippets.values()):                     # only rank when we have real snippets (Serper);
+        for d in docs:                             # keyless engines give none → keep round-robin order
+            d.relevance_score = _snippet_relevance(
+                (d.title or "") + " " + snippets.get(d.source_url, ""), indicators)
+        docs.sort(key=lambda d: d.relevance_score, reverse=True)
     return docs[:max_docs]
 
 
