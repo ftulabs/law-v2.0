@@ -2,7 +2,7 @@
 
 UN Global Hackathon on AI for Digital Trade Regulatory Analysis
 Team: **VeriTrade** (Foreign Trade University) | Round: 1
-Last updated: 2026-06-04
+Last updated: 2026-06-11
 
 > **Two ways to run, by design:**
 > **① Live crawl (`--live`) — the scored path.** This is what the rubric grades:
@@ -20,16 +20,23 @@ VeriTrade is an **auditable legal evidence extraction pipeline** (not a chatbot)
 automates the two RDTII tasks:
 
 **Task 1 — Automated Evidence Discovery**
-Given an economy and a pillar, it retrieves the relevant legislation (HTML, text PDF,
-and scanned PDF), and extracts clean, structured, article-level text — no manual steps.
-Document extraction defaults to **Microsoft MarkItDown**.
+Given an economy and a pillar, it **discovers** the relevant legislation on the official
+portal itself (no seed URLs — `site:`-scoped web search whose queries are round-robined
+across every indicator so no law type is starved), **fetches** it past bot-protection,
+**OCRs** scanned/image pages (measuring Character Error Rate), and **extracts** clean,
+article-level provisions with their **verbatim** text. Document extraction defaults to
+**Microsoft MarkItDown**; the provision parser is **country-specific** — each economy
+drafts statutes differently, so SG, AU and MY each have their own structural rules and
+their own page-furniture/table-of-contents cleanup (see *Per-Country Extraction* below).
 
 **Task 2 — Intelligent Mapping & Categorization**
 Each provision is mapped to a specific **RDTII 2.1 indicator** with an exact
 article-level citation, a **verbatim** snippet, a Discovery Tag (**NEW**/**KNOWN**), a
-**confidence score**, and a mapping rationale. Closely-related indicators are
-disambiguated by showing the model every sibling indicator in the pillar and asking for
-the single best fit. Low-confidence and sector-scope mappings are routed to human review.
+**confidence score**, and a mapping rationale. A hybrid retriever shortlists the
+best-matching provisions per indicator (bounded, per-law-diverse — see *Zone 2
+Retrieval*); the LLM then disambiguates closely-related indicators by seeing every sibling
+indicator in the pillar and choosing the single best fit, grading candidates in parallel.
+Low-confidence and sector-scope mappings are routed to human review.
 
 **Mandatory scope:** Pillar 6 (Cross-border Data Flows) and Pillar 7 (Domestic Data Protection)
 **Economies covered:** Singapore, Australia, Malaysia
@@ -51,7 +58,16 @@ python main.py --economy Malaysia  --pillar all --live --llm openrouter --ocr ra
 - **Zone 1 fetch:** Scrapling (real-browser TLS impersonation) is the default fetcher, so
   gov portals that 403 a plain HTTP client still resolve; httpx is the fallback.
 - **No seed list:** discovery is `site:`-scoped web search over the portal in
-  `data/sources.yaml`, not a hardcoded URL per law.
+  `data/sources.yaml`, not a hardcoded URL per law. Queries come from country-agnostic
+  keyword packs (`backend/rdtii/keywords.py`) describing each indicator's **law type** and
+  **regulatory obligation** — never a specific law title — so the system finds the law
+  objectively rather than being told where to look.
+- **Breadth without starvation:** queries are **round-robined across indicators** (each
+  indicator's Nth term before any indicator's N+1th) and results collected round-robin
+  across queries, so a niche law type (e.g. P7-I5 government-access acts) is never crowded
+  out by the abundant data-protection results. A **circuit breaker** stops hammering a
+  search engine once it rate-limits (so a run never hangs); a free **`SERPER_API_KEY`**
+  (serper.dev) makes discovery fully reliable.
 - **Same code as the sample path** — only the document *source* changes, so a green sample
   run is an honest preview of the live run.
 
@@ -154,17 +170,20 @@ Input: Economy + Pillar
 ┌──────────────────────────────────────────────┐
 │  TASK 1 — Evidence Discovery                   │
 │  1. Discovery (sample corpus | live crawler)   │
-│     └─ ranks laws, tags KNOWN / NEW            │
+│     └─ round-robin web search, circuit breaker │
+│     └─ resolve portal PDF, tag KNOWN / NEW     │
 │  2. Document Processor                          │
-│     └─ MarkItDown extraction (HTML/PDF/scanned)│
-│     └─ article/§ structural parsing (verbatim) │
+│     └─ MarkItDown / OCR (HTML/PDF/scanned, CER)│
+│     └─ PER-COUNTRY structural parsing (verbatim)│
+│        strips page furniture + TOC; SG/AU/MY   │
 └──────────────────────────────────────────────┘
         │  clean structured provisions
         ▼
 ┌──────────────────────────────────────────────┐
 │  TASK 2 — Mapping & Categorization             │
-│  3. Retrieval (BM25, FAISS-ready)              │
-│  4. LLM Mapping (provider-agnostic)            │
+│  3. Retrieval — hybrid (BM25 + dense + rerank) │
+│     └─ bounded, per-law-diverse shortlist/ind. │
+│  4. LLM Mapping (provider-agnostic, parallel)  │
 │     └─ best-fit indicator vs all pillar siblings│
 │     └─ verbatim snippet + article citation     │
 │     └─ Discovery Tag + 4-signal confidence     │
@@ -179,11 +198,11 @@ Output: CSV (official template) + JSON (full trace) + SQLite audit store
 
 | Module | File | Description |
 | :---- | :---- | :---- |
-| Discovery | `backend/pipeline/discovery.py` | Sample corpus + live-crawler skeleton; KNOWN/NEW tagging |
-| OCR / Extraction | `backend/pipeline/ocr.py`, `backend/providers/ocr_*.py` | MarkItDown (default), Tesseract, PaddleOCR, Azure, mock |
-| Provision parser | `backend/pipeline/extraction.py` | Splits text into article/§ chunks, verbatim |
-| Retrieval | `backend/pipeline/retrieval.py` | BM25 indicator-grounded retrieval |
-| Mapper | `backend/pipeline/mapping.py`, `backend/rdtii/indicators.py` | RDTII indicators + best-fit disambiguation prompt |
+| Discovery | `backend/pipeline/discovery.py`, `backend/pipeline/websearch.py` | `site:`-scoped web search round-robined across indicators with a circuit breaker; per-portal PDF resolution (AU OData API, SG SSO `ViewType=Pdf`, MY landing pages); same-law dedup → newest in-force version; KNOWN/NEW tagging |
+| OCR engines | `backend/pipeline/ocr.py`, `backend/providers/ocr_*.py` | MarkItDown (default), RapidOCR/PaddleOCR (scanned), Tesseract, Azure, mock; auto-detects "secretly scanned" PDFs; measures CER |
+| Provision parser | `backend/pipeline/extraction.py` | **Per-country** structural parsing into verbatim article/§ chunks; strips running headers/footers + "Arrangement of" TOC; SG em-dash, MY space-paren, AU font-marked + schedules/APP |
+| Retrieval | `backend/pipeline/retrieval.py`, `backend/pipeline/retrieval_lightrag.py` | Hybrid BM25 + dense MiniLM + cross-encoder rerank; bounded per-law-diverse shortlist; LightRAG graph-RAG fallback at scale |
+| Mapper | `backend/pipeline/mapping.py`, `backend/rdtii/indicators.py` | RDTII indicators + best-fit-vs-siblings prompt; parallel grading; grade-all for small corpora |
 | Confidence / HITL | `backend/pipeline/confidence.py`, `backend/review/workflow.py` | Scoring + auto/review/quarantine routing |
 | LLM clients | `backend/providers/llm_*.py` | OpenRouter / Anthropic / OpenAI / mock |
 | Output writer | `backend/export/csv_export.py`, `json_export.py` | CSV (submission) + JSON (technical) |
@@ -251,6 +270,44 @@ for the noisiest gazette scans. The pipeline auto-detects a "secretly scanned" t
 
 ---
 
+## Per-Country Extraction (how Task 1 gets verbatim provisions right)
+
+The hardest, most underrated part of RDTII is turning a raw legal PDF into clean,
+**verbatim**, article-level provisions with the *correct* citation. There is no universal
+format — **each economy drafts statutes differently** — so `backend/pipeline/extraction.py`
+**dispatches by economy** (`_boundaries(text, economy)`) instead of forcing one regex on
+all. A wrong split here corrupts the verbatim snippet the judges score, so this is handled
+deliberately per country.
+
+| Economy | How sections are written | How we detect them |
+| :---- | :---- | :---- |
+| **Singapore** (SSO) | "Heading\n**11.—(1)** …" — number + em-dash + subsection; "Section/Regulation N of the Act" is only ever a **cross-reference** | Split on the numbered margin form (`11.—(1)`, `26. Foo`) + Part/Schedule; the keyword forms are *not* boundaries (they're references) |
+| **Malaysia** (LOM) | "Heading\n**20. (1)** …" — number + space + subsection | Same numbered profile, space-paren variant |
+| **Australia** (legislation.gov.au) | Bold **font-marked** headings ("77 Requirement…"); Schedules renumber from 1; APPs in Schedule 1 | Font-mark detection (`\x1e`) + em-dash structural headings ("Schedule 1—…"); cross-ref markers ignored |
+
+**Shared cleanup applied before splitting** (this is what stops "trích thừa" — junk text —
+from polluting a snippet):
+
+- **Page furniture removed.** SSO footers (`Informal Consolidation …`, `S 63/2021 14`), and
+  AU footers/headers that vary per page (`356 Privacy Act 1988`, `Section 77A`, the
+  right-aligned `… Division 3A` banner) are stripped — even when the bold footer carries a
+  stray heading-mark — so a provision that spans pages stays continuous.
+- **"Arrangement of Sections/Provisions" table of contents dropped**, so a TOC entry never
+  becomes a bogus name-only provision.
+- **Heading-extension.** A numbered section's snippet *starts at its margin heading* (e.g.
+  "Legally enforceable obligations") and *ends where the next section's heading begins* — no
+  previous-section tail, no next heading bleeding in.
+- **AU schedules.** A font-marked heading inside Schedule 1 is relabelled `Section 8 → APP 8`
+  and captured in full (8.1–8.x); sections in other schedules are scoped (`Schedule 2,
+  Section 1`) so their restarted numbering doesn't collide with the main body; an
+  "Australian Privacy Principle 8.3" cross-reference is never mistaken for the real APP 8.
+
+> **To add a Finals economy:** add a profile (its section convention + page-furniture
+> patterns) rather than widening a shared regex. `tests/test_extraction.py` pins each
+> country's behaviour with real-world fixtures.
+
+---
+
 ## Zone 2 Retrieval — hybrid or LightRAG graph-RAG
 
 Each RDTII indicator is matched only against provisions a retriever surfaces (never the
@@ -259,9 +316,18 @@ whole corpus) — that is what keeps every mapping citation-bound. Two backends,
 
 | `RETRIEVER` | Engine | When |
 | :---- | :---- | :---- |
-| `hybrid` | BM25 + dense MiniLM + **cross-encoder rerank**, RRF fusion (built-in) | Always available, fast; ideal for the sample corpus |
+| `hybrid` **(default)** | BM25 + dense MiniLM + **cross-encoder rerank**, RRF fusion (built-in) | Always available, fast, no LLM needed; the reliable default |
 | `lightrag` | [HKUDS **LightRAG**](https://github.com/HKUDS/LightRAG) knowledge-graph retrieval | Live-crawl scale — dozens of laws / hundreds of provisions |
-| `auto` (default) | LightRAG when it's installed, an LLM key is set, and the corpus is large (`LIGHTRAG_MIN_PROVISIONS`, default 40); else hybrid | Best of both with no manual switch |
+| `auto` | LightRAG when it's installed, an LLM key is set, and the corpus is large (`LIGHTRAG_MIN_PROVISIONS`, default 40); else hybrid | Opt-in best-of-both |
+
+**The shortlist is bounded and per-law-diverse.** For each indicator the hybrid retriever
+takes a global top-k **plus** a round-robin reserve of each discovered law's own best
+provisions, capped at `RETRIEVE_MAX_TOP_K` (default 40) — so a short, on-point Act (e.g. My
+Health Records s77) is still graded even when a 485-section Act would otherwise fill the
+top-k, while the total per indicator stays bounded for speed/cost. For small corpora
+(≤ `GRADE_ALL_MAX_PROVISIONS`, default 80) **every** provision is graded against every
+indicator, so retrieval is a signal, not a gate. Candidates are graded **in parallel**
+(`MAPPING_CONCURRENCY`).
 
 **Citations are preserved either way.** LightRAG is used for *retrieval only* (each
 provision is tagged so the exact verbatim snippet / article / URL is recovered from the
@@ -405,12 +471,14 @@ pytest tests/
 | Test file | What it tests |
 | :---- | :---- |
 | `tests/test_output.py` | CSV header == official template; submission excludes quarantined |
+| `tests/test_extraction.py` | **Per-country** parsing: SG SSO chrome + cross-ref + heading-extension; AU schedules/APP relabel + page-furniture; font-marked sections |
+| `tests/test_discovery.py` | Same-law dedup → newest version; round-robin keeps niche law types; circuit breaker stops a blocked engine |
 | `tests/test_mapper.py` | Known mappings (consent→P7-I1, breach→P7-I4); P6 needs transfer context; sectoral never auto-accepts |
-| `tests/test_ocr.py` | MarkItDown is default + extracts the bundled PDF |
-| `tests/test_scanned_ocr.py` | Bundled scan is genuinely image-only; RapidOCR reads it at CER < 5%; pipeline measures + reports CER |
+| `tests/test_mapping_perf.py` | Per-indicator shortlist is hard-capped (no fraction-of-corpus blow-up); short on-point law not crowded out |
+| `tests/test_ocr.py`, `tests/test_scanned_ocr.py` | MarkItDown default extracts the bundled PDF; bundled scan is image-only, RapidOCR reads it at CER < 5% (measured + reported) |
 | `tests/test_input.py` | Economy input tolerates codes, UN names and mis-spellings; rejects garbage clearly |
 | `tests/test_zone2_retriever.py` | Retriever selection (hybrid/lightrag/auto); mapper falls back to hybrid if LightRAG yields nothing |
-| `tests/test_scrapling_fetch.py` | Scrapling escalation stores recovered bodies, respects the byte cap, and degrades to None |
+| `tests/test_scrapling_fetch.py`, `tests/test_js_shell.py` | Scrapling escalation stores bodies + respects the byte cap; AU JS-shell detected and suppressed (no nav-chrome provisions) |
 
 ---
 
