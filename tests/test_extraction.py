@@ -168,3 +168,27 @@ def test_au_page_furniture_stripped_mid_provision():
     assert "My Health Records Act 2012 89" not in s77.verbatim_snippet
     assert "Section 77A" not in s77.verbatim_snippet
     assert "Division 3A" not in s77.verbatim_snippet             # right-aligned page header stripped
+
+
+def test_au_clause_header_and_repeated_table_header_stripped():
+    """AU APP/Schedule pages run a "Clause N" page-top header, and a table that spans a page
+    repeats its caption + " … "-gapped column-header row. Keep the first table header, drop the
+    "Clause N" headers and the repeated table block."""
+    M = HEADING_MARK
+    text = (
+        f"{M}20F Permitted CRB disclosures in relation to individuals\n"
+        "(1) A disclosure by a credit reporting body is a permitted CRB disclosure if:\n"
+        "Permitted CRB disclosures\n"
+        "Item If the disclosure is to ... the condition or conditions are ...\n"
+        "1 a credit provider the provider requests the information for a consumer credit purpose.\n"
+        "Clause 8\n"                                             # page-top running header
+        "Permitted CRB disclosures\n"                           # repeated caption (continuation)
+        "Item If the disclosure is to ... the condition or conditions are ...\n"
+        "2 a credit provider the provider requests the information for a commercial purpose.\n"
+        f"{M}21 Next section with a body long enough to be a real provision in this fixture.\n")
+    s20f = next(p for p in extract_provisions(_doc(Economy.AU), text, OCRMetrics())
+                if p.article_section == "Section 20F")
+    snip = s20f.verbatim_snippet
+    assert "Clause 8" not in snip                               # clause page header dropped
+    assert snip.count("the condition or conditions are") == 1   # table header kept once, repeat dropped
+    assert "consumer credit purpose" in snip and "commercial purpose" in snip  # real rows kept

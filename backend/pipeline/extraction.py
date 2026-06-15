@@ -77,7 +77,7 @@ _DOTTED_TOC_RE = re.compile(r"(?m)^.*\.{4,}.*$")        # a table-of-contents do
 #     structural pattern deliberately stops before an em-dash so it never eats a real heading.
 _AU_FURNITURE = [
     re.compile(r"(?im)^[ \t]*\d{0,4}[ \t]*[A-Z][A-Za-z ]+? Act (?:19|20)\d{2}[ \t]*\d{0,4}[ \t]*$"),
-    re.compile(r"(?im)^[ \t]*Section\s+\d+[A-Za-z]?[ \t]*$"),
+    re.compile(r"(?im)^[ \t]*(?:Section|Clause)\s+\d+[A-Za-z]?[ \t]*$"),     # "Section 77A" / "Clause 8" headers
     # left-aligned page header: "Division 3A …", "Schedule 1 Australian Privacy Principles"
     re.compile(r"(?im)^[ \t]*(?:Schedule|Part|Division)\s+\d+[A-Za-z]?(?:\s+[A-Z][^\n—–]*)?[ \t]*$"),
     # right-aligned page header: the unit TITLE then the marker last — "Assessments by, or at the
@@ -92,6 +92,33 @@ def _strip_au_chrome(text: str) -> str:
     for rx in _AU_FURNITURE:
         text = rx.sub("", text)
     return text
+
+
+def _strip_au_table_continuation(text: str) -> str:
+    """When a table spans a page, AU repeats its caption + column-header row at the top of the
+    next page ("Permitted CRB disclosures" / "Item  If the disclosure is to … the condition or
+    conditions are …"). Keep the FIRST occurrence (the real table header, part of the verbatim
+    provision) and drop later repeats — plus the caption line directly above a repeat. A
+    column-header row is recognised by its ' … ' (space-ellipsis) column gaps, which body
+    prose effectively never has."""
+    lines = text.split("\n")
+    seen: set[str] = set()
+    drop: set[int] = set()
+    for i, ln in enumerate(lines):
+        n = ln.strip()
+        if " ... " in n and len(n) <= 160:             # a table column-header row
+            if n in seen:
+                drop.add(i)
+                j = i - 1
+                while j >= 0 and not lines[j].strip():  # skip blanks up to the repeated caption
+                    j -= 1
+                if j >= 0:
+                    drop.add(j)
+            else:
+                seen.add(n)
+    if not drop:
+        return text
+    return "\n".join(l for k, l in enumerate(lines) if k not in drop)
 
 # SG/MY drafting: a section is NUMBERED at the margin — "11.—(1)" (SG em-dash), "20. (1)" (MY
 # space-paren), "26. Foo" (bare). The "Section/Regulation/Paragraph/Article N" keyword forms in
@@ -406,7 +433,8 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
         text = _strip_running_headers(text)              # their "Schedule N" entries aren't boundaries
     law_name = _law_name(doc, text)                     # needs the ARRANGEMENT anchor → before TOC strip
     if doc.economy == Economy.AU:                        # drop act-title±page footers + word-form
-        text = _strip_au_chrome(text)                    # "Section 77A"/"Schedule 1 …" page headers
+        text = _strip_au_chrome(text)                    # "Section 77A"/"Clause 8"/"Schedule 1 …" headers
+        text = _strip_au_table_continuation(text)        # repeated table caption + column header
     text = _strip_arrangement_toc(text)                 # drop the table-of-contents block
     if doc.economy == Economy.AU:
         # AU's "Contents" lists "Schedule 1/2…" BEFORE the body; those entries would set the
