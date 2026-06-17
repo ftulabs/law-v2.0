@@ -5,8 +5,9 @@ and law-name recovery. These guard the three failure modes seen in live testing:
   3. Malaysian laws mislabelled with a generic portal <title>.
 """
 from backend.pipeline.discovery import (
-    _clean_title, _dedup_by_law_title, _dedup_key, _is_generic_title, _latest_year,
-    _law_key, _pick_best, _prefer_english_my, _sg_statute_id, _url_law_key,
+    _clean_title, _collapse_my_amendments, _dedup_by_law_title, _dedup_key, _is_acronym_blob,
+    _is_generic_title, _latest_year, _law_key, _pick_best, _prefer_english_my, _sg_statute_id,
+    _url_law_key,
 )
 from backend.pipeline.extraction import _law_name, _recover_law_name
 from backend.schemas import DiscoveredDoc, DiscoveryTag, DocFormat, Economy
@@ -340,20 +341,57 @@ def test_my_catalogue_search_matches_english_fragment(monkeypatch):
     comes first is still found; the returned doc carries the English name + the _BI PDF URL."""
     from backend.pipeline import discovery as D
     from backend.schemas import Economy
-    # Seed the module cache so no network call is made.
-    monkeypatch.setattr(D, "_my_catalogue_cache", [
+    # Seed the module cache so no network call is made. Cache is keyed by catalogue_url; the
+    # default (no catalogue_url in src) is the principal "updated" catalogue.
+    monkeypatch.setattr(D, "_my_catalogue_cache", {D._MY_PORTAL + "json-updated-2024.php": [
         ("854", "CYBER SECURITY ACT 2024",
          "akta keselamatan siber 2024 cyber security act 2024",
          "https://lom.agc.gov.my/ilims/upload/portal/akta/x_BI/Act 854.pdf"),
         ("709", "PERSONAL DATA PROTECTION ACT 2010",
          "personal data protection act 2010",
          "https://lom.agc.gov.my/ilims/upload/portal/akta/y_BI/ACT 709.pdf"),
-    ])
+    ]})
     docs = D._search_my_catalogue(None, {"name": "MY"}, "cyber security act", Economy.MY, [], log=lambda *a: None)
     assert len(docs) == 1
     assert docs[0].title == "CYBER SECURITY ACT 2024"
     assert docs[0].law_number == "854"
     assert docs[0].source_url.endswith(".pdf")
+
+
+def test_acronym_blob_title_is_generic_but_real_caps_title_is_not():
+    """A code-only PDF filename ('GP CBPDT EN 1' ← GP_CBPDT_EN_1.pdf) is NOT a usable law name
+    → treated as generic so the title is recovered from the PDF. An ALL-CAPS but real title
+    ('PRIVATE HOSPITALS CODE') must survive."""
+    assert _is_acronym_blob("GP CBPDT EN 1") is True
+    assert _is_generic_title("GP CBPDT EN 1") is True
+    assert _is_acronym_blob("PRIVATE HOSPITALS CODE") is False
+    assert _is_generic_title("PRIVATE HOSPITALS CODE") is False
+    assert _is_acronym_blob("Companies Act 1967") is False
+
+
+def test_my_amendment_collapse_keeps_newest_per_family_and_prioritises_data_law():
+    """MY: keep only the NEWEST amendment per principal family (older ones are folded into the
+    dated reprint), drop orphan amendments with no principal present, and rank the data-law
+    amendment above other amendments (both pillars are about data) — all below the COP floor."""
+    docs = [
+        _doc("PERSONAL DATA PROTECTION ACT 2010", "u/act709.pdf", Economy.MY),
+        _doc("INCOME TAX ACT 1967", "u/act53.pdf", Economy.MY),
+        _doc("INCOME TAX (AMENDMENT) ACT 2017", "a/A1556.pdf", Economy.MY),
+        _doc("INCOME TAX (AMENDMENT) ACT 2024", "a/A1706.pdf", Economy.MY),
+        _doc("PERSONAL DATA PROTECTION (AMENDMENT) ACT 2024", "a/A1727.pdf", Economy.MY),
+        _doc("EXCISE (AMENDMENT) ACT 2020", "a/A1620.pdf", Economy.MY),   # orphan: no principal
+    ]
+    for d in docs:
+        d.relevance_score = 1.0
+    out = _collapse_my_amendments(docs)
+    titles = {d.title for d in out}
+    assert "INCOME TAX (AMENDMENT) ACT 2017" not in titles          # superseded by 2024
+    assert "INCOME TAX (AMENDMENT) ACT 2024" in titles              # newest of family kept
+    assert "EXCISE (AMENDMENT) ACT 2020" not in titles              # orphan dropped
+    pdpa_amd = next(d for d in out if "PERSONAL DATA" in d.title and "AMENDMENT" in d.title)
+    inc_amd = next(d for d in out if "INCOME TAX (AMENDMENT)" in d.title)
+    assert pdpa_amd.relevance_score < 0.6                           # below COP floor
+    assert pdpa_amd.relevance_score > inc_amd.relevance_score       # data-law amendment ranks higher
 
 
 def test_my_is_name_only_portal():

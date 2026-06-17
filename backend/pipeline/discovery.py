@@ -183,6 +183,21 @@ def _clean_title(title: str) -> str:
     return t.strip()
 
 
+def _is_acronym_blob(text: str) -> bool:
+    """True when `text` is only acronym/code tokens, not a human law name — e.g. a PDF
+    filename like 'GP CBPDT EN 1' (Guideline on Cross-Border Personal Data Transfer →
+    GP_CBPDT_EN_1.pdf). Distinguishes it from an ALL-CAPS but real title ('PRIVATE
+    HOSPITALS CODE'): a real title has at least one word-shaped token (≥4 letters WITH a
+    vowel), whereas 'CBPDT'/'GP'/'EN' are short or all-consonant codes."""
+    tokens = [t for t in re.split(r"\s+", (text or "").strip()) if t]
+    if not tokens:
+        return False
+    def _wordlike(tok: str) -> bool:
+        letters = re.sub(r"[^A-Za-z]", "", tok)
+        return len(letters) >= 4 and bool(re.search(r"[aeiouAEIOU]", letters))
+    return not any(_wordlike(t) for t in tokens)
+
+
 def _is_generic_title(title: str) -> bool:
     """True when the title is not a usable law name — a portal nav/landing label, a bare
     law number, or a filename/UUID blob (e.g. 'PDF bc248903-f874-…'). Such titles trigger
@@ -194,6 +209,10 @@ def _is_generic_title(title: str) -> bool:
         return True
     # no real word (≥4 consecutive letters) → a UUID / filename / number blob, not a name
     if not re.search(r"[A-Za-z]{4,}", cleaned):
+        return True
+    # all-acronym/code tokens ('GP CBPDT EN 1') slip past the ≥4-letter check (CBPDT) but
+    # are not a real name → recover the title from the PDF's first page at extraction.
+    if _is_acronym_blob(cleaned):
         return True
     return False
 
@@ -348,6 +367,41 @@ def _drop_amendment_docs(docs: list[DiscoveredDoc]) -> list[DiscoveredDoc]:
     Keeps the full list if EVERYTHING is an amendment, so a run never returns nothing."""
     principal = [d for d in docs if not _AMEND_RE.search(d.title)]
     return principal if principal else docs
+
+
+def _collapse_my_amendments(docs: list[DiscoveredDoc]) -> list[DiscoveredDoc]:
+    """MY only: keep amendment Acts useful, without letting them flood the result.
+
+    lom.agc.gov.my's amendment catalogue lists EVERY historical amendment of a law (Income Tax
+    alone has five: 2012–2024). All but the latest are already folded into the principal's dated
+    reprint, so they are redundant. We therefore keep, per base-law family, ONLY the newest
+    amendment — and only when that family's PRINCIPAL is also in the result set (an amendment
+    with no principal to amend is just noise). Kept amendments are ranked BELOW the sectoral
+    Codes of Practice (relevance floor 0.6) so they fill the budget tail and never crowd out the
+    principals or codes the judges cite — the principal already carries the consolidated text;
+    the amendment only adds provisions enacted AFTER the reprint date (e.g. PDPA A1727 2024)."""
+    amend = [d for d in docs if _AMEND_RE.search(d.title or "")]
+    if not amend:
+        return docs
+    rest = [d for d in docs if not _AMEND_RE.search(d.title or "")]
+    principal_families = {_law_key(d.title) for d in rest}
+    newest: dict[str, DiscoveredDoc] = {}
+    for d in amend:
+        fam = _law_key(d.title)
+        if fam not in principal_families:
+            continue                                   # orphan amendment, no principal → drop
+        cur = newest.get(fam)
+        if cur is None or _latest_year(d.title) > _latest_year(cur.title):
+            newest[fam] = d
+    # Rank amendments BELOW the COP floor (0.6) so codes/principals are never crowded, but within
+    # that tail prioritise the amendment of a DATA/PRIVACY law (both RDTII pillars are about data):
+    # its title carries the pillars' concept vocabulary, so a data-protection amendment (A1727)
+    # beats a Companies/Tax amendment for the few tail slots — no law name is hardcoded.
+    from . import confidence
+    for d in newest.values():
+        grounded = confidence.topical_grounded(d.title, 6) or confidence.topical_grounded(d.title, 7)
+        d.relevance_score = 0.58 if grounded else 0.55
+    return rest + list(newest.values())
 
 
 # ─────────────────────────── sample mode ───────────────────────────
@@ -596,7 +650,7 @@ _MY_PDF_BI_RE = re.compile(r'href="([^"]+_BI/[^"]+\.pdf)"', re.I)   # English co
 _MY_PDF_ANY_RE = re.compile(r'href="([^"]+\.pdf)"', re.I)
 _MY_ANCHOR_TEXT_RE = re.compile(r'>([^<]{4,})</a>')
 _MY_ANCHOR_AFTER_RE = re.compile(r'>([^<]{4,})</a>(.{0,40})', re.S)   # anchor text + raw HTML after it
-_my_catalogue_cache: list[tuple[str, str, str, str]] | None = None
+_my_catalogue_cache: dict[str, list[tuple[str, str, str, str]]] = {}   # catalogue_url → records
 
 
 def _my_extract_names(html_field: str) -> tuple[str, str]:
@@ -630,12 +684,15 @@ def _my_pdf_url(dl_field: str) -> str | None:
 
 
 def _load_my_catalogue(client, src: dict, log) -> list[tuple[str, str, str]]:
-    """Fetch + parse the MY principal-acts catalogue once → [(act_no, english_name, pdf_url)]."""
-    global _my_catalogue_cache
-    if _my_catalogue_cache is not None:
-        return _my_catalogue_cache
+    """Fetch + parse a MY DataTables catalogue once → [(act_no, english_name, full, pdf_url)].
+
+    Cached per catalogue_url so several MY sources (the consolidated principal-acts catalogue
+    AND the amendment-acts catalogue) coexist without overwriting each other's records."""
     url = src.get("catalogue_url", _MY_PORTAL + "json-updated-2024.php")
-    out: list[tuple[str, str, str]] = []
+    cached = _my_catalogue_cache.get(url)
+    if cached is not None:
+        return cached
+    out: list[tuple[str, str, str, str]] = []
     try:
         r = client.post(url, data={"draw": "1", "start": "0", "length": "3000"},
                         headers={"X-Requested-With": "XMLHttpRequest",
@@ -651,8 +708,8 @@ def _load_my_catalogue(client, src: dict, log) -> list[tuple[str, str, str]]:
         act_no = str(rec.get("lgt_act_no") or rec.get("ACTNO_LEGISLATION") or "").strip()
         if name and pdf:
             out.append((act_no, name, full, pdf))
-    _my_catalogue_cache = out
-    log(f"[discover] MY catalogue loaded: {len(out)} acts")
+    _my_catalogue_cache[url] = out
+    log(f"[discover] MY catalogue loaded: {len(out)} acts ({url.rsplit('/', 1)[-1]})")
     return out
 
 
@@ -663,7 +720,13 @@ def _search_my_catalogue(client, src: dict, query: str, economy: Economy, indica
     ql = query.lower()
     out: list[DiscoveredDoc] = []
     for act_no, name, full, pdf in recs:
-        if ql in full.lower():
+        hay = full.lower()
+        # An amendment title interleaves "(Amendment)"/"(Pindaan)" between the subject and "Act"
+        # ("Personal Data Protection (Amendment) Act 2024"), so a name fragment like "personal
+        # data protection act" wouldn't substring-match. Match the parenthetical-stripped form
+        # too, so amendment Acts surface under the same generic name fragments as their principal.
+        hay_base = re.sub(r"\s+", " ", re.sub(r"\((?:amendment|pindaan)\)", " ", hay)).strip()
+        if ql in hay or ql in hay_base:
             yr = _latest_year(name)
             out.append(DiscoveredDoc(
                 doc_id=_doc_id(economy.value, pdf), economy=economy, title=name[:200],
@@ -719,7 +782,11 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int,
             stem = re.sub(r"\.pdf$", "", stem, flags=re.I)
             stem = re.sub(r"[-_]+", " ", stem).strip()
             stem = re.sub(r"\b\d{1,2}[ ]?\d{6,8}\b|\b(?:19|20)\d{2}\b", "", stem).strip()  # drop dates/stamps
-            if len(stem) >= 6:
+            # …but an acronym-code filename ('GP_CBPDT_EN_1' → 'GP CBPDT EN 1') is NOT a usable
+            # title. Keep the search-engine title instead (for a guideline it carries the real
+            # name, e.g. 'Guideline on Cross-Border Personal Data Transfer'); if that is also
+            # generic, _is_generic_title flags it → name recovered from the PDF's first page.
+            if len(stem) >= 6 and not _is_acronym_blob(stem):
                 title = stem
         if snippet:
             snippets[su] = (snippets.get(su, "") + " " + snippet).strip()
@@ -836,13 +903,20 @@ def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | N
     # For MY: prefer English-language documents over Bahasa Malaysia equivalents.
     if economy.value == "MY":
         docs = _prefer_english_my(docs)
-    # SG, AU & MY all serve CONSOLIDATED in-force texts (SSO; AU compilations resolve from the
-    # principal title id; MY's "updated" catalogue is the consolidated principal act), so standalone
-    # Amendment instruments are redundant — and a broad name token (AU "security intelligence")
-    # returns several "… Legislation Amendment Act" hits that would crowd the principal Act out of
-    # the capped result set. Drop them.
-    if economy.value in ("SG", "AU", "MY"):
+    # SG & AU serve CONTINUOUSLY consolidated texts (SSO live consolidation; AU point-in-time
+    # compilations resolve from the principal title id), so a standalone Amendment instrument only
+    # re-extracts changes already in the principal — and a broad name token (AU "security
+    # intelligence") returns several "… Legislation Amendment Act" hits that would crowd the
+    # principal Act out of the capped result set. Drop them for SG/AU.
+    # MY is DIFFERENT: lom.agc.gov.my publishes DATED reprints (e.g. PDPA Act 709 "As At
+    # 01-07-2023"), so an amendment NEWER than the reprint (e.g. the 2024 Amendment Act A1727,
+    # in the SEPARATE amendment catalogue) is NOT yet consolidated and is NOT redundant. Rather
+    # than blanket-drop, collapse to the newest amendment per law family and rank it below the
+    # codes so it fills the tail without crowding the principals/codes the judges cite.
+    if economy.value in ("SG", "AU"):
         docs = _drop_amendment_docs(docs)
+    elif economy.value == "MY":
+        docs = _collapse_my_amendments(docs)
     docs.sort(key=lambda d: d.relevance_score, reverse=True)
     return docs[:max_docs]
 

@@ -72,3 +72,19 @@ sources:
       ~880 in-force Acts, each with the English name (title field) + English PDF URL (_BI). We
       filter that catalogue by the same name-fragment queries used for AU (name-only matching).
       Many older PDFs are scanned → OCR. Multilingual (we take the English _BI PDF).
+
+  - economy: MY
+    name: Laws of Malaysia — Amendment Acts (AGC)
+    base_url: https://lom.agc.gov.my
+    adapter: my_catalogue                 # the portal's SEPARATE amendment-acts DataTables JSON
+    catalogue_url: https://lom.agc.gov.my/json-amendment-2024.php
+    referer: https://lom.agc.gov.my/principal.php?type=amendment&lang=BI
+    verified: true
+    notes: >
+      The "updated" principal-acts catalogue carries DATED consolidated reprints (e.g. PDPA Act
+      709 "As At 01-07-2023"), so an amendment enacted AFTER a reprint's date is NOT yet folded in
+      and is absent from that catalogue (the PDPA (Amendment) Act 2024, A1727, is one such gap).
+      MY publishes amendment Acts in this distinct catalogue (principal.php?type=amendment → 406
+      Acts). Same record shape + adapter as the principal catalogue; matched by the same name-only
+      fragments. Distinct act numbers (A1727 ≠ 709) keep amendment + principal as separate docs
+      (no merge), and MY is excluded from the amendment-drop so the recent amendment survives.
