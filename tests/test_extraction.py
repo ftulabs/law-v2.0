@@ -267,3 +267,29 @@ def test_au_clause_header_and_repeated_table_header_stripped():
     assert "Clause 8" not in snip                               # clause page header dropped
     assert snip.count("the condition or conditions are") == 1   # table header kept once, repeat dropped
     assert "consumer credit purpose" in snip and "commercial purpose" in snip  # real rows kept
+
+
+def test_my_numbered_sections_survive_stray_bold_mark():
+    """A large MY/SG consolidated PDF can carry a stray bold run (→ \x1e heading-mark). That must
+    NOT force the AU font-marked extraction path (which finds only Schedule/Part dividers and loses
+    every numbered 'N.—(1)' section). Regression for MY Income Tax Act 1967: 818pp, was reduced to
+    86 schedule fragments, s82 'Duty to keep records' lost."""
+    from backend.pipeline.extraction import extract_provisions, HEADING_MARK
+    from backend.schemas import DiscoveredDoc, OCRMetrics, Economy, DocFormat
+    body = (
+        "ARRANGEMENT OF SECTIONS\n82. Duty to keep records\n\n"
+        + HEADING_MARK + "PART V RETURNS\n"                     # a stray bold heading mark
+        "Duty to keep records and give receipts\n"
+        "82. (1) Every person carrying on a business shall keep and retain records "
+        "in safe custody for a period of seven years.\n"
+        "(2) The records may be kept outside Malaysia only if copies are kept in Malaysia.\n\n"
+        "83. (1) Every employer shall furnish a return of remuneration.\n\n"
+        "SCHEDULE 1\nsome schedule text\n")
+    doc = DiscoveredDoc(doc_id="x", economy=Economy.MY, title="INCOME TAX ACT 1967",
+        source_url="https://lom.agc.gov.my/x.pdf", portal="MY", fmt=DocFormat.PDF_TEXT)
+    provs = extract_provisions(doc, body, OCRMetrics())
+    secs = [p.article_section for p in provs]
+    assert "Section 82" in secs and "Section 83" in secs       # numbered sections kept
+    s82 = [p for p in provs if p.article_section == "Section 82"][0]
+    assert "keep and retain records" in s82.verbatim_snippet
+    assert HEADING_MARK not in s82.verbatim_snippet            # stray mark stripped from snippet

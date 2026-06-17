@@ -447,16 +447,22 @@ def _boundaries(text: str, economy=None) -> list[tuple]:
     dividers; SG/MY use numbered + structural markers (their 'Section N' keyword forms are
     only cross-references); everything else uses the full SECTION_RE (keyword + numbered)."""
     out: list[tuple] = []
-    if HEADING_MARK in text:
-        struct = _STRUCT_RE_AU if economy == Economy.AU else _STRUCT_RE
-        out += [(m.start(), m.end(), m.group(1), True) for m in _MARK_RE.finditer(text)]
-        out += [(m.start(), m.end(), m.group(1), False) for m in struct.finditer(text)]
-        out.sort(key=lambda b: b[0])
-    elif economy in (Economy.SG, Economy.MY):
+    if economy in (Economy.SG, Economy.MY):
+        # SG/MY DON'T font-mark section headings — their numbered "N.—(1)" margin form is the
+        # signal. This branch is checked BEFORE the HEADING_MARK one on purpose: a big consolidated
+        # PDF (e.g. MY Income Tax Act 1967, 818 pp) can carry a stray bold run that puts a \x1e in
+        # the text; letting that force the AU font-marked path below finds only the structural
+        # Schedule/Part dividers and loses all 300+ numbered sections (s82 'Duty to keep records'
+        # etc.). So SG/MY ALWAYS use the numbered path, ignoring marks.
         out = [(m.start(), m.end(), m.group(1), False) for m in _NUMBERED_RE.finditer(text)]
         if len(out) < 3:                       # sparse → a keyword-style doc; use the full regex
             out = [(m.start(), m.end(), m.group(2) or m.group(1), bool(m.group(1)))
                    for m in SECTION_RE.finditer(text)]
+    elif HEADING_MARK in text:
+        struct = _STRUCT_RE_AU if economy == Economy.AU else _STRUCT_RE
+        out += [(m.start(), m.end(), m.group(1), True) for m in _MARK_RE.finditer(text)]
+        out += [(m.start(), m.end(), m.group(1), False) for m in struct.finditer(text)]
+        out.sort(key=lambda b: b[0])
     else:
         out = [(m.start(), m.end(), m.group(2) or m.group(1), bool(m.group(1)))
                for m in SECTION_RE.finditer(text)]
@@ -489,6 +495,12 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
         text = _strip_au_table_continuation(text)        # repeated table caption + column header
     if doc.economy == Economy.SG:
         text = _strip_sg_act_footer(text, law_name)      # wrapped "… Act 2012 2020 Ed." page footer
+    if doc.economy in (Economy.SG, Economy.MY):
+        # SG/MY headings aren't font-marked; any \x1e here is a stray bold run (a heading word, a
+        # captioned table). Drop the marks so they neither pollute the verbatim snippet nor (with
+        # the _boundaries guard) risk the font-marked path. Done after the SG footer strip, which
+        # itself relies on the leading \x1e to spot bold footers.
+        text = text.replace(HEADING_MARK, "")
     text = _strip_arrangement_toc(text)                 # drop the table-of-contents block
     if doc.economy == Economy.AU:
         # AU's "Contents" lists "Schedule 1/2…" BEFORE the body; those entries would set the

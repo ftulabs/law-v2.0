@@ -82,6 +82,7 @@ INDICATOR_SEARCH_TERMS: dict[str, dict[str, list[str]]] = {
         "name": [
             "companies act", "corporations act",     # corporate accounting records (SG §199 / AU)
             "income tax act", "revenue act",          # tax records kept domestically
+            "sales tax act", "service tax act", "goods and services tax",  # indirect-tax record-keeping
             "employment act", "labour act",           # employment / wage records
             "health records act",                     # health-data storage mandates
         ],
@@ -181,6 +182,7 @@ INDICATOR_SEARCH_TERMS: dict[str, dict[str, list[str]]] = {
         "name": [
             "companies act", "corporations act",     # accounting-record minimum period
             "income tax act", "revenue act",         # tax-record minimum
+            "sales tax act", "service tax act", "goods and services tax",  # indirect-tax records
             "employment act", "labour act",          # employee-record minimum
             "telecommunications act",                # call/billing record retention
             "interception and access",               # telecom data-retention regime (AU 1979 Act)
