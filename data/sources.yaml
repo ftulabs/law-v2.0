@@ -35,6 +35,27 @@ sources:
     notes: Official JSON API. $filter=contains(name,'<q>') and collection eq 'Act' → exact title hits.
 
   - economy: MY
+    name: Personal Data Protection Dept (Codes of Practice)
+    base_url: https://www.pdp.gov.my
+    adapter: websearch                    # registered sectoral Codes of Practice (banking, comms,
+    site: www.pdp.gov.my                  # insurance, utilities…) live here, NOT on the AGC portal.
+    pdf_only: true                        # keep the COP PDFs; the HTML pages are JS/nav wrappers.
+    queries:                              # generic data-protection-code terms (no sector hardcoded).
+      # `filetype:pdf` is deliberate: without it Serper ranks the /en/akta/ HTML wrapper pages above
+      # the actual code PDFs, and pdf_only then drops everything. With it, the sectoral code PDFs
+      # (banking/financial, communications, insurance, utilities, aviation, health…) surface directly.
+      - personal data protection code of practice filetype:pdf
+      - code of practice personal data filetype:pdf
+      - personal data protection code of practice sector filetype:pdf
+      - data protection code of practice industry filetype:pdf
+    verified: true
+    notes: >
+      Much of the MY P6/P7 answer key is registered Codes of Practice (Banking & Financial,
+      Communications & Multimedia, Insurance, Utilities…) issued under PDPA by the PDP Department —
+      subsidiary/sectoral instruments absent from the AGC principal-acts catalogue. Discovered via
+      web search scoped to pdp.gov.my; PDFs only (the /en/akta/ pages are navigation shells).
+
+  - economy: MY
     name: Laws of Malaysia (AGC)
     base_url: https://lom.agc.gov.my
     adapter: my_catalogue                 # the portal's OWN DataTables JSON catalogue (no Google)

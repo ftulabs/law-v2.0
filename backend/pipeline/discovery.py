@@ -673,20 +673,30 @@ def _search_my_catalogue(client, src: dict, query: str, economy: Economy, indica
     return out
 
 
-def discover_websearch(economy: Economy, pillar: int | None, max_docs: int) -> list[DiscoveredDoc]:
+def discover_websearch(economy: Economy, pillar: int | None, max_docs: int,
+                       site: str | None = None, queries: list[str] | None = None,
+                       pdf_only: bool = False) -> list[DiscoveredDoc]:
     """Discover laws via web search (slide A: 'search ... and the web') — portal-agnostic,
-    generalises to any economy with an entry in websearch.OFFICIAL_PORTAL."""
+    generalises to any economy with an entry in websearch.OFFICIAL_PORTAL.
+
+    `site`/`queries` override the portal + query set for a SECONDARY official source (e.g. a
+    sectoral regulator: Malaysia's pdp.gov.my for the registered Codes of Practice, which the AGC
+    principal-acts catalogue does not carry). `pdf_only` keeps only direct-PDF hits — used for a
+    portal whose HTML pages are JS/navigation wrappers, so only the document files are extracted."""
     from . import websearch
     from ..rdtii.keywords import portal_search_queries
     websearch.reset_circuit()                      # fresh circuit-breaker state per run
-    topics = portal_search_queries(economy.value, pillar)[:settings.discovery_max_queries]
+    topics = (queries if queries is not None
+              else portal_search_queries(economy.value, pillar))[:settings.discovery_max_queries]
     # One search per query → a per-query result bucket. A law-type query ("companies act")
     # returns few, niche hits that the old "fill the budget in query order" loop discarded
     # once abundant data-protection queries had filled it. We instead collect ROUND-ROBIN
     # below, so every query's TOP hit is taken before any query's 2nd.
     buckets: list[list[tuple[str, str, str]]] = []
     for topic in topics:
-        res = websearch.find_law_urls(economy, topic, max_results=settings.discovery_per_query)
+        res = websearch.find_law_urls(economy, topic, max_results=settings.discovery_per_query, site=site)
+        if pdf_only:
+            res = [r for r in res if r[0].lower().split("?")[0].endswith(".pdf")]
         if res:
             buckets.append(res)
 
@@ -699,6 +709,18 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int) -> l
         # source_url stays the human-facing LANDING page (judges prefer it); the PDF body
         # URL is resolved only at fetch time (see _resolve_pdf_url).
         su = _clean_source_url(economy, url)
+        if pdf_only:
+            # Search engines truncate these document titles to an identical prefix ("[PDF] THE
+            # PERSONAL DATA PROTECTION Code of practice"), which would collapse every sectoral code
+            # into one under title-dedup. The PDF FILENAME carries the distinguishing subject
+            # (…SEKTOR-KOMUNIKASI…, …PRIVATE-HOSPITALS…), so use it as the title + dedup identity.
+            from urllib.parse import unquote
+            stem = unquote(su.rsplit("/", 1)[-1])
+            stem = re.sub(r"\.pdf$", "", stem, flags=re.I)
+            stem = re.sub(r"[-_]+", " ", stem).strip()
+            stem = re.sub(r"\b\d{1,2}[ ]?\d{6,8}\b|\b(?:19|20)\d{2}\b", "", stem).strip()  # drop dates/stamps
+            if len(stem) >= 6:
+                title = stem
         if snippet:
             snippets[su] = (snippets.get(su, "") + " " + snippet).strip()
         if url in by_url:
@@ -707,7 +729,7 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int) -> l
         by_url[url] = DiscoveredDoc(
             doc_id=_doc_id(economy.value, url), economy=economy,
             title=(title or url)[:200], source_url=su,
-            portal=websearch.OFFICIAL_PORTAL.get(economy.value, "web"),
+            portal=site or websearch.OFFICIAL_PORTAL.get(economy.value, "web"),
             fmt=fmt, relevance_score=0.0, discovery_tag=DiscoveryTag.NEW)
 
     depth = max((len(b) for b in buckets), default=0)
@@ -766,10 +788,16 @@ def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | N
 
     by_url: dict[str, DiscoveredDoc] = {}
 
-    # web-search adapters (SG/MY/…): portal-agnostic, finds laws the JS search hides
-    if any(s.get("adapter") == "websearch" for s in sources):
-        for d in discover_websearch(economy, pillar, max_docs):
-            by_url[d.source_url] = d
+    # web-search adapters (SG/MY/…): portal-agnostic, finds laws the JS search hides. Each
+    # web-search SOURCE may scope to its own `site` + `queries` (e.g. a secondary sectoral
+    # regulator like MY's pdp.gov.my for the registered Codes of Practice), so we run one search
+    # per web-search source rather than once per economy.
+    for s in sources:
+        if s.get("adapter") != "websearch":
+            continue
+        for d in discover_websearch(economy, pillar, max_docs, site=s.get("site"),
+                                    queries=s.get("queries"), pdf_only=bool(s.get("pdf_only"))):
+            by_url.setdefault(d.source_url, d)
 
     # API / scrape adapters (AU JSON API; server-rendered portals)
     api_sources = [s for s in sources if s.get("adapter") not in ("websearch",)]

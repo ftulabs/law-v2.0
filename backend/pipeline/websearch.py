@@ -205,9 +205,12 @@ def _is_law_url(url: str) -> bool:
     return path not in _NAV_PATHS and len(path) > 1
 
 
-def find_law_urls(economy: Economy, topic: str, max_results: int = 10, log=print) -> list[tuple[str, str, str]]:
-    """Discover candidate (url, title, snippet) primary-law results on the economy's official portal."""
-    site = OFFICIAL_PORTAL.get(economy.value)
+def find_law_urls(economy: Economy, topic: str, max_results: int = 10, log=print,
+                  site: str | None = None) -> list[tuple[str, str, str]]:
+    """Discover candidate (url, title, snippet) primary-law results on a portal. Defaults to the
+    economy's OFFICIAL_PORTAL; pass `site` to scope to a secondary official portal (e.g. a sectoral
+    regulator like Malaysia's pdp.gov.my for the registered Codes of Practice)."""
+    site = site or OFFICIAL_PORTAL.get(economy.value)
     results = search(topic, site=site, max_results=max_results, log=log)
     if site:   # keep only the official portal (drop news/blog noise the engine mixes in)
         results = [r for r in results if site in urlparse(r[0]).netloc.lower()]

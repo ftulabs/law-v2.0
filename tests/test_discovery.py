@@ -249,7 +249,7 @@ def test_websearch_round_robin_keeps_niche_law_types(monkeypatch):
     query ("companies act") runs — round-robin takes each query's top hit first."""
     from backend.pipeline import discovery as D, websearch
 
-    def fake_find(economy, topic, max_results=4, log=None):
+    def fake_find(economy, topic, max_results=4, log=None, site=None):
         t = topic.lower()
         if "companies act" in t:
             return [("https://sso.agc.gov.sg/Act/CoA1967", "Companies Act 1967", "")]
@@ -272,7 +272,7 @@ def test_websearch_snippet_relevance_ranks_ontopic_first(monkeypatch):
     a tangential law (Gambling) whose snippet is off-topic must be dropped when the budget is tight."""
     from backend.pipeline import discovery as D, websearch
 
-    def fake_find(economy, topic, max_results=4, log=None):
+    def fake_find(economy, topic, max_results=4, log=None, site=None):
         t = topic.lower()
         # On-topic P6 (cross-border / local storage) snippet, but a name with no data words.
         if "storage" in t or "record" in t:
@@ -363,3 +363,29 @@ def test_my_is_name_only_portal():
     q = portal_search_queries("MY", 7)
     assert not any(len(s.split()) >= 5 for s in q)     # descriptive phrases excluded
     assert "personal data protection act" in q
+
+
+# ─────────────────── secondary web-search source: pdf_only filename titles (MY pdp.gov.my codes) ──
+def test_pdf_only_websearch_uses_filename_titles_and_keeps_distinct_codes(monkeypatch):
+    """The MY PDP Codes of Practice come from a secondary source (pdp.gov.my) via web search.
+    Search engines truncate their titles to an identical prefix ('[PDF] THE PERSONAL DATA
+    PROTECTION Code of practice'); without filename-based identity, title-dedup would collapse all
+    sectors into one. pdf_only must (a) keep only PDF hits, (b) title them from the filename, so the
+    distinct sector codes survive."""
+    from backend.pipeline import discovery as D, websearch
+    from backend.schemas import Economy
+    TRUNC = "[PDF] THE PERSONAL DATA PROTECTION Code of practice"
+    pdfs = [
+        ("https://www.pdp.gov.my/u/Communications-Sector-PDPA-COP.pdf", TRUNC, "cross-border transfer"),
+        ("https://www.pdp.gov.my/u/COP_-CODE-OF-PRACTICE-FOR-PRIVATE-HOSPITALS-APHM.pdf", TRUNC, "retain records"),
+        ("https://www.pdp.gov.my/u/Code_of_Practice_For_Aviation_Sector.pdf", TRUNC, "security of data"),
+        ("https://www.pdp.gov.my/en/akta/code-landing-page/", TRUNC, "html wrapper"),   # dropped by pdf_only
+    ]
+    monkeypatch.setattr(websearch, "find_law_urls",
+                        lambda economy, topic, max_results=4, log=None, site=None: pdfs)
+    docs = D.discover_websearch(Economy.MY, 6, 18, site="www.pdp.gov.my",
+                                queries=["code of practice filetype:pdf"], pdf_only=True)
+    assert all(d.source_url.endswith(".pdf") for d in docs)        # landing page dropped
+    titles = {d.title for d in docs}
+    assert len(docs) >= 3 and len(titles) == len(docs)             # distinct, not collapsed to one
+    assert any("Aviation" in t for t in titles)                    # filename-derived sector name
