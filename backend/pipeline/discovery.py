@@ -763,6 +763,13 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int,
             d.relevance_score = _snippet_relevance(
                 (d.title or "") + " " + snippets.get(d.source_url, ""), indicators)
         docs.sort(key=lambda d: d.relevance_score, reverse=True)
+    if pdf_only:
+        # A secondary curated source (e.g. pdp.gov.my Codes of Practice) is queried EXACTLY because
+        # its documents are the hard-to-find answers; don't let the pillar snippet-relevance score
+        # (tuned to the localisation/retention vocabulary the codes phrase differently) drop them to
+        # the bottom and get them cut by the global cap. Floor them so they stay in contention.
+        for d in docs:
+            d.relevance_score = max(d.relevance_score, 0.6)
     return docs[:max_docs]
 
 

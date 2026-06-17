@@ -238,11 +238,17 @@ def _httpx_fetch(url: str, idx: dict, log) -> FetchResult | None:
 
 
 def _store(url, data: bytes, content_type: str, idx: dict, etag, last_mod, log,
-           engine: str = "httpx") -> FetchResult:
+           engine: str = "httpx") -> "FetchResult | None":
     """Content-address `data` into the cache and update the resumable index. Shared by the
-    httpx and Scrapling fetch paths so both dedupe identically."""
-    sha = hashlib.sha256(data).hexdigest()
+    httpx and Scrapling fetch paths so both dedupe identically. Returns None when a `.pdf` URL
+    actually served non-PDF bytes (a dead/moved link redirected to a portal homepage — e.g.
+    pdp.gov.my's old /jpdpv2/ paths): the document is unavailable, so skip it rather than feed
+    HTML to the PDF parser (garbage) or emit the homepage's nav text as a bogus provision."""
     fmt, ext = _fmt_for(content_type, url)
+    if fmt in (DocFormat.PDF_TEXT, DocFormat.PDF_SCANNED) and b"%PDF-" not in data[:1024]:
+        log(f"[fetch] .pdf URL served non-PDF bytes (dead/moved link) → skipping: {url}")
+        return None
+    sha = hashlib.sha256(data).hexdigest()
     fname = f"{sha[:16]}.{ext}"
     path = settings.cache_path / fname
     if not path.exists():                       # content-addressed → identical bodies dedupe
