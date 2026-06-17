@@ -65,7 +65,15 @@ INDICATORS: list[Indicator] = [
         ),
         scope="national",
         query_terms=["stored in a database located", "store within the territory", "kept within the country",
-                     "data shall be stored in", "local storage", "retained within", "database located in the territory"],
+                     "data shall be stored in", "local storage", "retained within", "database located in the territory",
+                     # business/accounting/tax record-keeping vocabulary: corporate & tax Acts phrase the
+                     # in-country obligation as "keep accounting records / books of account, kept at the
+                     # registered office; if kept outside the country, copies must be sent to and kept
+                     # locally" (e.g. SG Companies Act s199(4)). Without these the indicator's data-centric
+                     # terms rank such provisions far below the shortlist and they are never graded.
+                     "accounting records", "books of account", "kept at the registered office",
+                     "records kept at a place", "kept at a place in the country",
+                     "accounting records kept outside", "business records kept", "financial records kept"],
     ),
     Indicator(
         indicator_id="P6-I3",          # ≡ Methodology 6.3
@@ -153,7 +161,12 @@ INDICATORS: list[Indicator] = [
         scope="national",
         query_terms=["retain for at least", "kept for a period of", "minimum period", "not less than",
                      "must be kept for", "retained for", "preserve the records for", "period for keeping",
-                     "store the records for at least"],
+                     "store the records for at least",
+                     # same record-keeping vocabulary as P6-I2: the minimum-retention duration lives in the
+                     # corporate/tax/employment Acts ("retain the accounting records for not less than 5
+                     # years", SG Companies Act s199(2)), which the duration-only terms above under-rank.
+                     "accounting records", "books of account", "retain the records for",
+                     "retain the accounting records", "keep the records for"],
     ),
     Indicator(
         indicator_id="P7-I4",          # ≡ Methodology 7.4
