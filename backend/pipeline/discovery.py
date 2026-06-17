@@ -675,7 +675,7 @@ def _search_my_catalogue(client, src: dict, query: str, economy: Economy, indica
 
 def discover_websearch(economy: Economy, pillar: int | None, max_docs: int,
                        site: str | None = None, queries: list[str] | None = None,
-                       pdf_only: bool = False) -> list[DiscoveredDoc]:
+                       pdf_only: bool = False, per_query: int | None = None) -> list[DiscoveredDoc]:
     """Discover laws via web search (slide A: 'search ... and the web') — portal-agnostic,
     generalises to any economy with an entry in websearch.OFFICIAL_PORTAL.
 
@@ -694,7 +694,7 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int,
     # below, so every query's TOP hit is taken before any query's 2nd.
     buckets: list[list[tuple[str, str, str]]] = []
     for topic in topics:
-        res = websearch.find_law_urls(economy, topic, max_results=settings.discovery_per_query, site=site)
+        res = websearch.find_law_urls(economy, topic, max_results=(per_query or settings.discovery_per_query), site=site)
         if pdf_only:
             res = [r for r in res if r[0].lower().split("?")[0].endswith(".pdf")]
         if res:
@@ -742,8 +742,12 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int,
             break
     # Collapse multiple URL variants of the same law into the most current/in-force version.
     docs = _dedup_by_law_title(list(by_url.values()))
-    # For MY: prefer English-language documents over Bahasa Malaysia equivalents.
-    if economy.value == "MY":
+    # For MY: prefer English over Bahasa Malaysia — but NOT for a pdf_only sectoral source: there the
+    # docs are DISTINCT sector codes, and _prefer_english_my drops ALL Malay docs whenever ANY English
+    # one exists, which would silently delete a Malay-only code (e.g. the Banking & Financial
+    # Institutions COP) just because another sector's code has an English version. The grader + the
+    # multilingual embedder handle Malay, so keep them.
+    if economy.value == "MY" and not pdf_only:
         docs = _prefer_english_my(docs)
     # SG consolidates amendments into the principal text → drop redundant Amendment files.
     if economy.value == "SG":
@@ -803,7 +807,8 @@ def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | N
         if s.get("adapter") != "websearch":
             continue
         for d in discover_websearch(economy, pillar, max_docs, site=s.get("site"),
-                                    queries=s.get("queries"), pdf_only=bool(s.get("pdf_only"))):
+                                    queries=s.get("queries"), pdf_only=bool(s.get("pdf_only")),
+                                    per_query=s.get("per_query")):
             by_url.setdefault(d.source_url, d)
 
     # API / scrape adapters (AU JSON API; server-rendered portals)

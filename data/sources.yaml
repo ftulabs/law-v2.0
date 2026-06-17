@@ -40,14 +40,18 @@ sources:
     adapter: websearch                    # registered sectoral Codes of Practice (banking, comms,
     site: www.pdp.gov.my                  # insurance, utilities…) live here, NOT on the AGC portal.
     pdf_only: true                        # keep the COP PDFs; the HTML pages are JS/nav wrappers.
-    queries:                              # generic data-protection-code terms (no sector hardcoded).
-      # `filetype:pdf` is deliberate: without it Serper ranks the /en/akta/ HTML wrapper pages above
-      # the actual code PDFs, and pdf_only then drops everything. With it, the sectoral code PDFs
-      # (banking/financial, communications, insurance, utilities, aviation, health…) surface directly.
+    per_query: 10                         # these sit on ONE small site → pull more per query so the
+                                          # whole sector set surfaces, not just the top 4.
+    queries:                              # generic data-protection-code terms (sector words are
+      # generic descriptors, not specific law titles). `filetype:pdf` is deliberate: without it Serper
+      # ranks the /en/akta/ HTML wrapper pages above the actual code PDFs, and pdf_only drops them all.
+      # With it, the sectoral code PDFs (financial, communications, insurance, utilities, aviation,
+      # health…) surface directly.
       - personal data protection code of practice filetype:pdf
       - code of practice personal data filetype:pdf
       - personal data protection code of practice sector filetype:pdf
       - data protection code of practice industry filetype:pdf
+      - personal data protection code of practice financial filetype:pdf
     verified: true
     notes: >
       Much of the MY P6/P7 answer key is registered Codes of Practice (Banking & Financial,
