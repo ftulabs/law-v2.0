@@ -63,6 +63,31 @@ def logo_html() -> str:
 _favicon = _asset("ftu_logo.png", "ftu_logo.webp", "ftu_logo.jpg")
 st.set_page_config(page_title="VeriTrade", page_icon=str(_favicon) if _favicon else "§", layout="wide")
 
+# ── keyboard guard ─────────────────────────────────────────────────────────
+# Streamlit binds BARE single keys on the page — notably "C" = Clear cache and "R" = Rerun.
+# When you press Ctrl/Cmd+C to COPY selected text, the "C" keydown also fires Streamlit's
+# shortcut, so a "Clear caches?" dialog pops up. This invisible (0-height) component installs a
+# capture-phase keydown listener on the PARENT document that stops any Ctrl/Cmd combo from
+# reaching Streamlit's global handler — so copy/paste/cut/select-all behave natively again.
+# It never calls preventDefault(), so the browser's own clipboard actions still work.
+import streamlit.components.v1 as _components  # noqa: E402
+
+_components.html(
+    """
+    <script>
+    (function () {
+      var doc = window.parent && window.parent.document;
+      if (!doc || doc.__veritradeKbdGuard) return;
+      doc.__veritradeKbdGuard = true;
+      doc.addEventListener('keydown', function (e) {
+        if (e.ctrlKey || e.metaKey) { e.stopImmediatePropagation(); }
+      }, true);  // capture phase → runs before Streamlit's listener
+    })();
+    </script>
+    """,
+    height=0,
+)
+
 # ── design system ────────────────────────────────────────────────────────
 GRAIN = (
     "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E"
