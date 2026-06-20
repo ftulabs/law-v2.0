@@ -447,7 +447,16 @@ st.markdown(
 with st.sidebar:
     st.markdown('<div class="kicker">Commission a run</div>', unsafe_allow_html=True)
     economy = st.selectbox("Economy", [e.value for e in Economy], format_func=lambda v: ECON_NAME[v])
-    pillars = st.multiselect("Pillars", [6, 7], default=[6, 7])
+    # One pillar per run (judges score a single economy+pillar at a time). Rendered as the same
+    # editorial docket radio as Run mode below, so the two selectors read as one coherent slip.
+    st.markdown('<div class="kicker" style="margin:.1rem 0 .2rem">Pillar &middot; one per run</div>'
+                '<div class="pillar-anchor"></div>', unsafe_allow_html=True)
+    _PILLAR_OPT = {6: "◆  Pillar 6 — Cross-border data", 7: "◆  Pillar 7 — Domestic data protection"}
+    pillar = st.radio("Pillar", [6, 7], index=0, format_func=lambda p: _PILLAR_OPT[p],
+                      label_visibility="collapsed",
+                      help="One pillar per run. Pillar 6 = cross-border data policies; "
+                           "Pillar 7 = domestic data protection & cybersecurity.")
+    pillars = [pillar]
     # Run mode — Live crawl is the path judges score (README leads with --live); the offline
     # sample is the reproducible safe fallback. Rendered as a two-row editorial docket selector:
     # the chosen row carries a verdict-colour accent bar (forest = live/scored, muted = sample).
@@ -463,6 +472,11 @@ with st.sidebar:
         "border-left:3px solid var(--forest);background:var(--panel-2);}"
         "[data-testid='stSidebar'] div[role='radiogroup']>label:nth-of-type(2):has(input:checked){"
         "border-left-color:var(--ink-faint);}"
+        # …but the 2nd-option muting is a Run-mode device (sample = quieter); the Pillar radio that
+        # follows .pillar-anchor must keep BOTH options on the forest accent (neither pillar is secondary).
+        "[data-testid='stSidebar'] [data-testid='stElementContainer']:has(.pillar-anchor)"
+        " + [data-testid='stElementContainer'] div[role='radiogroup']>label:nth-of-type(2)"
+        ":has(input:checked){border-left-color:var(--forest);}"
         "</style>",
         unsafe_allow_html=True,
     )
