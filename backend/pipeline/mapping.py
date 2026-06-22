@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import re
 
 from ..config import settings
 from ..providers import get_llm_provider
@@ -334,11 +335,14 @@ def map_provisions(
             scope_alignment=scope_alignment, scope_flag=scope_flag,
             apply_scope_cap=apply_scope_cap, topical_ok=topical_ok,
         )
+        # last_amended: year from discovery metadata → year from law name → None
+        _yr = re.search(r"\b(19|20)\d{2}\b", prov.law_name or "")
+        _last_amended = (prov.amendment_date or "")[:4] or (_yr.group(0) if _yr else None)
         return EvidenceMapping(
             mapping_id=_mapping_id(run_id, ind.indicator_id, prov.provision_id),
             run_id=run_id, economy=prov.economy, pillar=ind.pillar, indicator_id=ind.indicator_id,
             law_name=prov.law_name, law_number=prov.law_number,
-            last_amended=(prov.amendment_date or "")[:4] or None,
+            last_amended=_last_amended,
             article_section=prov.article_section, location_ref=prov.location_ref,
             verbatim_snippet=prov.verbatim_snippet, source_url=prov.source_url,
             mapping_rationale=(rationale or "")[:300], confidence_score=breakdown.final,

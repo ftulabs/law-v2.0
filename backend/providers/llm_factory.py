@@ -28,6 +28,10 @@ class MockLLM(LLMProvider):
     model_version = "mock-grounded-grader-0.1"
 
     def complete_json(self, system: str, user: str) -> dict[str, Any]:
+        # Zone-3 scoring requests carry a <SCORE_INDICATOR> tag; dispatch to the
+        # deterministic mock scorer so the offline pipeline still produces raw scores.
+        if "<SCORE_INDICATOR>" in user:
+            return _mock_score(user)
         # The mapper packs a compact, parseable block into `user`. We read it back
         # rather than free-text parse, keeping the mock deterministic.
         snippet = _between(user, "<SNIPPET>", "</SNIPPET>").lower()
@@ -173,6 +177,57 @@ def _parse_siblings(user: str) -> dict[str, list[str]]:
 def _between(text: str, a: str, b: str) -> str:
     m = re.search(re.escape(a) + r"(.*?)" + re.escape(b), text, re.DOTALL)
     return m.group(1).strip() if m else ""
+
+
+# explicit duration (P7-I3 needs a SPECIFIED minimum period to score 1)
+_DURATION_RE = re.compile(
+    r"\b\d+\s*(?:year|years|month|months|day|days|week|weeks)\b"
+    r"|\b(?:one|two|three|four|five|six|seven|ten|twelve)\s+(?:year|years|month|months|days?)\b",
+    re.IGNORECASE,
+)
+
+
+def _mock_score(user: str) -> dict[str, Any]:
+    """Deterministic offline scorer for Zone 3 — coarse but rule-aligned. A real LLM does the
+    nuanced reading (specific-data vs all-sector, court-order carve-outs); the mock keeps the
+    pipeline runnable with no key and follows the rubric's polarity + binary tiers."""
+    from ..rdtii.scoring_rubric import get_rubric
+
+    ind_id = _between(user, "<SCORE_INDICATOR>", "</SCORE_INDICATOR>").strip()
+    hint = _between(user, "<COVERAGE_HINT>", "</COVERAGE_HINT>").strip() or "Horizontal"
+    law_block = _between(user, "<LAW>", "</LAW>")
+    article = law_block.split("—", 1)[1].strip() if "—" in law_block else "This provision"
+    snippet = _between(user, "<SNIPPET>", "</SNIPPET>")
+    rb = get_rubric(ind_id)
+
+    scope_text = (snippet + " " + law_block).lower()
+    sectoral = (hint.lower() != "horizontal") or any(m in scope_text for m in SECTORAL_MARKERS)
+    coverage = hint if hint.lower() == "horizontal" or sectoral is False else hint
+    if sectoral and hint.lower() == "horizontal":
+        coverage = "Sectoral"
+
+    if rb and rb.inverted:
+        # P7-I1 / P7-I2: a found framework is the LOW-cost case → horizontal 0, sectoral 0.5
+        score = 0.5 if sectoral else 0.0
+        why = ("a sectoral-only framework (scores 0.5)" if sectoral
+               else "a comprehensive horizontal framework (scores 0)")
+    elif ind_id == "P7-I3":
+        has_duration = bool(_DURATION_RE.search(snippet))
+        score = 1.0 if has_duration else 0.0
+        why = ("a specified minimum retention period is stated (scores 1)" if has_duration
+               else "no specific minimum duration is stated in the snippet (scores 0)")
+    elif rb and rb.binary:
+        # P6-I3 infrastructure, P7-I5 government access: presence of the matched rule → 1
+        score = 1.0
+        why = "the matched requirement is present (binary indicator: 1)"
+    else:
+        # tiered 6.1 / 6.2 / 6.4 / 7.4 — all-sector/horizontal → 1, sector-limited → 0.5
+        score = 0.5 if sectoral else 1.0
+        why = ("the measure is limited to a specific sector/data (scores 0.5)" if sectoral
+               else "the measure applies horizontally / to all sectors (scores 1)")
+
+    impact = f"{article}: {why}, mapped to {ind_id}."[:320]
+    return {"raw_score": score, "coverage": coverage, "impact": impact}
 
 
 def get_llm_provider(name: str | None = None, model: str | None = None,

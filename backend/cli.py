@@ -88,6 +88,9 @@ def run_pipeline_cmd(
         json_path = export_json(result)
         console.print(f"\n[green]CSV[/green]  {csv_path}")
         console.print(f"[green]JSON[/green] {json_path}")
+        if any(m.raw_score is not None for m in result.mappings):
+            from .export import export_scored_csv
+            console.print(f"[green]SCORED[/green] {export_scored_csv(result.mappings, result.meta.run_id)}")
     console.print(f"\nrun_id = [bold cyan]{result.meta.run_id}[/bold cyan]  "
                   f"({result.meta.processing_time_seconds}s, providers: "
                   f"OCR={result.meta.ocr_provider} / LLM={result.meta.llm_provider})")

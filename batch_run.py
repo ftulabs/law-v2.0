@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from backend.config import settings
-from backend.export import export_csv, export_json
+from backend.export import export_csv, export_json, export_scored_csv
 from backend.pipeline.orchestrator import run_pipeline
 from main import parse_economy
 
@@ -35,6 +35,8 @@ def main() -> None:
         stem = f"{economy.value}_P{''.join(map(str, args.pillar))}_{ts}"
         export_csv(result.mappings, result.meta.run_id, out_dir, out_stem=stem)
         export_json(result, out_dir, out_stem=stem)
+        if settings.scoring_enabled and any(m.raw_score is not None for m in result.mappings):
+            export_scored_csv(result.mappings, result.meta.run_id, out_dir, out_stem=stem)
         print(f"[{economy.value}] {result.meta.mappings_produced} mappings -> {stem}.csv/.json\n")
 
 

@@ -23,7 +23,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from backend.config import settings  # noqa: E402
-from backend.export import export_csv, export_json  # noqa: E402
+from backend.export import export_csv, export_json, export_scored_csv  # noqa: E402
 from backend.pipeline.orchestrator import run_pipeline  # noqa: E402
 from backend.providers import registry as reg  # noqa: E402
 from backend.review import workflow  # noqa: E402
@@ -329,6 +329,39 @@ st.markdown(
       [data-testid="stPopover"] button:hover {{color:var(--accent) !important; border-color:var(--accent) !important;}}
       .hr-thin {{border:none; border-top:1px solid var(--rule-soft); margin:.4rem 0;}}
       @keyframes rise {{from{{opacity:0; transform:translateY(8px);}} to{{opacity:1; transform:none;}}}}
+
+      /* ── RDTII Raw Score — a monochrome RUBBER-STAMP seal. Deliberately INK-toned
+            (not the forest/ochre/oxblood verdict palette) so it reads as a different axis:
+            restrictiveness / compliance cost, not confidence. Double-ruled, stamped askew. ── */
+      .stamp {{display:inline-flex; align-items:center; gap:.5rem; font-family:'IBM Plex Mono', monospace;
+              border:1.5px solid var(--ink-soft); border-radius:4px; padding:.3rem .55rem .26rem;
+              background:var(--panel); color:var(--ink); transform:rotate(-2.4deg);
+              box-shadow:inset 0 0 0 2px var(--paper), inset 0 0 0 3px var(--rule-soft);
+              transition:transform .25s ease;}}
+      .stamp:hover {{transform:rotate(0);}}
+      .stamp .pie {{width:18px; height:18px; border-radius:50%; flex:none;
+              border:1.5px solid var(--ink-soft);
+              background:conic-gradient(var(--ink) var(--p,0%), transparent 0);}}
+      .stamp .sc-cap {{font-size:.52rem; text-transform:uppercase; letter-spacing:.2em;
+              color:var(--ink-faint); line-height:1.05; display:block;}}
+      .stamp .sc-num {{font-weight:600; font-size:1.02rem; letter-spacing:.02em; line-height:1;}}
+      .stamp .sc-tier {{font-size:.58rem; text-transform:uppercase; letter-spacing:.12em; color:var(--ink-soft);}}
+      .stamp.mini {{transform:rotate(-2deg); padding:.18rem .4rem; gap:.35rem;}}
+      .stamp.mini .pie {{width:13px; height:13px;}}
+      .stamp.mini .sc-num {{font-size:.82rem;}}
+
+      /* ── Indicator scorecard — the RDTII roll-up: ONE score per indicator (the unit the
+            judges record per economy). A ledger of stamped tiles, grouped by pillar. ── */
+      .scorecard {{display:flex; flex-wrap:wrap; gap:.55rem; margin:.2rem 0 1.1rem;}}
+      .sc-tile {{display:flex; align-items:center; gap:.55rem; border:1px solid var(--rule);
+              border-left:3px solid var(--ink-soft); background:var(--panel); padding:.45rem .7rem;
+              border-radius:5px; min-width:118px;}}
+      .sc-tile .ind {{font-family:'IBM Plex Mono', monospace; font-weight:600; font-size:1.05rem;
+              color:var(--ink);}}
+      .sc-tile .meta {{font-size:.62rem; text-transform:uppercase; letter-spacing:.13em; color:var(--ink-faint);}}
+      .sc-tile .pie {{width:20px; height:20px; border-radius:50%; flex:none; border:1.5px solid var(--ink-soft);
+              background:conic-gradient(var(--ink) var(--p,0%), transparent 0);}}
+      .sc-tile .scv {{font-family:'IBM Plex Mono', monospace; font-weight:600; color:var(--ink);}}
     </style>
     """,
     unsafe_allow_html=True,
@@ -359,6 +392,61 @@ def verdict_html(c: float) -> str:
 
 def seal_html(s: str) -> str:
     return f'<span class="seal {SEAL.get(s, "s-review")}">{s.replace("_", " ")}</span>'
+
+
+# RDTII Raw Score → a glanceable tier word. The number is the source of truth; the word
+# just narrates the methodology's 0=simplified … 1=heavily-regulated compliance-cost scale.
+def _score_tier(s: float) -> str:
+    return "heavy" if s >= 1.0 else ("partial" if s >= 0.5 else "simplified")
+
+
+def _score_num(s: float) -> str:
+    return str(int(s)) if float(s).is_integer() else f"{s:g}"
+
+
+def score_stamp_html(s: float | None, mini: bool = False) -> str:
+    """The RDTII Raw-Score rubber stamp (ink-toned, not the verdict palette)."""
+    if s is None:
+        return ""
+    pct = int(float(s) * 100)
+    cls = "stamp mini" if mini else "stamp"
+    if mini:
+        return (f'<span class="{cls}"><span class="pie" style="--p:{pct}%"></span>'
+                f'<span class="sc-num">{_score_num(s)}</span></span>')
+    return (f'<div class="{cls}"><span class="pie" style="--p:{pct}%"></span>'
+            f'<span><span class="sc-cap">RDTII score</span>'
+            f'<span class="sc-num">{_score_num(s)}</span> '
+            f'<span class="sc-tier">{_score_tier(s)}</span></span></div>')
+
+
+def scorecard_html(mappings) -> str:
+    """The indicator-level roll-up strip: ONE score per indicator (most-restrictive measure,
+    or best-framework for the inverted 7.1/7.2). Empty string when scoring did not run."""
+    from backend.pipeline.scoring import aggregate_indicator_scores
+    agg = aggregate_indicator_scores(mappings)
+    if not agg:
+        return ""
+
+    def _num(ind):  # "P6-I1" -> "6.1" for display
+        try:
+            p, i = ind.replace("P", "").split("-I"); return f"{p}.{i}"
+        except ValueError:
+            return ind
+
+    tiles = []
+    for ind in sorted(agg, key=_num):
+        info = agg[ind]
+        sc = info["score"]
+        pct = int(float(sc) * 100)
+        tiles.append(
+            f'<div class="sc-tile" title="{info["n_measures"]} measure(s) — {info["basis"]}">'
+            f'<span class="pie" style="--p:{pct}%"></span>'
+            f'<span><span class="ind">{_num(ind)}</span> <span class="scv">{_score_num(sc)}</span>'
+            f'<br><span class="meta">{info["n_measures"]} measure{"s" if info["n_measures"] != 1 else ""}</span></span></div>'
+        )
+    return ('<div class="kicker" style="margin:.2rem 0 .5rem">Indicator scorecard '
+            '&middot; RDTII roll-up (one score per indicator)</div>'
+            '<div class="scorecard">' + "".join(tiles) + "</div>")
 
 
 def ocr_forensics_html(reports) -> str:
@@ -566,6 +654,8 @@ if run_clicked and pillars:
                               llm_model=llm_model or None, llm_api_key=llm_key or None)
         export_csv(result.mappings, result.meta.run_id)
         export_json(result)
+        if any(m.raw_score is not None for m in result.mappings):
+            export_scored_csv(result.mappings, result.meta.run_id)
         status.update(label=f"Filed — {result.meta.run_id}", state="complete")
     st.session_state["run_id"] = result.meta.run_id
 elif chosen_prev and chosen_prev != "—":
@@ -614,6 +704,11 @@ _ocr_panel = ocr_forensics_html(meta.ocr_reports if meta else [])
 if _ocr_panel:
     st.markdown(_ocr_panel, unsafe_allow_html=True)
 
+# Zone-3 indicator scorecard (RDTII roll-up) — only when the scoring layer ran
+_scorecard = scorecard_html(mappings)
+if _scorecard:
+    st.markdown(_scorecard, unsafe_allow_html=True)
+
 tab_ev, tab_review, tab_audit, tab_export = st.tabs(
     ["Evidence", f"Verdict queue · {len(workflow.queue(run_id))}", "Audit detail", "Exports"]
 )
@@ -640,7 +735,8 @@ with tab_ev:
             f'<div class="cite">{m.article_section} &middot; {m.economy.value}{flag}</div>'
             f'<div class="quote">{snip}</div>'
             f'<a class="srcurl" href="{m.source_url}" target="_blank">{m.source_url}</a></div>'
-            f'<div>{verdict_html(m.confidence_score)}<div style="margin-top:.5rem">{seal_html(m.review_status.value)}</div></div>'
+            f'<div>{(score_stamp_html(m.raw_score) + "<div style=margin-top:.5rem></div>") if m.raw_score is not None else ""}'
+            f'{verdict_html(m.confidence_score)}<div style="margin-top:.5rem">{seal_html(m.review_status.value)}</div></div>'
             f'</div>',
             unsafe_allow_html=True,
         )
@@ -657,9 +753,12 @@ with tab_review:
                 f'<div style="display:flex;justify-content:space-between;align-items:baseline;gap:1rem">'
                 f'<div class="law">{m.indicator_id} &middot; {m.law_name}'
                 f'<span class="cite"> &mdash; {m.article_section}</span></div></div>'
-                f'<div style="max-width:300px;margin:.3rem 0 .2rem">{verdict_html(m.confidence_score)}</div>'
+                f'<div style="display:flex;gap:1rem;align-items:center;margin:.3rem 0 .2rem">'
+                f'<div style="max-width:300px;flex:1">{verdict_html(m.confidence_score)}</div>'
+                f'{score_stamp_html(m.raw_score, mini=True)}</div>'
                 f'<div class="quote">{m.verbatim_snippet}</div>'
-                f'<div class="cite">Rationale &middot; {m.mapping_rationale}</div>',
+                f'<div class="cite">Rationale &middot; {m.mapping_rationale}</div>'
+                + (f'<div class="cite">Impact &middot; {m.impact}</div>' if m.impact else ""),
                 unsafe_allow_html=True,
             )
             note = st.text_input("Reviewer note", key=f"note_{m.mapping_id}", placeholder="optional — recorded in audit log")
@@ -689,6 +788,13 @@ with tab_audit:
                     unsafe_allow_html=True)
         st.markdown(f'<div class="cite" style="margin-top:.6rem">Rationale &middot; {m.mapping_rationale}</div>',
                     unsafe_allow_html=True)
+        if m.raw_score is not None:
+            st.markdown('<div class="kicker" style="margin-top:.9rem">RDTII raw score</div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="display:flex;gap:.8rem;align-items:center">{score_stamp_html(m.raw_score)}'
+                        f'<span class="cite">Coverage &middot; {m.coverage or "—"}</span></div>', unsafe_allow_html=True)
+            if m.impact:
+                st.markdown(f'<div class="cite" style="margin-top:.5rem">Impact &middot; {m.impact}</div>',
+                            unsafe_allow_html=True)
         if m.scope_flag:
             st.markdown(f'<div style="margin-top:.7rem">{seal_html("scope").replace("s-review","s-flag")} '
                         f'<span class="cite">{m.scope_flag} — capped to bar auto-accept of a sectoral instrument.</span></div>',
@@ -720,16 +826,22 @@ with tab_export:
     result = RunResult(meta=meta, mappings=mappings)
     st.markdown('<div class="quote">CSV is the official RDTII submission format (exact template '
                 'columns) for the policy judge; JSON carries the full evidence trace for the '
-                'technical judge.</div>', unsafe_allow_html=True)
+                'technical judge. The scored CSV mirrors the official answer-key Database — Raw '
+                'Score, Coverage and Impact per measure (Zone 3).</div>', unsafe_allow_html=True)
     sub_only = st.toggle("Submission set only — exclude rejected & quarantined rows", value=True,
                          help="Keeps sector-flagged / low-confidence rows out of the national-indicator submission")
     csv_path = export_csv(mappings, run_id, submission_only=sub_only)
     json_path = export_json(result)
+    has_scores = any(m.raw_score is not None for m in mappings)
+    scored_path = export_scored_csv(mappings, run_id, submission_only=sub_only) if has_scores else None
     n_rows = sum(1 for ln in Path(csv_path).read_text(encoding="utf-8-sig").splitlines()) - 1
     st.markdown(f'<div class="kicker">{n_rows} rows · {len(SUBMISSION_COLUMNS)} fields</div>', unsafe_allow_html=True)
-    e1, e2 = st.columns(2)
-    e1.download_button("⬇  Submission CSV · policy judge", Path(csv_path).read_bytes(),
-                       file_name=Path(csv_path).name, mime="text/csv", width="stretch")
-    e2.download_button("⬇  Evidence JSON · technical judge", Path(json_path).read_bytes(),
-                       file_name=Path(json_path).name, mime="application/json", width="stretch")
+    cols = st.columns(3 if scored_path else 2)
+    cols[0].download_button("⬇  Submission CSV · policy judge", Path(csv_path).read_bytes(),
+                            file_name=Path(csv_path).name, mime="text/csv", width="stretch")
+    cols[1].download_button("⬇  Evidence JSON · technical judge", Path(json_path).read_bytes(),
+                            file_name=Path(json_path).name, mime="application/json", width="stretch")
+    if scored_path:
+        cols[2].download_button("⬇  Scored CSV · RDTII Database shape", Path(scored_path).read_bytes(),
+                                file_name=Path(scored_path).name, mime="text/csv", width="stretch")
     st.dataframe(pd.read_csv(csv_path, dtype=str).fillna(""), width="stretch", height=380)

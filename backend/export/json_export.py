@@ -14,7 +14,8 @@ from ..schemas import EvidenceMapping, RunResult
 
 
 def build_payload(result: RunResult) -> dict:
-    return {
+    from ..pipeline.scoring import aggregate_indicator_scores
+    payload: dict = {
         "run": result.meta.model_dump(),
         "provider_versions": {
             "ocr_provider": result.meta.ocr_provider,
@@ -27,6 +28,13 @@ def build_payload(result: RunResult) -> dict:
         "ocr_reports": [r.model_dump() for r in result.meta.ocr_reports],
         "mappings": [_mapping_payload(m) for m in result.mappings],
     }
+    agg = aggregate_indicator_scores(result.mappings)
+    if agg:
+        payload["analytical_index"] = {
+            "_note": "not part of the submission — RDTII index computation only",
+            "aggregate_indicator_scores": {k: v for k, v in sorted(agg.items())},
+        }
+    return payload
 
 
 def _summary(mappings: list[EvidenceMapping]) -> dict:
@@ -52,6 +60,8 @@ def _mapping_payload(m: EvidenceMapping) -> dict:
         "source_url": m.source_url,
         "source_pdf_path": m.source_pdf_path,                    # local retrieved file
         "mapping_rationale": m.mapping_rationale,
+        "raw_score": m.raw_score,                                # Zone-3 RDTII score (0/0.5/1)
+        "impact": m.impact,                                      # Database "Impact or comments"
         "confidence_score": m.confidence_score,
         "confidence_breakdown": m.confidence.model_dump(),       # scoring explanation
         "discovery_tag": m.discovery_tag.value,

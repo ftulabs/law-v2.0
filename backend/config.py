@@ -153,6 +153,11 @@ class Settings(BaseSettings):
     # sample kit (RDTII Round-1 Database) for KNOWN/NEW tagging. Empty = auto-discover.
     sample_kit_path: str = ""
 
+    # Zone 3 (optional) — assign each mapped measure an RDTII Raw Score (0/0.5/1) + Impact,
+    # and emit the Database-shaped scored CSV. One extra LLM call per mapping; the mock
+    # scorer keeps it runnable offline. Disable with SCORING_ENABLED=false to skip the layer.
+    scoring_enabled: bool = True
+
     @property
     def db_path(self) -> Path:
         p = (ROOT / self.veritrade_db) if not Path(self.veritrade_db).is_absolute() else Path(self.veritrade_db)

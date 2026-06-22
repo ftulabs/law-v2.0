@@ -15,7 +15,7 @@ from ..providers import get_llm_provider, get_ocr_provider
 from ..rdtii import get_indicators
 from ..schemas import Economy, OCRReport, RunMeta, RunResult
 from ..storage import db
-from . import discovery, extraction, mapping
+from . import discovery, extraction, mapping, scoring
 from .ocr import get_document_text
 
 
@@ -220,6 +220,11 @@ def run_pipeline(
             m.discovery_tag = DiscoveryTag.KNOWN if known else DiscoveryTag.NEW
             n_known += known
         log(f"[tag] sample kit matched — KNOWN={n_known} NEW={len(mappings) - n_known}")
+
+    # Zone 3 (optional) — assign each measure its RDTII Raw Score (0/0.5/1) + Impact.
+    if settings.scoring_enabled and mappings:
+        log(f"[score] scoring {len(mappings)} measures (LLM={llm.name})")
+        scoring.score_mappings(mappings, llm=llm, log=log)
 
     for m in mappings:
         db.save_mapping(m)

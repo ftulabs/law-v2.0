@@ -113,10 +113,14 @@ OCR_PROVIDER=markitdown          # or: tesseract, paddle, azure, mock
 
 ### 4. Run the tool
 ```bash
-python main.py --economy Singapore --pillar 6            # offline sample (this Quick Start)
-python main.py --economy Singapore --pillar 6 --live     # the scored path — crawl live
+# canonical entry point (hackathon reviewer script)
+python run.py --country SG --pillar 6                    # offline sample (this Quick Start)
+python run.py --country SG --pillar 6 --live             # the scored path — crawl live
+
+# also available (alias)
+python main.py --economy Singapore --pillar 6 --live --llm openrouter
 ```
-**Output:** `outputs/SG_P6_<timestamp>.csv` and `outputs/SG_P6_<timestamp>.json`
+**Output:** `outputs/SG_P6_<timestamp>.csv`, `outputs/SG_P6_<timestamp>_scored.csv` and `outputs/SG_P6_<timestamp>.json`
 
 ### Demonstrate scanned/image-PDF OCR (Technical-Resilience rubric)
 The bundled `data/samples/SG/mas_notice_655.pdf` is a **genuine image-only PDF** (no text
@@ -460,6 +464,15 @@ Honest by design:
   reference; review mappings (especially `pending_review` rows) before submission.
 - **Confidence** scores are relative, not calibrated probabilities; <0.85 → human review,
   <0.60 → quarantine.
+
+---
+
+## Pinned Versions
+
+All runtime dependencies in `requirements.txt` are pinned to exact versions (`==`).
+Jetson TX2 constraints: `torch==2.2.2`, `transformers<5`, `numpy<2`.
+Open-source / no-key fallback: set `LLM_PROVIDER=mock` and `OCR_PROVIDER=mock` — no packages
+beyond the core `pip install -r requirements.txt` required.
 
 ---
 

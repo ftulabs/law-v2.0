@@ -14,7 +14,7 @@ import argparse
 from datetime import datetime, timezone
 
 from backend.config import settings
-from backend.export import export_csv, export_json
+from backend.export import export_csv, export_json, export_scored_csv
 from backend.pipeline.orchestrator import run_pipeline
 from backend.schemas import ECONOMY_UN_NAME, Economy, resolve_economy
 
@@ -60,6 +60,8 @@ def main() -> None:
     stem = f"{economy.value}_P{''.join(map(str, pillars))}_{ts}"
     if args.format in ("csv", "both"):
         print("CSV ", export_csv(result.mappings, result.meta.run_id, out_dir, out_stem=stem))
+        if settings.scoring_enabled and any(m.raw_score is not None for m in result.mappings):
+            print("SCORED CSV", export_scored_csv(result.mappings, result.meta.run_id, out_dir, out_stem=stem))
     if args.format in ("json", "both"):
         print("JSON", export_json(result, out_dir, out_stem=stem))
 

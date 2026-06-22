@@ -174,6 +174,7 @@ def get_document_text(doc: DiscoveredDoc, ocr_provider: OCRProvider | None = Non
             text = _pdf_text_layer(path)
             pages = _page_count(path)
             if len(text.strip()) / max(pages, 1) >= 40:   # healthy text density → not scanned
+                metrics.pages = pages   # exposes page count for location-ref computation
                 return text, metrics
             # thin per page → scanned → run OCR (rapidocr/tesseract/azure)
 

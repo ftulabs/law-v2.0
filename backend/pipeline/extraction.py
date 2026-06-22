@@ -432,7 +432,7 @@ def _law_name(doc: DiscoveredDoc, raw_text: str = "") -> str:
 
 def _location_ref(ocr: OCRMetrics, start: int, total_len: int, label: str) -> str:
     """Template 'Location Reference': PDF → page number; HTML/text → URL anchor/path."""
-    if ocr.used and ocr.pages:
+    if ocr.pages:
         page = min(ocr.pages, max(1, int(start / max(total_len, 1) * ocr.pages) + 1))
         return f"p. {page}"
     # HTML/text → an anchor-style ref (e.g. "Section 26D" -> "#sec26D")
@@ -557,11 +557,12 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
                 norm = f"APP {mapp.group(1).upper()}"
             elif current_schedule:
                 norm = f"{current_schedule}, {norm}"
-        # template requires article AND paragraph ("never write just Art. 26"): if the
-        # section body opens with a sub-paragraph marker (e.g. "26.—(1)(a)"), append it.
-        para = re.match(r"^[\s.\-—:]*(\(\d+[A-Za-z]?\)(?:\([a-z]+\))?)", body)
-        if para:
-            norm = f"{norm}{para.group(1)}"
+        # template requires article AND paragraph ("never write just Art. 26"): search the
+        # first 300 chars of the body for a subsection marker (N) — works even when a
+        # marginal heading precedes the "N.—(1)" line (the old start-only match missed it).
+        _sub = re.search(r"(\(\d+[A-Za-z]?\)(?:\([a-z]+\))?)", body[:300])
+        if _sub:
+            norm = f"{norm}{_sub.group(1)}"
         loc = _location_ref(ocr, start, total, norm)
         provisions.append(_mk(doc, norm, snippet, (start, start + len(snippet)), loc, ocr, i, law_name))
     return provisions

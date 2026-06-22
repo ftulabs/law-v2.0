@@ -14,7 +14,8 @@ from __future__ import annotations
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from .export import export_csv, export_json
+from .config import settings
+from .export import export_csv, export_json, export_scored_csv
 from .pipeline.orchestrator import run_pipeline
 from .review import workflow
 from .schemas import Economy, RunResult
@@ -69,10 +70,13 @@ def pipeline_run(req: RunRequest):
         llm_model=req.llm_model, llm_api_key=req.llm_api_key)
     csv_path = export_csv(result.mappings, result.meta.run_id)
     json_path = export_json(result)
+    exports = {"csv": str(csv_path), "json": str(json_path)}
+    if settings.scoring_enabled and any(m.raw_score is not None for m in result.mappings):
+        exports["scored_csv"] = str(export_scored_csv(result.mappings, result.meta.run_id))
     return {
         "run": result.meta.model_dump(),
         "summary": workflow.summary(result.meta.run_id),
-        "exports": {"csv": str(csv_path), "json": str(json_path)},
+        "exports": exports,
         "mappings": [m.model_dump() for m in result.mappings],
     }
 

@@ -90,14 +90,26 @@ def load_known(path: str | None = None):
     return dict(index)
 
 
+_YEAR_RE = re.compile(r"^(?:19|20)\d{2}$")
+
+
 def is_known(economy: str, pillar: int, law_name: str, source_url: str, kit) -> bool:
     if not kit:
         return False
     entries = kit.get((economy, pillar), [])
     lk, uk = _tokens(law_name), _url_key(source_url)
+    law_years = {t for t in lk if _YEAR_RE.match(t)}
     for e in entries:
+        # URL-key match: most reliable — same portal path = same law.
         if uk and e["url"] and (uk in e["url"] or e["url"] in uk):
             return True
-        if lk and e["law"] and len(lk & e["law"]) / max(len(e["law"]), 1) >= 0.6:
-            return True
+        # Token-overlap match: tightened to 0.75 + year-consistency to avoid a
+        # subsidiary regulation (2021) being confused with its parent Act (2012).
+        if lk and e["law"]:
+            overlap = len(lk & e["law"]) / max(len(e["law"]), 1)
+            if overlap >= 0.75:
+                kit_years = {t for t in e["law"] if _YEAR_RE.match(t)}
+                if kit_years and law_years and not (kit_years & law_years):
+                    continue  # both carry years but they differ → different law
+                return True
     return False

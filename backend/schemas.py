@@ -174,6 +174,14 @@ class EvidenceMapping(BaseModel):
     notes: Optional[str] = None                 # OCR/scope/bilingual flags
     review_status: ReviewStatus
 
+    # ── Zone 3 (optional scoring layer) — RDTII Raw Score for THIS measure ──
+    # raw_score ∈ {0, 0.5, 1}: compliance-cost / restrictiveness grade per the methodology
+    # scoring criteria (backend/rdtii/scoring_rubric.py). None when scoring is disabled. For
+    # 7.1/7.2 the polarity is INVERTED (a horizontal framework scores 0). `impact` is the
+    # Database's "Impact or comments" column — the one-sentence justification for the score.
+    raw_score: Optional[float] = None
+    impact: Optional[str] = None
+
     # technical / audit extras (JSON export, not CSV)
     provision_id: str
     source_pdf_path: Optional[str] = None         # local retrieved file
