@@ -1,4 +1,4 @@
-name: Deploy to TX2
+name: Deploy to Sager
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 
 # Chỉ chạy 1 deploy tại một thời điểm; deploy mới cancel deploy đang chạy
 concurrency:
-  group: deploy-tx2
+  group: deploy-sager
   cancel-in-progress: true
 
 jobs:
@@ -16,12 +16,9 @@ jobs:
     uses: ./.github/workflows/ci.yml
 
   deploy:
-    name: Deploy to TX2 (arm64)
+    name: Deploy to Sager (x64)
     needs: ci
-    # Repo-scoped self-hosted runner "tx2-veritrade" is the only self-hosted arm64
-    # runner on ftulabs/law-v2.0, so [self-hosted, arm64] targets it unambiguously
-    # without needing a device-specific label.
-    runs-on: [self-hosted, arm64]
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 30
 
     steps:
