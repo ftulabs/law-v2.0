@@ -45,7 +45,7 @@ jobs:
           python -m backend.cli run-pipeline --economy SG --pillar 6 --pillar 7 --use-samples
           python - <<'PY'
           import csv, glob
-          f = sorted(glob.glob("outputs/*.csv"))[-1]
+          f = sorted(f for f in glob.glob("outputs/*.csv") if "_scored" not in f)[-1]
           rows = list(csv.reader(open(f, encoding="utf-8-sig")))
           official = ["Economy","Law Name","Law Number / Ref","Last Amended","Indicator ID",
                       "Article / Section","Discovery Tag","Location Reference","Verbatim Snippet",
