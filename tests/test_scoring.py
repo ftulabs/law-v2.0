@@ -110,37 +110,42 @@ def test_two_sectoral_measures_roll_up_to_one():
     assert agg["P6-I2"]["score"] == 1.0      # >1 measure in the 0.5 category → 1
 
 
-# ───────────────────────── end-to-end (offline mock) ─────────────────────────
-def test_pipeline_produces_scores_offline():
+# ───────────────────────── opt-in gate ─────────────────────────
+def test_scoring_is_off_by_default():
+    """Scoring is opt-in: a default run leaves raw_score unset (lean mandatory flow)."""
     r = run_pipeline(Economy.SG, [7], use_samples=True,
                      ocr_provider="mock", llm_provider="mock", log=lambda *_: None)
+    assert all(m.raw_score is None for m in r.mappings), "scoring must be off unless opted in"
+
+
+# ───────────────────────── end-to-end (offline mock, scoring opted in) ─────────────────────────
+def test_pipeline_produces_scores_when_enabled():
+    r = run_pipeline(Economy.SG, [7], use_samples=True, scoring_enabled=True,
+                     ocr_provider="mock", llm_provider="mock", log=lambda *_: None)
     scored = [m for m in r.mappings if m.raw_score is not None]
-    assert scored, "scoring layer should populate raw_score on the offline run"
+    assert scored, "scoring layer should populate raw_score when opted in"
     assert all(m.raw_score in (0.0, 0.5, 1.0) for m in scored)
     assert all(m.impact for m in scored)
 
 
-def test_score_embedded_in_csv_notes(tmp_path):
-    """Zone-3 score appears in the CSV Notes column, 13-col structure is unchanged."""
+def test_score_absent_from_submission_csv(tmp_path):
+    """The 13-col submission CSV NEVER carries the Zone-3 score — not even in Notes.
+    (Team decision pending a judges' Q&A on where a Zone-3 score belongs.)"""
     import csv as csv_mod
     from backend.export import export_csv
     from backend.schemas import SUBMISSION_COLUMNS
-    r = run_pipeline(Economy.SG, [7], use_samples=True,
+    r = run_pipeline(Economy.SG, [7], use_samples=True, scoring_enabled=True,
                      ocr_provider="mock", llm_provider="mock", log=lambda *_: None)
     path = export_csv(r.mappings, r.meta.run_id, out_dir=tmp_path)
     rows = list(csv_mod.DictReader(path.read_text(encoding="utf-8-sig").splitlines()))
-    assert list(rows[0].keys()) == SUBMISSION_COLUMNS, "must stay 13 columns"
-    scored = [m for m in r.mappings if m.raw_score is not None
-              and m.review_status.value in ("auto_accepted", "pending_review")]
-    if scored:
-        notes_col = [r["Notes"] for r in rows]
-        assert any("RDTII score" in n for n in notes_col), "Notes must carry RDTII score"
+    assert list(rows[0].keys()) == SUBMISSION_COLUMNS, "must stay exactly 13 columns"
+    assert all("RDTII score" not in r["Notes"] for r in rows), "score must NOT be in the submission CSV"
 
 
 def test_scored_csv_has_no_rollup_footer(tmp_path):
     """scored_export writes only measure rows — no INDICATOR SCORES footer block."""
     from backend.export.scored_export import export_scored_csv
-    r = run_pipeline(Economy.SG, [7], use_samples=True,
+    r = run_pipeline(Economy.SG, [7], use_samples=True, scoring_enabled=True,
                      ocr_provider="mock", llm_provider="mock", log=lambda *_: None)
     path = export_scored_csv(r.mappings, r.meta.run_id, out_dir=tmp_path)
     content = path.read_text(encoding="utf-8-sig")
@@ -150,7 +155,7 @@ def test_scored_csv_has_no_rollup_footer(tmp_path):
 def test_json_has_analytical_index(tmp_path):
     """JSON export places roll-up under analytical_index, not in summary."""
     from backend.export.json_export import build_payload
-    r = run_pipeline(Economy.SG, [7], use_samples=True,
+    r = run_pipeline(Economy.SG, [7], use_samples=True, scoring_enabled=True,
                      ocr_provider="mock", llm_provider="mock", log=lambda *_: None)
     payload = build_payload(r)
     assert "indicator_scores" not in payload["summary"], "roll-up must leave summary"

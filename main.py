@@ -42,6 +42,10 @@ def main() -> None:
     p.add_argument("--llm", default=None, help="LLM provider: openrouter|anthropic|openai|mock")
     p.add_argument("--llm-model", default=None, help="override LLM model name")
     p.add_argument("--top-k", type=int, default=5)
+    p.add_argument("--score", dest="score", action="store_true", default=None,
+                   help="opt into Zone-3 RDTII raw scoring (off by default; adds 1 LLM call/mapping)")
+    p.add_argument("--no-score", dest="score", action="store_false",
+                   help="force Zone-3 scoring off")
     args = p.parse_args()
 
     economy = parse_economy(args.economy)
@@ -53,14 +57,14 @@ def main() -> None:
     result = run_pipeline(
         economy, pillars, use_samples=not args.live, top_k=args.top_k,
         ocr_provider=args.ocr, llm_provider=args.llm, llm_model=args.llm_model,
-        pdf_path=args.pdf, log=print,
+        pdf_path=args.pdf, log=print, scoring_enabled=args.score,
     )
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     stem = f"{economy.value}_P{''.join(map(str, pillars))}_{ts}"
     if args.format in ("csv", "both"):
         print("CSV ", export_csv(result.mappings, result.meta.run_id, out_dir, out_stem=stem))
-        if settings.scoring_enabled and any(m.raw_score is not None for m in result.mappings):
+        if any(m.raw_score is not None for m in result.mappings):
             print("SCORED CSV", export_scored_csv(result.mappings, result.meta.run_id, out_dir, out_stem=stem))
     if args.format in ("json", "both"):
         print("JSON", export_json(result, out_dir, out_stem=stem))

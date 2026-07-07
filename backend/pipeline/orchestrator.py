@@ -98,6 +98,7 @@ def run_pipeline(
     llm_model: str | None = None,
     llm_api_key: str | None = None,
     pdf_path: str | None = None,
+    scoring_enabled: bool | None = None,
 ) -> RunResult:
     run_id = "run-" + uuid.uuid4().hex[:8]
     t0 = time.perf_counter()
@@ -221,8 +222,12 @@ def run_pipeline(
             n_known += known
         log(f"[tag] sample kit matched — KNOWN={n_known} NEW={len(mappings) - n_known}")
 
-    # Zone 3 (optional) — assign each measure its RDTII Raw Score (0/0.5/1) + Impact.
-    if settings.scoring_enabled and mappings:
+    # Zone 3 (OPTIONAL, opt-in) — assign each measure its RDTII Raw Score (0/0.5/1) + Impact.
+    # Off by default (settings.scoring_enabled) so the mandatory discover→extract→map flow stays
+    # lean (fewer LLM calls on a rate-limited key); the caller (CLI flag / dashboard toggle) can
+    # turn it on per run. Scoring runs AFTER mapping and never alters the mapping results.
+    do_score = settings.scoring_enabled if scoring_enabled is None else scoring_enabled
+    if do_score and mappings:
         log(f"[score] scoring {len(mappings)} measures (LLM={llm.name})")
         scoring.score_mappings(mappings, llm=llm, log=log)
 

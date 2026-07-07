@@ -15,26 +15,12 @@ from ..config import settings
 from ..schemas import ECONOMY_UN_NAME, SUBMISSION_COLUMNS, SUBMITTABLE_STATUSES, EvidenceMapping
 
 
-_SCORE_LABEL = {0.0: "simplified", 0.5: "moderate", 1.0: "heavy"}
-
-
-def _notes_with_score(m: EvidenceMapping) -> str:
-    """Prepend the Zone-3 RDTII score to Notes so the policy judge sees it in the 13-col
-    CSV without adding a new column. Format: 'RDTII score N (label): <impact>. <base notes>'"""
-    base = m.notes or ""
-    if m.raw_score is None:
-        return base
-    label = _SCORE_LABEL.get(float(m.raw_score), str(m.raw_score))
-    score_str = str(int(m.raw_score)) if float(m.raw_score).is_integer() else f"{m.raw_score:g}"
-    prefix = f"RDTII score {score_str} ({label})"
-    if m.impact:
-        prefix = f"{prefix}: {m.impact}."
-    return f"{prefix} {base}".strip() if base else prefix
-
-
 def _row(m: EvidenceMapping) -> dict[str, str]:
-    # EXACT official 13-column template. Pillar/Coverage/Flag-for-review and OCR/CER
-    # metrics are carried in the JSON export, never added to this CSV.
+    # EXACT official 13-column template. Pillar/Coverage/OCR/CER — and the Zone-3 RDTII
+    # raw_score — are deliberately NOT written here: the official template (Output Data sheet)
+    # has NO score column, and per team decision (pending a judges' Q&A on where a Zone-3 score
+    # belongs) we do NOT unilaterally inject it into the submission CSV — not even into Notes.
+    # The score lives only in the supplementary *_scored.csv and the JSON. See NOTES_FOR_JUDGES.md.
     return {
         "Economy": ECONOMY_UN_NAME.get(m.economy.value, m.economy.value),
         "Law Name": m.law_name,
@@ -48,7 +34,7 @@ def _row(m: EvidenceMapping) -> dict[str, str]:
         "Mapping Rationale": m.mapping_rationale or "",
         "Source URL": m.source_url,
         "Confidence": f"{m.confidence_score:.2f}",
-        "Notes": _notes_with_score(m),
+        "Notes": m.notes or "",
     }
 
 

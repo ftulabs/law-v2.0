@@ -301,7 +301,8 @@ def map_provisions(
         try:
             graded = llm.complete_json(SYSTEM, _user_prompt(ind, prov))
         except Exception as e:  # noqa: BLE001 — one rate-limited call must not crash the run
-            return ("FAIL", type(e).__name__, ind.indicator_id, prov.provision_id)
+            reason = f"{type(e).__name__}: {e}"[:160]
+            return ("FAIL", reason, ind.indicator_id, prov.provision_id)
 
         # relevant = satisfies the target AND not a mislabel for a better sibling. Prefer the
         # model's explicit `relevant`; else derive it (real LLMs return satisfies_target/
@@ -363,18 +364,23 @@ def map_provisions(
     else:
         results = [_grade(it) for it in work]
 
+    first_reason = ""
     for res in results:
         if res is None:
             continue
-        if isinstance(res, tuple):  # ("FAIL", err, ind, prov)
+        if isinstance(res, tuple):  # ("FAIL", reason, ind, prov)
             failures += 1
+            first_reason = first_reason or res[1]
             if failures <= 3:
                 log(f"[warn] LLM call failed ({res[1]}); skipping {res[2]}/{res[3]}")
             continue
         mappings.append(res)
     if failures:
-        log(f"[warn] {failures} LLM call(s) failed and were skipped "
-            f"(free-tier rate limits? try a paid key or fewer pillars)")
+        # Surface the ACTUAL first-failure reason (auth vs rate-limit vs timeout) instead of
+        # always blaming rate limits — a dead API key looks nothing like a 429.
+        hint = "check the LLM key/provider" if "401" in first_reason or "rejected" in first_reason \
+            else "possible rate limits — try a paid key or fewer pillars"
+        log(f"[warn] {failures} LLM call(s) failed and were skipped ({hint})")
     # most confident first
     mappings.sort(key=lambda m: m.confidence_score, reverse=True)
     return mappings

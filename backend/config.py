@@ -27,7 +27,10 @@ class Settings(BaseSettings):
     # OpenRouter (free models). Key is read from env/.env/secrets — NEVER hardcode it
     # in committed code. Default is empty on purpose.
     openrouter_api_key: str = ""
-    openrouter_model: str = "meta-llama/llama-3.3-70b-instruct:free"
+    # Default to a cheap, reliable PAID model so a funded key works out of the box (the `:free`
+    # models throttle at scale). Pick a `:free` model in the dashboard for a cost-free run — it
+    # auto-fails over to a paid model when rate-limited. See registry.OPENROUTER_MODELS.
+    openrouter_model: str = "google/gemini-2.0-flash-001"
     # Google Gemini (OpenAI-compatible endpoint). Key from env/.env/secrets — never commit.
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.0-flash"
@@ -153,10 +156,12 @@ class Settings(BaseSettings):
     # sample kit (RDTII Round-1 Database) for KNOWN/NEW tagging. Empty = auto-discover.
     sample_kit_path: str = ""
 
-    # Zone 3 (optional) — assign each mapped measure an RDTII Raw Score (0/0.5/1) + Impact,
-    # and emit the Database-shaped scored CSV. One extra LLM call per mapping; the mock
-    # scorer keeps it runnable offline. Disable with SCORING_ENABLED=false to skip the layer.
-    scoring_enabled: bool = True
+    # Zone 3 (optional, OPT-IN) — assign each mapped measure an RDTII Raw Score (0/0.5/1) +
+    # Impact, and emit the supplementary Database-shaped scored CSV. Off by default so the
+    # mandatory flow stays lean (one extra LLM call per mapping); enable per run via the
+    # dashboard toggle, the CLI --score flag, or SCORING_ENABLED=true. The score is NEVER
+    # written into the official 13-col submission CSV (see NOTES_FOR_JUDGES.md).
+    scoring_enabled: bool = False
 
     @property
     def db_path(self) -> Path:

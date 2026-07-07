@@ -22,6 +22,9 @@ LLM_LABELS = {"openrouter": "OpenRouter (free models)", "mock": "Mock grader (of
               "local": "Self-hosted (Ollama/OpenAI-compatible)"}
 
 # Curated free models on OpenRouter (verified available; availability can change).
+# NOTE the `:free` suffix pins the FREE endpoint — shared, heavily rate-limited (429) for
+# everyone, even on a PAID key. On a large run these all throttle at once, so they are only
+# a cost-free option, not a reliable one. The provider auto-fails over to a PAID model below.
 OPENROUTER_FREE_MODELS = [
     "meta-llama/llama-3.3-70b-instruct:free",
     "qwen/qwen3-next-80b-a3b-instruct:free",
@@ -29,6 +32,17 @@ OPENROUTER_FREE_MODELS = [
     "z-ai/glm-4.5-air:free",
     "nvidia/nemotron-3-super-120b-a12b:free",
 ]
+
+# Cheap, reliable PAID models — used first for a funded key and as the fall-over target when
+# the free tier is rate-limited. Gemini 2.0 Flash is the default: fast, strong at JSON, ~cents.
+OPENROUTER_PAID_MODELS = [
+    "google/gemini-2.0-flash-001",
+    "openai/gpt-4o-mini",
+    "google/gemini-flash-1.5",
+]
+
+# Dashboard selector: paid (reliable) first, then free (cost-free but rate-limited).
+OPENROUTER_MODELS = OPENROUTER_PAID_MODELS + OPENROUTER_FREE_MODELS
 
 
 @dataclass

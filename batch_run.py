@@ -35,7 +35,7 @@ def main() -> None:
         stem = f"{economy.value}_P{''.join(map(str, args.pillar))}_{ts}"
         export_csv(result.mappings, result.meta.run_id, out_dir, out_stem=stem)
         export_json(result, out_dir, out_stem=stem)
-        if settings.scoring_enabled and any(m.raw_score is not None for m in result.mappings):
+        if any(m.raw_score is not None for m in result.mappings):
             export_scored_csv(result.mappings, result.meta.run_id, out_dir, out_stem=stem)
         print(f"[{economy.value}] {result.meta.mappings_produced} mappings -> {stem}.csv/.json\n")
 

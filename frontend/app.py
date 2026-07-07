@@ -335,10 +335,8 @@ st.markdown(
             restrictiveness / compliance cost, not confidence. Double-ruled, stamped askew. ── */
       .stamp {{display:inline-flex; align-items:center; gap:.5rem; font-family:'IBM Plex Mono', monospace;
               border:1.5px solid var(--ink-soft); border-radius:4px; padding:.3rem .55rem .26rem;
-              background:var(--panel); color:var(--ink); transform:rotate(-2.4deg);
-              box-shadow:inset 0 0 0 2px var(--paper), inset 0 0 0 3px var(--rule-soft);
-              transition:transform .25s ease;}}
-      .stamp:hover {{transform:rotate(0);}}
+              background:var(--panel); color:var(--ink);
+              box-shadow:inset 0 0 0 2px var(--paper), inset 0 0 0 3px var(--rule-soft);}}
       .stamp .pie {{width:18px; height:18px; border-radius:50%; flex:none;
               border:1.5px solid var(--ink-soft);
               background:conic-gradient(var(--ink) var(--p,0%), transparent 0);}}
@@ -346,7 +344,7 @@ st.markdown(
               color:var(--ink-faint); line-height:1.05; display:block;}}
       .stamp .sc-num {{font-weight:600; font-size:1.02rem; letter-spacing:.02em; line-height:1;}}
       .stamp .sc-tier {{font-size:.58rem; text-transform:uppercase; letter-spacing:.12em; color:var(--ink-soft);}}
-      .stamp.mini {{transform:rotate(-2deg); padding:.18rem .4rem; gap:.35rem;}}
+      .stamp.mini {{padding:.18rem .4rem; gap:.35rem;}}
       .stamp.mini .pie {{width:13px; height:13px;}}
       .stamp.mini .sc-num {{font-size:.82rem;}}
 
@@ -607,10 +605,11 @@ with st.sidebar:
     if llm_choice == "openrouter":
         # key comes from st.secrets (deployed) or env/.env (local) — judges don't retype it
         llm_key = _secret("OPENROUTER_API_KEY", settings.openrouter_api_key)
-        _models = reg.OPENROUTER_FREE_MODELS
+        _models = reg.OPENROUTER_MODELS
         _idx = _models.index(settings.openrouter_model) if settings.openrouter_model in _models else 0
-        llm_model = st.selectbox("Free model", _models, index=_idx,
-                                 help="Free OpenRouter models; auto-fails over to another if rate-limited")
+        llm_model = st.selectbox("Model", _models, index=_idx,
+                                 help="Paid models (top) are reliable; ':free' models are cost-free but "
+                                      "shared-rate-limited — a limited free model auto-fails over to a paid one.")
         if not llm_key:
             llm_key = st.text_input("OpenRouter API key", type="password",
                                     placeholder="set OPENROUTER_API_KEY in Secrets, or paste here") or None
@@ -637,6 +636,13 @@ with st.sidebar:
         st.markdown('<div class="prov-note">Unavailable engines fall back to mock automatically — '
                     'the run never breaks.</div>', unsafe_allow_html=True)
 
+    st.markdown('<div class="kicker" style="margin:.5rem 0 .1rem">Zone 3 · scoring</div>',
+                unsafe_allow_html=True)
+    scoring_on = st.toggle("Assign RDTII raw score (0 / 0.5 / 1)", value=settings.scoring_enabled,
+                           help="Optional extra-points layer: grades each mapped measure's "
+                                "restrictiveness after mapping. Adds one LLM call per mapping — off "
+                                "by default keeps the run lean. Never written to the submission CSV.")
+
     run_clicked = st.button("⟢  Run pipeline", type="primary", width="stretch")
 
     st.markdown('<hr class="hr-thin">', unsafe_allow_html=True)
@@ -651,7 +657,8 @@ if run_clicked and pillars:
             status.write(m)
         result = run_pipeline(Economy(economy), pillars, use_samples=use_samples, top_k=top_k, log=log,
                               ocr_provider=ocr_choice, llm_provider=llm_choice,
-                              llm_model=llm_model or None, llm_api_key=llm_key or None)
+                              llm_model=llm_model or None, llm_api_key=llm_key or None,
+                              scoring_enabled=scoring_on)
         export_csv(result.mappings, result.meta.run_id)
         export_json(result)
         if any(m.raw_score is not None for m in result.mappings):

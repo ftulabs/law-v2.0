@@ -71,7 +71,7 @@ def pipeline_run(req: RunRequest):
     csv_path = export_csv(result.mappings, result.meta.run_id)
     json_path = export_json(result)
     exports = {"csv": str(csv_path), "json": str(json_path)}
-    if settings.scoring_enabled and any(m.raw_score is not None for m in result.mappings):
+    if any(m.raw_score is not None for m in result.mappings):
         exports["scored_csv"] = str(export_scored_csv(result.mappings, result.meta.run_id))
     return {
         "run": result.meta.model_dump(),

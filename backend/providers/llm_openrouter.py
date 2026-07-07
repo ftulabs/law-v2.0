@@ -12,6 +12,13 @@ from .llm_base import LLMProvider
 BASE_URL = "https://openrouter.ai/api/v1"
 
 
+def _is_auth_error(e: Exception) -> bool:
+    """A 401/403 from OpenRouter — the key is invalid/revoked/out-of-credit (same for every
+    model, so there's no point failing over the whole pool)."""
+    code = getattr(e, "status_code", None) or getattr(getattr(e, "response", None), "status_code", None)
+    return code in (401, 403) or type(e).__name__ in ("AuthenticationError", "PermissionDeniedError")
+
+
 class OpenRouterLLM(LLMProvider):
     name = "openrouter"
 
@@ -49,14 +56,29 @@ class OpenRouterLLM(LLMProvider):
                 return self._parse_json(resp.choices[0].message.content or "{}")
             except Exception as e:  # noqa: BLE001 — free models are often rate-limited; fall over
                 last_err = e
+                # An AUTH failure (401/403) is the same for every model — the key itself is
+                # invalid/revoked/out-of-credit. Don't churn the whole pool per call; fail fast
+                # with a message that names the real cause (not "rate limits").
+                if _is_auth_error(e):
+                    raise RuntimeError(
+                        "OpenRouter rejected the API key (HTTP 401/403 — 'User not found' means "
+                        "the key is invalid, revoked, or the account was removed). Set a valid "
+                        "OPENROUTER_API_KEY (openrouter.ai/keys), or switch LLM_PROVIDER."
+                    ) from e
                 continue
-        raise RuntimeError(f"All OpenRouter free models failed (last: {last_err})")
+        raise RuntimeError(f"All OpenRouter models failed (last: {last_err})")
 
     def _candidates(self) -> list[str]:
-        """Chosen model first, then other curated free models as 429 fallbacks."""
+        """Chosen model first, then reliable PAID models, then the free pool. A `:free` model
+        that 429s therefore fails over to a PAID model (leveraging a funded key) instead of
+        dead-ending on the shared free tier — the cause of near-empty large runs."""
         try:
-            from .registry import OPENROUTER_FREE_MODELS as pool
+            from .registry import OPENROUTER_FREE_MODELS as free, OPENROUTER_PAID_MODELS as paid
         except Exception:
-            pool = []
-        ordered = [self._chosen] + [m for m in pool if m != self._chosen]
+            free, paid = [], []
+        ordered, seen = [], set()
+        for m in [self._chosen, *paid, *free]:
+            if m and m not in seen:
+                seen.add(m)
+                ordered.append(m)
         return ordered
