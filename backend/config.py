@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     # Default to a cheap, reliable PAID model so a funded key works out of the box (the `:free`
     # models throttle at scale). Pick a `:free` model in the dashboard for a cost-free run — it
     # auto-fails over to a paid model when rate-limited. See registry.OPENROUTER_MODELS.
-    openrouter_model: str = "google/gemini-2.0-flash-001"
+    openrouter_model: str = "google/gemini-2.5-flash"
     # Google Gemini (OpenAI-compatible endpoint). Key from env/.env/secrets — never commit.
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.0-flash"

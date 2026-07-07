@@ -34,11 +34,13 @@ OPENROUTER_FREE_MODELS = [
 ]
 
 # Cheap, reliable PAID models — used first for a funded key and as the fall-over target when
-# the free tier is rate-limited. Gemini 2.0 Flash is the default: fast, strong at JSON, ~cents.
+# the free tier is rate-limited. Gemini 2.5 Flash is the default: fast, strong at JSON, ~cents.
+# OpenRouter's catalogue turns over fast (e.g. "gemini-2.0-flash-001" 404'd within weeks) —
+# verify via GET https://openrouter.ai/api/v1/models before assuming an id still resolves.
 OPENROUTER_PAID_MODELS = [
-    "google/gemini-2.0-flash-001",
+    "google/gemini-2.5-flash",
     "openai/gpt-4o-mini",
-    "google/gemini-flash-1.5",
+    "google/gemini-2.5-flash-lite",
 ]
 
 # Dashboard selector: paid (reliable) first, then free (cost-free but rate-limited).
