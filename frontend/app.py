@@ -350,16 +350,22 @@ st.markdown(
 
       /* ── Indicator scorecard — the RDTII roll-up: ONE score per indicator (the unit the
             judges record per economy). A ledger of stamped tiles, grouped by pillar. ── */
-      .scorecard {{display:flex; flex-wrap:wrap; gap:.55rem; margin:.2rem 0 1.1rem;}}
-      .sc-tile {{display:flex; align-items:center; gap:.55rem; border:1px solid var(--rule);
-              border-left:3px solid var(--ink-soft); background:var(--panel); padding:.45rem .7rem;
-              border-radius:5px; min-width:118px;}}
-      .sc-tile .ind {{font-family:'IBM Plex Mono', monospace; font-weight:600; font-size:1.05rem;
-              color:var(--ink);}}
-      .sc-tile .meta {{font-size:.62rem; text-transform:uppercase; letter-spacing:.13em; color:var(--ink-faint);}}
-      .sc-tile .pie {{width:20px; height:20px; border-radius:50%; flex:none; border:1.5px solid var(--ink-soft);
+      .scorecard {{display:flex; flex-wrap:wrap; gap:.6rem; margin:.2rem 0 1.1rem;}}
+      .sc-tile {{display:flex; flex-direction:column; gap:.3rem; border:1px solid var(--rule);
+              border-left:3px solid var(--ink-soft); background:var(--panel); padding:.5rem .75rem .55rem;
+              border-radius:5px; min-width:96px;}}
+      /* Indicator id — a KICKER label (small, letter-spaced, muted) so it reads as a caption,
+         never confusable with the score. Score sits on its own row, large + bold + with the pie,
+         so "which is the id vs. the number" is resolved by position + weight, not just spacing. */
+      .sc-tile .ind {{font-family:'IBM Plex Mono', monospace; font-size:.66rem; font-weight:600;
+              letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint);}}
+      .sc-tile .scrow {{display:flex; align-items:baseline; gap:.4rem;}}
+      .sc-tile .pie {{width:15px; height:15px; border-radius:50%; flex:none; align-self:center;
+              border:1.5px solid var(--ink-soft);
               background:conic-gradient(var(--ink) var(--p,0%), transparent 0);}}
-      .sc-tile .scv {{font-family:'IBM Plex Mono', monospace; font-weight:600; color:var(--ink);}}
+      .sc-tile .scv {{font-family:'IBM Plex Mono', monospace; font-weight:700; font-size:1.35rem;
+              line-height:1; color:var(--ink);}}
+      .sc-tile .meta {{font-size:.62rem; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-faint);}}
     </style>
     """,
     unsafe_allow_html=True,
@@ -438,9 +444,10 @@ def scorecard_html(mappings) -> str:
         pct = int(float(sc) * 100)
         tiles.append(
             f'<div class="sc-tile" title="{info["n_measures"]} measure(s) — {info["basis"]}">'
-            f'<span class="pie" style="--p:{pct}%"></span>'
-            f'<span><span class="ind">{_num(ind)}</span> <span class="scv">{_score_num(sc)}</span>'
-            f'<br><span class="meta">{info["n_measures"]} measure{"s" if info["n_measures"] != 1 else ""}</span></span></div>'
+            f'<span class="ind">Indicator {_num(ind)}</span>'
+            f'<span class="scrow"><span class="pie" style="--p:{pct}%"></span>'
+            f'<span class="scv">{_score_num(sc)}</span></span>'
+            f'<span class="meta">{info["n_measures"]} measure{"s" if info["n_measures"] != 1 else ""}</span></div>'
         )
     return ('<div class="kicker" style="margin:.2rem 0 .5rem">Indicator scorecard '
             '&middot; RDTII roll-up (one score per indicator)</div>'
