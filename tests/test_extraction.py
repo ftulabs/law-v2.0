@@ -177,6 +177,27 @@ def test_recover_rejects_structural_part_heading_as_name():
     assert _recover_law_name(text) != "Part 1 AMENDMENTS TO ACTIVE MOBILITY ACT 2017"
 
 
+def test_recover_my_pdp_guideline_name_not_stranded_ref_number():
+    """MY PDP Department 'Guidelines' cover page: 'SUBJECT GUIDELINES NO.: N/YYYY' on one
+    line, the real TOPIC ('CROSS BORDER PERSONAL DATA TRANSFER') below it, separated by a
+    blank line (PDF paragraph spacing). Recovery must join both — never return just the
+    reference-number line, and never let a mangled search title strand the bare 'N/YYYY' at
+    the front with the topic (the bug this guards against: 'law_name' = '3/2025 CROSS BORDER
+    PERSONAL DATA TRANSFER')."""
+    from backend.pipeline.extraction import _recover_law_name
+    text = (
+        "PERSONAL DATA PROTECTION GUIDELINES NO.: 3/2025\n"
+        "\n"
+        "CROSS BORDER PERSONAL DATA TRANSFER\n"
+        "\n"
+        "Version 1.0\n"
+        "\n"
+        "Date of Issuance: 29 April 2025\n")
+    name = _recover_law_name(text)
+    assert name == "PERSONAL DATA PROTECTION Guidelines No. 3/2025 — CROSS BORDER PERSONAL DATA TRANSFER"
+    assert not name.startswith("3/2025")
+
+
 def test_short_stub_and_running_header_filtered():
     """Part heading stubs and page running-headers (short bodies / year labels) are dropped."""
     text = ("Part 1\nPreliminary\n"                           # stub: body "Preliminary" < 20 chars

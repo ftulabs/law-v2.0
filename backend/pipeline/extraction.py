@@ -283,9 +283,40 @@ def _heading_start(text: str, marker_start: int) -> int:
 # the real name when the discovery title is a generic portal label (MY's portal-wide
 # "Malaysia Federal Legislation" <title>, or a "[PDF] … - lom.agc.gov.my" search title).
 _LAW_TYPE_RE = re.compile(
-    r"\b(act|akta|ordinance|enactment|regulations?|rules|by[- ]?laws?|code|decree|order)\b",
+    r"\b(act|akta|ordinance|enactment|regulations?|rules|by[- ]?laws?|code|decree|order|"
+    r"guidelines?)\b",
     re.I)
 _YEAR_RE = re.compile(r"\b(?:19|20)\d{2}\b")
+
+# MY's PDP Department issues subsidiary "Guidelines" (not gazetted Acts/Regulations) whose
+# cover page states "<SUBJECT> GUIDELINES NO.: <N>/<YYYY>" on one line and the guideline's
+# actual TOPIC on the line(s) immediately below (e.g. "CROSS BORDER PERSONAL DATA TRANSFER").
+# Recover the topic as the operative name and keep the reference number attached in a sane
+# grammatical position — never stranded alone at the front, which is what a mangled search-
+# engine title otherwise does (e.g. a bare "3/2025 CROSS BORDER PERSONAL DATA TRANSFER").
+_GUIDELINE_HEADER_RE = re.compile(r"^(.+?)\s+GUIDELINES?\s+NO\.?:?\s*([A-Za-z0-9/.\-]+)\s*$", re.I)
+_GUIDELINE_META_RE = re.compile(r"^(?:version\b|date of issuance\b)", re.I)
+
+
+def _recover_guideline_name(lines: list[str]) -> str | None:
+    for i, l in enumerate(lines):
+        m = _GUIDELINE_HEADER_RE.match(l)
+        if not m:
+            continue
+        prefix, num = m.group(1).strip(), m.group(2).strip()
+        topic = []
+        for n in lines[i + 1:i + 6]:
+            if not n:                                    # PDF cover pages space the topic out
+                continue                                  # with a blank line — skip, don't stop
+            if _GUIDELINE_META_RE.match(n) or _CITATION_RE.match(n) or _BOILERPLATE_RE.match(n):
+                break
+            if _is_title_line(n):
+                topic.append(n)
+            else:
+                break
+        if topic:
+            return re.sub(r"\s+", " ", f"{prefix} Guidelines No. {num} — {' '.join(topic)}").strip()
+    return None
 
 # Gazette/statute headers list the instrument's title as the UPPERCASE block immediately
 # before an "ARRANGEMENT OF SECTIONS/REGULATIONS" table of contents. The parent Act and a
@@ -334,6 +365,12 @@ def _recover_law_name(text: str) -> str | None:
     Fallback (no such anchor): the best title-like line carrying a law-type word + year.
     Returns None when nothing convincing is found so the caller keeps the discovery title."""
     lines = [ln.strip() for ln in text[:8000].splitlines()[:80]]
+
+    # Subsidiary "Guidelines" cover page (MY PDP Department) — checked first: it has neither
+    # an "ARRANGEMENT OF" anchor nor an "Act NNNN" header, and its own pattern is unambiguous.
+    guideline = _recover_guideline_name(lines)
+    if guideline:
+        return guideline
 
     anchor = next((i for i, l in enumerate(lines) if _ANCHOR_RE.match(l)), None)
     if anchor is not None:
