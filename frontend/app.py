@@ -573,22 +573,31 @@ with st.sidebar:
         "</style>",
         unsafe_allow_html=True,
     )
-    st.markdown('<div class="kicker" style="margin:.1rem 0 .2rem">Run mode</div>', unsafe_allow_html=True)
+    # Live crawl is the default and the only mode judges score. The offline sample (bundled
+    # corpus, no network) is a reproducible fallback for demos when a portal is down — tucked
+    # into a collapsed expander so Live stays front-and-centre and the UI doesn't advertise a
+    # "baked corpus" toggle. A status line below always shows the active mode.
     _LIVE = "◆  Live crawl — the scored path"
     _SAMPLE = "◇  Offline sample — safe fallback"
-    run_mode = st.radio("Run mode", [_LIVE, _SAMPLE], index=0, label_visibility="collapsed",
-                        help="Live = autonomous crawl of the official portals (what judges grade). "
-                             "Sample = bundled corpus, offline, reproducible.")
+    with st.expander("Run mode · offline sample fallback", expanded=False):
+        st.markdown('<div class="kicker" style="margin:.1rem 0 .2rem">Run mode</div>', unsafe_allow_html=True)
+        run_mode = st.radio("Run mode", [_LIVE, _SAMPLE], index=0, label_visibility="collapsed",
+                            help="Live = autonomous crawl of the official portals (what judges grade). "
+                                 "Sample = bundled corpus, offline, reproducible — a fallback when a portal is down.")
     use_samples = run_mode == _SAMPLE
     st.markdown(
         '<div class="prov-note%s" style="margin-top:-.25rem;letter-spacing:.02em">%s</div>' % (
             ("" if use_samples else " ready"),
-            ("offline · bundled corpus · no network — reproducible setup check" if use_samples
+            ("offline · bundled corpus · no network — reproducible fallback" if use_samples
              else "live · crawls official portals · needs network — this is the scored path"),
         ),
         unsafe_allow_html=True,
     )
-    top_k = st.slider("Provisions retrieved / indicator", 1, 10, 5)
+    # Retrieval is non-gating under grade-all (≤ grade_all_max_provisions → every provision is
+    # graded against every indicator), so a "top_k / indicator" slider was inert for Round-1
+    # corpora. For large live crawls, mapping.py scales the shortlist from the corpus size; this
+    # value is only the floor. Fixed at the former default instead of exposing a dead control.
+    top_k = 5
 
     # ── engine selection (judges pick the stack here) ──
     st.markdown('<hr class="hr-thin">', unsafe_allow_html=True)

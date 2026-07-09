@@ -38,6 +38,7 @@ OPENROUTER_FREE_MODELS = [
 # OpenRouter's catalogue turns over fast (e.g. "gemini-2.0-flash-001" 404'd within weeks) —
 # verify via GET https://openrouter.ai/api/v1/models before assuming an id still resolves.
 OPENROUTER_PAID_MODELS = [
+    "deepseek/deepseek-v4-flash",
     "google/gemini-2.5-flash",
     "openai/gpt-4o-mini",
     "google/gemini-2.5-flash-lite",
