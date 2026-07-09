@@ -162,7 +162,7 @@ class EvidenceMapping(BaseModel):
     indicator_id: str
     law_name: str
     law_number: Optional[str] = None
-    last_amended: Optional[str] = None          # YEAR only, per template
+    last_amended: Optional[str] = None          # "Month Year" when verified, else "Year" (judges' QnA)
     article_section: str
     location_ref: Optional[str] = None
     verbatim_snippet: str

@@ -573,10 +573,7 @@ with st.sidebar:
         "</style>",
         unsafe_allow_html=True,
     )
-    # Live crawl is the default and the only mode judges score. The offline sample (bundled
-    # corpus, no network) is a reproducible fallback for demos when a portal is down — tucked
-    # into a collapsed expander so Live stays front-and-centre and the UI doesn't advertise a
-    # "baked corpus" toggle. A status line below always shows the active mode.
+    # Live is the scored default; the offline sample fallback lives in a collapsed expander.
     _LIVE = "◆  Live crawl — the scored path"
     _SAMPLE = "◇  Offline sample — safe fallback"
     with st.expander("Run mode · offline sample fallback", expanded=False):
@@ -593,10 +590,7 @@ with st.sidebar:
         ),
         unsafe_allow_html=True,
     )
-    # Retrieval is non-gating under grade-all (≤ grade_all_max_provisions → every provision is
-    # graded against every indicator), so a "top_k / indicator" slider was inert for Round-1
-    # corpora. For large live crawls, mapping.py scales the shortlist from the corpus size; this
-    # value is only the floor. Fixed at the former default instead of exposing a dead control.
+    # fixed: grade-all ignores top_k on small corpora; large crawls scale it from corpus size
     top_k = 5
 
     # ── engine selection (judges pick the stack here) ──

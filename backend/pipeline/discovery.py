@@ -567,8 +567,9 @@ def _search_au_api(client, src: dict, query: str, economy: Economy, indicators, 
         # to makingDate / the numeric `year` field (always present on this API).
         last_mod = (it.get("lastModified") or it.get("asMadeRegisteredAt")
                     or it.get("makingDate") or "")
+        # year-only fallback stays year-only — never fabricate a month
         amendment_date = last_mod[:10] if last_mod else (
-            f"{it.get('year')}-01-01" if it.get("year") else None)
+            str(it.get("year")) if it.get("year") else None)
 
         out.append(DiscoveredDoc(
             doc_id=_doc_id(economy.value, url), economy=economy, title=name[:200],

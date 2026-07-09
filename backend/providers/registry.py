@@ -21,13 +21,8 @@ LLM_LABELS = {"openrouter": "OpenRouter (paid · DeepSeek default)", "mock": "Mo
               "gemini": "Google Gemini", "anthropic": "Anthropic Claude", "openai": "OpenAI",
               "local": "Self-hosted (Ollama/OpenAI-compatible)"}
 
-# Cheap, reliable PAID models — the ONLY models in the default failover chain. DeepSeek V4
-# Flash is the default: fast, strong at JSON, ~$0.09/$0.18 per 1M tokens (~$0.07 for a full
-# P6+P7 economy run). The shared `:free` tier was removed from the default path — it 429s on
-# `free-models-per-day` even with a funded key and stalls large runs (a paid model that 429s
-# under burst now fails over to another PAID model, never to a rate-limited free endpoint).
-# OpenRouter's catalogue turns over fast (e.g. "gemini-2.0-flash-001" 404'd within weeks) —
-# verify via GET https://openrouter.ai/api/v1/models before assuming an id still resolves.
+# Paid failover pool (deepseek default ~$0.07/economy run; `:free` removed — 429s daily even
+# on funded keys). Catalogue churns — verify ids via GET /api/v1/models before adding.
 OPENROUTER_PAID_MODELS = [
     "deepseek/deepseek-v4-flash",
     "google/gemini-2.5-flash",
@@ -35,8 +30,6 @@ OPENROUTER_PAID_MODELS = [
     "google/gemini-2.5-flash-lite",
 ]
 
-# Dashboard selector = paid models only (free tier removed; see above). A user can still type a
-# `:free` model id via OPENROUTER_MODEL in .env, but it is no longer offered or used by default.
 OPENROUTER_MODELS = OPENROUTER_PAID_MODELS
 
 

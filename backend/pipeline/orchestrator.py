@@ -69,6 +69,39 @@ def _dedup_provisions_by_law(provisions, docs, log):
     return [p for p in provisions if p.doc_id in kept]
 
 
+def _no_evidence_placeholders(run_id, economy, indicators, mappings, log) -> list:
+    """Explicit 'No evidence' row per indicator with no submittable mapping."""
+    from ..schemas import DiscoveryTag, EvidenceMapping, ReviewStatus, SUBMITTABLE_STATUSES
+    from .websearch import OFFICIAL_PORTAL
+
+    covered = {m.indicator_id for m in mappings if m.review_status.value in SUBMITTABLE_STATUSES}
+    portal = OFFICIAL_PORTAL.get(economy.value, "")
+    out = []
+    for ind in indicators:
+        if ind.indicator_id in covered:
+            continue
+        out.append(EvidenceMapping(
+            mapping_id=f"map-noevidence-{ind.indicator_id.lower()}",
+            run_id=run_id, economy=economy, pillar=ind.pillar, indicator_id=ind.indicator_id,
+            law_name="No provision found", law_number=None, last_amended=None,
+            article_section="N/A", location_ref=None,
+            verbatim_snippet="No evidence",
+            mapping_rationale=(f"No active provision satisfying the legal test of {ind.indicator_id} "
+                               f"({ind.title}) was identified on the official portal."),
+            source_url=(f"https://{portal}/" if portal else ""),
+            confidence_score=0.0, discovery_tag=DiscoveryTag.NEW,
+            coverage=None,
+            notes=("No evidence — the pipeline searched the official portal for this indicator "
+                   "and found no active provision satisfying its legal test."),
+            review_status=ReviewStatus.AUTO_ACCEPTED,
+            provision_id=f"no-evidence-{ind.indicator_id.lower()}",
+        ))
+    if out:
+        log(f"[placeholder] {len(out)} indicator(s) without evidence -> explicit 'No evidence' rows: "
+            + ", ".join(m.indicator_id for m in out))
+    return out
+
+
 def _resolve_ocr(name, log):
     """Resolve the requested OCR provider, falling back to mock (with a clear log)
     if the library/keys are missing — a judge experimenting must never crash a run."""
@@ -113,6 +146,7 @@ def run_pipeline(
     db.start_run(run_id, economy.value, pillars, started, ocr.name, llm.name, llm.model_version)
 
     # discover across all requested pillars (union) — or use a single provided file
+    _t = time.perf_counter()
     seen, docs = set(), []
     if pdf_path:
         log(f"[discovery] single file (crawler bypassed): {pdf_path}")
@@ -125,8 +159,10 @@ def run_pipeline(
                     seen.add(d.doc_id)
                     docs.append(d)
     log(f"[discovery] {len(docs)} documents (NEW={sum(d.discovery_tag=='NEW' for d in docs)})")
+    log(f"[timing] discovery {time.perf_counter() - _t:.1f}s")
 
     # Zone 1b — fetch bodies for live-discovered docs (sample/file docs already have a path)
+    _t = time.perf_counter()
     if not use_samples and not pdf_path:
         from .fetch import fetch_to_cache
         from .discovery import _resolve_pdf_url
@@ -156,11 +192,13 @@ def run_pipeline(
         docs = kept
         log(f"[fetch] retrieved {fetched} bodies into cache"
             + (f" ({dropped} duplicate/failed dropped)" if dropped else ""))
+        log(f"[timing] fetch/crawl {time.perf_counter() - _t:.1f}s")
 
     for d in docs:
         db.save_doc(run_id, d)
 
     # extraction (+OCR) → provisions
+    _t = time.perf_counter()
     provisions, source_texts, doc_tags, ocr_reports = [], {}, {}, []
     for d in docs:
         raw, ocr_metrics = get_document_text(d, ocr_provider=ocr)
@@ -194,8 +232,10 @@ def run_pipeline(
     provisions = _dedup_provisions_by_law(provisions, docs, log)
     for p in provisions:
         db.save_provision(run_id, p)
+    log(f"[timing] extraction+OCR {time.perf_counter() - _t:.1f}s ({len(provisions)} provisions)")
 
     # mapping → evidence
+    _t = time.perf_counter()
     indicators = [i for pillar in pillars for i in get_indicators(pillar)]
     log(f"[map] {len(provisions)} provisions × {len(indicators)} indicators (LLM={llm.name})")
     mappings = mapping.map_provisions(
@@ -209,6 +249,7 @@ def run_pipeline(
         top_k=top_k,
         log=log,
     )
+    log(f"[timing] mapping total {time.perf_counter() - _t:.1f}s")
     # KNOWN/NEW tagging against the judges' sample kit (law-level). NEW = found on our
     # own (worth the most points); KNOWN = the law was a sample-kit example.
     from . import sample_kit
@@ -230,6 +271,9 @@ def run_pipeline(
     if do_score and mappings:
         log(f"[score] scoring {len(mappings)} measures (LLM={llm.name})")
         scoring.score_mappings(mappings, llm=llm, log=log)
+
+    # indicators with no evidence still need an explicit placeholder row (blank = penalty)
+    mappings.extend(_no_evidence_placeholders(run_id, economy, indicators, mappings, log))
 
     for m in mappings:
         db.save_mapping(m)

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..config import settings
 from .llm_base import LLMProvider
 
 BASE_URL = "https://openrouter.ai/api/v1"
@@ -49,6 +50,7 @@ class OpenRouterLLM(LLMProvider):
             try:
                 resp = self._client.chat.completions.create(
                     model=model, temperature=0,
+                    max_tokens=settings.openrouter_max_tokens,
                     messages=[{"role": "system", "content": sys_msg},
                               {"role": "user", "content": user}],
                 )
@@ -69,10 +71,7 @@ class OpenRouterLLM(LLMProvider):
         raise RuntimeError(f"All OpenRouter models failed (last: {last_err})")
 
     def _candidates(self) -> list[str]:
-        """Chosen model first, then the reliable PAID fall-over pool. The shared `:free` tier
-        was removed from the chain — it 429s on `free-models-per-day` (a per-account daily cap)
-        even with a funded key, which is what dead-ended large runs at 0 mappings. A paid model
-        that 429s under burst now fails over to ANOTHER paid model, never to a free endpoint."""
+        """Chosen model first, then the paid failover pool (no `:free` models)."""
         try:
             from .registry import OPENROUTER_PAID_MODELS as paid
         except Exception:

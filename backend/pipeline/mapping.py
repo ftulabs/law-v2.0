@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import math
 import re
+import time
 
 from ..config import settings
 from ..providers import get_llm_provider
@@ -221,7 +222,29 @@ def _build_notes(prov: Provision, scope_flag: str | None, topical_ok: bool = Tru
         else:
             parts.append(f"OCR-extracted via {prov.ocr.provider}"
                          + (f" (mean conf {mc:.2f})" if mc is not None else "") + "; verify wording vs source.")
+    # MY snippets come from the official English PDF; the Malay sibling is authoritative
+    url = prov.source_url or ""
+    if prov.economy.value == "MY" and url.lower().endswith("e.pdf"):
+        parts.append(f"Official English translation (bilingual source); authoritative Malay text: {url[:-5]}.pdf")
     return " ".join(parts) or None
+
+
+_MONTHS = ["January", "February", "March", "April", "May", "June", "July",
+           "August", "September", "October", "November", "December"]
+
+
+def _format_last_amended(amendment_date: str | None, law_name: str | None) -> str | None:
+    """'Month Year' when the month is verified, else 'Year'; never invents a month."""
+    d = (amendment_date or "").strip()
+    m = re.match(r"^((?:19|20)\d{2})-(\d{2})", d)
+    if m:
+        month = int(m.group(2))
+        if 1 <= month <= 12:
+            return f"{_MONTHS[month - 1]} {m.group(1)}"
+    if re.match(r"^(?:19|20)\d{2}", d):
+        return d[:4]
+    yr = re.search(r"\b(19|20)\d{2}\b", law_name or "")
+    return yr.group(0) if yr else None
 
 
 def _mapping_id(run_id: str, indicator_id: str, provision_id: str) -> str:
@@ -249,6 +272,7 @@ def map_provisions(
 
     # retrieval backend: LightRAG graph-RAG at scale, else built-in hybrid (citations
     # preserved either way — the grader below still judges the verbatim snippet).
+    _t_retr = time.perf_counter()
     ranked_by_ind = _select_retriever(indicators, provisions, top_k, llm, log)
 
     # Coverage policy. A small corpus (a sample run, a single Act) → grade EVERY provision
@@ -336,9 +360,7 @@ def map_provisions(
             scope_alignment=scope_alignment, scope_flag=scope_flag,
             apply_scope_cap=apply_scope_cap, topical_ok=topical_ok,
         )
-        # last_amended: year from discovery metadata → year from law name → None
-        _yr = re.search(r"\b(19|20)\d{2}\b", prov.law_name or "")
-        _last_amended = (prov.amendment_date or "")[:4] or (_yr.group(0) if _yr else None)
+        _last_amended = _format_last_amended(prov.amendment_date, prov.law_name)
         return EvidenceMapping(
             mapping_id=_mapping_id(run_id, ind.indicator_id, prov.provision_id),
             run_id=run_id, economy=prov.economy, pillar=ind.pillar, indicator_id=ind.indicator_id,
@@ -356,6 +378,8 @@ def map_provisions(
             retrieval_log=r.log, scope_flag=scope_flag,
         )
 
+    _retr_secs = time.perf_counter() - _t_retr   # retrieval + shortlist/work-list build
+    _t_grade = time.perf_counter()
     workers = max(1, min(settings.mapping_concurrency, len(work) or 1))
     if workers > 1 and work:
         from concurrent.futures import ThreadPoolExecutor
@@ -363,6 +387,11 @@ def map_provisions(
             results = list(ex.map(_grade, work))
     else:
         results = [_grade(it) for it in work]
+    _grade_secs = time.perf_counter() - _t_grade
+    log(f"[timing] mapping: retrieval/build {_retr_secs:.1f}s · LLM grading {_grade_secs:.1f}s "
+        f"({len(work)} calls, {workers}-way, {len(work)/_grade_secs:.2f} calls/s)"
+        if work and _grade_secs > 0 else
+        f"[timing] mapping: retrieval/build {_retr_secs:.1f}s · {len(work)} grading calls")
 
     first_reason = ""
     for res in results:

@@ -49,3 +49,28 @@ def export_csv(mappings: list[EvidenceMapping], run_id: str, out_dir: Path | Non
         for m in rows:
             writer.writerow(_row(m))
     return path
+
+
+# custom columns must come AFTER the mandatory 13
+MASTER_EXTRA_COLUMNS = ["Pillar", "RDTII Raw Score", "Coverage"]
+
+
+def export_master_csv(mappings: list[EvidenceMapping], out_dir: Path | None = None,
+                      out_stem: str = "VeriTrade_MASTER", submission_only: bool = True) -> Path:
+    """Single consolidated sheet across all economies/pillars, sorted so related rows sit together."""
+    out_dir = out_dir or settings.output_path
+    rows = [m for m in mappings if (not submission_only or m.review_status.value in SUBMITTABLE_STATUSES)]
+    rows.sort(key=lambda m: (m.economy.value, m.pillar, m.indicator_id, m.law_name or "~"))
+    path = Path(out_dir) / f"{out_stem}.csv"
+    with path.open("w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.DictWriter(f, fieldnames=SUBMISSION_COLUMNS + MASTER_EXTRA_COLUMNS,
+                                quoting=csv.QUOTE_ALL)
+        writer.writeheader()
+        for m in rows:
+            r = _row(m)
+            r["Pillar"] = str(m.pillar)
+            r["RDTII Raw Score"] = ("" if m.raw_score is None
+                                    else f"{m.raw_score:g}")
+            r["Coverage"] = m.coverage or ""
+            writer.writerow(r)
+    return path

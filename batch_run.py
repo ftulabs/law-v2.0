@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from backend.config import settings
-from backend.export import export_csv, export_json, export_scored_csv
+from backend.export import export_csv, export_json, export_master_csv, export_scored_csv
 from backend.pipeline.orchestrator import run_pipeline
 from main import parse_economy
 
@@ -27,6 +27,7 @@ def main() -> None:
 
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    all_mappings, all_metas = [], []
     for name in args.economies:
         economy = parse_economy(name)
         result = run_pipeline(economy, args.pillar, use_samples=not args.live,
@@ -37,7 +38,22 @@ def main() -> None:
         export_json(result, out_dir, out_stem=stem)
         if any(m.raw_score is not None for m in result.mappings):
             export_scored_csv(result.mappings, result.meta.run_id, out_dir, out_stem=stem)
+        all_mappings.extend(result.mappings)
+        all_metas.append(result.meta)
         print(f"[{economy.value}] {result.meta.mappings_produced} mappings -> {stem}.csv/.json\n")
+
+    # Final submission = ONE consolidated sheet across all economies + pillars.
+    if all_mappings:
+        import json
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        master = export_master_csv(all_mappings, out_dir, out_stem=f"VeriTrade_MASTER_{ts}")
+        master_json = out_dir / f"VeriTrade_MASTER_{ts}.json"
+        master_json.write_text(json.dumps({
+            "runs": [m.model_dump(mode="json") for m in all_metas],
+            "mappings": [m.model_dump(mode="json") for m in all_mappings],
+        }, indent=1, ensure_ascii=False), encoding="utf-8")
+        print(f"[master] {master}")
+        print(f"[master] {master_json}")
 
 
 if __name__ == "__main__":

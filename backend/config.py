@@ -27,10 +27,11 @@ class Settings(BaseSettings):
     # OpenRouter (paid models only). Key is read from env/.env/secrets — NEVER hardcode it
     # in committed code. Default is empty on purpose.
     openrouter_api_key: str = ""
-    # Default to a cheap, reliable PAID model. The `:free` tier was removed from the failover
-    # chain — it 429s on `free-models-per-day` even with a funded key and stalled large runs at
-    # 0 mappings; paid models now fail over only to other paid models. See registry.py.
+    # Paid default; `:free` tier removed from failover (429s daily even on funded keys).
     openrouter_model: str = "deepseek/deepseek-v4-flash"
+    # Cap completion tokens (replies are small JSON). Also keeps OpenRouter's per-request
+    # credit pre-authorisation small — unset, concurrent large prompts can 402.
+    openrouter_max_tokens: int = 1024
     # Google Gemini (OpenAI-compatible endpoint). Key from env/.env/secrets — never commit.
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.0-flash"
@@ -99,6 +100,13 @@ class Settings(BaseSettings):
     # retrieval (Zone 1 ranking)
     dense_retrieval: str = "auto"              # auto | on | off — 'auto' = dense if installed
     embed_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    # Persist provision embeddings to disk (text-hash + model key) — re-runs and the second
+    # pillar skip re-encoding (~250s saved); vectors are byte-identical so rankings don't change.
+    embed_cache_enabled: bool = True
+    # Opt-in speed knob: skip embedding provisions with no concept vocab AND no BM25 signal.
+    # ~75% embed saving, but full-pipeline A/B showed it changes a handful of final rows
+    # (shortlist cut-line shifts) — default OFF; enable for fast non-submission runs only.
+    dense_concept_gate: bool = False
     hybrid_alpha: float = 0.5                  # final = alpha*bm25 + (1-alpha)*dense
     cross_encoder: str = "auto"                # auto | on | off — cross-encoder rerank
     cross_encoder_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
@@ -128,11 +136,8 @@ class Settings(BaseSettings):
     # shortlist even when the cross-encoder demoted them — guards concept matches phrased in
     # unexpected words. Dense scores are mapped to [0,1]; ~0.55 is "clearly on-topic".
     dense_recall_floor: float = 0.55
-    # Map provisions to indicators concurrently (independent LLM calls). 16 is the practical
-    # optimum for the default paid stack: measured throughput on deepseek-v4-flash plateaus at
-    # ~12 concurrent (its upstream provider caps aggregate throughput), so 16 gives headroom
-    # without the mild regression seen at 24+. Raise via MAPPING_CONCURRENCY in .env if you
-    # switch the default to a higher-throughput provider (e.g. gemini via Google direct).
+    # Concurrent LLM grading calls. deepseek throughput plateaus ~12; 16 = headroom without
+    # the regression seen at 24+. Tune via MAPPING_CONCURRENCY.
     mapping_concurrency: int = 16
 
     # Zone-2 retriever: auto | hybrid | lightrag.

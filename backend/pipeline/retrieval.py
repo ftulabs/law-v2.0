@@ -11,6 +11,7 @@ added behind `retrieve()` without changing callers (see ARCHITECTURE.md).
 """
 from __future__ import annotations
 
+import hashlib
 import math
 import re
 from collections import Counter
@@ -77,7 +78,79 @@ def _build_bm25(corpus: list[list[str]]):
 # ── dense (semantic) stage — optional, lazy, cached ──────────────────────────
 _MODEL = None            # SentenceTransformer instance (loaded once per process)
 _MODEL_FAILED = False
-_EMB_CACHE: dict[str, "list[float]"] = {}   # provision_id → embedding (stable within a run)
+# keyed by hash of the exact embedded text — identical text ⇒ identical vector
+_EMB_CACHE: dict[str, "list[float]"] = {}   # in-memory
+_DISK_CACHE: dict | None = None             # on-disk tier, survives restarts
+
+# Concept gate: a provision whose text contains NONE of the pillars' concept vocabulary can
+# never rank into a shortlist — skip its (expensive) embedding; it keeps BM25 only.
+_CONCEPT_RE = re.compile(
+    r"personal (?:data|information)|data protection|privacy|cross[- ]border|transfer|"
+    r"overseas|outside +(?:of +)?(?:the +)?(?:country|territory|jurisdiction|singapore|australia|malaysia)|"
+    r"localis|localiz|stor(?:e[ds]?|age|ing)\b|server|data cent(?:re|er)|"
+    r"retain|retention|keep .{0,20}record|record[s]? .{0,30}(?:kept|keep|maintain)|not less than|"
+    r"consent|cyber|security|breach|disclos|intercept|warrant|surveillance|"
+    r"protection officer|impact assessment|computer|database|electronic (?:data|record)|"
+    r"access .{0,30}(?:data|information|record|computer)|law enforcement|investigation|"
+    r"produc(?:e|tion)[^.]{0,40}(?:book|record|document|information)|production order|inspection of books|"
+    r"furnish[^.]{0,40}(?:information|record|document|particular|return)|books of",
+    re.I)
+
+
+def _embed_text(p: Provision) -> str:
+    """The exact string fed to the embedding model for a provision (see _dense_scores)."""
+    return f"{p.article_section}: {p.verbatim_snippet[:_RETRIEVAL_SNIPPET_LEN]}"
+
+
+def _embed_key(text: str) -> str:
+    return hashlib.sha1(text.encode("utf-8")).hexdigest()
+
+
+def _disk_cache_path():
+    # model + snippet-len in the filename → changing either invalidates the cache
+    slug = re.sub(r"[^a-z0-9]+", "-", (settings.embed_model or "model").lower()).strip("-")
+    return settings.cache_path / f"_emb_{slug}_{_RETRIEVAL_SNIPPET_LEN}.npz"
+
+
+def _load_disk_cache() -> dict:
+    global _DISK_CACHE
+    if _DISK_CACHE is not None:
+        return _DISK_CACHE
+    _DISK_CACHE = {}
+    if not settings.embed_cache_enabled:
+        return _DISK_CACHE
+    p = _disk_cache_path()
+    if p.exists():
+        try:
+            import numpy as np
+            data = np.load(p, allow_pickle=False)
+            keys, vecs = data["keys"], data["vecs"]
+            _DISK_CACHE = {str(k): vecs[i] for i, k in enumerate(keys)}
+        except Exception:
+            _DISK_CACHE = {}            # unreadable/corrupt cache → re-embed, don't crash
+    return _DISK_CACHE
+
+
+def _save_disk_cache(new: dict) -> None:
+    """Merge newly-embedded vectors into the on-disk store (atomic replace)."""
+    if not new or not settings.embed_cache_enabled:
+        return
+    try:
+        import os
+
+        import numpy as np
+        cache = _load_disk_cache()
+        cache.update(new)
+        keys = list(cache.keys())
+        mat = np.asarray([cache[k] for k in keys], dtype="float32")
+        p = _disk_cache_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = p.with_name(p.name + ".tmp")
+        with open(tmp, "wb") as fh:      # file-object form: np.savez won't append ".npz"
+            np.savez(fh, keys=np.asarray(keys), vecs=mat)
+        os.replace(tmp, p)
+    except Exception:
+        pass                            # caching is best-effort; never fail a run over it
 
 
 def _dense_enabled() -> bool:
@@ -108,7 +181,14 @@ def _embed(texts: list[str]):
     return np.asarray(vecs, dtype="float32")
 
 
-def _dense_scores(dense_query: str, provisions: list[Provision]):
+def _mostly_ascii(text: str) -> bool:
+    if not text:
+        return True
+    non = sum(1 for ch in text[:1000] if ord(ch) > 127)
+    return non / min(len(text), 1000) < 0.15
+
+
+def _dense_scores(dense_query: str, provisions: list[Provision], must_embed: set | None = None):
     """Cosine similarity (0..1) of each provision to the query, or None if disabled.
 
     Provision text: article_section + first 2 k chars of snippet (no law_name — the law name
@@ -119,27 +199,47 @@ def _dense_scores(dense_query: str, provisions: list[Provision]):
     if not _dense_enabled():
         return None
     import numpy as np
-    to_embed, idx_map = [], []
-    cached = [None] * len(provisions)
-    for i, p in enumerate(provisions):
-        if p.provision_id in _EMB_CACHE:
-            cached[i] = _EMB_CACHE[p.provision_id]
+    disk = _load_disk_cache()
+    texts = [_embed_text(p) for p in provisions]
+    # gate: skip embedding only when a provision has no concept vocab AND no BM25 signal AND
+    # is English text (non-Latin scripts rely on the multilingual embedding — never gate them)
+    must_embed = must_embed or set()
+    active = [i for i, t in enumerate(texts)
+              if not settings.dense_concept_gate or i in must_embed
+              or _CONCEPT_RE.search(t) or not _mostly_ascii(t)]
+    to_embed, idx_map, keys = [], [], {}
+    cached: dict[int, "list[float]"] = {}
+    for i in active:
+        key = keys[i] = _embed_key(texts[i])
+        vec = _EMB_CACHE.get(key)
+        if vec is None and key in disk:         # promote disk → in-memory
+            vec = _EMB_CACHE[key] = disk[key]
+        if vec is not None:
+            cached[i] = vec
         else:
             idx_map.append(i)
-            to_embed.append(f"{p.article_section}: {p.verbatim_snippet[:_RETRIEVAL_SNIPPET_LEN]}")
+            to_embed.append(texts[i])
     if to_embed:
         embs = _embed(to_embed)
         if embs is None:
-            return None                 # model unavailable → signal BM25-only
+            return None                 # model unavailable → BM25-only
+        fresh = {}
         for j, i in enumerate(idx_map):
-            cached[i] = embs[j].tolist()
-            _EMB_CACHE[provisions[i].provision_id] = cached[i]
+            cached[i] = _EMB_CACHE[keys[i]] = embs[j].tolist()
+            fresh[keys[i]] = embs[j]
+        _save_disk_cache(fresh)
     qv = _embed([dense_query])
     if qv is None:
         return None
-    mat = np.asarray(cached, dtype="float32")
-    sims = (mat @ qv[0])                 # vectors are L2-normalised → dot == cosine
-    return [(float(s) + 1.0) / 2.0 for s in sims]   # map [-1,1] → [0,1]
+    # gated provisions get the neutral 0.5 an orthogonal embedding would score — approximates
+    # their true (uncomputed) similarity so rankings stay ~unchanged
+    scores = [0.5] * len(provisions)
+    if active:
+        mat = np.asarray([cached[i] for i in active], dtype="float32")
+        sims = mat @ qv[0]               # L2-normalised → dot == cosine
+        for i, s in zip(active, sims):
+            scores[i] = (float(s) + 1.0) / 2.0   # [-1,1] → [0,1]
+    return scores
 
 
 def _cross_scores(query_text: str, provisions: list[Provision], combined: list[float],
@@ -239,7 +339,9 @@ def retrieve(indicator_id: str, provisions: list[Provision], top_k: int = 5) -> 
     # full operative context so the model can distinguish e.g. "consent" (P6-I4) from
     # "retention" (P7-I3) at the semantic level.
     dense_query_text = f"{ind.description} {ind.legal_test}"
-    dense = _dense_scores(dense_query_text, provisions)   # None → BM25 only
+    # BM25-visible provisions must always be embedded (protects concept-vocab misses)
+    bm25_keep = set(sorted(range(len(provisions)), key=lambda i: bm[i], reverse=True)[:max(80, top_k * 3)])
+    dense = _dense_scores(dense_query_text, provisions, must_embed=bm25_keep)   # None → BM25 only
     alpha = settings.hybrid_alpha if dense is not None else 1.0
     combined = [alpha * bm_norm[i] + (1 - alpha) * (dense[i] if dense else 0.0)
                 for i in range(len(provisions))]
