@@ -17,24 +17,15 @@ LLM_PROVIDERS = ["openrouter", "mock", "gemini", "anthropic", "openai", "local"]
 OCR_LABELS = {"markitdown": "MarkItDown (default)", "mock": "Mock (offline)",
               "rapidocr": "RapidOCR (scanned, pip-only)",
               "tesseract": "Tesseract", "paddle": "PaddleOCR", "azure": "Azure Vision"}
-LLM_LABELS = {"openrouter": "OpenRouter (free models)", "mock": "Mock grader (offline)",
+LLM_LABELS = {"openrouter": "OpenRouter (paid · DeepSeek default)", "mock": "Mock grader (offline)",
               "gemini": "Google Gemini", "anthropic": "Anthropic Claude", "openai": "OpenAI",
               "local": "Self-hosted (Ollama/OpenAI-compatible)"}
 
-# Curated free models on OpenRouter (verified available; availability can change).
-# NOTE the `:free` suffix pins the FREE endpoint — shared, heavily rate-limited (429) for
-# everyone, even on a PAID key. On a large run these all throttle at once, so they are only
-# a cost-free option, not a reliable one. The provider auto-fails over to a PAID model below.
-OPENROUTER_FREE_MODELS = [
-    "meta-llama/llama-3.3-70b-instruct:free",
-    "qwen/qwen3-next-80b-a3b-instruct:free",
-    "openai/gpt-oss-120b:free",
-    "z-ai/glm-4.5-air:free",
-    "nvidia/nemotron-3-super-120b-a12b:free",
-]
-
-# Cheap, reliable PAID models — used first for a funded key and as the fall-over target when
-# the free tier is rate-limited. Gemini 2.5 Flash is the default: fast, strong at JSON, ~cents.
+# Cheap, reliable PAID models — the ONLY models in the default failover chain. DeepSeek V4
+# Flash is the default: fast, strong at JSON, ~$0.09/$0.18 per 1M tokens (~$0.07 for a full
+# P6+P7 economy run). The shared `:free` tier was removed from the default path — it 429s on
+# `free-models-per-day` even with a funded key and stalls large runs (a paid model that 429s
+# under burst now fails over to another PAID model, never to a rate-limited free endpoint).
 # OpenRouter's catalogue turns over fast (e.g. "gemini-2.0-flash-001" 404'd within weeks) —
 # verify via GET https://openrouter.ai/api/v1/models before assuming an id still resolves.
 OPENROUTER_PAID_MODELS = [
@@ -44,8 +35,9 @@ OPENROUTER_PAID_MODELS = [
     "google/gemini-2.5-flash-lite",
 ]
 
-# Dashboard selector: paid (reliable) first, then free (cost-free but rate-limited).
-OPENROUTER_MODELS = OPENROUTER_PAID_MODELS + OPENROUTER_FREE_MODELS
+# Dashboard selector = paid models only (free tier removed; see above). A user can still type a
+# `:free` model id via OPENROUTER_MODEL in .env, but it is no longer offered or used by default.
+OPENROUTER_MODELS = OPENROUTER_PAID_MODELS
 
 
 @dataclass
@@ -113,7 +105,7 @@ def llm_availability(name: str, api_key: str | None = None) -> Availability:
             return Availability(False, "pip install openai")
         if not (api_key or settings.openrouter_api_key):
             return Availability(False, "needs OPENROUTER_API_KEY (env/secrets)")
-        return Availability(True, "ready (free models)")
+        return Availability(True, "ready (paid models)")
     if name == "gemini":
         if not _have("openai"):
             return Availability(False, "pip install openai")

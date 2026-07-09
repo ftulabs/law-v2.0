@@ -624,8 +624,8 @@ with st.sidebar:
         _models = reg.OPENROUTER_MODELS
         _idx = _models.index(settings.openrouter_model) if settings.openrouter_model in _models else 0
         llm_model = st.selectbox("Model", _models, index=_idx,
-                                 help="Paid models (top) are reliable; ':free' models are cost-free but "
-                                      "shared-rate-limited — a limited free model auto-fails over to a paid one.")
+                                 help="Paid models only — DeepSeek V4 Flash (default) is fast and ~$0.07 for a "
+                                      "full economy run. A model that 429s under burst fails over to the next paid one.")
         if not llm_key:
             llm_key = st.text_input("OpenRouter API key", type="password",
                                     placeholder="set OPENROUTER_API_KEY in Secrets, or paste here") or None

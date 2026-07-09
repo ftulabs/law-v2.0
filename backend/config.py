@@ -24,12 +24,12 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-opus-4-8"
     openai_api_key: str = ""
     openai_model: str = "gpt-4o"
-    # OpenRouter (free models). Key is read from env/.env/secrets — NEVER hardcode it
+    # OpenRouter (paid models only). Key is read from env/.env/secrets — NEVER hardcode it
     # in committed code. Default is empty on purpose.
     openrouter_api_key: str = ""
-    # Default to a cheap, reliable PAID model so a funded key works out of the box (the `:free`
-    # models throttle at scale). Pick a `:free` model in the dashboard for a cost-free run — it
-    # auto-fails over to a paid model when rate-limited. See registry.OPENROUTER_MODELS.
+    # Default to a cheap, reliable PAID model. The `:free` tier was removed from the failover
+    # chain — it 429s on `free-models-per-day` even with a funded key and stalled large runs at
+    # 0 mappings; paid models now fail over only to other paid models. See registry.py.
     openrouter_model: str = "deepseek/deepseek-v4-flash"
     # Google Gemini (OpenAI-compatible endpoint). Key from env/.env/secrets — never commit.
     gemini_api_key: str = ""
@@ -128,9 +128,12 @@ class Settings(BaseSettings):
     # shortlist even when the cross-encoder demoted them — guards concept matches phrased in
     # unexpected words. Dense scores are mapped to [0,1]; ~0.55 is "clearly on-topic".
     dense_recall_floor: float = 0.55
-    # Map provisions to indicators concurrently (independent LLM calls). Bounded so free-tier
-    # keys aren't hammered into rate limits; the provider's auto-failover absorbs the rest.
-    mapping_concurrency: int = 6
+    # Map provisions to indicators concurrently (independent LLM calls). 16 is the practical
+    # optimum for the default paid stack: measured throughput on deepseek-v4-flash plateaus at
+    # ~12 concurrent (its upstream provider caps aggregate throughput), so 16 gives headroom
+    # without the mild regression seen at 24+. Raise via MAPPING_CONCURRENCY in .env if you
+    # switch the default to a higher-throughput provider (e.g. gemini via Google direct).
+    mapping_concurrency: int = 16
 
     # Zone-2 retriever: auto | hybrid | lightrag.
     #   hybrid   = built-in BM25+dense+cross-encoder (fast, always available, no LLM)

@@ -104,8 +104,8 @@ cp .env.example .env
 ```
 ```env
 LLM_PROVIDER=openrouter          # or: anthropic, openai, mock
-OPENROUTER_API_KEY=sk-or-...     # get a free key at https://openrouter.ai/keys
-OPENROUTER_MODEL=meta-llama/llama-3.3-70b-instruct:free
+OPENROUTER_API_KEY=sk-or-...     # a funded key — https://openrouter.ai/keys (add credits)
+OPENROUTER_MODEL=deepseek/deepseek-v4-flash   # paid default (~$0.07 / full economy run)
 OCR_PROVIDER=markitdown          # or: tesseract, paddle, azure, mock
 ```
 > 🔐 **Never commit real keys.** `.env` is gitignored. For a deployed web app, put
@@ -220,15 +220,20 @@ Output: CSV (official template) + JSON (full trace) + SQLite audit store
 No vendor lock-in: change one config value. The LLM interface is abstracted in
 `backend/providers/llm_base.py` (`LLMProvider.complete_json`).
 
-### OpenRouter — free models (default)
+### OpenRouter — paid models (default)
 ```env
 LLM_PROVIDER=openrouter
-OPENROUTER_MODEL=meta-llama/llama-3.3-70b-instruct:free
-OPENROUTER_API_KEY=sk-or-...
+OPENROUTER_MODEL=deepseek/deepseek-v4-flash
+OPENROUTER_API_KEY=sk-or-...     # a funded key (add credits at openrouter.ai)
 ```
-Curated free models (auto-fails over if one is rate-limited):
-`meta-llama/llama-3.3-70b-instruct:free`, `qwen/qwen3-next-80b-a3b-instruct:free`,
-`openai/gpt-oss-120b:free`, `z-ai/glm-4.5-air:free`, `nvidia/nemotron-3-super-120b-a12b:free`.
+Paid fall-over pool (a model that 429s under burst fails over to the next one):
+`deepseek/deepseek-v4-flash` (default), `google/gemini-2.5-flash`, `openai/gpt-4o-mini`,
+`google/gemini-2.5-flash-lite`.
+
+> **Why no `:free` models?** The shared `:free` tier 429s on `free-models-per-day` (a
+> per-account daily cap) **even with a funded key**, which stalled large runs at 0 mappings.
+> It was removed from the default failover chain — the pipeline now uses paid models only.
+> DeepSeek V4 Flash is cheap enough (~$0.07 for a full P6+P7 economy) that this is a non-issue.
 
 ### Anthropic Claude
 ```env
@@ -340,8 +345,8 @@ sentence-transformers model; the indexing LLM is the pipeline's own provider (no
 
 > ⚠️ LightRAG's knowledge-graph build makes many entity-extraction LLM calls, so it needs
 > an LLM with real budget (a funded OpenRouter/OpenAI key, or a **local Ollama** model via
-> `LLM_PROVIDER=local`). On a spend-capped free key the KG build is starved — the pipeline
-> detects the empty graph and **falls back to the hybrid retriever automatically**, so a run
+> `LLM_PROVIDER=local`). If the key's daily spend cap is exhausted the KG build is starved — the
+> pipeline detects the empty graph and **falls back to the hybrid retriever automatically**, so a run
 > never breaks. Install with `pip install lightrag-hku nest_asyncio`.
 
 ---
@@ -425,19 +430,25 @@ python tools/cost_logger.py --pdf data/samples/AU/privacy_act.pdf --economy Aust
 ```
 Writes `logs/cost_report.json` (wall-clock, provider, token/cost where available).
 
-### Measured results (default offline stack)
+### Measured results
 
-| Component | Engine used | Measured cost |
+Two stacks — the offline **mock** grader (no key, $0) and the default **paid** grader
+(OpenRouter → DeepSeek V4 Flash). The mock is for reproducible offline demos; scored
+submissions use the paid LLM.
+
+| Component | Offline (mock) | Paid default (deepseek-v4-flash) |
 | :---- | :---- | :---- |
-| OCR / extraction | MarkItDown | $0.000 |
-| LLM mapping | OpenRouter **free** model / mock | $0.000 |
-| Retrieval | BM25 (local) | $0.000 |
-| **Total (default stack)** | | **$0.00 per document** |
+| OCR / extraction (MarkItDown) | $0.000 | $0.000 |
+| Retrieval (BM25 + local embeddings) | $0.000 | $0.000 |
+| LLM mapping | $0.000 (mock) | ~$0.0002 / grading call |
+| **Per document** (~64 grading calls) | **$0.00** | **~$0.012** |
+| **Per economy, P6+P7** (~360 calls) | **$0.00** | **~$0.07** |
 
-**Measured on:** 2026-06-04 · **Benchmark:** Privacy Act 1988 (Australia) sample PDF ·
-**Wall-clock:** ~1.3 s/document (mock LLM). OpenRouter free models add network latency
-but **$0** marginal cost. For paid LLMs (Claude/GPT-4o), re-run the logger to record
-token costs.
+**Pricing:** deepseek-v4-flash = $0.09 / 1M prompt · $0.18 / 1M completion tokens (OpenRouter,
+verified 2026-07-09). `:free` models were removed from the default path (see *OpenRouter* above),
+so runs now carry a small — but non-zero — token cost. **Wall-clock:** ~1.3 s/document (mock);
+a live paid run grades ~1.5 calls/s (16-way concurrency, provider-throughput bound). Re-measure
+with `tools/cost_logger.py` for other models (Claude/GPT-4o).
 
 ---
 
@@ -511,7 +522,7 @@ the key in the platform's **Secrets** (never in code):
 ```toml
 # Secrets (Streamlit Cloud → App → Settings → Secrets)
 OPENROUTER_API_KEY = "sk-or-..."
-OPENROUTER_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
+OPENROUTER_MODEL = "deepseek/deepseek-v4-flash"
 ```
 The dashboard reads `st.secrets` first, then env/`.env`. Locally, copy
 `.streamlit/secrets.toml.example` → `.streamlit/secrets.toml` (gitignored).

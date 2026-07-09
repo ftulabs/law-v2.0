@@ -22,7 +22,7 @@ def _is_auth_error(e: Exception) -> bool:
 class OpenRouterLLM(LLMProvider):
     name = "openrouter"
 
-    def __init__(self, api_key: str, model: str = "meta-llama/llama-3.3-70b-instruct:free"):
+    def __init__(self, api_key: str, model: str = "deepseek/deepseek-v4-flash"):
         from openai import OpenAI
 
         if not api_key:
@@ -41,8 +41,8 @@ class OpenRouterLLM(LLMProvider):
         self.model_version = model
 
     def complete_json(self, system: str, user: str) -> dict[str, Any]:
-        # Not all free models honour response_format=json_object, so we instruct
-        # strongly and rely on the robust parser in LLMProvider._parse_json.
+        # Not every model honours response_format=json_object, so we instruct strongly
+        # and rely on the robust parser in LLMProvider._parse_json.
         sys_msg = system + "\nReturn ONLY a valid JSON object, no prose, no code fences."
         last_err: Exception | None = None
         for model in self._candidates():
@@ -54,7 +54,7 @@ class OpenRouterLLM(LLMProvider):
                 )
                 self.model_version = model  # record the model that actually answered
                 return self._parse_json(resp.choices[0].message.content or "{}")
-            except Exception as e:  # noqa: BLE001 — free models are often rate-limited; fall over
+            except Exception as e:  # noqa: BLE001 — a paid model can transiently 429 under burst; fall over
                 last_err = e
                 # An AUTH failure (401/403) is the same for every model — the key itself is
                 # invalid/revoked/out-of-credit. Don't churn the whole pool per call; fail fast
@@ -69,15 +69,16 @@ class OpenRouterLLM(LLMProvider):
         raise RuntimeError(f"All OpenRouter models failed (last: {last_err})")
 
     def _candidates(self) -> list[str]:
-        """Chosen model first, then reliable PAID models, then the free pool. A `:free` model
-        that 429s therefore fails over to a PAID model (leveraging a funded key) instead of
-        dead-ending on the shared free tier — the cause of near-empty large runs."""
+        """Chosen model first, then the reliable PAID fall-over pool. The shared `:free` tier
+        was removed from the chain — it 429s on `free-models-per-day` (a per-account daily cap)
+        even with a funded key, which is what dead-ended large runs at 0 mappings. A paid model
+        that 429s under burst now fails over to ANOTHER paid model, never to a free endpoint."""
         try:
-            from .registry import OPENROUTER_FREE_MODELS as free, OPENROUTER_PAID_MODELS as paid
+            from .registry import OPENROUTER_PAID_MODELS as paid
         except Exception:
-            free, paid = [], []
+            paid = []
         ordered, seen = [], set()
-        for m in [self._chosen, *paid, *free]:
+        for m in [self._chosen, *paid]:
             if m and m not in seen:
                 seen.add(m)
                 ordered.append(m)
