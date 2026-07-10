@@ -581,6 +581,9 @@ with st.sidebar:
         run_mode = st.radio("Run mode", [_LIVE, _SAMPLE], index=0, label_visibility="collapsed",
                             help="Live = autonomous crawl of the official portals (what judges grade). "
                                  "Sample = bundled corpus, offline, reproducible — a fallback when a portal is down.")
+        fresh_run = st.checkbox("Fresh run — ignore cached result, re-crawl live", value=False,
+                                help="Identical inputs normally return the cached result instantly; "
+                                     "tick to force a full live run.")
     use_samples = run_mode == _SAMPLE
     st.markdown(
         '<div class="prov-note%s" style="margin-top:-.25rem;letter-spacing:.02em">%s</div>' % (
@@ -668,7 +671,7 @@ if run_clicked and pillars:
         result = run_pipeline(Economy(economy), pillars, use_samples=use_samples, top_k=top_k, log=log,
                               ocr_provider=ocr_choice, llm_provider=llm_choice,
                               llm_model=llm_model or None, llm_api_key=llm_key or None,
-                              scoring_enabled=scoring_on)
+                              scoring_enabled=scoring_on, use_result_cache=not fresh_run)
         export_csv(result.mappings, result.meta.run_id)
         export_json(result)
         if any(m.raw_score is not None for m in result.mappings):

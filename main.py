@@ -46,6 +46,7 @@ def main() -> None:
                    help="opt into Zone-3 RDTII raw scoring (off by default; adds 1 LLM call/mapping)")
     p.add_argument("--no-score", dest="score", action="store_false",
                    help="force Zone-3 scoring off")
+    p.add_argument("--fresh", action="store_true", help="ignore the result cache and run live")
     args = p.parse_args()
 
     economy = parse_economy(args.economy)
@@ -58,6 +59,7 @@ def main() -> None:
         economy, pillars, use_samples=not args.live, top_k=args.top_k,
         ocr_provider=args.ocr, llm_provider=args.llm, llm_model=args.llm_model,
         pdf_path=args.pdf, log=print, scoring_enabled=args.score,
+        use_result_cache=not args.fresh,
     )
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")

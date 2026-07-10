@@ -23,6 +23,7 @@ def main() -> None:
     p.add_argument("--live", action="store_true")
     p.add_argument("--ocr", default=None)
     p.add_argument("--llm", default=None)
+    p.add_argument("--fresh", action="store_true", help="ignore the result cache")
     args = p.parse_args()
 
     out_dir = Path(args.output_dir)
@@ -31,7 +32,8 @@ def main() -> None:
     for name in args.economies:
         economy = parse_economy(name)
         result = run_pipeline(economy, args.pillar, use_samples=not args.live,
-                              ocr_provider=args.ocr, llm_provider=args.llm, log=print)
+                              ocr_provider=args.ocr, llm_provider=args.llm, log=print,
+                              use_result_cache=not args.fresh)
         ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         stem = f"{economy.value}_P{''.join(map(str, args.pillar))}_{ts}"
         export_csv(result.mappings, result.meta.run_id, out_dir, out_stem=stem)

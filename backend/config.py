@@ -72,6 +72,10 @@ class Settings(BaseSettings):
     # revalidate). Scrapling has no conditional GET, so without a TTL every run re-downloads
     # every PDF in full — ~10 min of fetch on the slow MY portal.
     fetch_ttl_hours: float = 24.0
+    # Full-result cache: a repeat run with identical inputs returns the stored result instantly.
+    # Kept until the cache is cleared (result_cache_ttl_hours=0) or past the TTL if set >0.
+    result_cache_enabled: bool = True
+    result_cache_ttl_hours: float = 0.0
     crawl_timeout_seconds: float = 30.0
     # Zone-1 fetch engine: scrapling (default) | httpx | auto.
     #   scrapling = Scrapling primary (real-browser TLS impersonation — the more reliable

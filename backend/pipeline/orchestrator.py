@@ -120,6 +120,16 @@ def _resolve_llm(name, model, api_key, log):
         return get_llm_provider("mock")
 
 
+def _result_cache_file(economy, pillars, use_samples, ocr, llm, top_k, do_score, pdf_path):
+    import hashlib
+    key = (f"{economy.value}|{sorted(pillars)}|{use_samples}|{ocr.name}|{llm.name}|"
+           f"{llm.model_version}|{top_k}|{do_score}|{pdf_path or ''}")
+    h = hashlib.sha1(key.encode()).hexdigest()[:16]
+    d = settings.cache_path / "_results"
+    d.mkdir(parents=True, exist_ok=True)
+    return d / f"{economy.value}_P{''.join(map(str, sorted(pillars)))}_{h}.json"
+
+
 def run_pipeline(
     economy: Economy,
     pillars: list[int],
@@ -132,6 +142,7 @@ def run_pipeline(
     llm_api_key: str | None = None,
     pdf_path: str | None = None,
     scoring_enabled: bool | None = None,
+    use_result_cache: bool = True,
 ) -> RunResult:
     run_id = "run-" + uuid.uuid4().hex[:8]
     t0 = time.perf_counter()
@@ -141,6 +152,20 @@ def run_pipeline(
     ocr = _resolve_ocr(ocr_provider, log)
     llm = _resolve_llm(llm_provider, llm_model, llm_api_key, log)
     log(f"[providers] OCR={ocr.name} LLM={llm.name} ({llm.model_version})")
+
+    # full-result cache: identical inputs → return the stored result, no live run
+    do_score = settings.scoring_enabled if scoring_enabled is None else scoring_enabled
+    cache_f = _result_cache_file(economy, pillars, use_samples, ocr, llm, top_k, do_score, pdf_path)
+    if use_result_cache and settings.result_cache_enabled and cache_f.exists():
+        ttl = settings.result_cache_ttl_hours
+        if ttl <= 0 or (time.time() - cache_f.stat().st_mtime) < ttl * 3600:
+            try:
+                result = RunResult.model_validate_json(cache_f.read_text(encoding="utf-8"))
+                log(f"[cache] result cache hit ({cache_f.name}, run {result.meta.run_id}) — "
+                    f"delete the file or use a fresh run to re-crawl live")
+                return result
+            except Exception as e:  # noqa: BLE001 — unreadable cache → run live
+                log(f"[cache] result cache unreadable ({type(e).__name__}); running live")
 
     db.init_db()
     db.start_run(run_id, economy.value, pillars, started, ocr.name, llm.name, llm.model_version)
@@ -267,7 +292,6 @@ def run_pipeline(
     # Off by default (settings.scoring_enabled) so the mandatory discover→extract→map flow stays
     # lean (fewer LLM calls on a rate-limited key); the caller (CLI flag / dashboard toggle) can
     # turn it on per run. Scoring runs AFTER mapping and never alters the mapping results.
-    do_score = settings.scoring_enabled if scoring_enabled is None else scoring_enabled
     if do_score and mappings:
         log(f"[score] scoring {len(mappings)} measures (LLM={llm.name})")
         scoring.score_mappings(mappings, llm=llm, log=log)
@@ -300,4 +324,10 @@ def run_pipeline(
         ocr_reports=ocr_reports,
     )
     db.finish_run(meta)
-    return RunResult(meta=meta, mappings=mappings)
+    result = RunResult(meta=meta, mappings=mappings)
+    if settings.result_cache_enabled:
+        try:
+            cache_f.write_text(result.model_dump_json(), encoding="utf-8")
+        except Exception:  # noqa: BLE001 — caching is best-effort
+            pass
+    return result
