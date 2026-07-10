@@ -207,7 +207,7 @@ def run_pipeline(
             # extracted and graded N times (the cause of the 1000+ provision blow-ups).
             prior = by_content.get(fr.sha256)
             if prior is not None:
-                log(f"[fetch] skip duplicate body (same SHA as '{prior.title[:48]}'): {d.title[:48]}")
+                log(f"[fetch] skip duplicate body (same SHA as '{prior.title[:70]}'): {d.title[:70]}")
                 continue
             by_content[fr.sha256] = d
             d.local_path, d.fmt = fr.local_path, fr.fmt
@@ -232,13 +232,13 @@ def run_pipeline(
         provs = extraction.extract_provisions(d, raw, ocr_metrics)
         provisions.extend(provs)
         if ocr_metrics.notes == "js_app_shell":
-            log(f"[extract] {d.title[:48]} -> JS-rendered page, no static law text "
+            log(f"[extract] {d.title[:70]} -> JS-rendered page, no static law text "
                 f"(set CRAWL_BROWSER=true + run `scrapling install` to render it)")
             continue
         if ocr_metrics.used:
             cer_str = (f" CER={ocr_metrics.cer*100:.2f}% {'PASS<5%' if ocr_metrics.cer < 0.05 else 'OVER-5%'}"
                        if ocr_metrics.cer is not None else "")
-            log(f"[ocr] {d.title[:48]} via {ocr_metrics.provider} conf={ocr_metrics.mean_confidence} pages={ocr_metrics.pages}{cer_str}")
+            log(f"[ocr] {d.title[:70]} via {ocr_metrics.provider} conf={ocr_metrics.mean_confidence} pages={ocr_metrics.pages}{cer_str}")
             ocr_reports.append(OCRReport(
                 doc_id=d.doc_id, title=d.title, source_url=d.source_url, fmt=d.fmt.value,
                 ocr_used=True, provider=ocr_metrics.provider, pages=ocr_metrics.pages,
@@ -248,7 +248,7 @@ def run_pipeline(
         # Show the resolved law name (recovered from content when the discovery title was a
         # heading/UUID), so the log reflects what actually lands in the output CSV.
         shown = provs[0].law_name if provs else d.title
-        log(f"[extract] {shown[:48]} -> {len(provs)} provisions")
+        log(f"[extract] {shown[:70]} -> {len(provs)} provisions")
 
     # Same-law dedup by resolved name. A portal serves one law under several URLs whose
     # bytes differ (an as-enacted gazette snapshot vs the current consolidated edition both

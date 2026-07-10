@@ -733,7 +733,7 @@ def _search_my_catalogue(client, src: dict, query: str, economy: Economy, indica
                 doc_id=_doc_id(economy.value, pdf), economy=economy, title=name[:200],
                 source_url=pdf, portal=src.get("name", "Laws of Malaysia"), fmt=DocFormat.PDF_TEXT,
                 law_number=(act_no or None), relevance_score=1.0, discovery_tag=DiscoveryTag.NEW,
-                amendment_date=(f"{yr}-01-01" if yr else None)))
+                amendment_date=(str(yr) if yr else None)))   # year-only — never fabricate a month
     return out
 
 

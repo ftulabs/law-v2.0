@@ -79,12 +79,14 @@ INDICATOR_SEARCH_TERMS: dict[str, dict[str, list[str]]] = {
 
     # ── P6-I2 — LOCAL STORAGE: data / business records kept within national territory ──
     "P6-I2": {
+        # NB: no "revenue act" / "goods and services tax" — on AU's name-only API those match
+        # whole families of irrelevant rate/appropriation acts (GST Imposition, Surplus Revenue…)
         "name": [
             "companies act", "corporations act",     # corporate accounting records (SG §199 / AU)
-            "income tax act", "revenue act",          # tax records kept domestically
-            "sales tax act", "service tax act", "goods and services tax",  # indirect-tax record-keeping
+            "income tax act",                         # tax records kept domestically (MY Act 53)
+            "sales tax act", "service tax act", "services tax act",  # MY Act 806/807 record-keeping
             "employment act", "labour act",           # employment / wage records
-            "health records act",                     # health-data storage mandates
+            "health records act",                     # health-data storage mandates (AU 6.2)
         ],
         "desc": [
             "personal data stored within country",
@@ -181,8 +183,8 @@ INDICATOR_SEARCH_TERMS: dict[str, dict[str, list[str]]] = {
     "P7-I3": {
         "name": [
             "companies act", "corporations act",     # accounting-record minimum period
-            "income tax act", "revenue act",         # tax-record minimum
-            "sales tax act", "service tax act", "goods and services tax",  # indirect-tax records
+            "income tax act",                        # tax-record minimum (MY Act 53)
+            "sales tax act", "service tax act", "services tax act",  # MY Act 806/807
             "employment act", "labour act",          # employee-record minimum
             "telecommunications act",                # call/billing record retention
             "interception and access",               # telecom data-retention regime (AU 1979 Act)
