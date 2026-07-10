@@ -199,26 +199,28 @@ Register new providers in `backend/providers/llm_factory.py`.
 
 ## 5. FRONTEND DESIGN REQUIREMENTS
 
-**Requirement:** All UI/CSS/frontend work **must use the `frontend-design` skill**.
+**Requirement:** All UI/CSS/frontend work must use a design skill (`frontend-design`, or the taste-skill principles the current design follows).
 
-### Design Direction: "Legal Dossier"
-The dashboard should evoke a refined editorial aesthetic—like reviewing an evidence file or legal brief:
-- **Background:** Parchment (#f4f1ea light / #0a1024 dark) with faint grain texture
-- **Typography:**
-  - **Display/masthead:** Fraunces (serif, distinctive)
-  - **Body text:** Newsreader (serif, readable)
-  - **Code/citations:** IBM Plex Mono (monospace)
-- **Color system ("verdict" palette):**
-  - **Forest (#3ddc84 dark / #2f5d3a light):** auto-accept (confidence ≥0.85)
-  - **Ochre (#f3b34a dark / #a9742a light):** review (0.60–0.85)
-  - **Oxblood (#ff6b6b dark / #7c2d2d light):** quarantine (<0.60)
+### Design Direction: "Clear Research Tool" (2026-07 redesign)
+**Audience-first.** The users are **policy researchers (non-technical)**, who found the earlier "Legal Dossier" aesthetic hard to use. The dashboard now prioritises **clarity and ease of use over editorial style** — taste-skill's public-sector / trust-first preset (low visual variance, minimal motion, plain language, progressive disclosure).
+- **Background:** clean white (#ffffff light) / deep slate (#0b1120 dark). No parchment, no grain.
+- **Typography:** **Inter** (sans-serif) for everything; **IBM Plex Mono** for citations, IDs, URLs, numbers only. No serif (Fraunces/Newsreader were removed).
+- **Accent:** single trustworthy blue (#2563eb light / #4f9cff dark).
+- **Confidence traffic-light** (semantic, kept as a documented exception to one-accent):
+  - **Green (#15803d / #34d399):** high confidence — auto-accepted (≥0.85)
+  - **Amber (#b45309 / #fbbf24):** needs a check (0.60–0.85)
+  - **Red (#dc2626 / #f87171):** low confidence — set aside (<0.60)
+- **RDTII restrictiveness score:** neutral **grey** chip (a different axis from confidence — never the traffic-light colours).
 
-**Avoid:**
-- Generic AI aesthetics (Inter, Roboto, purple-gradients-on-white)
-- Spectacle; data is the drama
-- Light sans-serif for long-form legal text
+**Usability rules (why the redesign exists):**
+- **Plain language, no metaphor jargon.** "Run analysis" not "Commission a run"; "Needs review" not "Verdict queue"; "Text-extraction quality" not "OCR forensics"; "Results/Details/Download" tabs, "Country/Topic" controls. A first-time researcher should never have to decode a metaphor.
+- **Progressive disclosure.** The sidebar is a 3-step flow — Country → Topic → Run — on smart defaults. **All** engine/LLM/OCR/model/key/scoring controls live inside a collapsed **"Advanced settings"** expander.
+- **Guided empty state** (3-step welcome) + a **plain-language confidence legend** (what green/amber/red mean) on every result page.
+- Minimal motion; one corner-radius scale; WCAG-AA contrast in both themes.
 
-**Current state:** `frontend/app.py` has the design system defined; colors and fonts are set. When adding new UI elements, preserve this aesthetic.
+**Avoid:** metaphor/editorial jargon, serif for the working surface, dumping technical controls on non-tech users, spectacle over clarity.
+
+**Current state:** `frontend/app.py` and `.streamlit/config.toml` implement this. When adding UI, preserve this clean, plain-language, progressive-disclosure system — do NOT reintroduce the parchment/serif dossier look.
 
 ---
 
