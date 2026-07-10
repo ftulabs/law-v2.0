@@ -111,15 +111,23 @@ def _engine_order() -> list[str]:
 
 def fetch_to_cache(url: str, log: Callable[[str], None] = print) -> FetchResult | None:
     """Download `url` into the content-addressed cache. Returns None for non-HTTP URLs
-    (e.g. file://) or when every engine fails — callers fall back to any local_path.
-
-    Scrapling is the PRIMARY fetcher by default (settings.crawl_fetcher); httpx is the
-    fallback. Both store through the same content-addressed cache, so switching engines
-    never re-downloads an identical body."""
+    or when every engine fails. Bodies younger than fetch_ttl_hours are reused without a
+    network round-trip; past the TTL the body is re-fetched (Scrapling primary, httpx
+    fallback) and deduped by SHA-256."""
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):
         return None
     idx = _load_index()
+    # TTL: a recently-fetched body is reused without any network round-trip
+    prior = idx.get(url)
+    if prior and settings.fetch_ttl_hours > 0:
+        cached = settings.cache_path / prior["file"]
+        if cached.exists() and (time.time() - cached.stat().st_mtime) < settings.fetch_ttl_hours * 3600:
+            log(f"[fetch] cache hit (<{settings.fetch_ttl_hours:g}h TTL): {url}")
+            res = FetchResult(str(cached), DocFormat(prior["fmt"]), prior["sha256"],
+                              prior.get("content_type", ""), True)
+            res = _maybe_resolve_embedded_pdf(url, res, idx, log)
+            return _maybe_render_spa(url, res, idx, log)
     for engine in _engine_order():
         res = (_scrapling_fetch(url, idx, log) if engine == "scrapling"
                else _httpx_fetch(url, idx, log))
@@ -153,8 +161,7 @@ def _maybe_resolve_embedded_pdf(url: str, res: "FetchResult", idx: dict, log) ->
         if pdf_url == url:
             return res
         log(f"[fetch] HTML embeds a PDF viewer, fetching the document: {pdf_url}")
-        pdf = (_scrapling_fetch(pdf_url, idx, log) if "scrapling" in _engine_order()
-               else None) or _httpx_fetch(pdf_url, idx, log)
+        pdf = fetch_to_cache(pdf_url, log=log)   # recursive → TTL applies to the PDF too
         if pdf and pdf.fmt in (DocFormat.PDF_TEXT, DocFormat.PDF_SCANNED):
             return pdf
     except Exception as e:  # noqa: BLE001 — resolution is best-effort; keep the HTML body
@@ -212,6 +219,8 @@ def _httpx_fetch(url: str, idx: dict, log) -> FetchResult | None:
             with client.stream("GET", url) as resp:
                 if resp.status_code == 304 and prior:        # unchanged → reuse cache
                     cached_path = settings.cache_path / prior["file"]
+                    import os
+                    os.utime(cached_path)                    # renew the TTL window
                     log(f"[fetch] 304 not-modified, cache hit: {url}")
                     return FetchResult(str(cached_path), DocFormat(prior["fmt"]),
                                        prior["sha256"], prior.get("content_type", ""), True)
@@ -255,6 +264,8 @@ def _store(url, data: bytes, content_type: str, idx: dict, etag, last_mod, log,
         path.write_bytes(data)
         log(f"[fetch] cached {len(data)//1000} KB -> {fname} via {engine}  ({url})")
     else:
+        import os
+        os.utime(path)                          # renew the TTL window on revalidation
         log(f"[fetch] dedup (same content) -> {fname}  ({url})")
     idx[url] = {"file": fname, "sha256": sha, "fmt": fmt.value, "content_type": content_type,
                 "etag": etag, "last_modified": last_mod, "bytes": len(data), "engine": engine}

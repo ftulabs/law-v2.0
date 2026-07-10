@@ -68,6 +68,10 @@ class Settings(BaseSettings):
     )
     crawl_accept_language: str = "en,ms;q=0.8"
     crawl_delay_seconds: float = 2.0           # polite gap between requests to the SAME host
+    # Reuse a cached body younger than this without any network round-trip (0 = always
+    # revalidate). Scrapling has no conditional GET, so without a TTL every run re-downloads
+    # every PDF in full — ~10 min of fetch on the slow MY portal.
+    fetch_ttl_hours: float = 24.0
     crawl_timeout_seconds: float = 30.0
     # Zone-1 fetch engine: scrapling (default) | httpx | auto.
     #   scrapling = Scrapling primary (real-browser TLS impersonation — the more reliable
