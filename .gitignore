@@ -25,3 +25,6 @@ data/cache/
 
 # Claude Code personal settings (permission allowlist etc.)
 .claude/settings.local.json
+
+# local run logs
+streamlit*.log
