@@ -171,6 +171,28 @@ or tick **"Fresh run"** in the dashboard, or delete `cache/_results/`.
 
 ---
 
+## Cost
+
+Measured with `deepseek/deepseek-v4-flash` at $0.09 / $0.18 per 1M prompt/completion
+tokens (OpenRouter, verified 2026-07-09):
+
+| Scope | LLM calls | Cost |
+|-------|-----------|------|
+| One grading call (provision × indicator) | 1 | ~$0.0002 |
+| One document (~64 calls) | ~64 | ~$0.012 |
+| **One economy, both pillars (P6+P7)** | ~360 | **~$0.07** |
+| Round 1 — all 3 economies | ~1 100 | **~$0.21** |
+| Offline mock mode | 0 | $0.00 |
+
+OCR, retrieval and embeddings run locally at zero marginal cost. The result/fetch/embedding
+caches mean repeat runs cost $0. Re-measure per document with:
+
+```bash
+python tools/cost_logger.py --pdf data/samples/AU/privacy_act.pdf --economy Australia --pillar 6
+```
+
+---
+
 ## Tests
 
 ```bash
