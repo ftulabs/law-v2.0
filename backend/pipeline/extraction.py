@@ -464,6 +464,9 @@ def _law_name(doc: DiscoveredDoc, raw_text: str = "") -> str:
         recovered = _recover_law_name(raw_text)
         if recovered:
             return recovered
+    # never let a titleless blob (a year range "2010-2011", a bare number) stand as a law name
+    if len(re.findall(r"[A-Za-z]", cleaned)) < 4:
+        return _recover_law_name(raw_text) or cleaned or title
     return cleaned or title
 
 

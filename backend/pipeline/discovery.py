@@ -353,10 +353,10 @@ def _clean_source_url(economy: Economy, url: str) -> str:
     index — otherwise every section of an Act links to, say, section 26. The whole-Act page
     is a correct, stable citation; a precise per-section anchor isn't reconstructable here."""
     if economy.value == "AU":
-        # search returns many variants of one act (…/Details/{id}, /{id}/latest, epub inner
-        # paths) — canonicalise to the register's landing page so dedup and PDF resolution work
-        m = _AU_TITLE_ID_RE.search(url)
-        return f"https://www.legislation.gov.au/{m.group(1)}/latest" if m else url
+        # canonicalise the many URL variants of one act (…/Details/{id}, /{id}/latest, epub
+        # paths) to the register landing page so dedup + PDF resolution work
+        tid = _au_title_id(url)
+        return f"https://www.legislation.gov.au/{tid}/latest" if tid else url
     if economy.value != "SG":
         return url
     from urllib.parse import urlsplit, urlunsplit
@@ -606,18 +606,33 @@ def _au_pdf_download_url(title_id: str) -> str | None:
     return f"https://www.legislation.gov.au/{title_id}/{start}/{start}/text/original/pdf"
 
 
-_AU_TITLE_ID_RE = re.compile(r"legislation\.gov\.au/([A-Za-z]\d{4}[A-Za-z]\d+)", re.I)
+# register id anywhere in the path (…/Details/C2011A00022, …/C2011A00022/latest); the letter
+# after the 4-digit year is the type — A=Act, L=legislative instrument (both are title ids),
+# B=Bill, R=Repeal, C=point-in-time Compilation (not a title id → won't resolve, so dropped).
+_AU_TITLE_ID_RE = re.compile(r"/([CF]\d{4}[A-Za-z]\d+)", re.I)
+
+
+def _au_title_id(url: str) -> str | None:
+    """Register title-id from a legislation.gov.au URL, or None for bills / non-law pages."""
+    if "/bills/" in (url or "").lower():
+        return None                       # bills + explanatory memoranda are not enacted law
+    m = _AU_TITLE_ID_RE.search(url or "")
+    if not m:
+        return None
+    tid = m.group(1).upper()
+    return None if re.match(r"^[CF]\d{4}B", tid) else tid   # B = Bill id
+
 
 _au_inforce_cache: dict[str, bool] = {}
 
 
 def _au_verify_in_force(d: DiscoveredDoc) -> bool:
-    """True iff the doc resolves to a register title-id the OData API reports as an in-force
-    Act or legislative instrument (drops bills, budget papers, repealed acts)."""
-    m = _AU_TITLE_ID_RE.search(d.source_url)
-    if not m:
-        return False                      # no register id → not a citable law page
-    tid = m.group(1)
+    """True iff the OData API reports the doc's title-id as an in-force Act/instrument. Content-
+    lane hits are noisy (bills, repealed acts, point-in-time compilations), so this is strict:
+    anything not confirmed in-force is dropped (the name-lane already covers the principal acts)."""
+    tid = _au_title_id(d.source_url)
+    if not tid:
+        return False
     if tid in _au_inforce_cache:
         return _au_inforce_cache[tid]
     ok = False
@@ -633,9 +648,9 @@ def _au_verify_in_force(d: DiscoveredDoc) -> bool:
                   and (it.get("status") or "").lower() not in ("repealed", "ceased", "revoked", "expired")
                   and it.get("collection") in ("Act", "LegislativeInstrument"))
             if ok and (it.get("name") or "").strip():
-                d.title = it["name"][:200]        # replace the search-engine title with the official name
-    except Exception:  # noqa: BLE001 — API hiccup → keep the doc (grade-all rejects junk later)
-        ok = True
+                d.title = it["name"][:200]        # authoritative register name over the search title
+    except Exception:  # noqa: BLE001 — unverifiable → drop (repealed evidence is penalised)
+        ok = False
     _au_inforce_cache[tid] = ok
     return ok
 
