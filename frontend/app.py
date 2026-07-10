@@ -540,17 +540,17 @@ with st.sidebar:
     economy = st.selectbox("Country", [e.value for e in Economy], format_func=lambda v: ECON_NAME[v],
                            label_visibility="collapsed")
 
-    # Step 2 — topic (pillar), in plain language
-    st.markdown('<div class="kicker" style="margin:.7rem 0 .1rem">2. Choose a topic</div>',
+    # Step 2 — pillar (RDTII's term), with a plain-language explanation
+    st.markdown('<div class="kicker" style="margin:.7rem 0 .1rem">2. Choose a pillar (topic)</div>',
                 unsafe_allow_html=True)
     _PILLAR_OPT = {
-        6: "Cross-border data rules — can data leave the country?",
-        7: "Data protection & cybersecurity — privacy, DPO, retention, gov access",
+        6: "Pillar 6 — Cross-border data rules (can data leave the country?)",
+        7: "Pillar 7 — Data protection & cybersecurity (privacy, DPO, retention, gov access)",
     }
-    pillar = st.radio("Topic", [6, 7], index=0, format_func=lambda p: _PILLAR_OPT[p],
+    pillar = st.radio("Pillar", [6, 7], index=0, format_func=lambda p: _PILLAR_OPT[p],
                       label_visibility="collapsed",
-                      help="Pick one topic per run. Topic 6 covers cross-border data flows and "
-                           "localisation; Topic 7 covers domestic data-protection and cybersecurity.")
+                      help="Pick one pillar per run. Pillar 6 covers cross-border data flows and "
+                           "localisation; Pillar 7 covers domestic data-protection and cybersecurity.")
     pillars = [pillar]
 
     # Step 3 — run
@@ -679,8 +679,8 @@ if not run_id:
         '<div class="steps">'
         '<div class="step"><div class="n">1</div><div class="t">Choose a country</div>'
         '<div class="d">Singapore, Australia, or Malaysia.</div></div>'
-        '<div class="step"><div class="n">2</div><div class="t">Choose a topic</div>'
-        '<div class="d">Cross-border data rules, or data protection &amp; cybersecurity.</div></div>'
+        '<div class="step"><div class="n">2</div><div class="t">Choose a pillar</div>'
+        '<div class="d">Pillar 6 — cross-border data rules, or Pillar 7 — data protection &amp; cybersecurity.</div></div>'
         '<div class="step"><div class="n">3</div><div class="t">Press “Run analysis”</div>'
         '<div class="d">Results appear here in a few minutes. You can also reopen a past analysis.</div></div>'
         '</div></div>',
@@ -741,9 +741,9 @@ tab_ev, tab_review, tab_audit, tab_export = st.tabs(
 # ── results ────────────────────────────────────────────────────────────────
 with tab_ev:
     f1, f2, f3 = st.columns(3)
-    pillar_f = f1.multiselect("Topic", sorted({m.pillar for m in mappings}),
+    pillar_f = f1.multiselect("Pillar", sorted({m.pillar for m in mappings}),
                               default=sorted({m.pillar for m in mappings}),
-                              format_func=lambda p: f"Topic {p}")
+                              format_func=lambda p: f"Pillar {p}")
     status_f = f2.multiselect("Status", sorted({m.review_status.value for m in mappings}),
                               default=sorted({m.review_status.value for m in mappings}),
                               format_func=lambda s: STATUS_LABEL.get(s, s.replace("_", " ")))
@@ -758,7 +758,7 @@ with tab_ev:
         flag = f' {seal_html("scope")}'.replace("s-review", "s-flag") if m.scope_flag else ""
         st.markdown(
             f'<div class="vt-card" style="--c:{vcolor(m.confidence_score)}">'
-            f'<div class="docket"><b>{m.indicator_id}</b><span>Topic {m.pillar}</span>'
+            f'<div class="docket"><b>{m.indicator_id}</b><span>Pillar {m.pillar}</span>'
             f'<span>{m.discovery_tag.value}</span></div>'
             f'<div><div class="law">{m.law_name}</div>'
             f'<div class="cite">{m.article_section} &middot; {m.economy.value}{flag}</div>'
@@ -810,7 +810,7 @@ with tab_audit:
     left, right = st.columns([1.3, 1])
     with left:
         st.markdown(f"### {m.indicator_id} — {m.law_name}")
-        st.markdown(f'<div class="cite">{m.article_section} &middot; {m.economy.value} &middot; Topic {m.pillar} '
+        st.markdown(f'<div class="cite">{m.article_section} &middot; {m.economy.value} &middot; Pillar {m.pillar} '
                     f'&middot; {m.discovery_tag.value}</div>', unsafe_allow_html=True)
         st.markdown('<div class="kicker" style="margin-top:.8rem">Exact quote</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="quote">{m.verbatim_snippet}</div>', unsafe_allow_html=True)
