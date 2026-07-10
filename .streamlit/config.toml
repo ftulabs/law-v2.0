@@ -1,13 +1,13 @@
-# VeriTrade theme. DARK (brand navy) is the default; users switch Light/Dark via the
-# native menu: ⋮ (top-right) → Settings → Choose app theme. The app's custom palette
-# (frontend/app.py) follows st.context.theme automatically.
+# VeriTrade theme. A clean, high-contrast, sans-serif research tool. DARK is the
+# default; users switch Light/Dark with the toggle at the top-right of the app. The
+# app's custom palette (frontend/app.py) owns most styling and follows the toggle.
 [theme]
 base = "dark"
-primaryColor = "#3aa0ff"            # electric blue accent
-backgroundColor = "#0a1024"         # deep navy
-secondaryBackgroundColor = "#0d1630"# panel navy (sidebar, inputs)
-textColor = "#e8eeff"               # near-white ink
-font = "serif"
+primaryColor = "#2f7fe6"            # trustworthy blue accent (both themes)
+backgroundColor = "#0b1120"         # deep slate
+secondaryBackgroundColor = "#131c2e"# panel (sidebar, inputs)
+textColor = "#e8edf7"               # near-white ink
+font = "sans-serif"
 
 [server]
 runOnSave = true
