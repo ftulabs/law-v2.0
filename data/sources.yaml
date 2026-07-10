@@ -34,6 +34,19 @@ sources:
     verified: true
     notes: Official JSON API. $filter=contains(name,'<q>') and collection eq 'Act' → exact title hits.
 
+  - economy: AU
+    name: Federal Register of Legislation (full-text lane)
+    base_url: https://www.legislation.gov.au
+    adapter: websearch
+    site: legislation.gov.au
+    verified: true
+    notes: >
+      Content-based discovery lane: Google indexes the register's FULL TEXT (even epub
+      internals), so descriptive obligation phrases ("records must not be held outside",
+      "retain for a period of") find laws whose PROVISIONS contain the concept - no law
+      names. Result URLs (Details/{id}, /{id}/latest, epub paths) are canonicalised to
+      /{id}/latest; the name-only OData lane still provides exact title hits.
+
   - economy: MY
     name: Personal Data Protection Dept (Codes of Practice)
     base_url: https://www.pdp.gov.my

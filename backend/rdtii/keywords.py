@@ -262,7 +262,8 @@ INDICATOR_SEARCH_TERMS: dict[str, dict[str, list[str]]] = {
 }
 
 
-def portal_search_queries(economy: str, pillar: int | None = None) -> list[str]:
+def portal_search_queries(economy: str, pillar: int | None = None,
+                          name_only: bool | None = None) -> list[str]:
     """De-duplicated, order-preserving search queries for (economy, pillar).
 
     Order:
@@ -280,7 +281,8 @@ def portal_search_queries(economy: str, pillar: int | None = None) -> list[str]:
     """
     from .indicators import get_indicators
     pillars = [6, 7] if pillar is None else [pillar]
-    name_only = (economy or "").upper() in NAME_ONLY_PORTALS
+    if name_only is None:   # infer from the portal type; a full-text lane passes False explicitly
+        name_only = (economy or "").upper() in NAME_ONLY_PORTALS
 
     out: list[str] = []
 

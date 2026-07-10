@@ -352,6 +352,11 @@ def _clean_source_url(economy: Economy, url: str) -> str:
     Source URL points to the LAW, not to whichever provision the search engine happened to
     index — otherwise every section of an Act links to, say, section 26. The whole-Act page
     is a correct, stable citation; a precise per-section anchor isn't reconstructable here."""
+    if economy.value == "AU":
+        # search returns many variants of one act (…/Details/{id}, /{id}/latest, epub inner
+        # paths) — canonicalise to the register's landing page so dedup and PDF resolution work
+        m = _AU_TITLE_ID_RE.search(url)
+        return f"https://www.legislation.gov.au/{m.group(1)}/latest" if m else url
     if economy.value != "SG":
         return url
     from urllib.parse import urlsplit, urlunsplit
@@ -603,6 +608,37 @@ def _au_pdf_download_url(title_id: str) -> str | None:
 
 _AU_TITLE_ID_RE = re.compile(r"legislation\.gov\.au/([A-Za-z]\d{4}[A-Za-z]\d+)", re.I)
 
+_au_inforce_cache: dict[str, bool] = {}
+
+
+def _au_verify_in_force(d: DiscoveredDoc) -> bool:
+    """True iff the doc resolves to a register title-id the OData API reports as an in-force
+    Act or legislative instrument (drops bills, budget papers, repealed acts)."""
+    m = _AU_TITLE_ID_RE.search(d.source_url)
+    if not m:
+        return False                      # no register id → not a citable law page
+    tid = m.group(1)
+    if tid in _au_inforce_cache:
+        return _au_inforce_cache[tid]
+    ok = False
+    try:
+        import httpx
+        r = httpx.get("https://api.prod.legislation.gov.au/v1/titles",
+                      params={"$filter": f"id eq '{tid}'"},
+                      headers={"Accept": "application/json"}, timeout=15)
+        items = r.json().get("value", [])
+        if items:
+            it = items[0]
+            ok = (it.get("isInForce") is not False
+                  and (it.get("status") or "").lower() not in ("repealed", "ceased", "revoked", "expired")
+                  and it.get("collection") in ("Act", "LegislativeInstrument"))
+            if ok and (it.get("name") or "").strip():
+                d.title = it["name"][:200]        # replace the search-engine title with the official name
+    except Exception:  # noqa: BLE001 — API hiccup → keep the doc (grade-all rejects junk later)
+        ok = True
+    _au_inforce_cache[tid] = ok
+    return ok
+
 
 def _resolve_pdf_url(economy: Economy, url: str) -> tuple[str, DocFormat]:
     """Turn a law's landing URL into a fetchable full-text body URL + its format.
@@ -750,8 +786,10 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int,
     from . import websearch
     from ..rdtii.keywords import portal_search_queries
     websearch.reset_circuit()                      # fresh circuit-breaker state per run
+    # web search is inherently full-text (the engine indexed the law BODIES), so descriptive
+    # obligation phrases fire here even for economies whose portal API is name-only (AU/MY)
     topics = (queries if queries is not None
-              else portal_search_queries(economy.value, pillar))[:settings.discovery_max_queries]
+              else portal_search_queries(economy.value, pillar, name_only=False))[:settings.discovery_max_queries]
     # One search per query → a per-query result bucket. A law-type query ("companies act")
     # returns few, niche hits that the old "fill the budget in query order" loop discarded
     # once abundant data-protection queries had filled it. We instead collect ROUND-ROBIN
@@ -874,9 +912,14 @@ def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | N
     for s in sources:
         if s.get("adapter") != "websearch":
             continue
-        for d in discover_websearch(economy, pillar, max_docs, site=s.get("site"),
-                                    queries=s.get("queries"), pdf_only=bool(s.get("pdf_only")),
-                                    per_query=s.get("per_query")):
+        found = discover_websearch(economy, pillar, max_docs, site=s.get("site"),
+                                   queries=s.get("queries"), pdf_only=bool(s.get("pdf_only")),
+                                   per_query=s.get("per_query"))
+        if economy.value == "AU":
+            # content-lane hits can be bills, budget papers or repealed acts — keep only
+            # register ids the OData API confirms as in-force (repealed evidence is penalised)
+            found = [d for d in found if _au_verify_in_force(d)]
+        for d in found:
             by_url.setdefault(d.source_url, d)
 
     # API / scrape adapters (AU JSON API; server-rendered portals)
