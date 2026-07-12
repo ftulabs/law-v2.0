@@ -1,223 +1,302 @@
 # VeriTrade — AI Tool for Digital Trade Regulatory Analysis
 
-**Team FTU · UN ESCAP Global Hackathon (RDTII 2.1) · Round 1: Singapore, Australia, Malaysia**
-
-Given an **economy** and a **regulatory pillar**, the tool autonomously:
-
-1. **Discovers** relevant laws on official government portals — live, no seed URLs, no hardcoded law names
-2. **Fetches & extracts** article-level text from HTML, text PDFs, and scanned/image PDFs (OCR, CER < 5%)
-3. **Maps** each provision to an RDTII indicator with a verbatim snippet, citation, and confidence score
-4. **Exports** the official 13-column submission CSV (+ JSON audit trail, + consolidated master sheet)
-
-Pillars: **6** — Cross-border Data Policies (P6-I1…I4) · **7** — Domestic Data Protection (P7-I1…I5).
+UN Global Hackathon on AI for Digital Trade Regulatory Analysis
+Team: **FTU (Foreign Trade University, Vietnam)** | Round: **1**
+Last updated: 2026-07-12
 
 ---
 
-## Setup
+## What This Tool Does
 
+Automates the two RDTII tasks, end-to-end, with no manual steps.
+
+**Task 1 — Automated Evidence Discovery.** Given an economy and a pillar, VeriTrade crawls
+official government legal portals live (no seed URLs, no hardcoded law names), fetches the
+relevant legislation — including scanned/image PDFs — and extracts clean, article-level text.
+
+**Task 2 — Intelligent Mapping & Categorization.** Each provision is mapped to a specific
+RDTII indicator with an exact article citation, a verbatim snippet, a confidence score, and a
+Discovery Tag (NEW = found independently, KNOWN = matches a sample-kit example).
+
+**Mandatory scope:** Pillar 6 (Cross-border Data Policies) and Pillar 7 (Domestic Data Protection)
+**Economies covered:** Singapore, Australia, Malaysia
+
+---
+
+## Quick Start
+
+⏱ A reviewer with basic Python should run this in under 10 minutes with the steps below.
+
+### 1. Clone the repository
 ```bash
 git clone https://github.com/ftulabs/law-v2.0.git
 cd law-v2.0
+```
 
-# Python 3.10+
+### 2. Set up the environment
+```bash
+# Python 3.10+ required
 python -m venv venv
 source venv/bin/activate          # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Configure the LLM (needed for the scored live path; skip for the offline check):
-
+### 3. Configure API keys
 ```bash
 cp .env.example .env
 ```
+Open `.env` and set:
 ```env
-LLM_PROVIDER=openrouter
-OPENROUTER_API_KEY=sk-or-...                  # funded key — openrouter.ai/keys
-OPENROUTER_MODEL=deepseek/deepseek-v4-flash   # default; ~$0.07 per full economy run
+LLM_PROVIDER=openrouter                        # or: anthropic, openai, gemini, local (Ollama), mock
+OPENROUTER_API_KEY=sk-or-...                    # funded key — openrouter.ai/keys
+OPENROUTER_MODEL=deepseek/deepseek-v4-flash     # see "Swapping the LLM"
+OCR_PROVIDER=markitdown                         # or: rapidocr, paddle, tesseract, azure, mock
+SERPER_API_KEY=...                              # OPTIONAL — reliable Google results (free without it)
 ```
+> 🔐 No key is committed. `.env` is gitignored; a deployed instance reads keys from platform
+> Secrets. With **no key at all**, the tool still runs end-to-end using an offline mock grader.
 
-> 🔐 No key is committed to this repository. `.env` is gitignored; a deployed instance
-> reads the key from the platform's Secrets. Without any key the pipeline still runs
-> end-to-end using a deterministic offline mock grader.
+### 4. Run the tool
+```bash
+python main.py --economy Singapore --pillar 6 --live
+```
+**Output:** `outputs/SG_P6_<timestamp>.csv` and `outputs/SG_P6_<timestamp>.json`
 
 ---
 
-## Run
-
-### Live crawl — the scored path
+## Full Usage
 
 ```bash
-python main.py --economy Singapore --pillar 6 --live --llm openrouter
-python main.py --economy Malaysia  --pillar all --live --llm openrouter
-# equivalent reviewer alias: python run.py --country SG --pillar 6 --live
+python main.py \
+  --economy Malaysia \
+  --pillar all \          # 6, 7, or all
+  --live \                # crawl live portals (omit for the offline sample corpus)
+  --llm openrouter \
+  --format both           # csv, json, or both
 ```
 
-### All three economies + consolidated master sheet (submission file)
-
+### Run all three economies → one consolidated submission sheet
 ```bash
 python batch_run.py --economies Singapore Australia Malaysia --pillar 6 7 --live --llm openrouter
 ```
+Writes per-economy files plus **`outputs/VeriTrade_MASTER_<ts>.csv/.json`** — the single sheet
+combining every economy and pillar (13 mandatory columns, then custom columns `Pillar`,
+`RDTII Raw Score`, `Coverage` appended at the end).
 
-Writes per-economy CSV/JSON plus **`outputs/VeriTrade_MASTER_<ts>.csv/.json`** — one sheet
-combining every economy and pillar (the 13 mandatory columns, then custom columns
-`Pillar`, `RDTII Raw Score`, `Coverage` appended at the end).
-
-### Dashboard (GUI)
-
+### Other modes
 ```bash
-streamlit run frontend/app.py
+python main.py --economy Singapore --pillar 6 --pdf path/to/law.pdf   # process one local PDF
+python main.py --economy Singapore --pillar 6                         # offline sample (no key/network)
+python main.py --economy Singapore --pillar 6 --live --fresh          # ignore caches, re-crawl live
+streamlit run frontend/app.py                                         # web dashboard (GUI)
 ```
-
-Pick economy, pillar, LLM and OCR engine in the sidebar, press **Run pipeline**, and watch
-the live log. Results render as a reviewable dossier with per-indicator scores.
-
-### Offline sample — reproducible check, no network/key
-
-```bash
-python main.py --economy Singapore --pillar 6
-```
-
-Runs the identical extraction → mapping → export code on a small bundled corpus.
-
-### Scanned-PDF OCR demo (CER measurement)
-
-```bash
-python main.py --economy Singapore --pillar 6 --ocr rapidocr --llm mock
-```
-
-`data/samples/SG/mas_notice_655.pdf` is a genuine image-only PDF; the run reports
-`CER=1.11% PASS<5%` against a shipped ground-truth sidecar.
 
 ---
 
-## Output
+## Architecture Overview
 
-`outputs/<Economy>_P<pillar>_<timestamp>.csv` — the official 13-column template, exactly:
+```
+Input: Economy + Pillar
+  │
+  ▼  TASK 1 — Evidence Discovery
+  │   1. Discovery — web search scoped to the official portal (SG), the portal's OData API
+  │      (AU), or the portal's own acts catalogue (MY). Live, no seed URLs.
+  │   2. Fetch + Process — Scrapling (real-browser TLS, beats WAFs) → httpx fallback;
+  │      MarkItDown for text PDFs/HTML, RapidOCR/PaddleOCR for scanned PDFs (measured CER);
+  │      structural parsing into verbatim article/§ chunks.
+  ▼  TASK 2 — Mapping & Categorization
+  │   3. Retrieval (RAG) — BM25 + multilingual dense embeddings + cross-encoder rerank.
+  │   4. LLM Mapping — grades each (provision, indicator) pair against all sibling indicators;
+  │      emits verbatim snippet, citation, Discovery Tag, 4-signal confidence.
+  ▼
+Output: CSV / JSON — 13 fields per provision (+ audit trail, + master sheet)
+```
+Small corpora are graded exhaustively (every provision × every indicator), so retrieval is a
+signal, not a gate — keeping non-English recall robust.
 
-| # | Column | Notes |
-|---|--------|-------|
-| 1 | Economy | official UN name |
-| 2 | Law Name | full statute name |
-| 3 | Law Number / Ref | e.g. "Act 26 of 2012" |
-| 4 | Last Amended | "Month Year" when verified, else year |
-| 5 | Indicator ID | e.g. `P6-I1` |
-| 6 | Article / Section | exact article, e.g. "Section 26" |
-| 7 | Discovery Tag | `NEW` (found autonomously) / `KNOWN` (in sample kit) |
-| 8 | Location Reference | PDF page / HTML anchor |
-| 9 | Verbatim Snippet | exact text, never paraphrased |
-| 10 | Mapping Rationale | why this provision satisfies the indicator |
-| 11 | Source URL | direct link on the official portal |
-| 12 | Confidence | 0.00–1.00 |
-| 13 | Notes | scope flags, OCR provenance, bilingual sources |
+### Key modules
 
-Also produced per run:
-
-- **`*.json`** — full audit trail (retrieval log, confidence breakdown, OCR metrics incl. CER, model version)
-- **`*_scored.csv`** — optional Zone-3 RDTII raw scores (0 / 0.5 / 1) per measure
-- **Indicators with no evidence get an explicit "No evidence" placeholder row** — never left blank
-- Malaysian rows note the bilingual source and link the authoritative Malay text
+| Module | File | Description |
+| :---- | :---- | :---- |
+| Discovery / Crawler | `backend/pipeline/discovery.py`, `fetch.py`, `scrapling_fetch.py` | Live portal discovery, bot-resistant fetch, caching |
+| OCR / Extraction | `backend/pipeline/ocr.py`, `extraction.py`, `providers/ocr_*.py` | Scanned-PDF OCR + CER, article-level parsing |
+| Retrieval | `backend/pipeline/retrieval.py` | BM25 + dense embeddings + cross-encoder rerank |
+| Mapper | `backend/pipeline/mapping.py` | LLM provision→indicator mapping + confidence |
+| LLM abstraction | `backend/providers/llm_*.py`, `llm_factory.py` | Vendor-agnostic provider interface |
+| Output Writer | `backend/export/csv_export.py`, `json_export.py` | 13-column CSV, JSON, master sheet |
+| Orchestrator | `backend/pipeline/orchestrator.py` | End-to-end run + SQLite audit trail |
 
 ---
 
-## How It Works
+## Swapping the LLM
 
-```
-(economy, pillar)
-   │  ZONE 1 — Discovery: web search scoped to the official portal (SG), the portal's
-   │           OData API (AU), or the portal's own acts catalogue (MY). No seed URLs.
-   │  ZONE 1 — Fetch: Scrapling (real-browser TLS fingerprint, beats WAFs) → httpx
-   │           fallback; polite per-host delay; content-addressed cache.
-   │  ZONE 2 — Extraction: MarkItDown for text PDFs/HTML; RapidOCR/PaddleOCR for
-   │           scanned PDFs with measured CER; splits into verbatim article/§ chunks.
-   │  ZONE 2 — Mapping: BM25 + multilingual dense embeddings + cross-encoder retrieve
-   │           candidates; the LLM grades each (provision, indicator) pair seeing all
-   │           sibling indicators; 4-signal confidence score.
-   │  Routing: ≥0.85 auto-accept · 0.60–0.85 review · <0.60 quarantine (excluded)
-   ▼
-CSV + JSON + SQLite audit store
-```
+Required by the rubric (**No Vendor Lock-in**). Change one config value — no code changes.
+The interface is abstracted in `backend/providers/llm_factory.py`.
 
-Small corpora are graded exhaustively (every provision × every indicator), so retrieval
-ranking is a signal, not a gate — this keeps non-English recall robust.
+```env
+LLM_PROVIDER=openrouter    # OpenRouter (default) — any model id in OPENROUTER_MODEL
+LLM_PROVIDER=anthropic     # ANTHROPIC_API_KEY + ANTHROPIC_MODEL=claude-...
+LLM_PROVIDER=openai        # OPENAI_API_KEY + OPENAI_MODEL=gpt-4o
+LLM_PROVIDER=gemini        # GEMINI_API_KEY
+LLM_PROVIDER=local         # self-hosted Ollama/vLLM — LOCAL_LLM_BASE_URL, no key
+LLM_PROVIDER=mock          # deterministic offline grader, $0, no key
+```
+**Self-hosted example (zero cost):** `ollama pull llama3 && ollama serve`, then set
+`LLM_PROVIDER=local`, `LOCAL_LLM_MODEL=llama3`. To add a provider, implement one class in
+`backend/providers/` and register it in `llm_factory.py`.
 
 ---
 
-## Configuration
+## Swapping the OCR Engine
 
-Everything is swappable via `.env` — no code changes:
+Change `OCR_PROVIDER` in `.env` — no code changes.
 
-| Variable | Default | Options |
-|----------|---------|---------|
-| `LLM_PROVIDER` | `openrouter` | `anthropic`, `openai`, `gemini`, `local` (Ollama), `mock` |
-| `OPENROUTER_MODEL` | `deepseek/deepseek-v4-flash` | any paid OpenRouter model id |
-| `OCR_PROVIDER` | `markitdown` | `rapidocr`, `paddle`, `tesseract`, `azure`, `mock` |
-| `RETRIEVER` | `hybrid` | `auto`, `lightrag` |
-| `SERPER_API_KEY` | — | optional; reliable Google results for SG discovery |
-| `FETCH_TTL_HOURS` | `24` | reuse fetched bodies without re-downloading; `0` = always re-fetch |
-| `RESULT_CACHE_ENABLED` | `true` | identical inputs return the stored result instantly |
-
-### Caching & fresh runs
-
-Three layers make repeat runs fast without changing results: fetched documents (24 h TTL),
-provision embeddings (persistent, byte-identical), and full run results.
-**The first run of any (economy, pillar) is always live.** To force a full live re-run —
-e.g. when demonstrating autonomous discovery — use:
-
-```bash
-python main.py --economy Singapore --pillar 6 --live --fresh
-```
-
-or tick **"Fresh run"** in the dashboard, or delete `cache/_results/`.
+| Engine | Config value | Notes |
+| :---- | :---- | :---- |
+| MarkItDown | `markitdown` | Default; text-layer PDFs / HTML / Office, $0 |
+| RapidOCR | `rapidocr` | Scanned PDFs, ONNX, no system binary, CER ≈ 1% |
+| PaddleOCR | `paddle` | Scanned, strong multilingual (PP-OCRv5) |
+| Tesseract | `tesseract` | Free, open-source image OCR |
+| Azure Document Intelligence | `azure` | Best on noisy gazette scans; needs endpoint + key |
+| Mock | `mock` | Offline sidecar, $0 |
 
 ---
 
-## Cost
+## Supported Economies & Portals
 
-Measured with `deepseek/deepseek-v4-flash` at $0.09 / $0.18 per 1M prompt/completion
-tokens (OpenRouter, verified 2026-07-09):
+| Economy | Official Portal(s) | Language | Notes |
+| :---- | :---- | :---- | :---- |
+| Singapore | sso.agc.gov.sg | English | Web-search discovery; PDF full text |
+| Australia | legislation.gov.au | English | OData API (title lane) + full-text content lane, both verified in-force |
+| Malaysia | lom.agc.gov.my, pdp.gov.my | English / Malay | Portal's own acts catalogue + registered sectoral Codes of Practice; mixed scanned/digital |
 
-| Scope | LLM calls | Cost |
-|-------|-----------|------|
-| One grading call (provision × indicator) | 1 | ~$0.0002 |
-| One document (~64 calls) | ~64 | ~$0.012 |
-| **One economy, both pillars (P6+P7)** | ~360 | **~$0.07** |
-| Round 1 — all 3 economies | ~1 100 | **~$0.21** |
-| Offline mock mode | 0 | $0.00 |
+Adding an economy = add its portal domain to `websearch.OFFICIAL_PORTAL`; discovery generalises.
 
-OCR, retrieval and embeddings run locally at zero marginal cost. The result/fetch/embedding
-caches mean repeat runs cost $0. Re-measure per document with:
+---
 
+## Output Format
+
+### CSV (`outputs/<economy>_P<pillar>_<timestamp>.csv`)
+Exact 13-column order — judges validate programmatically; do not rename or reorder.
+
+| # | Column | Required | Description |
+| :---- | :---- | :---- | :---- |
+| 1 | Economy | Required | Official UN country name |
+| 2 | Law Name | Required | Full official statute name and year |
+| 3 | Law Number / Ref | Required | Official act/law number (e.g. Act 709) |
+| 4 | Last Amended | Required | "Month Year" when verified, else year |
+| 5 | Indicator ID | Required | RDTII code (e.g. P6-I1, P7-I3) |
+| 6 | Article / Section | Required | Exact article/section (e.g. Section 26) |
+| 7 | Discovery Tag | Required | NEW = independent find; KNOWN = sample kit |
+| 8 | Location Reference | Optional | PDF page number / HTML anchor |
+| 9 | Verbatim Snippet | Required | Exact quoted text — no paraphrasing |
+| 10 | Mapping Rationale | Optional | ≤300 chars: why this provision maps here |
+| 11 | Source URL | Required | Direct link on the official portal |
+| 12 | Confidence | Optional | Model certainty 0.00–1.00 |
+| 13 | Notes | Optional | Scope flags, OCR provenance, bilingual sources |
+
+Indicators with no evidence get an explicit **"No evidence"** row (never left blank).
+
+### JSON (`outputs/<economy>_P<pillar>_<timestamp>.json`)
+Same fields plus: `ocr_quality.cer`, `processing_time_seconds`, `raw_context_before/after`,
+`pdf_is_scanned`, `retrieval_log`, `confidence` breakdown, `model_version`.
+
+---
+
+## Actual Cost Per Document
+
+Measured, not estimated. Two paid services are used; everything else runs locally at $0.
+
+**Measured 2026-07-12** · benchmark: one ~50-page Act (~64 grading calls) · deepseek-v4-flash
+at $0.09/$0.18 per 1M input/output tokens (OpenRouter, verified) · Serper at $1.00/1k queries.
+
+| Component | Engine | Cost |
+| :---- | :---- | :---- |
+| OCR | MarkItDown / RapidOCR (local) | $0.000 |
+| Embedding + Retrieval | MiniLM + BM25 (local) | $0.000 |
+| LLM mapping | deepseek-v4-flash | **~$0.012 / document** (~$0.0002 × 64 calls) |
+| Discovery search | Serper (optional) | **per run, not per doc** — see below |
+| **Total (current stack)** | | **~$0.012 / document** + discovery |
+| **Total (open-weight swap)** | Ollama Llama 3 + Tesseract + DuckDuckGo | **$0.00 / document** |
+
+### Discovery (Serper) cost — measured per run
+
+Serper is **optional**: without a key, discovery falls back to DuckDuckGo/Mojeek (free). With a
+key it costs **1 credit per query** (2,500 credits free, then $1.00/1k → $0.30/1k at volume):
+
+| Run | Serper queries | Cost @ $1/1k |
+| :---- | :---- | :---- |
+| Singapore, both pillars | 90 | ~$0.09 |
+| Australia, both pillars | 90 | ~$0.09 |
+| Malaysia, both pillars | 5 | ~$0.005 |
+| **Full Round 1 (3 economies)** | **185** | **~$0.19** (within the 2,500 free credits → **$0**) |
+
+### Full Round-1 submission — total measured cost
+
+| | LLM | Serper | Total |
+| :---- | :---- | :---- | :---- |
+| Current stack | ~$0.21 | ~$0.19 (free tier: $0) | **~$0.40** (or ~$0.21 within free tier) |
+| Open-weight swap | $0.00 | $0.00 | **$0.00** |
+
+Caches (result / fetch / embedding) make repeat runs cost **$0**. Re-measure with:
 ```bash
 python tools/cost_logger.py --pdf data/samples/AU/privacy_act.pdf --economy Australia --pillar 6
 ```
 
 ---
 
-## Tests
+## Known Limitations
+
+Honest transparency for judges:
+
+- **Confidence is a relative signal, not a calibrated probability.** Rows routed to
+  `pending_review` deserve human eyes before submission.
+- **Confidence ≠ RDTII Raw Score.** Confidence asks "trust this citation?"; the optional
+  Zone-3 Raw Score (0/0.5/1, `_scored.csv`) asks "how restrictive is this law?" — independent.
+- **Offline mock grader is lexical** — use a real LLM for submission-quality mapping.
+- **Cross-encoder rerank is English-only** — mitigated by exhaustive grading on small corpora
+  and a multilingual embedding model (`CROSS_ENCODER_MODEL` swappable for finals).
+- **Live crawling depends on portal availability** — the bundled sample corpus is the fallback.
+
+---
+
+## Running the Test Suite
 
 ```bash
 pytest tests/
 ```
 
-Covers: CSV template compliance, known indicator mappings (PDPA→P7-I1, Cybersecurity
-Act→P7-I2, …), MarkItDown extraction, scanned-PDF OCR CER < 5%, retriever selection,
-browser fetch, input tolerance.
+| Test file | What it tests |
+| :---- | :---- |
+| `tests/test_discovery.py` | Live discovery + in-force filtering |
+| `tests/test_ocr.py`, `test_scanned_ocr.py` | OCR extraction + CER < 5% on a real scanned PDF |
+| `tests/test_mapper.py` | Indicator mapping against known examples |
+| `tests/test_output.py` | 13-column CSV schema validation |
+| `tests/test_zone2_retriever.py` | Retriever selection (hybrid / LightRAG) |
 
 ---
 
-## Known Limitations
+## Reproducing the Sample Kit Results
 
-1. Confidence scores are relative signals, not calibrated probabilities — rows routed to
-   `pending_review` deserve human eyes before submission.
-2. The offline mock grader is lexical; use a real LLM for submission-quality mapping.
-3. Cross-encoder reranking is English-only; mitigated by exhaustive grading on small
-   corpora and a multilingual embedding model (swap via `CROSS_ENCODER_MODEL` for finals).
-4. Live crawling depends on portal availability; the bundled sample corpus is the fallback
-   if a portal is down during evaluation.
+```bash
+python evaluate.py --economy Singapore
+```
+Reports KNOWN (sample-kit) vs NEW (independently discovered) provisions and coverage by indicator.
 
 ---
 
 ## Team
 
-**FTU (Foreign Trade University, Vietnam)** · contact: minhtc@ftu.edu.vn
-License: Apache 2.0
+| Role | Responsibility |
+| :---- | :---- |
+| Technical Lead | AI architecture, OCR, discovery/RAG pipeline |
+| Substantive Lead | Legal/policy analysis, RDTII mapping, output QA |
+
+Foreign Trade University (FTU), Vietnam · contact: minhtc@ftu.edu.vn
+
+---
+
+## License
+
+Released under the **Apache License 2.0** per the hackathon submission requirements.
+See [LICENSE](LICENSE) for the full text.
