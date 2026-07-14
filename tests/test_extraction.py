@@ -317,6 +317,27 @@ def test_au_page_furniture_stripped_mid_provision():
     assert "Division 3A" not in s77.verbatim_snippet             # right-aligned page header stripped
 
 
+def test_au_page_header_two_letter_suffix_stripped():
+    """Reported bug (Security of Critical Infrastructure Act 2018, s30CA): a word-form
+    page-top header with a TWO-letter section suffix ("Section 30CB") was not recognised by
+    the furniture stripper (which only allowed one letter, e.g. "Section 77A") and leaked into
+    the PREVIOUS section's verbatim snippet as a trailing, nonsense fragment."""
+    M = HEADING_MARK
+    text = (
+        f"{M}30CA Simplified outline of this Part\n"
+        "This Part sets out enhanced cyber security obligations.\n"
+        "Note: For a declaration of a system of national significance, see section 52B.\n"
+        "Section 30CB\n"                                    # word-form page-top header, 2-letter suffix
+        f"{M}30CB Application of statutory incident response planning obligations\n"
+        "(1) The Secretary may, by written notice, determine that an entity is covered.\n")
+    provs = extract_provisions(_doc(Economy.AU), text, OCRMetrics())
+    s30ca = next(p for p in provs if p.article_section == "Section 30CA")
+    assert "Section 30CB" not in s30ca.verbatim_snippet     # header stripped, not a trailing leak
+    assert s30ca.verbatim_snippet.endswith("see section 52B.")
+    s30cb = next(p for p in provs if p.article_section == "Section 30CB")
+    assert "Application of statutory incident response" in s30cb.verbatim_snippet
+
+
 def test_au_clause_header_and_repeated_table_header_stripped():
     """AU APP/Schedule pages run a "Clause N" page-top header, and a table that spans a page
     repeats its caption + " … "-gapped column-header row. Keep the first table header, drop the

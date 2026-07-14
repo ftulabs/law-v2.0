@@ -78,14 +78,15 @@ _DOTTED_TOC_RE = re.compile(r"(?m)^.*\.{4,}.*$")        # a table-of-contents do
 #     structural pattern deliberately stops before an em-dash so it never eats a real heading.
 _AU_FURNITURE = [
     re.compile(r"(?im)^[ \t]*\d{0,4}[ \t]*[A-Z][A-Za-z ]+? Act (?:19|20)\d{2}[ \t]*\d{0,4}[ \t]*$"),
-    re.compile(r"(?im)^[ \t]*(?:Section|Clause)\s+\d+[A-Za-z]?[ \t]*$"),     # "Section 77A" / "Clause 8" headers
+    # "Section 77A" / "Section 30CB" (two-letter suffix) / "Clause 8" page-top headers
+    re.compile(r"(?im)^[ \t]*(?:Section|Clause)\s+\d+[A-Za-z]{0,2}[ \t]*$"),
     # left-aligned page header: "Division 3A …", "Schedule 1 Australian Privacy Principles"
-    re.compile(r"(?im)^[ \t]*(?:Schedule|Part|Division)\s+\d+[A-Za-z]?(?:\s+[A-Z][^\n—–]*)?[ \t]*$"),
+    re.compile(r"(?im)^[ \t]*(?:Schedule|Part|Division)\s+\d+[A-Za-z]{0,2}(?:\s+[A-Z][^\n—–]*)?[ \t]*$"),
     # right-aligned page header: the unit TITLE then the marker last — "Assessments by, or at the
     # direction of, the Commissioner Division 3A". A Title-case line with NO em-dash (so the real
     # "Division 3A—Title" heading is untouched) and the marker as the final token (so a sentence
     # ending in "… Division 3A." keeps its full stop and is not matched).
-    re.compile(r"(?im)^(?![ \t]*[(\d])[ \t]*[A-Z][^\n—–]{2,110}?[ \t](?:Division|Part)[ \t]+\d{1,3}[A-Za-z]?[ \t]*$"),
+    re.compile(r"(?im)^(?![ \t]*[(\d])[ \t]*[A-Z][^\n—–]{2,110}?[ \t](?:Division|Part)[ \t]+\d{1,3}[A-Za-z]{0,2}[ \t]*$"),
 ]
 
 
