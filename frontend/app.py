@@ -264,18 +264,20 @@ st.markdown(
          (stMarkdownContainer/<p>) the global ink rule would darken, and Streamlit's baked dark
          secondaryBackground bleeds into hover/active — so pin bg + label colour on all states.
          Scoped :not([kind="primary"]) so the filled primary button keeps its own styling. */
-      .stButton button {{font-family:'Inter',sans-serif; font-size:.9rem; font-weight:600; border-radius:9px;}}
-      .stButton button:not([kind="primary"]) {{ background:var(--panel) !important;
+      /* the white-paper link is a real st.link_button, so it shares these rules with the
+         secondary theme-toggle button — identical font, weight, and format. */
+      .stButton button, .stLinkButton a {{font-family:'Inter',sans-serif; font-size:.9rem; font-weight:600;
+              border-radius:9px; text-decoration:none !important;}}
+      .stButton button:not([kind="primary"]), .stLinkButton a {{ background:var(--panel) !important;
               border:1px solid var(--rule) !important; }}
-      .stButton button:not([kind="primary"]),
-      .stButton button:not([kind="primary"]) * {{ color:var(--ink) !important; }}
-      .stButton button:not([kind="primary"]):hover,
-      .stButton button:not([kind="primary"]):active,
-      .stButton button:not([kind="primary"]):focus {{ background:var(--panel-2) !important;
-              border-color:var(--accent) !important; }}
-      .stButton button:not([kind="primary"]):hover *,
-      .stButton button:not([kind="primary"]):active *,
-      .stButton button:not([kind="primary"]):focus * {{ color:var(--accent) !important; }}
+      .stButton button:not([kind="primary"]), .stButton button:not([kind="primary"]) *,
+      .stLinkButton a, .stLinkButton a * {{ color:var(--ink) !important; }}
+      .stButton button:not([kind="primary"]):hover, .stButton button:not([kind="primary"]):active,
+      .stButton button:not([kind="primary"]):focus, .stLinkButton a:hover, .stLinkButton a:focus {{
+              background:var(--panel-2) !important; border-color:var(--accent) !important; }}
+      .stButton button:not([kind="primary"]):hover *, .stButton button:not([kind="primary"]):active *,
+      .stButton button:not([kind="primary"]):focus *, .stLinkButton a:hover, .stLinkButton a:hover * {{
+              color:var(--accent) !important; }}
       /* primary action = filled accent, high contrast. The label lives in a child
          (stMarkdownContainer / <p>) that the global ink rule would otherwise darken, so
          paint the button AND all its descendants the accent-ink colour. */
@@ -288,12 +290,6 @@ st.markdown(
               color:var(--accent-ink) !important; fill:var(--accent-ink) !important; }}
       .stButton button[kind="primary"]:hover {{filter:brightness(1.06);}}
       .stDownloadButton button {{font-family:'Inter',sans-serif; font-weight:600; border-radius:9px;}}
-      /* white-paper link — styled to match a secondary button, sits in the top-right row */
-      .wp-link {{ display:flex; align-items:center; justify-content:center; gap:.4rem; height:100%;
-              min-height:38px; padding:.3rem .6rem; font-family:'Inter',sans-serif; font-size:.88rem;
-              font-weight:600; border:1px solid var(--rule); border-radius:9px; background:var(--panel);
-              color:var(--ink) !important; text-decoration:none !important; white-space:nowrap; }}
-      .wp-link:hover {{ border-color:var(--accent); color:var(--accent) !important; }}
 
       /* ── confidence breakdown bars (details) ── */
       .bd {{display:grid; grid-template-columns:150px 1fr 48px; align-items:center; gap:.6rem; margin:.35rem 0;}}
@@ -689,10 +685,9 @@ def _secret(name: str, fallback: str = "") -> str:
 if _HAS_WHITEPAPER:
     _sp, _wp_col, _theme_col = st.columns([7.6, 1.5, 1])
     with _wp_col:
-        st.markdown(
-            f'<a class="wp-link" href="{WHITEPAPER_URL}" target="_blank" rel="noopener" '
-            f'title="Open the technical white paper in a new tab">📄 White paper</a>',
-            unsafe_allow_html=True)
+        # a real Streamlit link button → identical format to the theme toggle, opens a new tab
+        st.link_button("📄 White paper", WHITEPAPER_URL,
+                       help="Open the technical white paper in a new tab", width="stretch")
 else:
     _sp, _theme_col = st.columns([9, 1])
 with _theme_col:
