@@ -51,6 +51,53 @@ def test_sg_sso_chrome_and_cross_ref_and_heading():
     assert "Informal Consolidation" not in s11.verbatim_snippet
 
 
+def test_sg_sso_print_selection_tree_is_not_mapped_as_provisions():
+    """SSO subsidiary-legislation 'Published' snapshot pages (…/SL-Supp/S519-2018/Published)
+    render a print-selection checkbox tree before the real text: 'Select the provisions you
+    wish to print…', Select All/Clear All/Print buttons, then a Table of Contents whose entries
+    are bare section TITLES with no body ('Part 2 PROVIDING INFORMATION TO COMMISSIONER',
+    '3 Information to ascertain…'). The reported bug: 'Part 2'/'Part 4' pass the structural
+    boundary regex with nothing but a title/page-chrome as their 'body' — two bogus provisions
+    quoting navigation text, then mapped to an indicator with a rationale built on nonsense."""
+    text = (
+        "Cybersecurity (CII) Regulations 2018 - Singapore Statutes Online\n"
+        "FAQs | Feedback\n"
+        "Select the provisions you wish to print using the checkboxes and then click Print\n"
+        "Select All\nClear All\nPrint - HTML\nPrint - PDF\nPrint - Word\n"
+        "Table of Contents\n"
+        "Enacting Formula\n"
+        "Part 1 PRELIMINARY\n"
+        "1 Citation and commencement\n"
+        "2 Definitions\n"
+        "Part 2 PROVIDING INFORMATION TO COMMISSIONER\n"
+        "3 Information to ascertain if computer, etc., fulfils criteria\n"
+        "4 Information relating to critical information infrastructure\n"
+        "Part 4 APPEALS ADVISORY PANEL\n"
+        "23 Dissolution of Appeals Advisory Panel\n"
+        "Select All\nClear All\nPrint\nHTML\nPDF\nWord\n"
+        "Get Provisions\nWhole Document\nSearch within Legislation\nExit Search\nSearch Results\n"
+        "No. S 519\n"
+        "Cybersecurity Act 2018\n(ACT 9 OF 2018)\n"
+        "Cybersecurity (Critical Information Infrastructure) Regulations 2018\n"
+        "In exercise of the powers conferred by sections 17(10) and 48 of the Cybersecurity Act "
+        "2018, the Minister makes the following Regulations:\n"
+        "PART 1\nPRELIMINARY\n"
+        "Citation and commencement\n"
+        "1.\nThese Regulations are the Cybersecurity (CII) Regulations 2018 and come into "
+        "operation on 31 August 2018.\n"
+        "Definitions\n"
+        "2.\nIn these Regulations, unless the context otherwise requires —\n"
+        "“working day” means any day except a Saturday, Sunday or public holiday.\n")
+    provs = extract_provisions(_doc(Economy.SG), text, OCRMetrics())
+    labels = [p.article_section for p in provs]
+    assert "Part 2" not in labels and "Part 4" not in labels    # no bogus TOC-derived provisions
+    assert not any("PROVIDING INFORMATION TO COMMISSIONER" in p.verbatim_snippet for p in provs)
+    assert not any("Select All" in p.verbatim_snippet for p in provs)
+    # the real content survives: Regulations 1 and 2 with their actual body text
+    s1 = next(p for p in provs if p.article_section == "Section 1")
+    assert "These Regulations are the Cybersecurity" in s1.verbatim_snippet
+
+
 def test_sg_act_wrapped_edition_footer_stripped():
     """SG SSO *Act* PDFs wrap the short-title footer across the page bottom with a page number
     + revised-edition tag ("Personal Data Protection\\n33 Act 2012 2020 Ed."). It must not land

@@ -157,10 +157,33 @@ _SG_CHROME = [
     re.compile(rf"(?im)^{_M}\[\s*S?\s*\d+/\d+(?:\s+wef\b[^\]]*)?\s*\][ \t]*$"),  # "[40/2020]" / "[S 734/2021 wef …]"
 ]
 
+# SSO subsidiary-legislation "Published" snapshot pages (…/SL-Supp/S519-2018/Published) render
+# a print-selection checkbox tree before the real text: "Select the provisions you wish to
+# print…", Select All/Clear All/Print buttons, then a Table of Contents whose entries are bare
+# section TITLES with no body ("Part 2 PROVIDING INFORMATION TO COMMISSIONER", "3 Information
+# to ascertain…"). The Part/Division-style entries pass the structural boundary regex with
+# nothing but a title as their "body" — one bogus provision per Part/Division, its "verbatim
+# snippet" just the next few TOC labels or trailing page chrome. Drop the whole preamble up to
+# the citation line ("No. S 519…") that starts the REAL instrument text — the same anchor SG
+# law-name recovery already relies on for these documents (see _BOILERPLATE_RE below).
+_SSO_PRINT_WIDGET_RE = re.compile(r"Select the provisions you wish to print", re.I)
+_SSO_CITATION_NO_RE = re.compile(r"(?m)^No\.\s*S\s*\d+", re.I)
+
+
+def _strip_sso_print_tree(text: str) -> str:
+    widget = _SSO_PRINT_WIDGET_RE.search(text)
+    if not widget:
+        return text
+    real_start = _SSO_CITATION_NO_RE.search(text, widget.end())
+    if not real_start:
+        return text
+    return text[:widget.start()] + "\n" + text[real_start.start():]
+
 
 def _strip_page_chrome(text: str, economy) -> str:
     if economy != Economy.SG:                      # the patterns are SSO-specific
         return text
+    text = _strip_sso_print_tree(text)              # print-selection checkbox TOC, if present
     for rx in _SG_CHROME:
         text = rx.sub("", text)
     return text
