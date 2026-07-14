@@ -15,6 +15,7 @@ sample explicitly flagged new).
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from pathlib import Path
 
@@ -149,6 +150,54 @@ def _is_as_published(url: str) -> bool:
     """SG as-published snapshot (…/Published/<timestamp>) — the as-made text, superseded by
     the consolidated in-force view of the same statute."""
     return "/published/" in url.lower()
+
+
+# SSO's landing page embeds its own "current version as at" Timeline widget's full data as a
+# single JSON blob in a <div class="global-vars" data-json='…'>: a timelineItems[] array (each
+# entry an .NET "/Date(ms)/" epoch-millis timestamp) plus docTimelineIdx pointing at the entry
+# the page highlights as CURRENT. No separate AJAX call needed — it's already in the fetched
+# HTML — so this is the exact date the portal's own timeline shows, not a guess from the title.
+_SG_GLOBAL_VARS_RE = re.compile(r"""class="global-vars"\s+data-json='([^']*)'""")
+_NET_DATE_RE = re.compile(r"/Date\((\d+)\)/")
+
+
+def _sg_parse_timeline_date(html: str) -> str | None:
+    """Pure parsing half of _sg_amendment_date (network-free, unit-testable). The page carries
+    TWO 'global-vars' data-json blobs (a page-wide config one, then the document-specific one) —
+    take the one that actually has timelineItems, not just the first match."""
+    for m in _SG_GLOBAL_VARS_RE.finditer(html):
+        if "timelineItems" in m.group(1):
+            break
+    else:
+        return None
+    try:
+        data = json.loads(m.group(1))
+        items = data.get("timelineItems") or []
+        if not items:
+            return None
+        idx = data.get("docTimelineIdx")
+        entry = items[idx] if isinstance(idx, int) and 0 <= idx < len(items) else items[-1]
+        dm = _NET_DATE_RE.search(entry.get("Item1") or "")
+        if not dm:
+            return None
+        # The epoch-ms value serialises SG-LOCAL midnight (UTC+8), not UTC midnight — converting
+        # via UTC would land a day early (verified: 1764864000000 -> UTC 2025-12-04T16:00, but
+        # the live page's own timeline highlights this entry as "05 Dec 2025").
+        from datetime import datetime, timedelta, timezone
+        sgt = timezone(timedelta(hours=8))
+        return datetime.fromtimestamp(int(dm.group(1)) / 1000, tz=sgt).strftime("%Y-%m-%d")
+    except Exception:  # noqa: BLE001 — malformed blob (portal changed shape) → fall back
+        return None
+
+
+def _sg_amendment_date(landing_url: str) -> str | None:
+    try:
+        import httpx
+        r = httpx.get(landing_url, headers=_headers(), timeout=15, follow_redirects=True)
+        r.raise_for_status()
+    except Exception:  # noqa: BLE001 — best-effort; caller falls back to the title year
+        return None
+    return _sg_parse_timeline_date(r.text)
 
 
 def _is_malay_my(d: DiscoveredDoc) -> bool:
@@ -584,12 +633,20 @@ def _search_au_api(client, src: dict, query: str, economy: Economy, indicators, 
     return out
 
 
-def _au_pdf_download_url(title_id: str) -> str | None:
-    """AU: the authorised compilation PDF download URL for a title. legislation.gov.au is a
-    JS SPA (the /latest/text page renders only a collapsed outline), but the Download button
-    points at a static asset: /{id}/{date}/{date}/text/original/pdf, where {date} is the
-    latest compilation's start date from the OData /v1/documents feed. Returns None if the
-    API is unreachable so the caller falls back to the page (then the JS-shell guard)."""
+_au_compilation_cache: dict[str, tuple[str | None, str | None]] = {}
+
+
+def _au_latest_compilation(title_id: str) -> tuple[str | None, str | None]:
+    """(pdf_url, start_date) for a title's latest AUTHORISED compilation, from the OData
+    /v1/documents feed. Verified against the live page: the feed's 'start' date is the EXACT
+    date legislation.gov.au itself displays as "Latest version" / "Compilation date" — the
+    /v1/titles record (used for the in-force check) only carries makingDate/asMadeRegisteredAt,
+    which are original-enactment/early-registration timestamps, NOT the last-amended date.
+    Cached per title_id since both the PDF resolver and the discovery amendment-date lookup
+    need it. Returns (None, None) if the API is unreachable."""
+    if title_id in _au_compilation_cache:
+        return _au_compilation_cache[title_id]
+    result: tuple[str | None, str | None] = (None, None)
     try:
         import httpx
         r = httpx.get("https://api.prod.legislation.gov.au/v1/documents",
@@ -597,13 +654,24 @@ def _au_pdf_download_url(title_id: str) -> str | None:
                               "$orderby": "start desc", "$top": "5"},
                       headers={"Accept": "application/json"}, timeout=20)
         items = r.json().get("value", [])
-    except Exception:  # noqa: BLE001
-        return None
-    items = [it for it in items if it.get("isAuthorised")] or items
-    start = (items[0].get("start") or "")[:10] if items else ""
-    if not start:
-        return None
-    return f"https://www.legislation.gov.au/{title_id}/{start}/{start}/text/original/pdf"
+        items = [it for it in items if it.get("isAuthorised")] or items
+        start = (items[0].get("start") or "")[:10] if items else None
+        pdf = (f"https://www.legislation.gov.au/{title_id}/{start}/{start}/text/original/pdf"
+               if start else None)
+        result = (pdf, start)
+    except Exception:  # noqa: BLE001 — best-effort; caller falls back gracefully
+        pass
+    _au_compilation_cache[title_id] = result
+    return result
+
+
+def _au_pdf_download_url(title_id: str) -> str | None:
+    """AU: the authorised compilation PDF download URL for a title. legislation.gov.au is a
+    JS SPA (the /latest/text page renders only a collapsed outline), but the Download button
+    points at a static asset: /{id}/{date}/{date}/text/original/pdf, where {date} is the
+    latest compilation's start date from the OData /v1/documents feed. Returns None if the
+    API is unreachable so the caller falls back to the page (then the JS-shell guard)."""
+    return _au_latest_compilation(title_id)[0]
 
 
 # register id anywhere in the path (…/Details/C2011A00022, …/C2011A00022/latest); the letter
@@ -733,6 +801,38 @@ def _my_pdf_url(dl_field: str) -> str | None:
     from urllib.parse import urljoin
     m = _MY_PDF_BI_RE.search(dl_field or "") or _MY_PDF_ANY_RE.search(dl_field or "")
     return urljoin(_MY_PORTAL, m.group(1).replace("../../../", "")) if m else None
+
+
+# lom.agc.gov.my's act-detail page server-renders its own Timeline widget as plain
+# data-date/data-log-type attributes (no JS/AJAX needed) — event types seen: ORIGINAL,
+# REPRINT, "REPRINT ONLINE", AMENDMENTS, SUBSIDIARY_LEGISLATION. A "Subsidiary Legislation"
+# entry means a SEPARATE subordinate instrument was gazetted under this Act's authority — it
+# does not mean this Act's OWN text changed, so it's excluded from "last amended" (falls back
+# to it only if literally nothing else is on the timeline).
+_MY_TIMELINE_RE = re.compile(
+    r'data-date="(\d{2})/(\d{2})/(\d{4})"\s+data-project-id="\d+"\s+data-log-type="([^"]+)"')
+
+
+def _my_parse_timeline_date(html: str) -> str | None:
+    """Pure parsing half of _my_amendment_date (network-free, unit-testable)."""
+    items = [(f"{y}-{mo}-{d}", t) for d, mo, y, t in _MY_TIMELINE_RE.findall(html)]
+    if not items:
+        return None
+    non_subsidiary = [d for d, t in items if t.upper() != "SUBSIDIARY_LEGISLATION"]
+    return (non_subsidiary or [d for d, _ in items])[-1]
+
+
+def _my_amendment_date(act_no: str) -> str | None:
+    if not act_no:
+        return None
+    try:
+        import httpx
+        url = f"https://lom.agc.gov.my/act-detail.php?act={act_no}&lang=BI"
+        r = httpx.get(url, headers=_headers(), timeout=15, follow_redirects=True)
+        r.raise_for_status()
+    except Exception:  # noqa: BLE001 — best-effort; caller falls back to the title year
+        return None
+    return _my_parse_timeline_date(r.text)
 
 
 def _load_my_catalogue(client, src: dict, log) -> list[tuple[str, str, str]]:
@@ -895,7 +995,16 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int,
         # the bottom and get them cut by the global cap. Floor them so they stay in contention.
         for d in docs:
             d.relevance_score = max(d.relevance_score, 0.6)
-    return docs[:max_docs]
+    kept = docs[:max_docs]
+    # SG: the landing page's own Timeline widget carries the true "current version as at"
+    # date (see _sg_amendment_date) — fetched only for the final, already-bounded shortlist,
+    # never the full round-robin candidate pool, so this is at most max_docs extra page fetches.
+    if economy.value == "SG":
+        for d in kept:
+            date = _sg_amendment_date(d.source_url)
+            if date:
+                d.amendment_date = date
+    return kept
 
 
 def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | None = None) -> list[DiscoveredDoc]:
@@ -977,7 +1086,24 @@ def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | N
     elif economy.value == "MY":
         docs = _collapse_my_amendments(docs)
     docs.sort(key=lambda d: d.relevance_score, reverse=True)
-    return docs[:max_docs]
+    kept = docs[:max_docs]
+    # Enrich with the portal's own authoritative "last amended" date — only for the final,
+    # already-bounded shortlist, so this is at most max_docs extra API/page fetches, never one
+    # per raw candidate. AU: the OData /v1/documents feed's compilation start date (matches the
+    # page's own "Latest version"/"Compilation date"). MY: the act-detail Timeline widget.
+    if economy.value == "AU":
+        for d in kept:
+            tid = _au_title_id(d.source_url)
+            if tid:
+                _, start = _au_latest_compilation(tid)
+                if start:
+                    d.amendment_date = start
+    elif economy.value == "MY":
+        for d in kept:
+            date = _my_amendment_date(d.law_number)
+            if date:
+                d.amendment_date = date
+    return kept
 
 
 def doc_from_file(economy: Economy, path: str) -> DiscoveredDoc:
