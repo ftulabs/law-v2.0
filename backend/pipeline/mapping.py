@@ -379,6 +379,13 @@ def map_provisions(
             apply_scope_cap=apply_scope_cap, topical_ok=topical_ok,
         )
         _last_amended = _format_last_amended(prov.amendment_date, prov.law_name)
+        status = confidence.route(breakdown.final)
+        if status.value == "auto_accepted":
+            # A structured, parseable line — the dashboard's "results so far" panel renders
+            # these live as they complete, so a researcher can start reading high-confidence
+            # hits during the run instead of waiting for the whole thing to finish.
+            log(f"[result] {ind.indicator_id} | {prov.law_name[:60]} — {article_section} | "
+                f"{breakdown.final:.2f}")
         return EvidenceMapping(
             mapping_id=_mapping_id(run_id, ind.indicator_id, prov.provision_id),
             run_id=run_id, economy=prov.economy, pillar=ind.pillar, indicator_id=ind.indicator_id,
@@ -389,7 +396,7 @@ def map_provisions(
             mapping_rationale=(rationale or "")[:300], confidence_score=breakdown.final,
             discovery_tag=doc_tags.get(prov.doc_id, DiscoveryTag.KNOWN),
             coverage=("Sectoral" if scope_flag else "Horizontal"),
-            notes=_build_notes(prov, scope_flag, topical_ok), review_status=confidence.route(breakdown.final),
+            notes=_build_notes(prov, scope_flag, topical_ok), review_status=status,
             provision_id=prov.provision_id, source_pdf_path=prov.source_pdf_path,
             raw_context=r.raw_context, raw_context_before=ctx_before, raw_context_after=ctx_after,
             confidence=breakdown, ocr=prov.ocr, model_version=llm.model_version,

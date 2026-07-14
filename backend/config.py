@@ -88,6 +88,18 @@ class Settings(BaseSettings):
     crawl_browser: bool = False
     cache_dir: str = "data/cache"              # downloaded law bodies live here (content-hashed)
     fetch_max_bytes: int = 60_000_000          # 60 MB hard cap per document
+    # Extraction (OCR/PDF-to-text) is the single biggest per-run cost bucket (~44% of wall-clock,
+    # ahead of embedding and LLM grading combined — profiled on a live AU crawl). The fetched BODY
+    # is already content-addressed and cached; this caches the RESULT of running MarkItDown/OCR on
+    # it too, keyed by (content hash, ocr provider), so re-processing an already-seen document
+    # (same bytes, common across repeat/nearby-in-time live runs within fetch_ttl_hours) skips the
+    # OCR/pdfplumber pass entirely instead of re-parsing every page from scratch.
+    extraction_cache_enabled: bool = True
+    # Documents are extracted independently of each other — run them concurrently (was strictly
+    # sequential) so wall-clock scales with the SLOWEST single document, not the sum of all of
+    # them. I/O-bound (pdfplumber/MarkItDown release the GIL during parsing), so a thread pool is
+    # enough; no process-pool complexity needed.
+    extraction_concurrency: int = 8
     discovery_max_docs: int = 18               # candidate cap per (economy, pillar). Tunable knob:
                                                # raising it fetches+OCRs more law types (e.g. Banking/
                                                # financial, ~rank 30) but the FIRST run is linearly slower

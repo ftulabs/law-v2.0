@@ -11,6 +11,8 @@ back to OCR automatically — a common real-world failure mode.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from pathlib import Path
 
@@ -144,7 +146,59 @@ def _pdf_text_layer(path: str) -> str:
             return ""
 
 
+def _content_key(doc: DiscoveredDoc) -> str | None:
+    """Stable hash of a document's actual BYTES (not its doc_id/title, which can differ across
+    two discoveries of the identical file). Identical bytes always extract to identical text,
+    so this is the cache key for get_document_text — independent of filename convention."""
+    path = doc.local_path
+    try:
+        if path and Path(path).exists():
+            data = Path(path).read_bytes()
+        elif doc.raw_text:
+            data = doc.raw_text.encode("utf-8", errors="ignore")
+        else:
+            return None
+    except Exception:
+        return None
+    return hashlib.sha256(data).hexdigest()[:20]
+
+
+def _extract_cache_path(key: str, provider_name: str) -> Path:
+    d = settings.cache_path / "_extracted"
+    d.mkdir(parents=True, exist_ok=True)
+    return d / f"{key}_{provider_name}.json"
+
+
 def get_document_text(doc: DiscoveredDoc, ocr_provider: OCRProvider | None = None) -> tuple[str, OCRMetrics]:
+    """Cached wrapper: extraction (OCR/PDF-to-text) is the single biggest per-run cost bucket
+    (~44% of wall-clock on a live crawl — bigger than embedding + LLM grading combined), yet the
+    SAME document (same bytes, same OCR provider) always extracts to the SAME text. A repeat run
+    within fetch_ttl_hours, or the same law showing up for both Pillar 6 and Pillar 7, would
+    otherwise re-run pdfplumber/MarkItDown/OCR on it every time. Cache the (text, metrics) result
+    keyed by content hash + provider; the fetched BODY cache (fetch.py) already makes this safe —
+    this just avoids re-parsing bytes we've already parsed."""
+    if not settings.extraction_cache_enabled:
+        return _extract_document_text(doc, ocr_provider)
+    provider_name = (ocr_provider or get_ocr_provider(settings.ocr_provider)).name
+    key = _content_key(doc)
+    if key is None:
+        return _extract_document_text(doc, ocr_provider)
+    cache_f = _extract_cache_path(key, provider_name)
+    if cache_f.exists():
+        try:
+            data = json.loads(cache_f.read_text(encoding="utf-8"))
+            return data["text"], OCRMetrics.model_validate(data["metrics"])
+        except Exception:
+            pass  # unreadable/stale cache -> fall through and re-extract
+    text, metrics = _extract_document_text(doc, ocr_provider)
+    try:
+        cache_f.write_text(json.dumps({"text": text, "metrics": metrics.model_dump()}), encoding="utf-8")
+    except Exception:
+        pass  # caching is best-effort; never fail the run over a write error
+    return text, metrics
+
+
+def _extract_document_text(doc: DiscoveredDoc, ocr_provider: OCRProvider | None = None) -> tuple[str, OCRMetrics]:
     metrics = OCRMetrics()
     path = doc.local_path
     fmt = doc.fmt

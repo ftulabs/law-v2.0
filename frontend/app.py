@@ -11,7 +11,10 @@ Same backend the CLI/API use. Run:  streamlit run frontend/app.py
 """
 from __future__ import annotations
 
+import html as _html_mod
+import queue
 import sys
+import threading
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -27,6 +30,7 @@ from backend.config import settings  # noqa: E402
 from backend.export import export_csv, export_json, export_scored_csv  # noqa: E402
 from backend.pipeline.orchestrator import run_pipeline  # noqa: E402
 from backend.providers import registry as reg  # noqa: E402
+from backend.rdtii import get_indicators  # noqa: E402
 from backend.review import workflow  # noqa: E402
 from backend.schemas import Economy, RunResult, SUBMISSION_COLUMNS  # noqa: E402
 from backend.storage import db  # noqa: E402
@@ -419,6 +423,25 @@ st.markdown(
       .step .t {{font-weight:600; margin-bottom:.2rem;}}
       .step .d {{color:var(--ink-soft); font-size:.9rem; line-height:1.5;}}
 
+      /* ── "while you wait" panels: indicator glossary, live discovery feed, results-so-far ── */
+      .waitpanel {{border:1px solid var(--rule); border-radius:12px; background:var(--panel);
+              padding:.9rem 1.05rem; margin:.6rem 0 1rem;}}
+      .waitpanel .wp-head {{font-weight:600; font-size:.92rem; margin-bottom:.5rem;}}
+      .glossary-item {{padding:.55rem 0; border-bottom:1px solid var(--rule-soft);}}
+      .glossary-item:last-child {{border-bottom:none;}}
+      .glossary-item .gi-id {{font-family:'IBM Plex Mono',monospace; font-size:.72rem; font-weight:600;
+              color:var(--accent); margin-right:.4rem;}}
+      .glossary-item .gi-title {{font-weight:600; font-size:.92rem;}}
+      .glossary-item .gi-desc {{color:var(--ink-soft); font-size:.85rem; margin-top:.15rem; line-height:1.45;}}
+      .feed-row {{display:flex; justify-content:space-between; gap:.8rem; align-items:baseline;
+              padding:.4rem 0; border-bottom:1px solid var(--rule-soft); font-size:.86rem;}}
+      .feed-row:last-child {{border-bottom:none;}}
+      .feed-row .ft {{color:var(--ink); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}}
+      .feed-row .fu {{font-family:'IBM Plex Mono',monospace; font-size:.7rem; color:var(--ink-faint); flex:none;}}
+      .feed-row a {{color:var(--ink-soft);}}
+      .feed-empty {{color:var(--ink-faint); font-size:.85rem; padding:.3rem 0;}}
+      .feed-scroll {{max-height:260px; overflow-y:auto;}}
+
       /* ── hover tooltip (explains the confidence formula + cut-offs) ── */
       /* let tooltips escape their Streamlit containers instead of being clipped */
       [data-testid="stMarkdownContainer"], .stTabs [data-baseweb="tab-panel"],
@@ -671,6 +694,63 @@ def ocr_forensics_html(reports) -> str:
     )
 
 
+def _esc(s: str) -> str:
+    return _html_mod.escape(str(s), quote=True)
+
+
+def indicator_glossary_html(pillar: int) -> str:
+    """'What we're looking for' — the legal test for every indicator in the chosen pillar,
+    so a researcher can read this WHILE a run is in progress instead of only after. Useful,
+    not filler: by the time results appear, the reader already knows how to judge them."""
+    items = ""
+    for ind in get_indicators(pillar):
+        num = ind.indicator_id.replace("P", "").replace("-I", ".")
+        items += (
+            '<div class="glossary-item">'
+            f'<div><span class="gi-id">{num}</span><span class="gi-title">{_esc(ind.title)}</span></div>'
+            f'<div class="gi-desc">{_esc(ind.description)}</div>'
+            '</div>'
+        )
+    return (
+        '<div class="waitpanel"><div class="wp-head">While you wait — what this pillar looks for</div>'
+        f'<div class="muted" style="margin-bottom:.4rem">The legal test behind each indicator in '
+        f'Pillar {pillar}, so you can judge results as soon as they appear.</div>'
+        f'{items}</div>'
+    )
+
+
+def discovery_feed_html(docs_found: list[tuple[str, str]]) -> str:
+    """Live 'documents found so far' feed — a researcher can start opening/reading these
+    source laws in parallel instead of waiting for the whole run to finish."""
+    if not docs_found:
+        return ('<div class="waitpanel"><div class="wp-head">Documents found so far</div>'
+                '<div class="feed-empty">Searching the official portal…</div></div>')
+    rows = "".join(
+        f'<div class="feed-row"><span class="ft">{_esc(title)}</span>'
+        f'<a class="fu" href="{_esc(url)}" target="_blank">{_esc(_host(url))}</a></div>'
+        for title, url in reversed(docs_found)
+    )
+    return (
+        '<div class="waitpanel"><div class="wp-head">Documents found so far '
+        f'<span class="muted">({len(docs_found)})</span></div>'
+        f'<div class="feed-scroll">{rows}</div></div>'
+    )
+
+
+def results_so_far_html(results_so_far: list[str]) -> str:
+    """Live 'high-confidence results so far' feed, fed by the SAME log channel — a researcher
+    can start reading strong matches while lower-confidence ones are still being graded."""
+    if not results_so_far:
+        return ""
+    rows = "".join(f'<div class="feed-row"><span class="ft">{_esc(r)}</span></div>'
+                   for r in reversed(results_so_far))
+    return (
+        '<div class="waitpanel"><div class="wp-head">High-confidence results so far '
+        f'<span class="muted">({len(results_so_far)})</span></div>'
+        f'<div class="feed-scroll">{rows}</div></div>'
+    )
+
+
 def _secret(name: str, fallback: str = "") -> str:
     """Read a secret from st.secrets (deployed app) → falling back to env/.env."""
     try:
@@ -836,18 +916,73 @@ scoring_on = locals().get("scoring_on", settings.scoring_enabled)
 
 # ── run / load state ─────────────────────────────────────────────────────
 if run_clicked and pillars:
+    # Run the pipeline in a background thread so the main script thread stays free to keep
+    # redrawing "while you wait" panels every ~0.25s — the log callback only ever pushes onto a
+    # thread-safe queue (never calls into Streamlit directly, including from the pipeline's own
+    # internal thread pools for extraction/mapping), so nothing here needs a lock.
+    log_q: "queue.Queue[str]" = queue.Queue()
+    outcome: dict = {}
+
+    def log(m):
+        log_q.put(m)
+
+    def _worker():
+        try:
+            outcome["result"] = run_pipeline(
+                Economy(economy), pillars, use_samples=use_samples, top_k=top_k, log=log,
+                ocr_provider=ocr_choice, llm_provider=llm_choice,
+                llm_model=llm_model or None, llm_api_key=llm_key or None,
+                scoring_enabled=scoring_on, use_result_cache=not fresh_run)
+        except Exception as e:  # noqa: BLE001 — surfaced in the main thread below
+            outcome["error"] = e
+
+    thread = threading.Thread(target=_worker, daemon=True)
+    thread.start()
+
+    st.markdown(indicator_glossary_html(pillar), unsafe_allow_html=True)
+    doc_box = st.empty()
+    result_box = st.empty()
+    doc_box.markdown(discovery_feed_html([]), unsafe_allow_html=True)
+
     with st.status("Working on it — searching, reading, and mapping…", expanded=True) as status:
-        def log(m):
-            status.write(m)
-        result = run_pipeline(Economy(economy), pillars, use_samples=use_samples, top_k=top_k, log=log,
-                              ocr_provider=ocr_choice, llm_provider=llm_choice,
-                              llm_model=llm_model or None, llm_api_key=llm_key or None,
-                              scoring_enabled=scoring_on, use_result_cache=not fresh_run)
+        docs_found: list[tuple[str, str]] = []
+        results_so_far: list[str] = []
+        import time as _time
+        while True:
+            drained = False
+            while True:
+                try:
+                    m = log_q.get_nowait()
+                except queue.Empty:
+                    break
+                drained = True
+                status.write(m)
+                if m.startswith("[doc] "):
+                    title, _, url = m[len("[doc] "):].partition(" | ")
+                    docs_found.append((title, url))
+                elif m.startswith("[result] "):
+                    results_so_far.append(m[len("[result] "):])
+            if drained:
+                doc_box.markdown(discovery_feed_html(docs_found), unsafe_allow_html=True)
+                if results_so_far:
+                    result_box.markdown(results_so_far_html(results_so_far), unsafe_allow_html=True)
+            if not thread.is_alive() and log_q.empty():
+                break
+            _time.sleep(0.25)
+        thread.join()
+
+        if "error" in outcome:
+            status.update(label="Run failed — see error below", state="error")
+            raise outcome["error"]
+
+        result = outcome["result"]
         export_csv(result.mappings, result.meta.run_id)
         export_json(result)
         if any(m.raw_score is not None for m in result.mappings):
             export_scored_csv(result.mappings, result.meta.run_id)
         status.update(label=f"Done — {result.meta.run_id}", state="complete")
+    doc_box.empty()
+    result_box.empty()
     st.session_state["run_id"] = result.meta.run_id
 elif chosen_prev and chosen_prev != "—":
     st.session_state["run_id"] = chosen_prev
@@ -870,6 +1005,7 @@ if not run_id:
         '</div></div>',
         unsafe_allow_html=True,
     )
+    st.markdown(indicator_glossary_html(pillar), unsafe_allow_html=True)
     st.stop()
 
 meta = db.get_run(run_id)

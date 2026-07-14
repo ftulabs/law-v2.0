@@ -196,6 +196,7 @@ def run_pipeline(
         for d in docs:
             if d.local_path:
                 kept.append(d)
+                log(f"[doc] {d.title[:80]} | {d.source_url}")
                 continue
             fetch_url, _ = _resolve_pdf_url(d.economy, d.source_url)   # landing -> PDF body
             fr = fetch_to_cache(fetch_url, log=log)
@@ -213,28 +214,45 @@ def run_pipeline(
             d.local_path, d.fmt = fr.local_path, fr.fmt
             fetched += 1
             kept.append(d)
+            # A structured, parseable line (title + link) — the dashboard's "documents found so
+            # far" panel renders these live, so a researcher can start reading source law while
+            # the run continues instead of staring at a bare progress bar.
+            log(f"[doc] {d.title[:80]} | {d.source_url}")
         dropped = len(docs) - len(kept)
         docs = kept
         log(f"[fetch] retrieved {fetched} bodies into cache"
             + (f" ({dropped} duplicate/failed dropped)" if dropped else ""))
         log(f"[timing] fetch/crawl {time.perf_counter() - _t:.1f}s")
+    else:
+        for d in docs:
+            log(f"[doc] {d.title[:80]} | {d.source_url}")
 
     for d in docs:
         db.save_doc(run_id, d)
 
-    # extraction (+OCR) → provisions
+    # extraction (+OCR) → provisions. Documents are independent of each other, so this runs
+    # concurrently (was strictly sequential) — extraction is the single biggest per-run cost
+    # bucket, and wall-clock now scales with the slowest ONE document, not the sum of all of
+    # them. Each worker only computes and returns its result; every shared list/dict mutation
+    # and log line happens back on the main thread via _record_extraction, so nothing needs a
+    # lock. as_completed() (not .map()) surfaces each document as soon as IT finishes, so the
+    # per-document log lines below still stream out incrementally, in whatever order they land.
     _t = time.perf_counter()
     provisions, source_texts, doc_tags, ocr_reports = [], {}, {}, []
-    for d in docs:
+
+    def _extract_one(d):
         raw, ocr_metrics = get_document_text(d, ocr_provider=ocr)
+        provs = extraction.extract_provisions(d, raw, ocr_metrics)
+        return d, raw, ocr_metrics, provs
+
+    def _record_extraction(d, raw, ocr_metrics, provs) -> None:
         source_texts[d.doc_id] = raw
         doc_tags[d.doc_id] = d.discovery_tag
-        provs = extraction.extract_provisions(d, raw, ocr_metrics)
         provisions.extend(provs)
         if ocr_metrics.notes == "js_app_shell":
             log(f"[extract] {d.title[:70]} -> JS-rendered page, no static law text "
                 f"(set CRAWL_BROWSER=true + run `scrapling install` to render it)")
-            continue
+            return
         if ocr_metrics.used:
             cer_str = (f" CER={ocr_metrics.cer*100:.2f}% {'PASS<5%' if ocr_metrics.cer < 0.05 else 'OVER-5%'}"
                        if ocr_metrics.cer is not None else "")
@@ -249,6 +267,16 @@ def run_pipeline(
         # heading/UUID), so the log reflects what actually lands in the output CSV.
         shown = provs[0].law_name if provs else d.title
         log(f"[extract] {shown[:70]} -> {len(provs)} provisions")
+
+    workers = max(1, min(settings.extraction_concurrency, len(docs) or 1))
+    if workers > 1 and len(docs) > 1:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            for fut in as_completed(ex.submit(_extract_one, d) for d in docs):
+                _record_extraction(*fut.result())
+    else:
+        for d in docs:
+            _record_extraction(*_extract_one(d))
 
     # Same-law dedup by resolved name. A portal serves one law under several URLs whose
     # bytes differ (an as-enacted gazette snapshot vs the current consolidated edition both
