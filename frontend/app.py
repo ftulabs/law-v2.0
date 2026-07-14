@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 import pandas as pd
 import base64
@@ -60,7 +61,8 @@ def logo_html() -> str:
     return '<h1 class="wordmark">Veri<span class="mark">Trade</span></h1>'
 
 
-_favicon = _asset("ftu_logo.png", "ftu_logo.webp", "ftu_logo.jpg")
+_favicon = _asset("veritrade_favicon.png", "veritrade_icon.png", "veritrade_logo.png",
+                  "veritrade_logo.webp", "veritrade_logo.svg", "ftu_logo.png")
 st.set_page_config(page_title="VeriTrade", page_icon=str(_favicon) if _favicon else "⚖", layout="wide")
 
 # ── keyboard guard ─────────────────────────────────────────────────────────
@@ -106,17 +108,22 @@ if DARK:
         "--panel:#111a2b; --panel-2:#16233a;"
     )
     APP_BG = "background-color:var(--paper);"
+    # the blue wordmark sits close to navy in luminance — lift it and add a thin light edge
+    # + a soft blue halo so it separates cleanly from the dark background
+    LOGO_FX = ("filter:brightness(1.15) drop-shadow(0 0 1px rgba(232,240,255,.55)) "
+               "drop-shadow(0 0 18px rgba(90,170,255,.28));")
 else:
     PALETTE = (
         "--paper:#ffffff; --paper-2:#f5f8fc; --paper-3:#eaeff6;"
         "--ink:#0f172a; --ink-soft:#48566b; --ink-faint:#7a879c;"
         "--rule:#dbe2ec; --rule-soft:#eaeff5;"
         "--accent:#2563eb; --accent-ink:#ffffff;"
-        "--good:#15803d; --warn:#b45309; --bad:#dc2626;"
+        "--good:#15803d; --warn:#a16207; --bad:#dc2626;"  # gold (not orange) — distinct from red, AA on white
         "--appr:#1d4ed8; --flag:#9333ea; --gold:#2563eb;"
         "--panel:#f7f9fc; --panel-2:#eef3f9;"
     )
     APP_BG = "background-color:var(--paper);"
+    LOGO_FX = ""   # dark navy logo reads fine on the white sheet — no effect needed
 
 st.markdown(
     f"""
@@ -132,8 +139,8 @@ st.markdown(
         font-size: 16px;
       }}
       .vt-logo {{ line-height:0; margin:.1rem 0; }}
-      img.vt-logo, .vt-logo img, .vt-logo svg {{ height:52px !important; width:auto !important;
-              max-width:320px; display:block; }}
+      img.vt-logo, .vt-logo img, .vt-logo svg {{ height:68px !important; width:auto !important;
+              max-width:420px; display:block; {LOGO_FX} }}
       .wordmark {{ font-size:2rem; font-weight:700; letter-spacing:-.02em; margin:0; }}
       .wordmark .mark {{ color:var(--accent); }}
       .block-container {{padding-top: 1.2rem; max-width: 1240px;}}
@@ -161,7 +168,7 @@ st.markdown(
       .ledger .cell {{flex:1; min-width:120px; padding:.7rem .9rem; border:1px solid var(--rule);
                       border-radius:10px; background:var(--panel);}}
       .ledger .cap {{font-size:.72rem; font-weight:500; color:var(--ink-faint);}}
-      .ledger .num {{font-size:1.55rem; font-weight:700; line-height:1.15; margin-top:.15rem;}}
+      .ledger .num {{font-size:1.55rem; font-weight:700; line-height:1.15; margin-top:.15rem; white-space:nowrap;}}
       .ledger .num.ox {{color:var(--bad);}} .ledger .num.fo {{color:var(--good);}}
       .ledger .num.oc {{color:var(--warn);}}
 
@@ -205,6 +212,14 @@ st.markdown(
       .cite {{font-family:'IBM Plex Mono',monospace; font-size:.78rem; color:var(--ink-soft);}}
       .law {{font-weight:600;}}
       .srcurl {{font-family:'IBM Plex Mono',monospace; font-size:.7rem;}}
+      /* "nothing found" card — deliberately muted, no traffic-light, no link-as-evidence */
+      .vt-card.empty {{border-left-color:var(--rule); grid-template-columns:96px 1fr auto; align-items:center;}}
+      .vt-card.empty .docket b {{color:var(--ink-soft);}}
+      .vt-card.empty .empty-ttl {{font-weight:600; color:var(--ink-soft); font-size:1rem;}}
+      .vt-card.empty .empty-sub {{color:var(--ink-faint); font-size:.9rem; margin-top:.15rem; line-height:1.5;}}
+      .vt-card.empty .searched {{font-family:'IBM Plex Mono',monospace; font-size:.7rem;
+              color:var(--ink-faint); margin-top:.45rem;}}
+      .seal.s-none {{color:var(--ink-faint); border-color:var(--rule); background:transparent;}}
 
       /* ── tabs ── */
       .stTabs [data-baseweb="tab-list"] {{gap:1.4rem; border-bottom:1px solid var(--rule);}}
@@ -222,14 +237,32 @@ st.markdown(
               color:var(--accent) !important; fill:var(--accent) !important; opacity:1 !important;}}
       [data-testid="collapsedControl"] {{background:var(--paper-2) !important; border-radius:8px;}}
 
-      /* buttons — clear, rounded, readable */
-      .stButton button {{font-family:'Inter',sans-serif; font-size:.9rem; font-weight:600;
-              border-radius:9px; border:1px solid var(--rule); background:var(--panel); color:var(--ink);}}
-      .stButton button:hover {{border-color:var(--accent); color:var(--accent);}}
-      /* primary action = filled accent, high contrast */
-      .stButton button[kind="primary"], .stButton button[data-testid="baseButton-primary"] {{
-              background:var(--accent) !important; border-color:var(--accent) !important;
-              color:var(--accent-ink) !important; font-weight:700;}}
+      /* buttons — clear, rounded, readable in EVERY state and theme. The label sits in a child
+         (stMarkdownContainer/<p>) the global ink rule would darken, and Streamlit's baked dark
+         secondaryBackground bleeds into hover/active — so pin bg + label colour on all states.
+         Scoped :not([kind="primary"]) so the filled primary button keeps its own styling. */
+      .stButton button {{font-family:'Inter',sans-serif; font-size:.9rem; font-weight:600; border-radius:9px;}}
+      .stButton button:not([kind="primary"]) {{ background:var(--panel) !important;
+              border:1px solid var(--rule) !important; }}
+      .stButton button:not([kind="primary"]),
+      .stButton button:not([kind="primary"]) * {{ color:var(--ink) !important; }}
+      .stButton button:not([kind="primary"]):hover,
+      .stButton button:not([kind="primary"]):active,
+      .stButton button:not([kind="primary"]):focus {{ background:var(--panel-2) !important;
+              border-color:var(--accent) !important; }}
+      .stButton button:not([kind="primary"]):hover *,
+      .stButton button:not([kind="primary"]):active *,
+      .stButton button:not([kind="primary"]):focus * {{ color:var(--accent) !important; }}
+      /* primary action = filled accent, high contrast. The label lives in a child
+         (stMarkdownContainer / <p>) that the global ink rule would otherwise darken, so
+         paint the button AND all its descendants the accent-ink colour. */
+      .stButton button[kind="primary"], .stButton button[data-testid="baseButton-primary"],
+      .stButton button[data-testid="stBaseButton-primary"] {{
+              background:var(--accent) !important; border-color:var(--accent) !important; font-weight:700;}}
+      .stButton button[kind="primary"], .stButton button[kind="primary"] *,
+      .stButton button[data-testid="baseButton-primary"], .stButton button[data-testid="baseButton-primary"] *,
+      .stButton button[data-testid="stBaseButton-primary"], .stButton button[data-testid="stBaseButton-primary"] * {{
+              color:var(--accent-ink) !important; fill:var(--accent-ink) !important; }}
       .stButton button[kind="primary"]:hover {{filter:brightness(1.06);}}
       .stDownloadButton button {{font-family:'Inter',sans-serif; font-weight:600; border-radius:9px;}}
 
@@ -280,6 +313,11 @@ st.markdown(
       [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] * {{ color:var(--ink-soft) !important; }}
       [data-testid="stExpander"] {{ border:1px solid var(--rule) !important; border-radius:10px !important;
               background:var(--panel) !important; }}
+      /* the summary bar + opened body must follow the theme too — otherwise Streamlit's baked
+         dark secondaryBackground shows through in light mode until you hover it */
+      [data-testid="stExpander"] details, [data-testid="stExpander"] summary,
+      [data-testid="stExpanderDetails"] {{ background:var(--panel) !important; }}
+      [data-testid="stExpander"] summary:hover {{ background:var(--panel-2) !important; }}
       [data-testid="stExpander"] summary, [data-testid="stExpander"] summary * {{ color:var(--ink) !important; font-weight:600; }}
       [data-testid="stNotificationContentInfo"], [data-testid="stStatusWidget"] * {{ color:var(--ink) !important; }}
       .stTextInput input, .stNumberInput input, .stTextArea textarea {{
@@ -355,6 +393,32 @@ st.markdown(
                  font-size:.9rem; margin-bottom:.5rem;}}
       .step .t {{font-weight:600; margin-bottom:.2rem;}}
       .step .d {{color:var(--ink-soft); font-size:.9rem; line-height:1.5;}}
+
+      /* ── hover tooltip (explains the confidence formula + cut-offs) ── */
+      /* let tooltips escape their Streamlit containers instead of being clipped */
+      [data-testid="stMarkdownContainer"], .stTabs [data-baseweb="tab-panel"],
+      [data-testid="stColumn"], [data-testid="column"] {{ overflow: visible; }}
+      .tip {{ position:relative; display:inline-flex; align-items:center; gap:.3rem; cursor:help; }}
+      .tip .tq {{ display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px;
+              border-radius:50%; border:1px solid var(--ink-faint); color:var(--ink-faint);
+              font-size:.62rem; font-weight:700; flex:none; }}
+      .tip:hover .tq {{ border-color:var(--accent); color:var(--accent); }}
+      .tip .tipbox {{ position:absolute; z-index:9999; top:calc(100% + 8px); left:0; width:340px; max-width:80vw;
+              padding:.8rem .9rem; border-radius:11px; border:1px solid var(--rule); background:var(--paper-2);
+              color:var(--ink); box-shadow:0 14px 40px rgba(0,0,0,.30); font-size:.82rem; line-height:1.5;
+              text-align:left; white-space:normal; font-weight:400;
+              opacity:0; visibility:hidden; transform:translateY(-4px); transition:opacity .12s, transform .12s; }}
+      .tip.right .tipbox {{ left:auto; right:0; }}
+      .tip:hover .tipbox, .tip:focus-within .tipbox {{ opacity:1; visibility:visible; transform:none; }}
+      .tipbox b {{ color:var(--ink); font-weight:600; }}
+      .tipbox .thead {{ font-size:.92rem; margin-bottom:.35rem; }}
+      .tipbox .row {{ display:flex; justify-content:space-between; gap:.9rem; margin:.18rem 0; align-items:baseline; }}
+      .tipbox .k {{ color:var(--ink-soft); }}
+      .tipbox .w {{ font-family:'IBM Plex Mono',monospace; color:var(--ink); font-weight:600; flex:none; }}
+      .tipbox .d {{ display:inline-block; width:8px; height:8px; border-radius:50%; vertical-align:middle; margin-right:.4rem; }}
+      .tipbox .frm {{ font-family:'IBM Plex Mono',monospace; font-size:.74rem; color:var(--ink-soft);
+              background:var(--paper-3); border-radius:7px; padding:.4rem .55rem; margin:.45rem 0; display:block; }}
+      .tipbox .note {{ color:var(--ink-faint); margin-top:.4rem; }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -393,6 +457,88 @@ def verdict_html(c: float) -> str:
 
 def seal_html(s: str) -> str:
     return f'<span class="seal {SEAL.get(s, "s-review")}">{STATUS_LABEL.get(s, s.replace("_", " "))}</span>'
+
+
+def tip_html(trigger: str, inner: str, right: bool = False, plain: str = "") -> str:
+    """A hover tooltip: `trigger` text + a small ? badge that reveals `inner` on hover.
+    `plain` is a text-only fallback set as the native title attribute (never clipped)."""
+    cls = "tip right" if right else "tip"
+    t = f' title="{plain}"' if plain else ""
+    return (f'<span class="{cls}"{t}>{trigger}<span class="tq">?</span>'
+            f'<span class="tipbox">{inner}</span></span>')
+
+
+def _cutoff_tip_inner() -> str:
+    """Explains the 0.60 / 0.85 confidence cut-offs and why results are banded."""
+    a, r = settings.conf_auto_accept, settings.conf_review_floor
+    return (
+        '<div class="thead"><b>How results are sorted by confidence</b></div>'
+        'Every result gets a 0&ndash;1 confidence score, then falls into one band:'
+        f'<div class="row"><span class="k"><span class="d" style="background:var(--good)"></span>'
+        f'<b>Accept</b> &mdash; signals agree, no human check needed</span><span class="w">&ge; {a:.2f}</span></div>'
+        f'<div class="row"><span class="k"><span class="d" style="background:var(--warn)"></span>'
+        f'<b>Review</b> &mdash; a real but imperfect match; a person should glance</span>'
+        f'<span class="w">{r:.2f}&ndash;{a:.2f}</span></div>'
+        f'<div class="row"><span class="k"><span class="d" style="background:var(--bad)"></span>'
+        f'<b>Set aside</b> &mdash; too weak to trust; kept out of the submission</span>'
+        f'<span class="w">&lt; {r:.2f}</span></div>'
+        '<div class="note">The score is a weighted blend of four signals (open any result&rsquo;s '
+        '<b>Details</b> to see the breakdown). The cut-offs are deliberately conservative, so only '
+        'strong, well-grounded matches auto-accept &mdash; both are tunable in <span class="mono">.env</span>.</div>'
+    )
+
+
+def _formula_tip_inner() -> str:
+    """Explains how the confidence score is built and why the weights are set as they are."""
+    return (
+        '<div class="thead"><b>How the confidence score is built</b></div>'
+        'A transparent, weighted blend of four auditable signals &mdash; each stored on the result:'
+        '<div class="row"><span class="k"><b>Legal fit</b> &mdash; does the text actually satisfy the '
+        'indicator&rsquo;s legal test?</span><span class="w">0.40</span></div>'
+        '<div class="row"><span class="k"><b>Search match</b> &mdash; how strongly search surfaced this '
+        'provision</span><span class="w">0.25</span></div>'
+        '<div class="row"><span class="k"><b>Quote grounding</b> &mdash; is the quoted snippet really in the '
+        'source text?</span><span class="w">0.20</span></div>'
+        '<div class="row"><span class="k"><b>Scope fit</b> &mdash; national vs sector-specific</span>'
+        '<span class="w">0.15</span></div>'
+        '<span class="frm">final = 0.40&middot;legal + 0.25&middot;search + 0.20&middot;quote + 0.15&middot;scope</span>'
+        '<div><b>Why these weights:</b> legal fit weighs most because whether the provision meets the legal '
+        'test is the core question; quote grounding is a strong anti-hallucination guard (the snippet must '
+        'appear verbatim in the source).</div>'
+        '<div class="note"><b>Safety caps:</b> a scope mismatch caps the score at 0.55 (it can never '
+        'auto-accept); a snippet with no on-topic vocabulary caps at 0.45 (likely off-topic).</div>'
+    )
+
+
+def is_no_evidence(m) -> bool:
+    """Placeholder rows the pipeline writes for an indicator with no submittable finding.
+    These carry confidence 0.0 but review_status=auto_accepted (a *confident negative*),
+    so the normal traffic-light card renders a contradiction — render them differently."""
+    return (m.verbatim_snippet or "").strip() == "No evidence" or m.law_name == "No provision found"
+
+
+def _host(url: str) -> str:
+    try:
+        return urlparse(url).netloc or url
+    except Exception:
+        return url
+
+
+def no_evidence_card_html(m) -> str:
+    """A muted 'we searched, found nothing' card — no confidence bar, no NEW tag, no
+    law link presented as evidence. Just: which indicator, and where we looked."""
+    searched = (f'<div class="searched">Searched · '
+                f'<a href="{m.source_url}" target="_blank">{_host(m.source_url)}</a></div>'
+                if m.source_url else "")
+    return (
+        '<div class="vt-card empty">'
+        f'<div class="docket"><b>{m.indicator_id}</b><span>Pillar {m.pillar}</span></div>'
+        f'<div><div class="empty-ttl">No relevant law found</div>'
+        f'<div class="empty-sub">The official portal was searched for {m.economy.value}; '
+        f'no active provision matched this indicator.</div>{searched}</div>'
+        '<div><span class="seal s-none">none found</span></div>'
+        '</div>'
+    )
 
 
 # RDTII Raw Score → a plain tier word describing the 0=simplified … 1=heavily-regulated scale.
@@ -519,13 +665,19 @@ with _theme_col:
         st.rerun()
 
 # ── header ─────────────────────────────────────────────────────────────────
+_a, _r = settings.conf_auto_accept, settings.conf_review_floor
+_bands = (f'<span style="color:var(--good)">&ge;{_a:.2f} accept</span> &middot; '
+          f'<span style="color:var(--warn)">{_r:.2f}&ndash;{_a:.2f} review</span> &middot; '
+          f'<span style="color:var(--bad)">&lt;{_r:.2f} set aside</span>')
+_bands_plain = (f"Accept ≥{_a:.2f} · Review {_r:.2f}–{_a:.2f} · Set aside <{_r:.2f}. "
+                "Confidence = weighted blend of 4 signals. Hover for details.")
 st.markdown(
     '<div class="masthead"><div class="row">'
     f'<div>{logo_html()}'
     '<div class="strap">Find and map data-regulation laws for UN ESCAP RDTII 2.1 &middot; '
     'Singapore, Australia, Malaysia</div></div>'
-    f'<div class="edition">RDTII 2.1<br>'
-    f'auto-accept ≥ {settings.conf_auto_accept:.2f}</div>'
+    f'<div class="edition" style="white-space:normal">RDTII 2.1<br>'
+    f'{tip_html(_bands, _cutoff_tip_inner(), right=True, plain=_bands_plain)}</div>'
     '</div></div>',
     unsafe_allow_html=True,
 )
@@ -695,16 +847,31 @@ if not mappings:
     st.stop()
 
 # ── summary strip ─────────────────────────────────────────────────────────
-summ = workflow.summary(run_id)
-bs = summ["by_status"]
-auto = bs.get("auto_accepted", 0) + bs.get("approved", 0)
+# Count "no provision found" placeholders on their own axis — they are confident
+# negatives, not high-confidence evidence, so they get a neutral "Not found" cell
+# and are kept OUT of the High-confidence count.
+real = [m for m in mappings if not is_no_evidence(m)]
+
+
+def _status_count(*statuses) -> int:
+    return sum(1 for m in real if m.review_status.value in statuses)
+
+
+high_conf = _status_count("auto_accepted", "approved", "corrected")
+review_n = _status_count("pending_review")
+quar_n = _status_count("quarantined")
+not_found_n = sum(1 for m in mappings if is_no_evidence(m))
 cells = [
     ("Country", ECON_NAME.get(meta.economy.value, "—") if meta else "—", ""),
     ("Documents found", meta.docs_discovered if meta else "—", ""),
     ("Provisions read", meta.provisions_extracted if meta else "—", ""),
-    ("High confidence", auto, "fo"), ("Needs review", bs.get("pending_review", 0), "oc"),
-    ("Set aside", bs.get("quarantined", 0), "ox"),
+    ("High confidence", high_conf, "fo"),
+    ("Needs review", review_n, "oc"),
 ]
+if not_found_n:
+    cells.append(("Not found", not_found_n, ""))   # neutral — searched, nothing matched
+if quar_n:                                          # only show when something is actually set aside
+    cells.append(("Set aside", quar_n, "ox"))
 st.markdown(
     '<div class="ledger">' + "".join(
         f'<div class="cell"><div class="cap">{c}</div><div class="num {cls}">{v}</div></div>'
@@ -754,6 +921,9 @@ with tab_ev:
     st.markdown(f'<div class="kicker" style="margin:.5rem 0 .8rem">{len(view)} laws mapped</div>',
                 unsafe_allow_html=True)
     for m in view:
+        if is_no_evidence(m):
+            st.markdown(no_evidence_card_html(m), unsafe_allow_html=True)
+            continue
         snip = m.verbatim_snippet[:260] + ("…" if len(m.verbatim_snippet) > 260 else "")
         flag = f' {seal_html("scope")}'.replace("s-review", "s-flag") if m.scope_flag else ""
         st.markdown(
@@ -807,49 +977,65 @@ with tab_audit:
     ids = [f"{m.indicator_id} · {m.law_name[:30]} {m.article_section}" for m in mappings]
     idx = st.selectbox("Pick a result to inspect", range(len(mappings)), format_func=lambda i: ids[i])
     m = mappings[idx]
-    left, right = st.columns([1.3, 1])
-    with left:
-        st.markdown(f"### {m.indicator_id} — {m.law_name}")
-        st.markdown(f'<div class="cite">{m.article_section} &middot; {m.economy.value} &middot; Pillar {m.pillar} '
-                    f'&middot; {m.discovery_tag.value}</div>', unsafe_allow_html=True)
-        st.markdown('<div class="kicker" style="margin-top:.8rem">Exact quote</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="quote">{m.verbatim_snippet}</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="srcurl">Source · <a href="{m.source_url}">{m.source_url}</a></div>',
-                    unsafe_allow_html=True)
-        st.markdown(f'<div class="cite" style="margin-top:.6rem">Why this mapping · {m.mapping_rationale}</div>',
-                    unsafe_allow_html=True)
-        if m.raw_score is not None:
-            st.markdown('<div class="kicker" style="margin-top:.9rem">Restrictiveness score</div>', unsafe_allow_html=True)
-            st.markdown(f'<div style="display:flex;gap:.8rem;align-items:center">{score_stamp_html(m.raw_score)}'
-                        f'<span class="cite">Coverage · {m.coverage or "—"}</span></div>', unsafe_allow_html=True)
-            if m.impact:
-                st.markdown(f'<div class="cite" style="margin-top:.5rem">Impact · {m.impact}</div>',
-                            unsafe_allow_html=True)
-        if m.scope_flag:
-            st.markdown(f'<div style="margin-top:.7rem">{seal_html("scope").replace("s-review","s-flag")} '
-                        f'<span class="cite">{m.scope_flag} — capped so a sector-specific rule is not auto-accepted.</span></div>',
+    if is_no_evidence(m):
+        # A no-evidence row has nothing to score or quote — show a clean explanation instead
+        # of an all-zero confidence breakdown that reads as a broken result.
+        st.markdown(f"### {m.indicator_id} — No relevant law found")
+        st.markdown(f'<div class="cite">{m.economy.value} &middot; Pillar {m.pillar}</div>', unsafe_allow_html=True)
+        st.markdown('<div class="quote">The official portal was searched for this indicator and no active '
+                    'provision matched its legal test. It appears in the submission file as an explicit '
+                    '“No evidence” row, so the indicator is never left blank.</div>', unsafe_allow_html=True)
+        if m.source_url:
+            st.markdown(f'<div class="srcurl">Searched · <a href="{m.source_url}">{_host(m.source_url)}</a></div>',
                         unsafe_allow_html=True)
-    with right:
-        cb = m.confidence.model_dump()
-        st.markdown('<div class="kicker">How the confidence was scored</div>', unsafe_allow_html=True)
-        _LAB = {"retrieval_score": "search match", "legal_match": "legal fit",
-                "snippet_grounding": "quote grounding", "scope_alignment": "scope fit"}
-        rows = [(k, cb[k]) for k in ("retrieval_score", "legal_match", "snippet_grounding", "scope_alignment")]
-        html = ""
-        for lab, v in rows:
-            html += (f'<div class="bd"><div class="lab">{_LAB.get(lab, lab.replace("_"," "))}</div>'
-                     f'<div class="track"><i style="width:{int(float(v)*100)}%"></i></div>'
-                     f'<div class="val">{float(v):.2f}</div></div>')
-        html += (f'<div class="bd"><div class="lab" style="color:var(--good);font-weight:600">overall</div>'
-                 f'<div class="track"><i class="final" style="width:{int(cb["final"]*100)}%"></i></div>'
-                 f'<div class="val">{cb["final"]:.2f}</div></div>')
-        st.markdown(html, unsafe_allow_html=True)
-        st.markdown(f'<div class="muted">{cb["explanation"]}</div>', unsafe_allow_html=True)
-        st.markdown('<div class="kicker" style="margin-top:.9rem">Text-reading metrics</div>', unsafe_allow_html=True)
-        st.json(m.ocr.model_dump(), expanded=False)
-        st.markdown('<div class="kicker">Search log</div>', unsafe_allow_html=True)
-        st.code("\n".join(m.retrieval_log) or "—")
-        st.markdown(f'<div class="muted">model · {m.model_version}</div>', unsafe_allow_html=True)
+    else:
+        left, right = st.columns([1.3, 1])
+        with left:
+            st.markdown(f"### {m.indicator_id} — {m.law_name}")
+            st.markdown(f'<div class="cite">{m.article_section} &middot; {m.economy.value} &middot; Pillar {m.pillar} '
+                        f'&middot; {m.discovery_tag.value}</div>', unsafe_allow_html=True)
+            st.markdown('<div class="kicker" style="margin-top:.8rem">Exact quote</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="quote">{m.verbatim_snippet}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="srcurl">Source · <a href="{m.source_url}">{m.source_url}</a></div>',
+                        unsafe_allow_html=True)
+            st.markdown(f'<div class="cite" style="margin-top:.6rem">Why this mapping · {m.mapping_rationale}</div>',
+                        unsafe_allow_html=True)
+            if m.raw_score is not None:
+                st.markdown('<div class="kicker" style="margin-top:.9rem">Restrictiveness score</div>', unsafe_allow_html=True)
+                st.markdown(f'<div style="display:flex;gap:.8rem;align-items:center">{score_stamp_html(m.raw_score)}'
+                            f'<span class="cite">Coverage · {m.coverage or "—"}</span></div>', unsafe_allow_html=True)
+                if m.impact:
+                    st.markdown(f'<div class="cite" style="margin-top:.5rem">Impact · {m.impact}</div>',
+                                unsafe_allow_html=True)
+            if m.scope_flag:
+                st.markdown(f'<div style="margin-top:.7rem">{seal_html("scope").replace("s-review","s-flag")} '
+                            f'<span class="cite">{m.scope_flag} — capped so a sector-specific rule is not auto-accepted.</span></div>',
+                            unsafe_allow_html=True)
+        with right:
+            cb = m.confidence.model_dump()
+            _formula_plain = ("Weighted blend: 0.40 legal fit + 0.25 search + 0.20 quote grounding "
+                              "+ 0.15 scope. Caps: scope mismatch 0.55, off-topic 0.45.")
+            st.markdown('<div class="kicker">' + tip_html("How the confidence was scored",
+                        _formula_tip_inner(), right=True, plain=_formula_plain) + '</div>',
+                        unsafe_allow_html=True)
+            _LAB = {"retrieval_score": "search match", "legal_match": "legal fit",
+                    "snippet_grounding": "quote grounding", "scope_alignment": "scope fit"}
+            rows = [(k, cb[k]) for k in ("retrieval_score", "legal_match", "snippet_grounding", "scope_alignment")]
+            html = ""
+            for lab, v in rows:
+                html += (f'<div class="bd"><div class="lab">{_LAB.get(lab, lab.replace("_"," "))}</div>'
+                         f'<div class="track"><i style="width:{int(float(v)*100)}%"></i></div>'
+                         f'<div class="val">{float(v):.2f}</div></div>')
+            html += (f'<div class="bd"><div class="lab" style="color:var(--good);font-weight:600">overall</div>'
+                     f'<div class="track"><i class="final" style="width:{int(cb["final"]*100)}%"></i></div>'
+                     f'<div class="val">{cb["final"]:.2f}</div></div>')
+            st.markdown(html, unsafe_allow_html=True)
+            st.markdown(f'<div class="muted">{cb["explanation"]}</div>', unsafe_allow_html=True)
+            st.markdown('<div class="kicker" style="margin-top:.9rem">Text-reading metrics</div>', unsafe_allow_html=True)
+            st.json(m.ocr.model_dump(), expanded=False)
+            st.markdown('<div class="kicker">Search log</div>', unsafe_allow_html=True)
+            st.code("\n".join(m.retrieval_log) or "—")
+            st.markdown(f'<div class="muted">model · {m.model_version}</div>', unsafe_allow_html=True)
 
 # ── download ───────────────────────────────────────────────────────────────
 with tab_export:
