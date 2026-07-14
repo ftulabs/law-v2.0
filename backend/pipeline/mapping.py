@@ -80,12 +80,18 @@ SYSTEM = (
     "IN-COUNTRY or retain them for a minimum period — including business, accounting, tax and "
     "employment RECORDS — even though those records are not themselves labelled 'personal data'. "
     "Measures applying ONLY to GOVERNMENT data do NOT satisfy (RDTII excludes them).\n"
+    "7. CITATION — the snippet may be a whole multi-subsection section. If the operative rule "
+    "you relied on sits in ONE identifiable subsection/paragraph, set subsection to its bracketed "
+    "citation copied VERBATIM from the snippet (e.g. '(2)' or '(3)(a)'). If it spans the whole "
+    "section, several non-contiguous subsections, or the snippet has no subsection numbering, set "
+    "subsection to null — never invent a subsection number the snippet doesn't literally show.\n"
     "CONSERVATIVE DEFAULT: judge only the snippet; if you are unsure the rule truly meets the "
     "test, set satisfies_target=false (a precise MISS beats a wrong OVER-ASSIGN).\n"
     "rationale <=300 chars, EXACT format: 'This [section] [prohibits/requires/permits/"
     "establishes] [what]. Maps to [indicator] because [one-sentence legal logic].'\n\n"
     "Return ONLY this JSON: {operative_rule:str, satisfies_target:bool, better_sibling:str|null, "
-    "relevant:bool, legal_match:0..1, scope_alignment:0..1, scope_flag:str|null, rationale:str}\n\n"
+    "relevant:bool, legal_match:0..1, scope_alignment:0..1, scope_flag:str|null, "
+    "subsection:str|null, rationale:str}\n\n"
     "WORKED EXAMPLES (real RDTII items with verified answers — TARGET :: SNIPPET → JSON):\n"
     # 1 — Armenia, Law on Protection of Personal Data 2015, Art.27 → 6.4 (NOT a ban)
     "P6-I4 :: 'Personal data may be transferred to other country by the data subject's consent... "
@@ -342,6 +348,18 @@ def map_provisions(
         scope_flag = graded.get("scope_flag") or None
         rationale = graded.get("rationale", "")
 
+        # Citation granularity (per-mapping, not per-extraction — the same section can be cited
+        # at different subsections for different indicators, or as a whole for another). Only
+        # trust a subsection the grader returns if it's a well-formed bracketed ref AND literally
+        # appears in the snippet — same "carried from extraction, not generation" rule as the law
+        # text itself applies to citations: never let the model invent a subsection number.
+        subsection = (graded.get("subsection") or "").strip()
+        article_section = prov.article_section
+        if subsection and re.fullmatch(r"(?:\(\w{1,4}\))+", subsection):
+            first_group = subsection[:subsection.index(")") + 1]
+            if first_group in prov.verbatim_snippet:
+                article_section = f"{prov.article_section}{subsection}"
+
         src_text = source_texts.get(prov.doc_id, prov.verbatim_snippet)
         grounding = confidence.snippet_grounding(prov.verbatim_snippet, src_text)
         ctx_before, ctx_after = "", ""
@@ -366,7 +384,7 @@ def map_provisions(
             run_id=run_id, economy=prov.economy, pillar=ind.pillar, indicator_id=ind.indicator_id,
             law_name=prov.law_name, law_number=prov.law_number,
             last_amended=_last_amended,
-            article_section=prov.article_section, location_ref=prov.location_ref,
+            article_section=article_section, location_ref=prov.location_ref,
             verbatim_snippet=prov.verbatim_snippet, source_url=prov.source_url,
             mapping_rationale=(rationale or "")[:300], confidence_score=breakdown.final,
             discovery_tag=doc_tags.get(prov.doc_id, DiscoveryTag.KNOWN),

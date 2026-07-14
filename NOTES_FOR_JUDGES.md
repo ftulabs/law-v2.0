@@ -37,13 +37,19 @@ location you specify.
 
 **Context.** Instructions: *"Include article number AND paragraph … Never write just 'Art. 26'"*
 (example `s. 16(1)(a)`). Our extractor splits laws at the **section** level, so one output row's
-Verbatim Snippet is the whole section (e.g. all of `Section 26 (1)–(5)`), and we cite `Section 26`.
+Verbatim Snippet is the whole section (e.g. all of `Section 26 (1)–(5)`).
 
-**Question.** When a mapped provision's snippet spans an **entire multi-subsection section**, is
-citing the **section** (`Section 26`) correct, or do you require the citation to be narrowed to the
-specific **subsection/paragraph** that carries the operative rule (`Section 26(2)`) even though the
-snippet covers the whole section? We want to avoid a "low-traceability" deduction while keeping the
-citation faithful to the verbatim snippet we actually quote.
+**Our current handling.** The grading LLM identifies, per mapping, whether the rule it relied on
+sits in ONE subsection — if so we cite it (`Section 26(2)`), verified to literally appear in the
+snippet (never invented). When the operative rule spans the whole section or several non-contiguous
+subsections, we cite the bare section (`Section 26`), matching the full-section Verbatim Snippet we
+quote either way.
+
+**Question.** Is a bare section citation (`Section 26`) acceptable for the cases where the operative
+rule genuinely spans the whole section, or do you require every row to carry a specific
+subsection/paragraph regardless? We want to avoid a "low-traceability" deduction while keeping the
+citation faithful to the verbatim snippet we actually quote (never citing a narrower subsection than
+what the rule actually rests on).
 
 ---
 

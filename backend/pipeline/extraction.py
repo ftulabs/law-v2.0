@@ -65,7 +65,8 @@ _STRUCT_RE = re.compile(
 # "Schedule N"/"Part N" reference becomes a boundary and mis-scopes the sections that follow.
 _STRUCT_RE_AU = re.compile(
     r"(?im)^[ \t]*((?:schedule|part|division)\s+\d+[A-Za-z]?)\s*[—–]\s*(?=[A-Z])")
-_APP_HEADING_RE = re.compile(r"^\s*Australian Privacy Principle\s+(\d+[A-Za-z]?)\b", re.I)
+_APP_HEADING_RE = re.compile(
+    r"^\s*(?:\d{1,3}[A-Za-z]{0,2}\s+)?Australian Privacy Principle\s+(\d+[A-Za-z]?)\b", re.I)
 _DOTTED_TOC_RE = re.compile(r"(?m)^.*\.{4,}.*$")        # a table-of-contents dotted-leader line
 
 # AU consolidated PDFs print page furniture BETWEEN and WITHIN provisions that is not law text
@@ -562,9 +563,10 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
         return provisions
 
     # A bare numbered marker ("11.—(1)", "26. Foo") is preceded by its own marginal heading and
-    # KEEPS the marker in the body; a keyword marker ("Section 26") and a font-marked number
-    # heading consume the marker. Each section's snippet therefore starts at its heading and
-    # ends where the NEXT section's heading begins — no previous-section tail, no next heading.
+    # KEEPS the marker in the body; a keyword marker ("Section 26") consumes it (the label is
+    # already the citation). A font-marked AU heading ALSO keeps the marker — the number and
+    # title are one bold run in the source, so the verbatim snippet should open on the number
+    # ("26  Cross-border disclosure…"), not skip straight to the title text.
     def _numbered(label: str, marked: bool) -> bool:
         return bool(re.match(r"^\d", label.strip())) and not marked
 
@@ -572,7 +574,7 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
 
     current_schedule = None                             # AU: provisions renumber inside each schedule
     for i, (bstart, bend, raw_label, marked) in enumerate(bounds):
-        start = heads[i] if _numbered(raw_label, marked) else bend
+        start = bend if (not _numbered(raw_label, marked) and not marked) else heads[i]
         end = heads[i + 1] if i + 1 < len(bounds) else len(text)
         body = text[start:end].replace(HEADING_MARK, "").strip()
         if len(body) < 20:
@@ -597,12 +599,11 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
                 norm = f"APP {mapp.group(1).upper()}"
             elif current_schedule:
                 norm = f"{current_schedule}, {norm}"
-        # template requires article AND paragraph ("never write just Art. 26"): search the
-        # first 300 chars of the body for a subsection marker (N) — works even when a
-        # marginal heading precedes the "N.—(1)" line (the old start-only match missed it).
-        _sub = re.search(r"(\(\d+[A-Za-z]?\)(?:\([a-z]+\))?)", body[:300])
-        if _sub:
-            norm = f"{norm}{_sub.group(1)}"
+        # NOTE: no subsection is guessed here — extraction doesn't yet know which part of a
+        # multi-subsection section a given indicator mapping actually relies on (could be any
+        # subsection, or the whole section). The label stays at section granularity; mapping.py
+        # narrows it to "Section 26(2)" per-mapping once the grader identifies the operative
+        # subsection, falling back to the bare section (this norm) when it spans the whole thing.
         loc = _location_ref(ocr, start, total, norm)
         provisions.append(_mk(doc, norm, snippet, (start, start + len(snippet)), loc, ocr, i, law_name))
     return provisions

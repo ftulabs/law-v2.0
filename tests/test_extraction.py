@@ -41,9 +41,9 @@ def test_sg_sso_chrome_and_cross_ref_and_heading():
         "S 63/2021 14\n")
     provs = extract_provisions(_doc(Economy.SG), text, OCRMetrics())
     labels = [p.article_section for p in provs]
-    assert labels.count("Section 11(1)") == 1 and "Section 10(1)" in labels
+    assert labels.count("Section 11") == 1 and "Section 10" in labels
     assert "Section 48H" not in " ".join(labels)               # cross-ref is not a boundary
-    s11 = next(p for p in provs if p.article_section == "Section 11(1)")
+    s11 = next(p for p in provs if p.article_section == "Section 11")
     assert s11.verbatim_snippet.startswith("Legally enforceable obligations")  # starts at the heading
     assert "11.—(1) For the purposes of regulation 10(1)" in s11.verbatim_snippet
     assert "withdrawing consent" not in s11.verbatim_snippet    # no previous reg's tail
@@ -67,7 +67,7 @@ def test_sg_act_wrapped_edition_footer_stripped():
         "Access to personal data\n"
         "21.—(1) On request, an organisation must provide the individual's personal data.\n")
     provs = extract_provisions(doc, text, OCRMetrics())
-    s26 = next(p for p in provs if p.article_section == "Section 26(1)")
+    s26 = next(p for p in provs if p.article_section == "Section 26")
     assert "(1) An organisation must not transfer" in s26.verbatim_snippet
     assert "(2) The Commission may" in s26.verbatim_snippet     # body continues across the page
     assert "Act 2012 2020 Ed." not in s26.verbatim_snippet
@@ -98,9 +98,12 @@ def test_font_marked_headings_split_consecutive_sections():
             f"(1) The System Operator must not hold the records outside Australia.\n")
     provs = extract_provisions(_doc(), text, OCRMetrics())
     labels = [p.article_section for p in provs]
-    assert labels == ["Section 76", "Section 76A", "Section 77(1)"]
-    s77 = [p for p in provs if p.article_section == "Section 77(1)"][0]
+    assert labels == ["Section 76", "Section 76A", "Section 77"]
+    s77 = [p for p in provs if p.article_section == "Section 77"][0]
     assert "outside Australia" in s77.verbatim_snippet and "76A" not in s77.verbatim_snippet
+    # the snippet opens on the font-marked NUMBER, not the title text after it — AU prints the
+    # number and heading title as one bold run, so both belong in the verbatim quote.
+    assert s77.verbatim_snippet.startswith("77 Requirement not to hold")
 
 
 # ─────────────────────── component coverage ───────────────────────
@@ -233,13 +236,14 @@ def test_au_app_relabel_schedule_scope_and_cross_ref_suppressed():
         "The objects of this Schedule are to establish a cause of action for serious invasions.\n")
     provs = extract_provisions(_doc(Economy.AU), text, OCRMetrics())
     labels = [p.article_section for p in provs]
-    assert "Section 100(1A)" in labels                      # main section kept, NOT scoped
+    assert "Section 100" in labels                          # main section kept, NOT scoped
     assert "APP 8" in labels and "APP 9" in labels         # Schedule-1 headings relabelled
     assert not any(l.startswith("APP 8") and l != "APP 8" for l in labels)  # no false APP from "8.3"
     assert "Schedule 2, Section 1" in labels               # other-schedule section scoped
     app8 = next(p for p in provs if p.article_section == "APP 8")
     assert "8.1" in app8.verbatim_snippet and "8.2" in app8.verbatim_snippet  # full principle, not just 8.1
-    s100 = next(p for p in provs if p.article_section == "Section 100(1A)")
+    assert app8.verbatim_snippet.startswith("8 Australian Privacy Principle 8")  # opens on the number
+    s100 = next(p for p in provs if p.article_section == "Section 100")
     assert "prescribing a country" in s100.verbatim_snippet  # the cross-ref text stays in s100
 
 
@@ -258,7 +262,7 @@ def test_au_page_furniture_stripped_mid_provision():
         "(2) Despite subsection (1), the System Operator is authorised to do certain things.\n"
         f"{M}78 Something else entirely with a body long enough to be a real provision here.\n")
     s77 = next(p for p in extract_provisions(_doc(Economy.AU), text, OCRMetrics())
-               if p.article_section == "Section 77(1)")
+               if p.article_section == "Section 77")
     assert "(1) The System Operator" in s77.verbatim_snippet
     assert "(2) Despite subsection (1)" in s77.verbatim_snippet   # body continues across the page
     assert "My Health Records Act 2012 89" not in s77.verbatim_snippet
@@ -283,7 +287,7 @@ def test_au_clause_header_and_repeated_table_header_stripped():
         "2 a credit provider the provider requests the information for a commercial purpose.\n"
         f"{M}21 Next section with a body long enough to be a real provision in this fixture.\n")
     s20f = next(p for p in extract_provisions(_doc(Economy.AU), text, OCRMetrics())
-                if p.article_section == "Section 20F(1)")
+                if p.article_section == "Section 20F")
     snip = s20f.verbatim_snippet
     assert "Clause 8" not in snip                               # clause page header dropped
     assert snip.count("the condition or conditions are") == 1   # table header kept once, repeat dropped
@@ -310,7 +314,7 @@ def test_my_numbered_sections_survive_stray_bold_mark():
         source_url="https://lom.agc.gov.my/x.pdf", portal="MY", fmt=DocFormat.PDF_TEXT)
     provs = extract_provisions(doc, body, OCRMetrics())
     secs = [p.article_section for p in provs]
-    assert "Section 82(1)" in secs and "Section 83(1)" in secs  # numbered sections kept
-    s82 = [p for p in provs if p.article_section == "Section 82(1)"][0]
+    assert "Section 82" in secs and "Section 83" in secs  # numbered sections kept
+    s82 = [p for p in provs if p.article_section == "Section 82"][0]
     assert "keep and retain records" in s82.verbatim_snippet
     assert HEADING_MARK not in s82.verbatim_snippet            # stray mark stripped from snippet
