@@ -11,3 +11,5 @@ font = "sans-serif"
 
 [server]
 runOnSave = true
+# serve files in frontend/static/ at /app/static/… — used for the white paper page
+enableStaticServing = true

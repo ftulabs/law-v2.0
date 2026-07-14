@@ -36,6 +36,29 @@ db.init_db()  # ensure schema exists on fresh mounts (no-op if tables already pr
 # ── brand assets (drop files in frontend/assets/ — see ASSETS.md) ──────────
 ASSETS = Path(__file__).resolve().parent / "assets"
 
+# ── white paper: sync docs/whitepaper.html → frontend/static/ so Streamlit's static
+#    file server (enableStaticServing) exposes it at /app/static/whitepaper.html.
+#    docs/whitepaper.html stays the single source of truth; this copy is generated. ──
+_STATIC = Path(__file__).resolve().parent / "static"
+WHITEPAPER_URL = "app/static/whitepaper.html"  # relative to the app origin (new-tab link)
+
+
+def _sync_whitepaper() -> bool:
+    src = Path(__file__).resolve().parent.parent / "docs" / "whitepaper.html"
+    if not src.exists():
+        return False
+    try:
+        _STATIC.mkdir(exist_ok=True)
+        dst = _STATIC / "whitepaper.html"
+        if not dst.exists() or dst.stat().st_mtime < src.stat().st_mtime:
+            dst.write_bytes(src.read_bytes())
+        return True
+    except Exception:
+        return False
+
+
+_HAS_WHITEPAPER = _sync_whitepaper()
+
 
 def _asset(*names: str) -> Path | None:
     for n in names:
@@ -265,6 +288,12 @@ st.markdown(
               color:var(--accent-ink) !important; fill:var(--accent-ink) !important; }}
       .stButton button[kind="primary"]:hover {{filter:brightness(1.06);}}
       .stDownloadButton button {{font-family:'Inter',sans-serif; font-weight:600; border-radius:9px;}}
+      /* white-paper link — styled to match a secondary button, sits in the top-right row */
+      .wp-link {{ display:flex; align-items:center; justify-content:center; gap:.4rem; height:100%;
+              min-height:38px; padding:.3rem .6rem; font-family:'Inter',sans-serif; font-size:.88rem;
+              font-weight:600; border:1px solid var(--rule); border-radius:9px; background:var(--panel);
+              color:var(--ink) !important; text-decoration:none !important; white-space:nowrap; }}
+      .wp-link:hover {{ border-color:var(--accent); color:var(--accent) !important; }}
 
       /* ── confidence breakdown bars (details) ── */
       .bd {{display:grid; grid-template-columns:150px 1fr 48px; align-items:center; gap:.6rem; margin:.35rem 0;}}
@@ -656,8 +685,16 @@ def _secret(name: str, fallback: str = "") -> str:
     return fallback
 
 
-# ── theme toggle (top-right) ───────────────────────────────────────────────
-_, _theme_col = st.columns([9, 1])
+# ── top-right: white-paper link + theme toggle ─────────────────────────────
+if _HAS_WHITEPAPER:
+    _sp, _wp_col, _theme_col = st.columns([7.6, 1.5, 1])
+    with _wp_col:
+        st.markdown(
+            f'<a class="wp-link" href="{WHITEPAPER_URL}" target="_blank" rel="noopener" '
+            f'title="Open the technical white paper in a new tab">📄 White paper</a>',
+            unsafe_allow_html=True)
+else:
+    _sp, _theme_col = st.columns([9, 1])
 with _theme_col:
     if st.button("☀ Light" if DARK else "☾ Dark", key="theme_toggle",
                  help="Switch between light and dark", width="stretch"):

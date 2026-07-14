@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VeriTrade — Technical White Paper</title>
+<meta name="description" content="VeriTrade: autonomous evidence discovery and regulatory mapping for digital-trade law (UN ESCAP RDTII 2.1). Architecture, methodology, confidence model, evaluation — with interactive figures.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%235cc8ff'/%3E%3Cstop offset='1' stop-color='%232f7fe6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='%230b1120'/%3E%3Ctext x='32' y='45' font-family='Arial,sans-serif' font-weight='800' font-size='34' fill='url(%23g)' text-anchor='middle'%3EVT%3C/text%3E%3C/svg%3E">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root{
+    --paper:#ffffff; --paper-2:#f5f8fc; --paper-3:#eaeff6;
+    --ink:#0f172a; --ink-soft:#48566b; --ink-faint:#7a879c;
+    --rule:#dbe2ec; --rule-soft:#eef2f7;
+    --accent:#2563eb; --accent-ink:#ffffff; --accent-soft:#e6effe;
+    --good:#15803d; --warn:#a16207; --bad:#dc2626;
+    --good-soft:#e7f4ec; --warn-soft:#faf1dd; --bad-soft:#fdeaea;
+    --panel:#f7f9fc; --panel-2:#eef3f9;
+    --grid:#e6ebf2;
+    --shadow:0 1px 2px rgba(15,23,42,.06), 0 8px 30px rgba(15,23,42,.06);
+    --surface-chart:#ffffff;
+  }
+  :root[data-theme="dark"]{
+    --paper:#0b1120; --paper-2:#111a2b; --paper-3:#1a2740;
+    --ink:#e9eef8; --ink-soft:#a3b0c9; --ink-faint:#6f7d99;
+    --rule:#26334d; --rule-soft:#1b2740;
+    --accent:#4f9cff; --accent-ink:#04122b; --accent-soft:#12213c;
+    --good:#34d399; --warn:#fbbf24; --bad:#f87171;
+    --good-soft:#123122; --warn-soft:#322709; --bad-soft:#341417;
+    --panel:#111a2b; --panel-2:#16233a;
+    --grid:#20304c;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 12px 40px rgba(0,0,0,.35);
+    --surface-chart:#0e1728;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#0b1120; --paper-2:#111a2b; --paper-3:#1a2740;
+      --ink:#e9eef8; --ink-soft:#a3b0c9; --ink-faint:#6f7d99;
+      --rule:#26334d; --rule-soft:#1b2740;
+      --accent:#4f9cff; --accent-ink:#04122b; --accent-soft:#12213c;
+      --good:#34d399; --warn:#fbbf24; --bad:#f87171;
+      --good-soft:#123122; --warn-soft:#322709; --bad-soft:#341417;
+      --panel:#111a2b; --panel-2:#16233a;
+      --grid:#20304c;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 12px 40px rgba(0,0,0,.35);
+      --surface-chart:#0e1728;
+    }
+  }
+
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{margin:0; background:var(--paper); color:var(--ink); font-size:16.5px; line-height:1.65;
+       font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+       -webkit-font-smoothing:antialiased;}
+  a{color:var(--accent); text-decoration:none;} a:hover{text-decoration:underline;}
+  h1,h2,h3,h4{line-height:1.25; letter-spacing:-.015em; font-weight:700;}
+  h2{font-size:1.7rem; margin:0 0 .2rem;}
+  h3{font-size:1.18rem; margin:1.6rem 0 .4rem;}
+  h4{font-size:1rem; margin:1.1rem 0 .3rem; color:var(--ink);}
+  p{margin:.6rem 0;}
+  code,.mono{font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:.9em;}
+  :not(pre)>code{background:var(--paper-3); padding:.08em .38em; border-radius:5px; font-size:.85em;}
+  strong{font-weight:700;}
+  .muted{color:var(--ink-faint);} .soft{color:var(--ink-soft);}
+
+  /* ── top bar ── */
+  .topbar{position:sticky; top:0; z-index:50; background:color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter:saturate(1.2) blur(8px); border-bottom:1px solid var(--rule);}
+  .topbar .in{max-width:1180px; margin:0 auto; padding:.6rem 1.3rem; display:flex; align-items:center;
+    justify-content:space-between; gap:1rem;}
+  .brand{display:flex; align-items:center; gap:.6rem; font-weight:800; letter-spacing:-.02em; font-size:1.05rem;}
+  .brand svg{width:30px; height:30px; border-radius:8px; display:block;}
+  .brand .mark{color:var(--accent);}
+  .topbar .tag{font-family:'IBM Plex Mono',monospace; font-size:.7rem; color:var(--ink-faint);
+    border:1px solid var(--rule); padding:.12rem .5rem; border-radius:99px;}
+  .btn{font:inherit; font-size:.85rem; font-weight:600; cursor:pointer; border:1px solid var(--rule);
+    background:var(--panel); color:var(--ink); border-radius:9px; padding:.34rem .7rem; display:inline-flex;
+    align-items:center; gap:.4rem;}
+  .btn:hover{border-color:var(--accent); color:var(--accent);}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:var(--accent-ink);}
+  .btn.primary:hover{filter:brightness(1.06); color:var(--accent-ink);}
+  .btn:disabled{opacity:.5; cursor:default;}
+
+  /* ── layout ── */
+  .wrap{max-width:1180px; margin:0 auto; padding:0 1.3rem; display:grid;
+    grid-template-columns:230px minmax(0,1fr); gap:2.2rem;}
+  nav.toc{position:sticky; top:64px; align-self:start; max-height:calc(100vh - 80px); overflow:auto;
+    padding:1.4rem 0; font-size:.86rem;}
+  nav.toc .lbl{font-size:.7rem; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-faint);
+    font-weight:700; margin:0 0 .5rem;}
+  nav.toc a{display:block; color:var(--ink-soft); padding:.2rem .6rem; border-left:2px solid transparent;
+    border-radius:0 6px 6px 0; margin:.05rem 0;}
+  nav.toc a:hover{color:var(--ink); text-decoration:none; background:var(--panel);}
+  nav.toc a.active{color:var(--accent); border-left-color:var(--accent); background:var(--accent-soft); font-weight:600;}
+  main{padding:1.4rem 0 5rem; min-width:0;}
+
+  /* ── reveal on scroll ── */
+  .reveal{opacity:0; transform:translateY(18px); transition:opacity .6s ease, transform .6s cubic-bezier(.16,1,.3,1);}
+  .reveal.in{opacity:1; transform:none;}
+  @media (prefers-reduced-motion: reduce){ .reveal{opacity:1 !important; transform:none !important; transition:none;} }
+
+  /* ── hero ── */
+  .hero{position:relative; padding:2.6rem 0 1.6rem; border-bottom:1px solid var(--rule); margin-bottom:1.4rem; overflow:hidden;}
+  .hero::before{content:""; position:absolute; inset:-40% -20% auto -20%; height:340px; z-index:-1;
+    background:radial-gradient(60% 100% at 30% 0%, color-mix(in srgb,var(--accent) 22%,transparent), transparent 70%);
+    filter:blur(6px); animation:drift 14s ease-in-out infinite alternate;}
+  @keyframes drift{from{transform:translateX(-4%);}to{transform:translateX(6%);}}
+  @media (prefers-reduced-motion: reduce){ .hero::before{animation:none;} }
+  .hero .kick{font-family:'IBM Plex Mono',monospace; font-size:.72rem; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--accent); font-weight:600;}
+  .hero h1{font-size:2.7rem; font-weight:800; letter-spacing:-.03em; margin:.5rem 0 .3rem; line-height:1.06;}
+  .hero .sub{font-size:1.18rem; color:var(--ink-soft); max-width:60ch;}
+  .metarow{display:flex; flex-wrap:wrap; gap:.5rem; margin-top:1.1rem;}
+  .chip{font-family:'IBM Plex Mono',monospace; font-size:.72rem; color:var(--ink-soft);
+    border:1px solid var(--rule); background:var(--panel); border-radius:99px; padding:.22rem .7rem;}
+  .chip b{color:var(--ink);}
+  .cta{display:flex; flex-wrap:wrap; gap:.6rem; margin-top:1.2rem;}
+
+  /* ── stat band ── */
+  .stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:.8rem; margin:1.4rem 0;}
+  .stat{border:1px solid var(--rule); border-radius:12px; background:var(--panel); padding:.9rem 1rem;
+    transition:transform .18s, border-color .18s, box-shadow .18s;}
+  .stat:hover{transform:translateY(-2px); border-color:var(--accent); box-shadow:var(--shadow);}
+  .stat .n{font-size:1.75rem; font-weight:800; letter-spacing:-.02em; line-height:1; font-variant-numeric:tabular-nums;}
+  .stat .n.a{color:var(--accent);} .stat .n.g{color:var(--good);}
+  .stat .k{font-size:.78rem; color:var(--ink-faint); margin-top:.25rem;}
+
+  section{scroll-margin-top:70px; padding:1.7rem 0; border-top:1px solid var(--rule-soft);}
+  section:first-of-type{border-top:none;}
+  .secno{font-family:'IBM Plex Mono',monospace; font-size:.8rem; color:var(--accent); font-weight:600;}
+
+  .card{border:1px solid var(--rule); border-radius:13px; background:var(--panel); padding:1.1rem 1.2rem; margin:1rem 0;
+    box-shadow:var(--shadow);}
+  .lead{border:1px solid var(--rule); border-left:4px solid var(--accent); background:var(--panel-2);
+    border-radius:0 10px 10px 0; padding:.8rem 1.1rem; margin:1rem 0; color:var(--ink-soft);}
+  .lead b{color:var(--ink);}
+  ul,ol{margin:.5rem 0; padding-left:1.3rem;} li{margin:.3rem 0;}
+
+  table{width:100%; border-collapse:collapse; margin:1rem 0; font-size:.92rem;}
+  th,td{text-align:left; padding:.55rem .7rem; border-bottom:1px solid var(--rule); vertical-align:top;}
+  th{font-size:.74rem; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-faint); font-weight:700;}
+  tbody tr:hover{background:var(--panel);}
+  .tbl-wrap{overflow-x:auto; border:1px solid var(--rule); border-radius:12px;}
+  .tbl-wrap table{margin:0;} .tbl-wrap th,.tbl-wrap td{padding:.6rem .9rem;}
+
+  .badge{display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:.68rem; font-weight:600;
+    padding:.1rem .5rem; border-radius:99px; border:1px solid;}
+  .b-good{color:var(--good); border-color:var(--good); background:var(--good-soft);}
+  .b-warn{color:var(--warn); border-color:var(--warn); background:var(--warn-soft);}
+  .b-bad{color:var(--bad); border-color:var(--bad); background:var(--bad-soft);}
+  .b-accent{color:var(--accent); border-color:var(--accent); background:var(--accent-soft);}
+
+  /* ── interactive figure frame ── */
+  .fig{border:1px solid var(--rule); border-radius:14px; background:var(--surface-chart); box-shadow:var(--shadow); margin:1.2rem 0; overflow:hidden;}
+  .fig .fhead{display:flex; justify-content:space-between; align-items:center; gap:1rem; padding:.7rem 1.1rem;
+    border-bottom:1px solid var(--rule); background:var(--panel);}
+  .fig .fhead .t{font-weight:700; font-size:.95rem;} .fig .fhead .badge{flex:none;}
+  .fig .fbody{padding:1.1rem 1.2rem;}
+  .figcap{font-size:.82rem; color:var(--ink-faint); margin:.5rem 0 0;}
+  .illus{font-family:'IBM Plex Mono',monospace; font-size:.62rem; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--ink-faint); border:1px dashed var(--rule); border-radius:99px; padding:.05rem .5rem;}
+
+  /* legend */
+  .legend{display:flex; flex-wrap:wrap; gap:.9rem; font-size:.82rem; color:var(--ink-soft); margin:.6rem 0 0;}
+  .legend .it{display:inline-flex; align-items:center; gap:.4rem;}
+  .legend .sw{width:12px; height:12px; border-radius:3px; flex:none;}
+
+  /* confidence calculator */
+  .calc{display:grid; grid-template-columns:1fr 300px; gap:1.4rem;}
+  @media(max-width:720px){.calc{grid-template-columns:1fr;}}
+  .sliders .row{margin:.75rem 0;}
+  .sliders .row .top{display:flex; justify-content:space-between; align-items:baseline; font-size:.9rem;}
+  .sliders .row .top .w{font-family:'IBM Plex Mono',monospace; font-size:.72rem; color:var(--ink-faint);}
+  .sliders .row .top .v{font-family:'IBM Plex Mono',monospace; font-weight:600; color:var(--accent);}
+  input[type=range]{width:100%; margin:.35rem 0 0; accent-color:var(--accent); height:22px;}
+  .toggles{display:flex; flex-wrap:wrap; gap:.5rem; margin-top:.6rem;}
+  .toggle{display:inline-flex; align-items:center; gap:.4rem; font-size:.82rem; border:1px solid var(--rule);
+    border-radius:99px; padding:.25rem .6rem; cursor:pointer; user-select:none; color:var(--ink-soft);}
+  .toggle input{accent-color:var(--bad);}
+  .readout{border:1px solid var(--rule); border-radius:12px; background:var(--panel); padding:1rem; text-align:center;
+    display:flex; flex-direction:column; justify-content:center;}
+  .readout .big{font-size:3rem; font-weight:800; line-height:1; letter-spacing:-.03em; font-variant-numeric:tabular-nums;}
+  .readout .band{margin-top:.5rem; font-weight:700;}
+  .meter{height:10px; border-radius:99px; background:var(--paper-3); overflow:hidden; margin:.8rem 0 .2rem; position:relative;}
+  .meter>i{display:block; height:100%; border-radius:99px; transition:width .25s, background .25s;}
+  .meter .t60,.meter .t85{position:absolute; top:-3px; width:2px; height:16px; background:var(--ink-faint); opacity:.5;}
+  .meter .t60{left:60%;} .meter .t85{left:85%;}
+  .capnote{font-size:.78rem; color:var(--bad); margin-top:.5rem; min-height:1.1em;}
+  .formula{font-family:'IBM Plex Mono',monospace; font-size:.82rem; background:var(--paper-3); border-radius:8px;
+    padding:.6rem .75rem; margin-top:.9rem; color:var(--ink-soft); line-height:1.7; overflow-x:auto;}
+  .formula b{color:var(--ink);}
+  .gcolor{color:var(--good);} .wcolor{color:var(--warn);} .bcolor{color:var(--bad);} .acolor{color:var(--accent);}
+
+  /* indicator explorer */
+  .indgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:.7rem;}
+  .ind{border:1px solid var(--rule); border-radius:11px; background:var(--panel); padding:.8rem .9rem; cursor:pointer;
+    transition:border-color .15s, background .15s, transform .15s;}
+  .ind:hover{border-color:var(--accent); transform:translateY(-2px);}
+  .ind.open{background:var(--surface-chart); border-color:var(--accent); box-shadow:var(--shadow);}
+  .ind .id{font-family:'IBM Plex Mono',monospace; font-weight:700; color:var(--accent); font-size:.82rem;}
+  .ind .ti{font-weight:600; margin-top:.15rem; font-size:.98rem;}
+  .ind .body{display:none; margin-top:.6rem; font-size:.9rem; color:var(--ink-soft);}
+  .ind.open .body{display:block;}
+  .ind .body .h{font-size:.7rem; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-faint);
+    font-weight:700; margin:.5rem 0 .1rem;}
+  .ind .body .vs{color:var(--warn); font-weight:600;}
+  .pilltabs{display:flex; gap:.5rem; margin-bottom:.9rem; flex-wrap:wrap;}
+  .pilltab{font:inherit; font-size:.85rem; font-weight:600; cursor:pointer; border:1px solid var(--rule);
+    background:var(--panel); color:var(--ink-soft); border-radius:99px; padding:.3rem .9rem;}
+  .pilltab.active{background:var(--accent); border-color:var(--accent); color:var(--accent-ink);}
+
+  /* pipeline demo */
+  .pipe{display:grid; gap:.55rem;}
+  .zone{border:1px solid var(--rule); border-radius:13px; overflow:hidden; background:var(--panel);}
+  .zone .zh{padding:.5rem .9rem; font-family:'IBM Plex Mono',monospace; font-size:.74rem; font-weight:600;
+    letter-spacing:.08em; text-transform:uppercase; color:var(--accent-ink); background:var(--accent);}
+  .zone.z2 .zh{background:color-mix(in srgb,var(--accent) 78%, #7c3aed);}
+  .zone .zb{display:grid; grid-template-columns:1fr 1fr; gap:.6rem; padding:.7rem;}
+  @media(max-width:600px){.zone .zb{grid-template-columns:1fr;}}
+  .node{border:1px solid var(--rule); border-radius:10px; background:var(--surface-chart); padding:.55rem .75rem;
+    position:relative; transition:border-color .25s, box-shadow .25s, transform .25s;}
+  .node .nt{font-weight:700; font-size:.9rem; display:flex; align-items:center; gap:.4rem;}
+  .node ul{margin:.3rem 0 0; font-size:.8rem; color:var(--ink-soft);}
+  .node .dot{width:9px; height:9px; border-radius:50%; background:var(--rule); flex:none; transition:background .25s;}
+  .node.active{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); transform:translateY(-1px);}
+  .node.active .dot{background:var(--accent); animation:pulse 1s ease-in-out infinite;}
+  .node.done{border-color:var(--good);}
+  .node.done .dot{background:var(--good); animation:none;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  .flowarrow{text-align:center; color:var(--ink-faint); font-size:1.1rem; line-height:1;}
+  .route{display:flex; flex-wrap:wrap; gap:.5rem; justify-content:center; margin:.3rem 0;}
+  .route span{font-family:'IBM Plex Mono',monospace; font-size:.76rem; border:1px solid; border-radius:99px; padding:.2rem .7rem;}
+  .demobar{display:flex; align-items:center; gap:.8rem; margin-bottom:.8rem; flex-wrap:wrap;}
+  .prog{flex:1; min-width:160px; height:8px; border-radius:99px; background:var(--paper-3); overflow:hidden;}
+  .prog>i{display:block; height:100%; width:0; background:var(--accent); border-radius:99px; transition:width .4s ease;}
+  .demolog{font-family:'IBM Plex Mono',monospace; font-size:.76rem; color:var(--ink-soft); background:var(--paper-3);
+    border-radius:8px; padding:.5rem .7rem; margin-top:.7rem; min-height:2.4rem; max-height:8rem; overflow:auto; line-height:1.6;}
+  .demolog .ok{color:var(--good);} .demolog .mut{color:var(--ink-faint);}
+  .resultcard{margin-top:.7rem; border:1px solid var(--good); border-radius:11px; background:var(--good-soft);
+    padding:.7rem .9rem; display:none;}
+  .resultcard.show{display:block; animation:pop .4s ease both;}
+  @keyframes pop{from{opacity:0; transform:scale(.97);}to{opacity:1; transform:none;}}
+
+  /* worked example chain */
+  .chain{display:grid; gap:.5rem;}
+  .step{display:grid; grid-template-columns:34px 1fr; gap:.7rem; align-items:start;}
+  .step .n{width:34px; height:34px; border-radius:50%; background:var(--accent); color:var(--accent-ink);
+    font-weight:700; display:flex; align-items:center; justify-content:center; font-size:.9rem; flex:none;}
+  .step .c{border:1px solid var(--rule); border-radius:10px; background:var(--panel); padding:.55rem .8rem; font-size:.9rem;}
+  .quote{font-style:italic; color:var(--ink-soft); border-left:3px solid var(--rule); background:var(--paper-2);
+    padding:.5rem .8rem; border-radius:0 6px 6px 0; margin:.5rem 0; font-size:.92rem;}
+  mark{background:var(--accent-soft); color:var(--ink); border-radius:3px; padding:0 .15em;}
+
+  /* charts */
+  .chartrow{display:grid; grid-template-columns:1fr 1fr; gap:1rem;}
+  @media(max-width:760px){.chartrow{grid-template-columns:1fr;}}
+  .svgchart{width:100%; height:auto; display:block; overflow:visible;}
+  .svgchart text{font-family:'Inter',sans-serif;}
+  .tick{fill:var(--ink-faint); font-size:11px;}
+  .axlab{fill:var(--ink-soft); font-size:12px; font-weight:600;}
+  .vallab{fill:var(--ink); font-size:12px; font-weight:700; font-variant-numeric:tabular-nums;}
+  .gridline{stroke:var(--grid); stroke-width:1;}
+
+  /* gauge */
+  .gauge{position:relative;}
+  .gauge .track{height:26px; border-radius:99px; background:linear-gradient(90deg,var(--good) 0%,var(--good) 60%,var(--warn) 80%,var(--bad) 100%);
+    opacity:.22;}
+  .gauge .fill{position:absolute; top:0; left:0; height:26px; border-radius:99px; background:var(--good); width:0; transition:width 1s cubic-bezier(.16,1,.3,1);}
+  .gauge .thresh{position:absolute; top:-6px; height:38px; width:2px; background:var(--bad);}
+  .gauge .threshlab{position:absolute; top:-24px; transform:translateX(-50%); font-size:.72rem; font-weight:700; color:var(--bad);}
+  .gauge .valtag{position:absolute; top:2px; transform:translateX(-50%); color:#fff; font-weight:800; font-size:.8rem;
+    font-variant-numeric:tabular-nums;}
+
+  /* heatmap */
+  .heat{border-collapse:separate; border-spacing:4px; margin:.4rem 0 0;}
+  .heat th{font-size:.72rem; text-transform:none; letter-spacing:0; color:var(--ink-soft); font-weight:700; text-align:center; padding:.2rem;}
+  .heat td.rh{font-weight:700; color:var(--ink); text-align:right; padding-right:.5rem; white-space:nowrap;}
+  .cell{width:40px; height:34px; border-radius:7px; display:flex; align-items:center; justify-content:center;
+    font-size:.8rem; font-weight:700; cursor:default; transition:transform .12s;}
+  .cell:hover{transform:scale(1.12);}
+  .cell.found{background:var(--accent); color:var(--accent-ink);}
+  .cell.none{background:var(--paper-3); color:var(--ink-faint); border:1px dashed var(--rule);}
+
+  /* comparison */
+  .versus{display:grid; grid-template-columns:1fr 1fr; gap:1rem;}
+  @media(max-width:640px){.versus{grid-template-columns:1fr;}}
+  .vcol{border:1px solid var(--rule); border-radius:13px; padding:1rem 1.1rem; background:var(--panel);}
+  .vcol.win{border-color:var(--accent); background:var(--accent-soft);}
+  .vcol h4{margin:0 0 .6rem; display:flex; align-items:center; gap:.5rem;}
+  .vmetric{margin:.6rem 0;}
+  .vmetric .vk{font-size:.8rem; color:var(--ink-soft); display:flex; justify-content:space-between;}
+  .vmetric .vk b{color:var(--ink);}
+  .vbar{height:8px; border-radius:99px; background:var(--paper-3); overflow:hidden; margin-top:.25rem;}
+  .vbar>i{display:block; height:100%; border-radius:99px;}
+  .vbar>i.slow{background:var(--bad);} .vbar>i.fast{background:var(--good);}
+
+  footer{border-top:1px solid var(--rule); margin-top:2rem; padding:1.6rem 0; color:var(--ink-faint); font-size:.85rem;}
+  .backtop{position:fixed; right:1.1rem; bottom:1.1rem; z-index:40;}
+
+  @media(max-width:900px){
+    .wrap{grid-template-columns:1fr;}
+    nav.toc{display:none;}
+    .hero h1{font-size:2.1rem;}
+  }
+</style>
+</head>
+<body data-palette="#2563eb,#15803d,#a16207,#dc2626">
+
+<div class="topbar"><div class="in">
+  <div class="brand">
+    <svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5cc8ff"/><stop offset="1" stop-color="#2f7fe6"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#0b1120"/><text x="32" y="45" font-family="Inter,Arial,sans-serif" font-weight="800" font-size="34" fill="url(#bg)" text-anchor="middle">VT</text></svg>
+    <span>Veri<span class="mark">Trade</span></span>
+    <span class="tag">White Paper</span>
+  </div>
+  <button class="btn" id="themeBtn" aria-label="Toggle light/dark">☾ Theme</button>
+</div></div>
+
+<div class="wrap">
+  <nav class="toc" id="toc">
+    <p class="lbl">Contents</p>
+  </nav>
+
+  <main>
+    <header class="hero">
+      <div class="kick">UN ESCAP · RDTII 2.1 · Technical White Paper</div>
+      <h1>VeriTrade</h1>
+      <p class="sub">Autonomous evidence discovery and regulatory mapping for digital-trade law —
+        find the statute, prove the clause, and cite it, from nothing but an <em>economy</em> and a <em>pillar</em>.</p>
+      <div class="metarow">
+        <span class="chip"><b>Version</b> 2.0</span>
+        <span class="chip"><b>Team</b> FTU</span>
+        <span class="chip"><b>Scope</b> Round 1 · SG · AU · MY</span>
+        <span class="chip"><b>License</b> Apache-2.0</span>
+      </div>
+      <div class="cta">
+        <a class="btn primary" href="#architecture">▶ See it run</a>
+        <a class="btn" href="#confidence">Try the confidence model</a>
+        <a class="btn" href="presentation/pitch-deck.html" target="_blank">Pitch deck ↗</a>
+      </div>
+    </header>
+
+    <div class="stats" id="statband">
+      <div class="stat"><div class="n a" data-to="2">0</div><div class="k">automated tasks: discover + extract, then map</div></div>
+      <div class="stat"><div class="n" data-to="9">0</div><div class="k">mandatory RDTII indicators (P6·I1–4, P7·I1–5)</div></div>
+      <div class="stat"><div class="n g" data-to="1.11" data-dec="2" data-suffix="%">0</div><div class="k">measured OCR error rate (bar &lt; 5%)</div></div>
+      <div class="stat"><div class="n" data-prefix="~$" data-to="0.07" data-dec="2">0</div><div class="k">LLM cost / economy · $0 open-weight</div></div>
+      <div class="stat"><div class="n" data-to="100" data-suffix="%">0</div><div class="k">verbatim citations (copied, never generated)</div></div>
+    </div>
+
+    <section id="abstract" class="reveal">
+      <div class="secno">Abstract</div>
+      <h2>Abstract</h2>
+      <p>The UN ESCAP <strong>Regulatory Digital Trade Integration Index (RDTII)</strong> scores every economy against
+      dozens of digital-trade indicators. Compiling it is manual, slow, and hard to reproduce: an analyst must, for each
+      economy and indicator, <em>find</em> the right statute across bespoke government portals, <em>read</em> the operative
+      clause (often a scanned PDF, sometimes in another language), <em>interpret</em> whether it satisfies the indicator,
+      and <em>cite</em> it precisely.</p>
+      <p>VeriTrade automates that workflow end-to-end. Given only an <strong>economy</strong> and a
+      <strong>regulatory pillar</strong>, it autonomously discovers relevant primary legislation on official portals
+      (no seed URLs, no hardcoded law names), extracts article-level text from HTML, text PDFs and scanned PDFs, and maps
+      each provision to the exact RDTII indicator using sibling-aware LLM legal reasoning — attaching a 100%-verbatim
+      snippet, an article-level citation, a source URL, a four-signal confidence score, and a full audit trail. It runs on
+      a CPU, at ~$0.07 per economy (or $0 on an open-weight stack), and every claim it makes is built to be reproduced and checked.</p>
+      <p class="soft">This paper is an <b>audit surface</b>: the interactive figures reproduce the production code exactly —
+      <a href="#architecture">watch the pipeline run</a>, <a href="#confidence">drive the confidence formula</a>, and
+      <a href="#cost">the cost model</a> — so you can check the claims, not just read them.</p>
+    </section>
+
+    <section id="why" class="reveal">
+      <div class="secno">§1</div>
+      <h2>Why this is hard — and manual vs automated</h2>
+      <p>Building the index at scale runs into six structural obstacles: portals are scattered and unindexed (Singapore's is
+      token/JS-gated, Malaysia's is barely indexed by Google, Australia's is a single-page app); many are bot-protected
+      (HTTP 403 to a plain crawler); formats are mixed (HTML, text PDFs, scanned image-only PDFs); statutes are multilingual;
+      one indicator is buried across several acts; and every citation must be verifiable against the official source.</p>
+
+      <div class="fig reveal"><div class="fhead"><span class="t">Figure 1 — manual workflow vs VeriTrade</span><span class="illus">illustrative</span></div>
+        <div class="fbody"><div class="versus">
+          <div class="vcol">
+            <h4>👤 Manual researcher</h4>
+            <div class="vmetric"><div class="vk"><span>Time per economy (both pillars)</span><b>hours–days</b></div><div class="vbar"><i class="slow" style="width:100%"></i></div></div>
+            <div class="vmetric"><div class="vk"><span>Reproducibility</span><b>low</b></div><div class="vbar"><i class="slow" style="width:28%"></i></div></div>
+            <div class="vmetric"><div class="vk"><span>Auditability of each row</span><b>manual notes</b></div><div class="vbar"><i class="slow" style="width:35%"></i></div></div>
+            <div class="vmetric"><div class="vk"><span>Marginal cost</span><b>analyst time</b></div><div class="vbar"><i class="slow" style="width:90%"></i></div></div>
+          </div>
+          <div class="vcol win">
+            <h4>⚙️ VeriTrade</h4>
+            <div class="vmetric"><div class="vk"><span>Time per economy (both pillars)</span><b>minutes</b></div><div class="vbar"><i class="fast" style="width:12%"></i></div></div>
+            <div class="vmetric"><div class="vk"><span>Reproducibility</span><b>exact (3-tier cache)</b></div><div class="vbar"><i class="fast" style="width:100%"></i></div></div>
+            <div class="vmetric"><div class="vk"><span>Auditability of each row</span><b>snippet + URL + score + JSON</b></div><div class="vbar"><i class="fast" style="width:100%"></i></div></div>
+            <div class="vmetric"><div class="vk"><span>Marginal cost</span><b>~$0.07 · $0 open-weight</b></div><div class="vbar"><i class="fast" style="width:7%"></i></div></div>
+          </div>
+        </div>
+        <p class="figcap">Repeat runs are free and instant (cached); a chosen run replays identically for judging.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="objectives" class="reveal">
+      <div class="secno">§2</div>
+      <h2>Objectives &amp; contributions</h2>
+      <p>VeriTrade replicates the professional researcher's workflow — reproducibly, on a standard CPU, with no vendor lock-in:</p>
+      <ol>
+        <li><b>Discover</b> — locate relevant primary legislation on official portals, live, with no seed URLs and no hardcoded law names.</li>
+        <li><b>Extract</b> — parse article-level text from HTML, text PDFs and scanned PDFs (real OCR, measured CER &lt; 5%).</li>
+        <li><b>Map</b> — assign each provision to the correct indicator using LLM reasoning that sees every sibling indicator.</li>
+        <li><b>Verify &amp; cite</b> — 100%-verbatim snippet, article-level citation, source URL, and a confidence score; low-confidence rows go to human review.</li>
+        <li><b>Deliver</b> — the exact official 13-column CSV plus a machine-auditable JSON.</li>
+      </ol>
+      <div class="lead"><b>Design principles.</b> Auditable over opaque · reproducible over one-off · swappable components (LLM / OCR) over lock-in · precision with an explicit human-review safety net.</div>
+    </section>
+
+    <section id="architecture" class="reveal">
+      <div class="secno">§3</div>
+      <h2>System architecture — watch it run <span class="badge b-accent">interactive</span></h2>
+      <p>Two paths share <em>identical</em> extraction → mapping → export code: a <b>live path</b> (scored) and an
+      <b>offline sample path</b> (reproducible fallback). Press <b>Run</b> to step a document through the pipeline.</p>
+
+      <div class="fig"><div class="fhead"><span class="t">Figure 2 — end-to-end pipeline (simulated run)</span><span class="badge b-accent" id="pipeState">idle</span></div>
+        <div class="fbody">
+          <div class="demobar">
+            <button class="btn primary" id="runBtn">▶ Run the pipeline</button>
+            <button class="btn" id="resetBtn" disabled>Reset</button>
+            <div class="prog"><i id="progFill"></i></div>
+          </div>
+          <div class="pipe">
+            <div class="zone z1"><div class="zh">Zone 1 · Discovery &amp; Fetch</div><div class="zb">
+              <div class="node" id="n-discover"><div class="nt"><span class="dot"></span>Discover — no seed URLs</div><ul><li>SG web search · AU OData + full-text · MY catalogue</li></ul></div>
+              <div class="node" id="n-fetch"><div class="nt"><span class="dot"></span>Fetch — bot-resistant</div><ul><li>Scrapling real-browser TLS · 3-tier cache</li></ul></div>
+            </div></div>
+            <div class="flowarrow">▼</div>
+            <div class="zone z2"><div class="zh">Zone 2 · Extract → Retrieve → Map</div><div class="zb">
+              <div class="node" id="n-ocr"><div class="nt"><span class="dot"></span>Extract / OCR</div><ul><li>MarkItDown · RapidOCR (measured CER) · verbatim chunks</li></ul></div>
+              <div class="node" id="n-retrieve"><div class="nt"><span class="dot"></span>Retrieve — hybrid RAG</div><ul><li>BM25 + multilingual dense + rerank · grade-all</li></ul></div>
+              <div class="node" id="n-map" style="grid-column:1/-1"><div class="nt"><span class="dot"></span>Map — sibling-aware LLM reasoning</div><ul><li>one (provision × indicator) pair at a time · 4-signal confidence</li></ul></div>
+            </div></div>
+            <div class="flowarrow">▼</div>
+            <div class="route">
+              <span style="border-color:var(--good);color:var(--good)">≥ 0.85 auto-accept</span>
+              <span style="border-color:var(--warn);color:var(--warn)">0.60–0.85 review</span>
+              <span style="border-color:var(--bad);color:var(--bad)">&lt; 0.60 quarantine</span>
+            </div>
+          </div>
+          <div class="demolog" id="demolog"><span class="mut">Idle — press “Run the pipeline”.</span></div>
+          <div class="resultcard" id="resultcard"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="discovery" class="reveal">
+      <div class="secno">§4</div>
+      <h2>Zone 1 — autonomous discovery &amp; bot-resistant fetching</h2>
+      <p>Discovery never uses a law name as a query. It builds <em>country-agnostic</em> queries from the indicator
+      definitions — concept phrases plus short title-robust fragments — and fires them at the portal(s):</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Economy</th><th>Portal</th><th>Discovery strategy</th></tr></thead>
+        <tbody>
+          <tr><td><b>Singapore</b></td><td><code>sso.agc.gov.sg</code></td><td>Portal-scoped web search (Serper → keyless fallback); token/JS-gated pages cleared by a real-browser fetch.</td></tr>
+          <tr><td><b>Australia</b></td><td><code>legislation.gov.au</code></td><td>Official <b>OData API</b> for titles, plus a <b>content-based full-text lane</b> that finds laws by what their clauses <em>say</em> — then verifies each is in-force.</td></tr>
+          <tr><td><b>Malaysia</b></td><td><code>lom.agc.gov.my</code></td><td>The portal's own <b>acts catalogue</b> (Google barely indexes it), matched on bilingual titles, plus sectoral Codes of Practice.</td></tr>
+        </tbody>
+      </table></div>
+      <div class="lead"><b>Why content-based discovery matters.</b> A title match finds the <em>Privacy Act</em>; it never finds
+      Australia's <em>Consumer Data Right Rules</em>, whose relevance is in their obligations, not their names. VeriTrade's
+      obligation-phrase lane surfaces exactly these, then drops repealed acts and bills against the official register — the
+      concrete answer to the rubric's ban on a "baked corpus": it finds laws by <em>what they regulate</em>.
+      Fetching uses Scrapling's real-browser TLS/JA3 fingerprint to clear WAFs that <code>403</code> a plain crawler.</div>
+    </section>
+
+    <section id="extraction" class="reveal">
+      <div class="secno">§5</div>
+      <h2>Zone 2a — extraction, OCR &amp; measured fidelity</h2>
+      <p>Each document is classified text-layer or scanned. <b>MarkItDown</b> reads text PDFs; <b>RapidOCR/PaddleOCR</b>
+      handle image-only scans, and the <b>Character Error Rate is measured</b> against a ground-truth sidecar. The result on
+      the bundled gazette scan is dramatic:</p>
+
+      <div class="fig reveal"><div class="fhead"><span class="t">Figure 3 — OCR character-error rate vs the 5% bar</span><span class="badge b-good">PASS</span></div>
+        <div class="fbody">
+          <div class="gauge" id="cerGauge" style="margin:1.4rem 0 2.2rem">
+            <div class="track"></div>
+            <div class="fill" id="cerFill"></div>
+            <div class="thresh" style="left:100%"></div>
+            <div class="threshlab" style="left:100%">5% bar</div>
+            <div class="valtag" id="cerTag" style="left:0%">1.11%</div>
+          </div>
+          <p class="figcap">Scale 0–5%. Measured CER <b>1.11%</b> sits at ~22% of the way to the fail bar — well inside spec.
+          Verbatim, country-aware chunking then splits the clean text into one provision per chunk, preserving exact source characters.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="retrieval" class="reveal">
+      <div class="secno">§6</div>
+      <h2>Zone 2b — hybrid retrieval</h2>
+      <p>Retrieval fuses three signals: <b>BM25</b> (lexical), a multilingual bi-encoder
+      (<code>paraphrase-multilingual-MiniLM-L12-v2</code>) for semantic recall, and a <b>cross-encoder</b> rerank for precision.</p>
+      <div class="lead"><b>Grade-all policy.</b> For small corpora (≤ 80 provisions) <em>every</em> provision is graded against
+      <em>every</em> indicator — retrieval ranking is a <b>signal, not a gate</b>. This protects non-English recall: even if the
+      English-only reranker mis-orders a Malay provision, the grader still sees it.</div>
+    </section>
+
+    <section id="mapping" class="reveal">
+      <div class="secno">§7</div>
+      <h2>Zone 2c — mapping via sibling-aware LLM reasoning</h2>
+      <p>Mapping is not a black-box classifier. For each <em>(provision, target indicator)</em> pair the model receives the
+      indicator's legal test, its scope, and <b>every sibling indicator's</b> legal test, then reasons in explicit steps:
+      state the <b>operative rule</b> (ignoring definitions/recitals) → does it satisfy the target's test? → is a sibling a
+      better fit? → relevant or reject?</p>
+      <div class="lead"><b>Conservative by default.</b> When unsure, the model rejects — a precise miss beats a wrong
+      over-assignment. Borderline rows are surfaced to the <a href="#confidence">review queue</a>, never silently accepted or dropped.</div>
+    </section>
+
+    <section id="confidence" class="reveal">
+      <div class="secno">§8</div>
+      <h2>The confidence model <span class="badge b-accent">interactive</span></h2>
+      <p>Every mapping's confidence is a transparent weighted blend of <b>four auditable signals</b>, with two safety caps.
+      The calculator reproduces <code>backend/pipeline/confidence.py</code> exactly — drag the sliders. Beside it, where those
+      scores typically land across a run.</p>
+
+      <div class="fig"><div class="fhead"><span class="t">Figure 4 — live confidence calculator</span><span class="badge b-accent" id="calcBand">—</span></div>
+        <div class="fbody"><div class="calc">
+          <div class="sliders">
+            <div class="row"><div class="top"><span><b>Legal fit</b> — does the text satisfy the indicator's legal test?</span><span class="v" id="v-legal">1.00</span></div><input type="range" id="s-legal" min="0" max="1" step="0.01" value="1"><div class="top"><span class="w">weight 0.40 — the core question, counts most</span></div></div>
+            <div class="row"><div class="top"><span><b>Search match</b> — how strongly retrieval surfaced it</span><span class="v" id="v-retrieval">0.66</span></div><input type="range" id="s-retrieval" min="0" max="1" step="0.01" value="0.66"><div class="top"><span class="w">weight 0.25</span></div></div>
+            <div class="row"><div class="top"><span><b>Quote grounding</b> — is the snippet really in the source?</span><span class="v" id="v-grounding">1.00</span></div><input type="range" id="s-grounding" min="0" max="1" step="0.01" value="1"><div class="top"><span class="w">weight 0.20 — anti-hallucination guard</span></div></div>
+            <div class="row"><div class="top"><span><b>Scope fit</b> — national vs sector-specific</span><span class="v" id="v-scope">1.00</span></div><input type="range" id="s-scope" min="0" max="1" step="0.01" value="1"><div class="top"><span class="w">weight 0.15</span></div></div>
+            <div class="toggles">
+              <label class="toggle"><input type="checkbox" id="c-scope"> Scope-mismatch flag <span class="muted">(cap 0.55)</span></label>
+              <label class="toggle"><input type="checkbox" id="c-topic"> Off-topic snippet <span class="muted">(cap 0.45)</span></label>
+            </div>
+            <div class="formula" id="formula"></div>
+          </div>
+          <div class="readout">
+            <div class="big" id="finalNum">0.91</div>
+            <div class="band" id="finalBand">Auto-accept</div>
+            <div class="meter"><i id="meterFill"></i><span class="t60"></span><span class="t85"></span></div>
+            <div class="muted" style="font-size:.74rem; display:flex; justify-content:space-between"><span>0</span><span>0.60</span><span>0.85</span><span>1</span></div>
+            <div class="capnote" id="capNote"></div>
+          </div>
+        </div>
+        <p class="figcap">Routing: <span class="gcolor">≥ 0.85 auto-accept</span> · <span class="wcolor">0.60–0.85 review</span> ·
+        <span class="bcolor">&lt; 0.60 quarantine</span>. Cut-offs are deliberately conservative and tunable in <code>.env</code>.</p>
+        </div>
+      </div>
+
+      <div class="fig reveal"><div class="fhead"><span class="t">Figure 5 — where confidence lands across a run</span><span class="illus">illustrative</span></div>
+        <div class="fbody">
+          <div id="routingChart"></div>
+          <div class="legend">
+            <span class="it"><span class="sw" style="background:var(--good)"></span> Auto-accept (≥ 0.85) — no human check</span>
+            <span class="it"><span class="sw" style="background:var(--warn)"></span> Review (0.60–0.85) — a human glances</span>
+            <span class="it"><span class="sw" style="background:var(--bad)"></span> Quarantine (&lt; 0.60) — kept out of submission</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="antihallucination" class="reveal">
+      <div class="secno">§9</div>
+      <h2>Verifiable evidence — the anti-hallucination chain</h2>
+      <p>A citation is worthless if the quote was invented. VeriTrade guarantees fidelity by construction, in five steps:</p>
+      <div class="chain">
+        <div class="step reveal"><div class="n">1</div><div class="c"><b>Copied, not generated.</b> The verbatim snippet is copied from the fetched source text — the LLM never writes it.</div></div>
+        <div class="step reveal"><div class="n">2</div><div class="c"><b>Grounding check.</b> An automatic check confirms the snippet actually occurs in the source document.</div></div>
+        <div class="step reveal"><div class="n">3</div><div class="c"><b>Topical guard.</b> A snippet with none of the pillar's concept vocabulary is flagged as likely off-topic (and capped).</div></div>
+        <div class="step reveal"><div class="n">4</div><div class="c"><b>Traceable source.</b> The source URL points to the law on the official portal; the JSON keeps the surrounding context.</div></div>
+        <div class="step reveal"><div class="n">5</div><div class="c"><b>Confidence gate.</b> Every row carries a score; &lt; 0.85 → review, &lt; 0.60 → quarantine.</div></div>
+      </div>
+      <h3>Worked example — Singapore, Pillar 6</h3>
+      <div class="card">
+        <p style="margin-top:0"><span class="badge b-accent">input</span> &nbsp;<code>economy = Singapore, pillar = 6</code></p>
+        <div class="quote">"An organisation shall <mark>not transfer any personal data to a country or territory outside Singapore</mark> except <mark>in accordance with requirements prescribed</mark> under this Act…"</div>
+        <div class="tbl-wrap"><table><tbody>
+          <tr><td style="width:180px"><b>Law</b></td><td>Personal Data Protection Act 2012 — <span class="mono">Act 26 of 2012</span>, Section 26</td></tr>
+          <tr><td><b>Indicator</b></td><td><span class="badge b-accent">P6-I4</span> conditional cross-border flow &nbsp;<span class="muted">— not P6-I1 (outright ban)</span></td></tr>
+          <tr><td><b>Rationale</b></td><td>Transfer is permitted <em>subject to</em> prescribed requirements → conditionally allowed, not banned.</td></tr>
+          <tr><td><b>Source</b></td><td><span class="mono">sso.agc.gov.sg/Act/PDPA2012</span></td></tr>
+          <tr><td><b>Confidence</b></td><td><span class="badge b-warn">0.82 — review</span></td></tr>
+        </tbody></table></div>
+        <p class="figcap">The highlighted phrases are the grounded evidence; the sibling-aware prompt makes the P6-I4-vs-P6-I1 (conditional vs ban) call a keyword classifier gets wrong.</p>
+      </div>
+    </section>
+
+    <section id="indicators" class="reveal">
+      <div class="secno">§10</div>
+      <h2>The RDTII indicator framework <span class="badge b-accent">interactive</span></h2>
+      <p>The nine mandatory indicators, with the legal test each encodes and the look-alike it must be <em>distinguished from</em>.
+      Click a card to expand. Definitions are the ones coded in <code>backend/rdtii/indicators.py</code>.</p>
+      <div class="pilltabs">
+        <button class="pilltab active" data-p="6">Pillar 6 — Cross-border data</button>
+        <button class="pilltab" data-p="7">Pillar 7 — Domestic data protection</button>
+      </div>
+      <div class="indgrid" id="indGrid"></div>
+    </section>
+
+    <section id="evaluation" class="reveal">
+      <div class="secno">§11</div>
+      <h2>Evaluation, coverage &amp; results</h2>
+
+      <div class="fig reveal"><div class="fhead"><span class="t">Figure 6 — coverage matrix (economy × indicator)</span><span class="illus">illustrative</span></div>
+        <div class="fbody">
+          <div style="overflow-x:auto"><div id="heatmap"></div></div>
+          <div class="legend">
+            <span class="it"><span class="sw" style="background:var(--accent)"></span> ✓ evidence found &amp; mapped</span>
+            <span class="it"><span class="sw" style="background:var(--paper-3); border:1px dashed var(--rule)"></span> – explicit "No evidence" placeholder</span>
+          </div>
+          <p class="figcap">Every indicator gets a row or an explicit placeholder — <b>9/9 always populated</b>, never left blank. (Cells illustrative.)</p>
+        </div>
+      </div>
+
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Metric</th><th>How measured</th><th>Result</th></tr></thead>
+        <tbody>
+          <tr><td><b>OCR quality (CER)</b></td><td>edit distance vs ground-truth sidecar on the bundled scan</td><td><span class="badge b-good">1.11% · PASS &lt; 5%</span></td></tr>
+          <tr><td><b>Citation fidelity</b></td><td>grounding check — snippet must occur in source</td><td>100% verbatim by construction</td></tr>
+          <tr><td><b>Coverage / no blanks</b></td><td>every indicator gets a row or a "No evidence" placeholder</td><td>9 / 9 indicators populated</td></tr>
+          <tr><td><b>Discovery precision (AU P6)</b></td><td>share in-force &amp; on-topic after the register filter</td><td>14 laws, 0 junk</td></tr>
+          <tr><td><b>Mapping correctness</b></td><td>checked vs the official RDTII answer key (SG samples)</td><td>validated on worked examples</td></tr>
+        </tbody>
+      </table></div>
+      <div class="lead"><b>Honesty note.</b> The LLM grader is stochastic, so borderline <em>definitional</em> clauses can flip
+      between runs. The review queue is the safety net, and a chosen run is frozen via the result cache for a reproducible submission.</div>
+    </section>
+
+    <section id="scoring" class="reveal">
+      <div class="secno">§12</div>
+      <h2>Zone 3 — restrictiveness scoring (optional)</h2>
+      <p>Beyond mapping, VeriTrade can assign each measure an RDTII <b>raw score</b> of 0 / 0.5 / 1 (light / partial / heavy)
+      with a one-line justification, quoted from the official criteria, then roll up to one score per indicator.</p>
+      <div class="lead"><b>Polarity gotcha (handled).</b> For 7.1 (comprehensive data-protection) and 7.2 (dedicated cybersecurity)
+      the polarity is <em>inverted</em>: <em>having</em> a strong horizontal framework scores 0. The roll-up takes the
+      <b>minimum</b> across measures for those two indicators and the <b>maximum</b> for all others.</div>
+      <p class="soft">The score never touches the official 13-column submission CSV — it lives in a separate
+      <code>*_scored.csv</code> and in the JSON, so programmatic validation of the submission is never broken.
+      See <a href="../NOTES_FOR_JUDGES.md">NOTES_FOR_JUDGES.md</a> for our open question to the judges on where a score column is expected.</p>
+    </section>
+
+    <section id="cost" class="reveal">
+      <div class="secno">§13</div>
+      <h2>Cost model <span class="badge b-accent">interactive</span></h2>
+      <p>CPU-only; OCR, embeddings and retrieval run locally at $0. The only paid parts are the LLM grader and (optionally)
+      the Serper discovery API — both swappable for free. Drive the model and watch the bars.</p>
+      <div class="fig"><div class="fhead"><span class="t">Figure 7 — cost estimator</span><span class="badge b-accent" id="costMode">paid stack</span></div>
+        <div class="fbody">
+          <div class="calc">
+            <div class="sliders">
+              <div class="row"><div class="top"><span><b>Economies</b> to process (both pillars each)</span><span class="v" id="v-econ">3</span></div><input type="range" id="s-econ" min="1" max="12" step="1" value="3"></div>
+              <div class="toggles">
+                <label class="toggle" style="border-color:var(--accent)"><input type="radio" name="stack" value="paid" checked style="accent-color:var(--accent)"> Paid stack <span class="muted">(DeepSeek V4 Flash + Serper)</span></label>
+                <label class="toggle" style="border-color:var(--good)"><input type="radio" name="stack" value="open" style="accent-color:var(--good)"> Open-weight <span class="muted">(Ollama + Tesseract + DuckDuckGo)</span></label>
+              </div>
+              <div id="costChart" style="margin-top:.8rem"></div>
+            </div>
+            <div class="readout">
+              <div class="big" id="costNum">$0.21</div>
+              <div class="band muted" id="costLabel">LLM cost, 3 economies</div>
+              <div class="muted" style="font-size:.78rem; margin-top:.5rem">≈ <span id="costPer">$0.07</span> / economy · repeat runs free (cache)</div>
+            </div>
+          </div>
+          <p class="figcap">Basis: DeepSeek V4 Flash $0.09/$0.18 per 1M in/out tokens (~$0.07/economy); Serper within its 2,500 free credits ⇒ $0; open-weight swap ⇒ $0.00.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="reproducibility" class="reveal">
+      <div class="secno">§14</div>
+      <h2>Reproducibility &amp; the two paths</h2>
+      <p>A <b>3-tier cache</b> (fetched documents, embeddings, full results) makes a chosen run replay identically and repeat
+      runs free. The <b>live path</b> crawls the official portals (what judges grade); the <b>offline sample path</b> runs on a
+      bundled corpus with no network. Both share the same code, so the offline run is an honest preview and a graceful fallback.</p>
+      <div class="card mono" style="font-size:.86rem">
+        <div class="muted"># live (scored)</div>python main.py --economy Singapore --pillar 6 --live --llm openrouter<br>
+        <div class="muted" style="margin-top:.5rem"># offline sample (reproducible)</div>python main.py --economy Singapore --pillar 6<br>
+        <div class="muted" style="margin-top:.5rem"># dashboard</div>streamlit run frontend/app.py
+      </div>
+    </section>
+
+    <section id="limitations" class="reveal">
+      <div class="secno">§15</div>
+      <h2>Limitations &amp; honesty statement</h2>
+      <ul>
+        <li><b>Live crawling</b> is functional but needs Playwright auto-escalation for the most JS-heavy / token-auth pages.</li>
+        <li><b>The LLM grader is stochastic</b> — borderline definitional clauses can flip; the review queue and result cache mitigate.</li>
+        <li><b>The mock (offline) grader is lexical</b> and can confuse close indicators — always use a real LLM for a submission.</li>
+        <li><b>Confidence scores are relative</b>, not calibrated probabilities.</li>
+        <li><b>Multilingual retrieval is general-domain</b>; for non-English text the grade-all policy protects recall, and the concept-vocabulary guard is currently English.</li>
+        <li><b>Indicator legal tests are our interpretation</b> of the RDTII methodology — review pending rows before submission.</li>
+      </ul>
+    </section>
+
+    <section id="future" class="reveal">
+      <div class="secno">§16</div>
+      <h2>Scalability &amp; future work</h2>
+      <ul>
+        <li><b>More economies</b> — add a portal domain; discovery generalises. Finals targets plug in the same way.</li>
+        <li><b>More languages</b> — swap the reranker to <code>BAAI/bge-reranker-v2-m3</code> and add a translation × LLM cross-check with bilingual snippet tracking.</li>
+        <li><b>More domains</b> — the indicator layer is data-driven; add other RDTII pillars by defining their legal tests and query terms.</li>
+        <li><b>Real-time monitoring</b> — scheduled re-crawls diff against the cache to flag amended or new laws.</li>
+      </ul>
+      <div class="lead"><b>Value.</b> For ESCAP: faster, reproducible, auditable RDTII refreshes at a fraction of manual cost.
+      For governments and businesses: quicker access to authoritative, cited digital-trade rules. For researchers: a transparent, open-source base.</div>
+    </section>
+
+    <section id="references" class="reveal">
+      <div class="secno">§17</div>
+      <h2>References</h2>
+      <h4>Official legal data sources</h4>
+      <ul>
+        <li>Singapore Statutes Online — <a href="https://sso.agc.gov.sg">sso.agc.gov.sg</a></li>
+        <li>Federal Register of Legislation (Australia) + OData API — <a href="https://www.legislation.gov.au">legislation.gov.au</a></li>
+        <li>Laws of Malaysia (AGC) — <a href="https://lom.agc.gov.my">lom.agc.gov.my</a> · PDP Dept — <a href="https://pdp.gov.my">pdp.gov.my</a></li>
+        <li>UN ESCAP RDTII 2.1 Methodology &amp; Round-1 Database (see <a href="reference/">docs/reference/</a>)</li>
+      </ul>
+      <h4>Models &amp; libraries</h4>
+      <ul>
+        <li>LLM: DeepSeek V4 Flash via OpenRouter (vendor-swappable — Anthropic / OpenAI / Gemini / local Ollama / mock)</li>
+        <li>Embeddings: <code>paraphrase-multilingual-MiniLM-L12-v2</code> · Reranker: <code>ms-marco-MiniLM-L-6-v2</code></li>
+        <li>Stack: Scrapling · httpx · BeautifulSoup · MarkItDown · RapidOCR · PaddleOCR · sentence-transformers · rank_bm25 · Streamlit · pydantic · pypdfium2</li>
+      </ul>
+      <h4>Project</h4>
+      <ul>
+        <li>Repository: <a href="https://github.com/ftulabs/law-v2.0">github.com/ftulabs/law-v2.0</a> · License: Apache-2.0</li>
+        <li>Pitch deck: <a href="presentation/pitch-deck.html">interactive deck</a> · <a href="presentation/pitch-deck-content.md">content pack</a></li>
+      </ul>
+    </section>
+
+    <footer>
+      VeriTrade · Team FTU · UN Global Hackathon on AI for Digital Trade Regulatory Analysis (RDTII 2.1) ·
+      Apache-2.0 · <a href="mailto:minhtc@ftu.edu.vn">minhtc@ftu.edu.vn</a>.
+      <span class="muted">Interactive figures reproduce the production code (<code>confidence.py</code>, <code>indicators.py</code>).</span>
+    </footer>
+  </main>
+</div>
+
+<button class="btn backtop" onclick="scrollTo({top:0,behavior:'smooth'})" title="Back to top">↑ Top</button>
+
+<script>
+(function(){
+  "use strict";
+  var root = document.documentElement;
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ── theme toggle ──
+  var tb = document.getElementById('themeBtn');
+  function sysDark(){ return matchMedia('(prefers-color-scheme: dark)').matches; }
+  function curDark(){ var t = root.getAttribute('data-theme'); return t ? t==='dark' : sysDark(); }
+  function paintBtn(){ tb.textContent = curDark() ? '☀ Light' : '☾ Dark'; }
+  tb.addEventListener('click', function(){ root.setAttribute('data-theme', curDark()?'light':'dark'); paintBtn(); drawAll(); });
+  paintBtn();
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(){ paintBtn(); drawAll(); });
+  function cssv(n){ return getComputedStyle(document.body).getPropertyValue(n).trim(); }
+
+  // ── TOC + scroll-spy ──
+  var toc = document.getElementById('toc');
+  var secs = [].slice.call(document.querySelectorAll('main section[id]'));
+  secs.forEach(function(s){
+    var h=s.querySelector('h2'); if(!h) return;
+    var a=document.createElement('a'); a.href='#'+s.id;
+    a.textContent=h.textContent.replace(/\s*interactive\s*$/i,'').trim(); a.dataset.id=s.id; toc.appendChild(a);
+  });
+  var links={}; [].slice.call(toc.querySelectorAll('a')).forEach(function(a){ links[a.dataset.id]=a; });
+  new IntersectionObserver(function(es){es.forEach(function(e){ if(e.isIntersecting){
+    for(var k in links) links[k].classList.remove('active');
+    if(links[e.target.id]) links[e.target.id].classList.add('active');
+  }});},{rootMargin:'-20% 0px -70% 0px'}).observe && secs.forEach(function(s){
+    new IntersectionObserver(function(es){es.forEach(function(e){ if(e.isIntersecting){
+      for(var k in links) links[k].classList.remove('active');
+      if(links[e.target.id]) links[e.target.id].classList.add('active'); }});},{rootMargin:'-20% 0px -70% 0px'}).observe(s);
+  });
+
+  // ── reveal on scroll ──
+  var revObs = new IntersectionObserver(function(es){es.forEach(function(e){
+    if(e.isIntersecting){ e.target.classList.add('in'); revObs.unobserve(e.target); }
+  });},{rootMargin:'0px 0px -8% 0px', threshold:.08});
+  [].slice.call(document.querySelectorAll('.reveal')).forEach(function(el){
+    if(reduce){ el.classList.add('in'); } else { revObs.observe(el); }
+  });
+
+  // ── count-up stats ──
+  function countUp(el){
+    var to=parseFloat(el.dataset.to), dec=parseInt(el.dataset.dec||'0',10);
+    var pre=el.dataset.prefix||'', suf=el.dataset.suffix||'';
+    if(reduce){ el.textContent=pre+to.toFixed(dec)+suf; return; }
+    var t0=null, dur=1100;
+    function fmt(v){ return pre+v.toFixed(dec)+suf; }
+    function tick(ts){ if(!t0)t0=ts; var p=Math.min((ts-t0)/dur,1); var e=1-Math.pow(1-p,3);
+      el.textContent=fmt(to*e); if(p<1) requestAnimationFrame(tick); else el.textContent=fmt(to); }
+    requestAnimationFrame(tick);
+  }
+  var statObs=new IntersectionObserver(function(es){es.forEach(function(e){
+    if(e.isIntersecting){ countUp(e.target); statObs.unobserve(e.target); }
+  });},{threshold:.5});
+  [].slice.call(document.querySelectorAll('.stat .n[data-to]')).forEach(function(el){ statObs.observe(el); });
+
+  // ── CER gauge (animate to 1.11/5 = 22.2%) ──
+  var cerShown=false;
+  var gaugeObs=new IntersectionObserver(function(es){es.forEach(function(e){
+    if(e.isIntersecting && !cerShown){ cerShown=true; var pct=1.11/5*100;
+      setTimeout(function(){ document.getElementById('cerFill').style.width=pct+'%';
+        var tag=document.getElementById('cerTag'); tag.style.left=pct+'%'; }, reduce?0:150);
+    }});},{threshold:.4});
+  gaugeObs.observe(document.getElementById('cerGauge'));
+
+  // ── confidence calculator (mirrors confidence.py) ──
+  var W={retrieval:0.25,legal:0.40,grounding:0.20,scope:0.15}, SCAP=0.55,TCAP=0.45,AUTO=0.85,FLOOR=0.60;
+  var ids=['legal','retrieval','grounding','scope'];
+  function n2(x){return (Math.round(x*1000)/1000).toFixed(2);}
+  function calc(){
+    var r={}; ids.forEach(function(k){ r[k]=parseFloat(document.getElementById('s-'+k).value);
+      document.getElementById('v-'+k).textContent=r[k].toFixed(2); });
+    var f=W.legal*r.legal+W.retrieval*r.retrieval+W.grounding*r.grounding+W.scope*r.scope;
+    var caps=[], sf=document.getElementById('c-scope').checked, ot=document.getElementById('c-topic').checked;
+    if(sf){ f=Math.min(f,SCAP); caps.push('scope mismatch → capped at 0.55'); }
+    if(ot){ f=Math.min(f,TCAP); caps.push('off-topic snippet → capped at 0.45'); }
+    f=Math.max(0,Math.min(1,f)); f=Math.round(f*1000)/1000;
+    var band,cls; if(f>=AUTO){band='Auto-accept';cls='good';} else if(f>=FLOOR){band='Needs review';cls='warn';} else {band='Quarantine';cls='bad';}
+    var col='var(--'+cls+')';
+    document.getElementById('finalNum').textContent=n2(f); document.getElementById('finalNum').style.color=col;
+    document.getElementById('finalBand').textContent=band; document.getElementById('finalBand').style.color=col;
+    document.getElementById('calcBand').textContent=band;
+    var mf=document.getElementById('meterFill'); mf.style.width=(f*100)+'%'; mf.style.background=col;
+    document.getElementById('capNote').textContent=caps.length?'⚠ '+caps.join('  ·  '):'';
+    document.getElementById('formula').innerHTML=
+      'final = <b>0.40</b>·legal(<span class="acolor">'+r.legal.toFixed(2)+'</span>) + <b>0.25</b>·search(<span class="acolor">'+r.retrieval.toFixed(2)+
+      '</span>) + <b>0.20</b>·quote(<span class="acolor">'+r.grounding.toFixed(2)+'</span>) + <b>0.15</b>·scope(<span class="acolor">'+r.scope.toFixed(2)+'</span>)'+
+      (caps.length?'<br>→ '+caps.join('<br>→ '):'')+'<br>= <b style="color:'+col+'">'+n2(f)+'</b>  ('+band+')';
+  }
+  ['s-legal','s-retrieval','s-grounding','s-scope','c-scope','c-topic'].forEach(function(id){ document.getElementById(id).addEventListener('input',calc); });
+  calc();
+
+  // ── indicator explorer ──
+  var INDS={6:[
+    {id:'P6-I1',ti:'Ban &amp; local processing',test:'The law outright BANS cross-border transfer, OR requires data to be PROCESSED locally. The most restrictive form.',vs:'P6-I4 — a ban has no conditions; a conditional regime can be satisfied to enable transfer.'},
+    {id:'P6-I2',ti:'Local storage requirement',test:'Requires personal data to be STORED in a database/facility located in-country.',vs:'P6-I3 — storage location vs a mandate to build local servers/infrastructure.'},
+    {id:'P6-I3',ti:'Infrastructure requirement',test:'Requires local SERVERS / DATA CENTRES / INFRASTRUCTURE as a condition to supply a service.',vs:'P6-I2 — infrastructure mandate vs a pure data-storage-location rule.'},
+    {id:'P6-I4',ti:'Conditional flow regime',test:'Cross-border transfer ALLOWED ONLY IF conditions are met (consent, adequacy, contract, approval, evaluation).',vs:'P6-I1 — conditional (can be satisfied) vs an outright ban.'}
+  ],7:[
+    {id:'P7-I1',ti:'Comprehensive framework',test:'Establishes a GENERAL data-protection framework applied horizontally across sectors — not just a sectoral rule.',vs:'P7-I2 — a general privacy framework vs a dedicated cybersecurity law.'},
+    {id:'P7-I2',ti:'Dedicated cybersecurity',test:'Includes a DEDICATED CYBERSECURITY framework/law (e.g. a Cybersecurity Act). NOT "purpose limitation" or generic GDPR terms.',vs:'P7-I1 — cybersecurity ≠ a general data-protection framework. (The template mislabels this as "purpose limitation" — ignore that.)'},
+    {id:'P7-I3',ti:'Minimum data-retention',test:'Specifies a MINIMUM duration data must be RETAINED (e.g. "retain for 5 years").',vs:'A retention maximum / deletion duty is the opposite obligation.'},
+    {id:'P7-I4',ti:'DPO / DPIA requirement',test:'Requires a Data Protection Officer (DPO) or a Data Protection Impact Assessment (DPIA).',vs:'A general accountability clause without a named DPO/DPIA duty.'},
+    {id:'P7-I5',ti:'Government access',test:'Grants government access to personal data (law enforcement, tax, emergency, national security).',vs:'Often lives outside the privacy statute — in criminal-procedure, telecom or security laws.'}
+  ]};
+  var grid=document.getElementById('indGrid');
+  function renderInds(p){ grid.innerHTML='';
+    INDS[p].forEach(function(d){ var el=document.createElement('div'); el.className='ind';
+      el.innerHTML='<div class="id">'+d.id+'</div><div class="ti">'+d.ti+'</div><div class="body"><div class="h">Legal test</div>'+d.test+'<div class="h">Distinguish from</div><span class="vs">'+d.vs+'</span></div>';
+      el.addEventListener('click',function(){ el.classList.toggle('open'); }); grid.appendChild(el); });
+  }
+  [].slice.call(document.querySelectorAll('.pilltab')).forEach(function(b){ b.addEventListener('click',function(){
+    document.querySelectorAll('.pilltab').forEach(function(x){x.classList.remove('active');}); b.classList.add('active'); renderInds(b.dataset.p);
+  });});
+  renderInds(6);
+
+  // ── cost estimator + live bar chart ──
+  var PER=0.07;
+  function cost(){
+    var n=parseInt(document.getElementById('s-econ').value,10);
+    var open=document.querySelector('input[name=stack]:checked').value==='open';
+    document.getElementById('v-econ').textContent=n;
+    var total=open?0:n*PER;
+    document.getElementById('costNum').textContent='$'+total.toFixed(2);
+    document.getElementById('costNum').style.color=open?'var(--good)':'var(--accent)';
+    document.getElementById('costLabel').textContent=(open?'open-weight — ':'LLM cost — ')+n+' econom'+(n===1?'y':'ies');
+    document.getElementById('costPer').textContent=open?'$0.00':'$0.07';
+    document.getElementById('costMode').textContent=open?'open-weight stack':'paid stack';
+    drawCost(n, total, open);
+  }
+  document.getElementById('s-econ').addEventListener('input',cost);
+  [].slice.call(document.querySelectorAll('input[name=stack]')).forEach(function(r){ r.addEventListener('change',cost); });
+
+  // ── SVG chart helpers ──
+  function el(tag,attrs,txt){ var e=document.createElementNS('http://www.w3.org/2000/svg',tag);
+    for(var k in attrs) e.setAttribute(k,attrs[k]); if(txt!=null) e.textContent=txt; return e; }
+
+  // routing distribution (illustrative), horizontal stacked bar
+  function drawRouting(){
+    var host=document.getElementById('routingChart'); if(!host) return; host.innerHTML='';
+    var data=[{k:'Auto-accept',v:62,c:cssv('--good')},{k:'Review',v:29,c:cssv('--warn')},{k:'Quarantine',v:9,c:cssv('--bad')}];
+    var W=640,H=96,pad=8,y=26,h=30, total=100, x=pad, svg=el('svg',{viewBox:'0 0 '+W+' '+H,class:'svgchart'});
+    data.forEach(function(d){ var w=(d.v/total)*(W-2*pad);
+      svg.appendChild(el('rect',{x:x+1,y:y,width:Math.max(w-2,1),height:h,rx:5,fill:d.c}));
+      if(w>52){ svg.appendChild(el('text',{x:x+w/2,y:y+h/2+4,'text-anchor':'middle',fill:'#fff','font-size':13,'font-weight':700},d.v+'%')); }
+      svg.appendChild(el('text',{x:x+2,y:y+h+18,fill:cssv('--ink-soft'),'font-size':12,'font-weight':600},d.k));
+      x+=w;
+    });
+    host.appendChild(svg);
+  }
+
+  // cost bars: this run vs open-weight baseline
+  function drawCost(n, total, open){
+    var host=document.getElementById('costChart'); if(!host) return; host.innerHTML='';
+    var paid=n*PER, W=300,H=120,pad=28,bw=70, base=H-24;
+    var max=Math.max(paid,0.01), scale=(base-14)/max;
+    var svg=el('svg',{viewBox:'0 0 '+W+' '+H,class:'svgchart'});
+    svg.appendChild(el('line',{x1:pad-6,y1:base,x2:W-8,y2:base,class:'gridline'}));
+    var bars=[{k:'Paid',v:paid,c:cssv('--accent'),on:!open},{k:'Open-weight',v:0,c:cssv('--good'),on:open}];
+    var x=pad+10;
+    bars.forEach(function(b){ var hh=Math.max(b.v*scale,2), yy=base-hh;
+      svg.appendChild(el('rect',{x:x,y:yy,width:bw,height:hh,rx:5,fill:b.c,opacity:b.on?1:.32}));
+      svg.appendChild(el('text',{x:x+bw/2,y:yy-6,'text-anchor':'middle',class:'vallab'},'$'+b.v.toFixed(2)));
+      svg.appendChild(el('text',{x:x+bw/2,y:base+16,'text-anchor':'middle',class:'tick'},b.k));
+      x+=bw+40;
+    });
+    host.appendChild(svg);
+  }
+
+  // coverage heatmap (illustrative)
+  function drawHeat(){
+    var host=document.getElementById('heatmap'); if(!host) return;
+    var inds=['6.1','6.2','6.3','6.4','7.1','7.2','7.3','7.4','7.5'];
+    var rows={ 'Singapore':[1,1,0,1,1,1,1,1,1], 'Australia':[1,0,1,1,1,1,0,1,1], 'Malaysia':[1,1,0,1,1,1,0,1,0] };
+    var html='<table class="heat"><thead><tr><th></th>';
+    inds.forEach(function(i){ html+='<th>'+i+'</th>'; }); html+='</tr></thead><tbody>';
+    Object.keys(rows).forEach(function(ec){ html+='<tr><td class="rh">'+ec+'</td>';
+      rows[ec].forEach(function(v,idx){ html+='<td><div class="cell '+(v?'found':'none')+'" title="'+ec+' · Indicator '+inds[idx]+' — '+(v?'evidence found':'No-evidence placeholder')+'">'+(v?'✓':'–')+'</div></td>'; });
+      html+='</tr>'; });
+    html+='</tbody></table>'; host.innerHTML=html;
+  }
+
+  function drawAll(){ drawRouting(); drawHeat(); cost(); }
+  drawAll();
+
+  // ── pipeline demo ──
+  var stages=[
+    {id:'n-discover',log:'[discovery] querying sso.agc.gov.sg (no seed URLs)…',ok:'3 candidate laws found'},
+    {id:'n-fetch',log:'[fetch] Scrapling real-browser TLS → 200 OK',ok:'PDPA 2012 fetched (cache miss)'},
+    {id:'n-ocr',log:'[ocr] text-layer detected · MarkItDown → article/§ chunks',ok:'CER 1.11% · PASS < 5%'},
+    {id:'n-retrieve',log:'[retrieve] BM25 + dense + rerank · grade-all (small corpus)',ok:'top provisions shortlisted'},
+    {id:'n-map',log:'[map] grading (§26 × P6-I4) with sibling indicators…',ok:'P6-I4 · confidence 0.82 → review'}
+  ];
+  var runBtn=document.getElementById('runBtn'), resetBtn=document.getElementById('resetBtn'),
+      logEl=document.getElementById('demolog'), progEl=document.getElementById('progFill'),
+      stateEl=document.getElementById('pipeState'), resEl=document.getElementById('resultcard'), running=false;
+  function sleep(ms){ return new Promise(function(r){ setTimeout(r, reduce?0:ms); }); }
+  function reset(){
+    running=false; stages.forEach(function(s){ var el=document.getElementById(s.id); el.classList.remove('active','done'); });
+    progEl.style.width='0'; logEl.innerHTML='<span class="mut">Idle — press “Run the pipeline”.</span>';
+    resEl.classList.remove('show'); resEl.innerHTML=''; stateEl.textContent='idle';
+    runBtn.disabled=false; resetBtn.disabled=true;
+  }
+  async function run(){
+    if(running) return; running=true; runBtn.disabled=true; resetBtn.disabled=false;
+    logEl.innerHTML=''; resEl.classList.remove('show'); stateEl.textContent='running…';
+    for(var i=0;i<stages.length;i++){
+      var s=stages[i], node=document.getElementById(s.id);
+      node.classList.add('active');
+      logEl.innerHTML+='<div>'+s.log+'</div>'; logEl.scrollTop=logEl.scrollHeight;
+      await sleep(720);
+      node.classList.remove('active'); node.classList.add('done');
+      logEl.innerHTML+='<div class="ok">  ✓ '+s.ok+'</div>'; logEl.scrollTop=logEl.scrollHeight;
+      progEl.style.width=((i+1)/stages.length*100)+'%';
+      await sleep(180);
+    }
+    stateEl.textContent='done';
+    resEl.innerHTML='<b>Result row</b> — PDPA 2012 §26 → <span class="badge b-accent">P6-I4</span> conditional cross-border flow · '+
+      '<span class="mono">confidence 0.82</span> <span class="badge b-warn">review</span> · verbatim snippet + source URL attached.';
+    resEl.classList.add('show'); running=false; runBtn.disabled=false;
+  }
+  runBtn.addEventListener('click',run); resetBtn.addEventListener('click',reset);
+})();
+</script>
+</body>
+</html>

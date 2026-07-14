@@ -103,16 +103,19 @@ Defined in `backend/rdtii/indicators.py` (`legal_test` + `query_terms` per indic
 
 ---
 
-## §2 — Source-of-truth documents (in repo root)
+## §2 — Source-of-truth documents
+
+Organiser-provided reference material now lives in **`docs/reference/`**; the official
+templates/answer-key stay in the repo root (loaded by tooling).
 
 | File | What it authoritatively defines |
 |---|---|
-| `Hackathon Overview-Dr.Witada A.pdf` | Scoring weights, deliverables, what "runs" means, recommended output schema |
+| `docs/reference/hackathon-overview.pdf` | Scoring weights, deliverables, what "runs" means, recommended output schema |
 | `OUTPUT_TEMPLATE_31MAY.xlsx` → **Instructions** sheet | How to fill every field; "one row per provision"; field REQUIRED/OPTIONAL |
 | `OUTPUT_TEMPLATE_31MAY.xlsx` → "Output Data" sheet | The exact 13 columns + REQUIRED/OPTIONAL row |
 | `ESCAP-RDTII-2.1_ Round 1 Database.xlsx` | **Reference-only** answer key (per-economy scored rows). NOT the submission format. |
-| `Scoring_information_1.pdf` | Zone-3 scoring FAQ (6.1 vs 6.4, infra, comprehensive, min retention) |
-| `Scoring_information_2.xlsx` | Zone-3 scoring criteria table (0/0.5/1 per indicator) |
+| `docs/reference/Scoring_information_1.pdf` | Zone-3 scoring FAQ (6.1 vs 6.4, infra, comprehensive, min retention) |
+| `docs/reference/Scoring_information_2.xlsx` | Zone-3 scoring criteria table (0/0.5/1 per indicator) |
 | `CLAUDE.md` | Project guide / status (keep it honest & current) |
 
 **Scoring weights (Overview):** 40% Substantive Accuracy (framework alignment + **NEW evidence =
