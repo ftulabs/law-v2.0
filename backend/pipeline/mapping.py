@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import math
 import re
+import threading
 import time
 
 from ..config import settings
@@ -285,6 +286,94 @@ def _format_last_amended(amendment_date: str | None, law_name: str | None) -> st
     return yr.group(0) if yr else None
 
 
+class _CallBudget:
+    """Thread-safe cap on cross-check calls per run (grading runs on a thread pool)."""
+
+    def __init__(self, n: int):
+        self.n = n
+        self._lock = threading.Lock()
+
+    def take(self) -> bool:
+        with self._lock:
+            if self.n <= 0:
+                return False
+            self.n -= 1
+            return True
+
+
+def _build_crosscheck(primary: LLMProvider, log):
+    """(second, tiebreak, primary_model, budget) — the cross-model panel for borderline
+    rejections, or (None, ...) when disabled. openrouter-only: the panel needs distinct
+    models behind one gateway; mock/local/single-model providers can't supply independent
+    second opinions, and mock must stay deterministic for offline runs."""
+    if not settings.crosscheck_enabled or primary.name != "openrouter":
+        return (None, None, "", None)
+    try:
+        second = get_llm_provider("openrouter", model=settings.crosscheck_model)
+        tiebreak = get_llm_provider("openrouter", model=settings.crosscheck_tiebreak_model)
+    except Exception as e:  # noqa: BLE001 — no key / bad model → run without the panel
+        log(f"[crosscheck] disabled ({type(e).__name__}: {e})")
+        return (None, None, "", None)
+    return (second, tiebreak, primary.model_version, _CallBudget(settings.crosscheck_max_calls))
+
+
+def _relevant(graded: dict) -> bool:
+    rel = graded.get("relevant")
+    if rel is None:
+        rel = bool(graded.get("satisfies_target")) and not graded.get("better_sibling")
+    return bool(rel)
+
+
+def _borderline_rejection(graded: dict) -> bool:
+    """A rejection worth an independent second opinion: the grader itself signalled the
+    provision is legally close — it named a sibling (the P6-I1/I2 overlap failure mode) or
+    scored a material legal_match despite rejecting. Clear misses (no sibling, ~0 match)
+    are never re-asked."""
+    return bool(graded.get("better_sibling")) or float(graded.get("legal_match") or 0.0) >= 0.3
+
+
+def _crosscheck_rejection(ind, prov, xc, log) -> dict | None:
+    """Independent cross-model panel for a borderline rejection. Each call is a fresh,
+    context-free request (the model never sees the primary's answer or ours — no anchoring),
+    so this is majority voting over independent judgments, not persuading one model. Returns
+    the ACCEPTING model's full graded response when the panel overturns (2-1 across primary/
+    second/tiebreak), else None (rejection stands). Conservative on any doubt: budget spent,
+    call error, or a failover landing the 'independent' vote on the primary model all keep
+    the rejection (a precise miss beats a wrong over-assign)."""
+    second, tiebreak, primary_model, budget = xc
+    if second is None or budget is None or not budget.take():
+        return None
+    user = _user_prompt(ind, prov)
+    try:
+        g2 = second.complete_json(SYSTEM, user)
+    except Exception:  # noqa: BLE001 — an opinion call must never crash the run
+        return None
+    if not g2 or g2.get("_parse_error") or second.model_version == primary_model:
+        return None                      # no usable INDEPENDENT vote → rejection stands
+    if not _relevant(g2):
+        log(f"[crosscheck] {ind.indicator_id} | {prov.article_section}: second model agrees — "
+            f"rejected 2-0")
+        return None
+    # 1-1 split → a third, distinct model decides
+    if tiebreak is None or not budget.take():
+        return None
+    try:
+        g3 = tiebreak.complete_json(SYSTEM, user)
+    except Exception:  # noqa: BLE001
+        return None
+    if not g3 or g3.get("_parse_error") or tiebreak.model_version in (primary_model,
+                                                                      second.model_version):
+        return None
+    if _relevant(g3):
+        log(f"[crosscheck] {ind.indicator_id} | {prov.article_section}: overturned 2-1 "
+            f"({second.model_version} + {tiebreak.model_version} vs {primary_model})")
+        g2["_crosscheck_note"] = ("Accepted by cross-model majority (2-1): the primary grader "
+                                  "rejected, two independent models satisfied the legal test.")
+        return g2
+    log(f"[crosscheck] {ind.indicator_id} | {prov.article_section}: rejection upheld 2-1")
+    return None
+
+
 def _mapping_id(run_id: str, indicator_id: str, provision_id: str) -> str:
     h = hashlib.sha1(f"{run_id}|{indicator_id}|{provision_id}".encode()).hexdigest()[:12]
     return f"map-{h}"
@@ -312,6 +401,7 @@ def map_provisions(
     # preserved either way — the grader below still judges the verbatim snippet).
     _t_retr = time.perf_counter()
     ranked_by_ind = _select_retriever(indicators, provisions, top_k, llm, log)
+    crosscheck = _build_crosscheck(llm, log)
 
     # Coverage policy. A small corpus (a sample run, a single Act) → grade EVERY provision
     # against EVERY indicator so nothing relevant is missed: the rubric rewards coverage and
@@ -378,11 +468,15 @@ def map_provisions(
         # relevant = satisfies the target AND not a mislabel for a better sibling. Prefer the
         # model's explicit `relevant`; else derive it (real LLMs return satisfies_target/
         # better_sibling; the offline mock returns `relevant` directly).
-        relevant = graded.get("relevant")
-        if relevant is None:
-            relevant = bool(graded.get("satisfies_target")) and not graded.get("better_sibling")
-        if not relevant:
-            return None
+        if not _relevant(graded):
+            # Borderline rejections get an independent cross-model panel (see
+            # _crosscheck_rejection) — overturn replaces `graded` with the accepting
+            # model's response; otherwise the rejection stands.
+            overturned = (_crosscheck_rejection(ind, prov, crosscheck, log)
+                          if _borderline_rejection(graded) else None)
+            if overturned is None:
+                return None
+            graded = overturned
 
         legal_match = float(graded.get("legal_match", 0.0) or 0.0)
         scope_alignment = float(graded.get("scope_alignment", 0.0) or 0.0)
@@ -401,6 +495,7 @@ def map_provisions(
             if first_group in prov.verbatim_snippet:
                 article_section = f"{prov.article_section}{subsection}"
 
+        xc_note = graded.get("_crosscheck_note")
         src_text = source_texts.get(prov.doc_id, prov.verbatim_snippet)
         grounding = confidence.snippet_grounding(prov.verbatim_snippet, src_text)
         ctx_before, ctx_after = "", ""
@@ -437,7 +532,8 @@ def map_provisions(
             mapping_rationale=(rationale or "")[:300], confidence_score=breakdown.final,
             discovery_tag=doc_tags.get(prov.doc_id, DiscoveryTag.KNOWN),
             coverage=("Sectoral" if scope_flag else "Horizontal"),
-            notes=_build_notes(prov, scope_flag, topical_ok), review_status=status,
+            notes=" ".join(filter(None, [_build_notes(prov, scope_flag, topical_ok), xc_note])) or None,
+            review_status=status,
             provision_id=prov.provision_id, source_pdf_path=prov.source_pdf_path,
             raw_context=r.raw_context, raw_context_before=ctx_before, raw_context_after=ctx_after,
             confidence=breakdown, ocr=prov.ocr, model_version=llm.model_version,

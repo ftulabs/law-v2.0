@@ -40,6 +40,19 @@ class Settings(BaseSettings):
     # (16 × 8192 tokens ≈ $0.02 at deepseek-v4-flash prices). complete_json also retries once
     # with 4× the cap if a response still comes back truncated/unparseable.
     openrouter_max_tokens: int = 8192
+    # Cross-model second opinion on borderline REJECTIONS. When the primary grader rejects a
+    # provision while itself signalling legal closeness (it names a better_sibling, or scores
+    # legal_match >= 0.3 despite rejecting), a DIFFERENT model re-grades the same prompt in a
+    # fully independent call (no shared context — so no anchoring/bias, unlike re-asking the
+    # same model). Disagreement goes to a third model; majority (2-1) decides. This targets the
+    # measured run-to-run flip-flops (e.g. MHR s77/P6-I2 pre-fix: satisfied 1/3 attempts) at a
+    # bounded extra cost instead of voting on every call. openrouter-only (needs a second model
+    # behind one gateway); a failover that lands the "second" opinion on the primary model
+    # voids that vote (independence guard).
+    crosscheck_enabled: bool = True
+    crosscheck_model: str = "google/gemini-2.5-flash"
+    crosscheck_tiebreak_model: str = "openai/gpt-4o-mini"
+    crosscheck_max_calls: int = 40           # per-run cap on extra opinion calls
     # Google Gemini (OpenAI-compatible endpoint). Key from env/.env/secrets — never commit.
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.0-flash"
