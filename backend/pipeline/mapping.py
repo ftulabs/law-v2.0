@@ -267,8 +267,13 @@ _MONTHS = ["January", "February", "March", "April", "May", "June", "July",
 
 
 def _format_last_amended(amendment_date: str | None, law_name: str | None) -> str | None:
-    """'Month Year' when the month is verified, else 'Year'; never invents a month."""
+    """'Month Year' when the month is verified, else 'Year'; never invents a month.
+    'Original' (portal positively shows the law was never amended) passes through verbatim —
+    the judges' Q&A: never-amended laws get "Original", not a blank and not the enactment
+    year."""
     d = (amendment_date or "").strip()
+    if d == "Original":
+        return "Original"
     m = re.match(r"^((?:19|20)\d{2})-(\d{2})", d)
     if m:
         month = int(m.group(2))

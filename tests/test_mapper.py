@@ -29,7 +29,7 @@ def test_p6_mappings_have_localisation_context():
     # requirement (store/process/host in-country), not a generic domestic clause.
     for m in ms:
         if m.indicator_id.startswith("P6"):
-            if m.verbatim_snippet == "No evidence":   # placeholder rows carry no snippet
+            if m.verbatim_snippet.startswith("No evidence"):   # placeholder rows carry no snippet
                 continue
             text = m.verbatim_snippet.lower()
             assert any(k in text for k in ("transfer", "outside", "overseas", "cross", "foreign",

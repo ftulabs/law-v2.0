@@ -85,7 +85,9 @@ def _no_evidence_placeholders(run_id, economy, indicators, mappings, log) -> lis
             run_id=run_id, economy=economy, pillar=ind.pillar, indicator_id=ind.indicator_id,
             law_name="No provision found", law_number=None, last_amended=None,
             article_section="N/A", location_ref=None,
-            verbatim_snippet="No evidence",
+            # exact placeholder wording per the judges' Q&A (email 2026-07): snippet "No
+            # evidence found"; Confidence and Discovery Tag render as "N/A" in the CSV.
+            verbatim_snippet="No evidence found",
             mapping_rationale=(f"No active provision satisfying the legal test of {ind.indicator_id} "
                                f"({ind.title}) was identified on the official portal."),
             source_url=(f"https://{portal}/" if portal else ""),

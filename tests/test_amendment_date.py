@@ -73,9 +73,56 @@ def test_au_latest_compilation_uses_the_documents_feed_start_date(monkeypatch):
 
     monkeypatch.setattr(disco, "_au_compilation_cache", {})
     monkeypatch.setattr("httpx.get", lambda *a, **k: _Resp())
-    pdf, start = _au_latest_compilation("C2004A03712")
+    pdf, start, never_amended = _au_latest_compilation("C2004A03712")
     assert start == "2026-06-04"
     assert pdf == "https://www.legislation.gov.au/C2004A03712/2026-06-04/2026-06-04/text/original/pdf"
+    assert never_amended is False
+
+
+def test_au_never_amended_act_reports_original(monkeypatch):
+    """Judges' Q&A: a never-amended law reads "Original", never a blank or the registration
+    date. On legislation.gov.au the as-made-only shape (verified live on C2026A00001) is
+    compilationNumber '0' with registerId equal to the title id — amended acts return
+    C-prefixed compilations with a running number instead."""
+    import backend.pipeline.discovery as disco
+
+    class _Resp:
+        def json(self):
+            return {"value": [{"start": "2026-01-21T00:00:00", "isAuthorised": True,
+                               "compilationNumber": "0", "registerId": "C2026A00001"}]}
+
+    monkeypatch.setattr(disco, "_au_compilation_cache", {})
+    monkeypatch.setattr("httpx.get", lambda *a, **k: _Resp())
+    _, start, never_amended = _au_latest_compilation("C2026A00001")
+    assert never_amended is True
+    assert start == "2026-01-21"      # the date stays available for the PDF URL
+
+
+def test_sg_single_timeline_entry_means_never_amended():
+    """One timeline entry = the text never changed since enactment → "Original"."""
+    single = (
+        '<div class="global-vars" data-json=\'{"legisTitle":"X","docTimelineIdx":0,'
+        '"timelineItems":[{"Item1":"\\/Date(1609516800000)\\/","Item2":"/Act/X","Item3":"a"}]}\'>'
+    )
+    assert _sg_parse_timeline_date(single) == "Original"
+
+
+def test_my_timeline_with_only_original_event_reports_original():
+    """A MY act whose own-text history is just the ORIGINAL gazettal (subsidiary-legislation
+    events are other instruments) has never been amended → "Original"."""
+    html = (
+        '<a data-date="11/06/2010" data-project-id="1" data-log-type="ORIGINAL">x</a>'
+        '<a data-date="19/02/2023" data-project-id="2" data-log-type="SUBSIDIARY_LEGISLATION">y</a>'
+    )
+    assert _my_parse_timeline_date(html) == "Original"
+
+
+def test_format_last_amended_passes_original_through():
+    from backend.pipeline.mapping import _format_last_amended
+    assert _format_last_amended("Original", "Some Act 2026") == "Original"
+    # unchanged behaviour for real dates and fallbacks
+    assert _format_last_amended("2025-12-05", "X") == "December 2025"
+    assert _format_last_amended(None, "Privacy Act 1988") == "1988"
 
 
 def test_au_latest_compilation_caches_by_title_id(monkeypatch):

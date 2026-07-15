@@ -562,7 +562,7 @@ def is_no_evidence(m) -> bool:
     """Placeholder rows the pipeline writes for an indicator with no submittable finding.
     These carry confidence 0.0 but review_status=auto_accepted (a *confident negative*),
     so the normal traffic-light card renders a contradiction — render them differently."""
-    return (m.verbatim_snippet or "").strip() == "No evidence" or m.law_name == "No provision found"
+    return (m.verbatim_snippet or "").strip().startswith("No evidence") or m.law_name == "No provision found"
 
 
 def _host(url: str) -> str:

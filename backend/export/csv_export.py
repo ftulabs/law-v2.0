@@ -16,6 +16,10 @@ from ..schemas import ECONOMY_UN_NAME, SUBMISSION_COLUMNS, SUBMITTABLE_STATUSES,
 
 
 def _row(m: EvidenceMapping) -> dict[str, str]:
+    # "No provision found" placeholder rows follow the judges' Q&A exactly: Confidence and
+    # Discovery Tag are "N/A" (neither NEW nor KNOWN applies, and 0.00 would read as a scored
+    # mapping); Source URL stays the searched portal to prove Zone 1 ran.
+    placeholder = m.law_name == "No provision found"
     # EXACT official 13-column template. Pillar/Coverage/OCR/CER — and the Zone-3 RDTII
     # raw_score — are deliberately NOT written here: the official template (Output Data sheet)
     # has NO score column, and per team decision (pending a judges' Q&A on where a Zone-3 score
@@ -28,12 +32,12 @@ def _row(m: EvidenceMapping) -> dict[str, str]:
         "Last Amended": m.last_amended or "",
         "Indicator ID": m.indicator_id,
         "Article / Section": m.article_section,
-        "Discovery Tag": m.discovery_tag.value,
+        "Discovery Tag": "N/A" if placeholder else m.discovery_tag.value,
         "Location Reference": m.location_ref or "",
         "Verbatim Snippet": m.verbatim_snippet,          # EXACT — never paraphrased
         "Mapping Rationale": m.mapping_rationale or "",
         "Source URL": m.source_url,
-        "Confidence": f"{m.confidence_score:.2f}",
+        "Confidence": "N/A" if placeholder else f"{m.confidence_score:.2f}",
         "Notes": m.notes or "",
     }
 
@@ -51,8 +55,9 @@ def export_csv(mappings: list[EvidenceMapping], run_id: str, out_dir: Path | Non
     return path
 
 
-# custom columns must come AFTER the mandatory 13
-MASTER_EXTRA_COLUMNS = ["Pillar", "RDTII Raw Score", "Coverage"]
+# custom columns must come AFTER the mandatory 13 (confirmed OK by the judges' Q&A), with
+# unambiguous headers — the Q&A's own example is "RDTII_Raw_Score", so we match it exactly
+MASTER_EXTRA_COLUMNS = ["Pillar", "RDTII_Raw_Score", "Coverage"]
 
 
 def export_master_csv(mappings: list[EvidenceMapping], out_dir: Path | None = None,
@@ -69,7 +74,7 @@ def export_master_csv(mappings: list[EvidenceMapping], out_dir: Path | None = No
         for m in rows:
             r = _row(m)
             r["Pillar"] = str(m.pillar)
-            r["RDTII Raw Score"] = ("" if m.raw_score is None
+            r["RDTII_Raw_Score"] = ("" if m.raw_score is None
                                     else f"{m.raw_score:g}")
             r["Coverage"] = m.coverage or ""
             writer.writerow(r)

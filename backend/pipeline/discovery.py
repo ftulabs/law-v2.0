@@ -175,6 +175,11 @@ def _sg_parse_timeline_date(html: str) -> str | None:
         items = data.get("timelineItems") or []
         if not items:
             return None
+        # Every timeline entry is a distinct text version (amendment or phased commencement).
+        # Exactly ONE entry ⇒ the text never changed since enactment — the judges' Q&A says such
+        # laws get "Original" in Last Amended, never a blank (and never the enactment date).
+        if len(items) == 1:
+            return "Original"
         idx = data.get("docTimelineIdx")
         entry = items[idx] if isinstance(idx, int) and 0 <= idx < len(items) else items[-1]
         dm = _NET_DATE_RE.search(entry.get("Item1") or "")
@@ -633,20 +638,24 @@ def _search_au_api(client, src: dict, query: str, economy: Economy, indicators, 
     return out
 
 
-_au_compilation_cache: dict[str, tuple[str | None, str | None]] = {}
+_au_compilation_cache: dict[str, tuple[str | None, str | None, bool]] = {}
 
 
-def _au_latest_compilation(title_id: str) -> tuple[str | None, str | None]:
-    """(pdf_url, start_date) for a title's latest AUTHORISED compilation, from the OData
-    /v1/documents feed. Verified against the live page: the feed's 'start' date is the EXACT
-    date legislation.gov.au itself displays as "Latest version" / "Compilation date" — the
+def _au_latest_compilation(title_id: str) -> tuple[str | None, str | None, bool]:
+    """(pdf_url, start_date, never_amended) for a title's latest AUTHORISED compilation, from
+    the OData /v1/documents feed. Verified against the live page: the feed's 'start' date is the
+    EXACT date legislation.gov.au itself displays as "Latest version" / "Compilation date" — the
     /v1/titles record (used for the in-force check) only carries makingDate/asMadeRegisteredAt,
     which are original-enactment/early-registration timestamps, NOT the last-amended date.
+    never_amended is True when the latest document IS the as-made original (compilationNumber
+    '0' AND registerId == titleId — verified live: never-compiled acts return exactly that one
+    item, while amended acts return C-prefixed compilations with a running number) → the
+    judges' Q&A says such laws get "Original" in Last Amended, not the registration date.
     Cached per title_id since both the PDF resolver and the discovery amendment-date lookup
-    need it. Returns (None, None) if the API is unreachable."""
+    need it. Returns (None, None, False) if the API is unreachable."""
     if title_id in _au_compilation_cache:
         return _au_compilation_cache[title_id]
-    result: tuple[str | None, str | None] = (None, None)
+    result: tuple[str | None, str | None, bool] = (None, None, False)
     try:
         import httpx
         r = httpx.get("https://api.prod.legislation.gov.au/v1/documents",
@@ -658,7 +667,9 @@ def _au_latest_compilation(title_id: str) -> tuple[str | None, str | None]:
         start = (items[0].get("start") or "")[:10] if items else None
         pdf = (f"https://www.legislation.gov.au/{title_id}/{start}/{start}/text/original/pdf"
                if start else None)
-        result = (pdf, start)
+        never_amended = bool(items) and str(items[0].get("compilationNumber") or "0") == "0" \
+            and (items[0].get("registerId") or "").upper() == title_id.upper()
+        result = (pdf, start, never_amended)
     except Exception:  # noqa: BLE001 — best-effort; caller falls back gracefully
         pass
     _au_compilation_cache[title_id] = result
@@ -818,8 +829,14 @@ def _my_parse_timeline_date(html: str) -> str | None:
     items = [(f"{y}-{mo}-{d}", t) for d, mo, y, t in _MY_TIMELINE_RE.findall(html)]
     if not items:
         return None
-    non_subsidiary = [d for d, t in items if t.upper() != "SUBSIDIARY_LEGISLATION"]
-    return (non_subsidiary or [d for d, _ in items])[-1]
+    non_subsidiary = [(d, t) for d, t in items if t.upper() != "SUBSIDIARY_LEGISLATION"]
+    # Timeline parsed fine and every own-text event is the ORIGINAL gazettal (no AMENDMENTS,
+    # no REPRINT consolidating changes) ⇒ never amended → "Original" per the judges' Q&A.
+    # Conservative: any non-ORIGINAL event type (REPRINT may consolidate amendments) keeps the
+    # date behaviour instead of claiming Original.
+    if non_subsidiary and all(t.upper() == "ORIGINAL" for _, t in non_subsidiary):
+        return "Original"
+    return ([d for d, _ in non_subsidiary] or [d for d, _ in items])[-1]
 
 
 def _my_amendment_date(act_no: str) -> str | None:
@@ -1095,8 +1112,10 @@ def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | N
         for d in kept:
             tid = _au_title_id(d.source_url)
             if tid:
-                _, start = _au_latest_compilation(tid)
-                if start:
+                _, start, never_amended = _au_latest_compilation(tid)
+                if never_amended:
+                    d.amendment_date = "Original"
+                elif start:
                     d.amendment_date = start
     elif economy.value == "MY":
         for d in kept:

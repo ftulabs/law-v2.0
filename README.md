@@ -23,6 +23,16 @@ Discovery Tag (NEW = found independently, KNOWN = matches a sample-kit example).
 
 ---
 
+## 🌐 Hosted Instance (for judges — no setup, no API keys)
+
+**https://veritrade.ftu.fyi** — the full dashboard, live, with our LLM/OCR keys pre-configured
+in platform secrets (never in this repository). Pick a country and topic, press *Run analysis*,
+and download the submission CSV. This instance runs the exact code in this repository and will
+remain live through the end of the evaluation period. If it is briefly unreachable, retry after
+a minute (the tunnel self-heals) or fall back to the local Quick Start below.
+
+---
+
 ## Quick Start
 
 ⏱ A reviewer with basic Python should run this in under 10 minutes with the steps below.
@@ -80,8 +90,16 @@ python main.py \
 python batch_run.py --economies Singapore Australia Malaysia --pillar 6 7 --live --llm openrouter
 ```
 Writes per-economy files plus **`outputs/VeriTrade_MASTER_<ts>.csv/.json`** — the single sheet
-combining every economy and pillar (13 mandatory columns, then custom columns `Pillar`,
-`RDTII Raw Score`, `Coverage` appended at the end).
+combining every economy and pillar. Custom columns (confirmed acceptable by the judges' Q&A)
+come **after** the 13 mandatory columns:
+- `Pillar` — 6 or 7, for filtering the consolidated sheet
+- `RDTII_Raw_Score` — the optional Zone-3 RDTII Raw Score (0 / 0.5 / 1) for the measure
+- `Coverage` — the measure's coverage label (e.g. Horizontal / sector name)
+
+`Last Amended` carries the month and year from the portal's own revision history; a law the
+portal positively shows as never amended reads **"Original"** (per the judges' Q&A). Indicators
+with no matching provision get a "No provision found" row with Verbatim Snippet
+"No evidence found" and `N/A` in Confidence and Discovery Tag.
 
 ### Other modes
 ```bash
@@ -195,7 +213,7 @@ Exact 13-column order — judges validate programmatically; do not rename or reo
 | 12 | Confidence | Optional | Model certainty 0.00–1.00 |
 | 13 | Notes | Optional | Scope flags, OCR provenance, bilingual sources |
 
-Indicators with no evidence get an explicit **"No evidence"** row (never left blank).
+Indicators with no evidence get an explicit **"No evidence found"** row (never left blank).
 
 ### JSON (`outputs/<economy>_P<pillar>_<timestamp>.json`)
 Same fields plus: `ocr_quality.cer`, `processing_time_seconds`, `raw_context_before/after`,
