@@ -255,7 +255,7 @@ def _store(url, data: bytes, content_type: str, idx: dict, etag, last_mod, log,
     HTML to the PDF parser (garbage) or emit the homepage's nav text as a bogus provision."""
     fmt, ext = _fmt_for(content_type, url)
     if fmt in (DocFormat.PDF_TEXT, DocFormat.PDF_SCANNED) and b"%PDF-" not in data[:1024]:
-        log(f"[fetch] .pdf URL served non-PDF bytes (dead/moved link) → skipping: {url}")
+        log(f"[fetch] .pdf URL served non-PDF bytes (dead/moved link) -> skipping: {url}")
         return None
     sha = hashlib.sha256(data).hexdigest()
     fname = f"{sha[:16]}.{ext}"
