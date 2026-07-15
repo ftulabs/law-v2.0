@@ -3,6 +3,11 @@
 > Content pack for the ESCAP/KMITL pitch-deck template (13 slides). Hand this whole file to
 > Claude to design the deck. Every number here is measured from the real system — keep them.
 > `‹FILL›` marks the only spots that need human input (names, screenshots, final metrics).
+>
+> **Editorial rule for this deck:** never say "we use AI/OCR/RAG" without immediately saying
+> *which mechanism* and *which measured number*. Every team in the room has "AI + OCR + RAG".
+> Only we have "the portal's own DataTables JSON, a TLS-fingerprint fetcher, font-glyph heading
+> detection, and a sibling-penalty reranker" — the deck must sound like that.
 
 **Design brief for the deck:** ESCAP/KMITL template — light blue header band, white body, ESCAP +
 KMITL logos top-right on every slide. Clean, professional, government/UN tone. One idea per slide,
@@ -30,24 +35,26 @@ Digital Trade Regulatory Analysis · Round 1 · Singapore · Australia · Malays
 
 ## Slide 2 — Executive Summary (one slide)
 
-**One-liner:** VeriTrade is an end-to-end AI pipeline that, given only an **economy** and a
-**regulatory pillar**, autonomously discovers the relevant laws on official government portals,
-extracts article-level text (including scanned PDFs), and maps each provision to the exact RDTII
-indicator — with a verbatim citation, a confidence score, and a full audit trail.
+**One-liner:** Given only an **economy** and a **pillar**, VeriTrade autonomously finds the laws on
+the official portals, reads them (including scanned PDFs), and returns each provision mapped to its
+RDTII indicator — with a verbatim quote, an article-level citation, a source URL, and a confidence
+score. **No seed URLs. No hardcoded law names. Every row auditable.**
 
-**Four points (use as four columns/icons):**
-1. **Problem** — Compiling the RDTII index is manual, slow, and hard to reproduce: analysts hunt
-   across dozens of government portals, in multiple languages and file formats, then hand-map
-   clauses to indicators.
-2. **Solution** — Two automated tasks: (1) live discovery + extraction, (2) LLM mapping to
-   indicators with verbatim evidence. Zero seed URLs, zero hardcoded law names.
-3. **Core tech** — Bot-resistant crawling (Scrapling), OCR (MarkItDown/RapidOCR, CER 1.11%),
-   hybrid RAG (BM25 + multilingual embeddings + cross-encoder), vendor-agnostic LLM mapping.
-4. **Fit for RDTII P6 & P7** — Purpose-built for the 9 mandatory indicators (P6-I1…I4 cross-border
-   data; P7-I1…I5 domestic data protection), outputs the exact 13-column submission template.
+**Four points (use as four columns/icons) — lead with the mechanism, not the buzzword:**
+1. **Problem** — RDTII compilation is manual legal research across bespoke, bot-protected,
+   multilingual portals. It doesn't scale and a second reviewer can't reproduce it.
+2. **Discovery that adapts per portal** — full-text web search where the portal is indexed (SG),
+   the official OData API where full-text search is broken (AU), and the portal's **own catalogue
+   JSON** where Google can't see it at all (MY). One framework, three verified entry strategies.
+3. **Extraction that survives real documents** — TLS-fingerprint fetching clears WAFs; OCR is
+   **measured** (CER 1.11% vs ground truth); AU section headings are detected **by font weight**
+   because their PDFs never say "Section".
+4. **Mapping a keyword classifier can't do** — the LLM grades each (provision × indicator) pair
+   while seeing every *sibling* indicator's legal test, so "conditional transfer" (P6-I4) is never
+   confused with "ban" (P6-I1). Unsure ⇒ human review, never silent acceptance.
 
-**Headline metrics (stat row):** 3 economies · 9 indicators · **CER 1.11%** on scanned PDFs ·
-**~$0.07 per economy** in LLM cost · **$0.00** on an open-weight stack.
+**Headline metrics (stat row):** 3 economies · 9 indicators · **CER 1.11%** (bar: 5%) ·
+**~$0.07 / economy** LLM cost · **$0.00** on an open-weight stack · CPU-only.
 
 ---
 
@@ -58,21 +65,24 @@ indicators. Building it means a human researcher must, for each (economy, indica
 right statute, *read* the operative clause, *interpret* whether it satisfies the indicator, and
 *cite* it precisely. Today this is manual and does not scale to 40+ economies on a regular refresh.
 
-**Why digital-trade law is hard to find, interpret, compare and verify:**
-- **Scattered & unindexed.** Each economy has its own portal with its own search (SG's is
-  token/JS-gated, MY's `lom.agc.gov.my` is barely indexed by Google, AU's is a JS single-page app).
-  No common API.
-- **Bot-protected.** Portals apply WAF/TLS fingerprinting that blocks naïve crawlers (HTTP 403).
-- **Mixed formats.** HTML, text PDFs, and **scanned/image-only PDFs** (older gazettes) side by side.
-- **Multilingual.** Malaysia publishes bilingually (Malay authoritative, English reference);
-  finals add Thai, Chinese, Russian, Lao.
-- **Buried across many acts.** One indicator (e.g. P7-I5 government access) lives in criminal
-  procedure, telecom, and national-security laws — not just the privacy statute.
+**Why it's hard — each obstacle below is one we hit and solved on the Round-1 portals:**
+- **Every portal is different, and none is friendly.** Singapore's search is token/JS-gated.
+  Malaysia's `lom.agc.gov.my` is **barely indexed by Google** (a `site:` query returns the homepage).
+  Australia's is an Angular single-page app whose law text **doesn't exist in the HTML** a crawler sees.
+- **Bot-protected.** WAFs fingerprint the TLS handshake itself — a plain Python crawler gets HTTP
+  403 before sending a single request header.
+- **Australia's full-text search is broken.** The official OData API's `$search` returns errors —
+  so title-only search is a *forced constraint*, and finding topically-relevant laws needs a
+  separate content lane.
+- **Mixed formats & languages.** HTML, text PDFs, scanned gazettes; Malaysia publishes bilingually
+  (Malay authoritative, English reference); Finals add Thai, Chinese, Russian, Lao.
+- **The evidence is scattered.** P7-I5 (government access) lives in criminal procedure, telecom,
+  and tax law — not the privacy statute. A title-keyword search never finds the Companies Act's
+  record-storage clause (P6-I2).
 - **Verification burden.** A citation is only trustworthy if the quoted text truly appears in the
   official source — the core anti-hallucination requirement.
 
-**Impact:** slow index refreshes, inconsistent coverage, and results that are hard for a second
-reviewer to reproduce.
+**Impact:** slow index refreshes, inconsistent coverage, results a second reviewer can't reproduce.
 
 ---
 
@@ -83,15 +93,19 @@ standard CPU, with no vendor lock-in.
 
 **The system is designed to:**
 1. **Discover** — autonomously locate relevant primary legislation on official portals, live, with
-   no seed URLs and no hardcoded law names (generalises to any economy by adding its portal domain).
-2. **Extract** — download and parse article-level text from HTML, text PDFs, and scanned PDFs
-   (real raster OCR with a measured Character Error Rate < 5%).
-3. **Map** — assign each provision to the correct RDTII indicator (P6-I1…I4 / P7-I1…I5) using
-   LLM legal reasoning that sees every sibling indicator to avoid confusion.
-4. **Verify & cite** — attach a 100%-verbatim snippet, an article-level citation, a source URL,
-   and a confidence score; route low-confidence rows to human review.
-5. **Deliver** — output the exact official 13-column CSV + a machine-auditable JSON, consolidated
-   into one master submission sheet across all economies and pillars.
+   no seed URLs and no hardcoded law names. All queries are *country-agnostic* concept phrases and
+   naming conventions ("companies act", "data localisation") — never a specific answer.
+2. **Resolve versions** — collapse the many URLs of one law to a single identity (statute number),
+   keep only the **in-force consolidated** text, and read the "Last Amended" date from each
+   portal's *own* revision timeline (not guessed from the title).
+3. **Extract** — parse article-level text from HTML, text PDFs, and scanned PDFs (real raster OCR
+   with a measured Character Error Rate < 5%), preserving **verbatim** wording with character
+   spans back into the source.
+4. **Map** — assign each provision to the correct RDTII indicator (P6-I1…I4 / P7-I1…I5) using
+   LLM legal reasoning that sees every sibling indicator to avoid look-alike confusion.
+5. **Verify & deliver** — attach a 100%-verbatim snippet, article citation, source URL, and a
+   4-signal confidence score; route low-confidence rows to human review; output the exact official
+   13-column CSV + a machine-auditable JSON.
 
 **Design principles:** auditable over opaque · reproducible over one-off · swappable components
 (LLM/OCR) over lock-in · precision with an explicit human-review safety net.
@@ -107,31 +121,36 @@ standard CPU, with no vendor lock-in.
         │
         ▼
 ┌─────────────────────── ZONE 1 · DISCOVERY & FETCH ───────────────────────┐
-│  Discovery (no seed URLs)          Fetch (bot-resistant)                  │
-│   • SG → web search, portal-scoped   • Scrapling (real-browser TLS) →     │
-│   • AU → OData API + full-text lane    httpx fallback                     │
-│   • MY → portal acts catalogue       • polite per-host delay              │
-│         + sectoral Codes of Practice • 3-tier cache (fetch/embed/result)  │
+│  Discovery (no seed URLs — per-portal strategy)                           │
+│   • SG → full-text web search, portal-scoped (Serper → keyless fallback)  │
+│   • AU → official OData API (title lane) + full-text content lane,        │
+│          every hit re-verified in-force against the register              │
+│   • MY → the portal's OWN acts-catalogue JSON (~880 in-force acts,        │
+│          bilingual titles) + sectoral Codes of Practice (pdp.gov.my)      │
+│  Version resolution: dedup by statute identity → keep in-force            │
+│          consolidated → read "Last Amended" from the portal's timeline    │
+│  Fetch (bot-resistant): TLS/JA3 browser impersonation → stealth browser   │
+│          escalation → httpx fallback · content-addressed cache            │
 └──────────────────────────────────────────────────────────────────────────┘
         │  raw documents: HTML · text PDF · scanned PDF
         ▼
 ┌─────────────────────── ZONE 2 · EXTRACT & MAP ───────────────────────────┐
-│  Extract                            Retrieve (hybrid RAG)                 │
-│   • MarkItDown (text-layer)          • BM25 (lexical)                     │
-│   • RapidOCR/PaddleOCR (scanned,     • multilingual MiniLM (dense)        │
-│     measured CER)                    • cross-encoder rerank               │
-│   • article/§ chunking, verbatim                                         │
-│                                     Map (LLM reasoning)                   │
-│                                      • grades each (provision×indicator)  │
-│                                      • sees all sibling indicators        │
-│                                      • 4-signal confidence score          │
+│  Extract (per-country profiles)      Retrieve (5-signal hybrid)           │
+│   • text-density scan detector        • BM25 (lexical)                    │
+│   • MarkItDown / RapidOCR (CER        • multilingual dense embeddings     │
+│     measured vs ground truth)         • phrase bonus + sibling penalty    │
+│   • SG/MY numbered §, AU font-        • cross-encoder rerank              │
+│     marked headings; statistical     Map (LLM legal reasoning)            │
+│     page-chrome stripping             • grades (provision × indicator)    │
+│   • verbatim chunks + char spans      • sees ALL sibling legal tests      │
+│                                       • grade-all when corpus ≤ 80        │
 └──────────────────────────────────────────────────────────────────────────┘
-        │  mappings + verbatim snippets + confidence
+        │  mappings + verbatim snippets + 4-signal confidence
         ▼
    Confidence routing:  ≥0.85 auto-accept · 0.60–0.85 review · <0.60 quarantine
         │
         ▼
-   OUTPUT:  CSV (13 cols) · JSON (audit trail) · Master sheet · SQLite store
+   OUTPUT:  CSV (13 cols) · scored CSV (Zone 3) · JSON audit trail · SQLite
 ```
 
 **Caption:** Two execution paths share identical extraction→mapping→export code — a live path
@@ -142,110 +161,119 @@ of the live run.
 
 ## Slide 6 — Technology Solution / Innovative Feature
 
-**Core technologies (icon + one line each):**
-- **Autonomous discovery** — multi-strategy per portal: keyless/keyed web search (DuckDuckGo →
-  Serper), official OData API (AU), and the portal's own acts catalogue (MY). No law names hardcoded.
-- **Bot-resistant fetching** — Scrapling's real-browser TLS/JA3 impersonation clears WAFs that
-  403 a plain crawler; escalates to a stealth browser for JS-gated pages.
-- **OCR** — MarkItDown for text-layer PDFs; RapidOCR/PaddleOCR for scanned PDFs; measured
-  Character Error Rate (**1.11%** on the bundled gazette scan, well under the 5% bar).
-- **Hybrid RAG** — BM25 (lexical) + `paraphrase-multilingual-MiniLM-L12-v2` (dense, covers Malay/
-  Thai/Chinese) + `ms-marco-MiniLM` cross-encoder rerank.
-- **LLM legal reasoning** — the model grades one (provision, indicator) pair at a time and is shown
-  every sibling indicator's legal test, so it distinguishes look-alikes (ban vs conditional flow,
-  framework vs cybersecurity).
-- **Confidence + human-in-the-loop** — a 4-signal score routes each row to auto-accept / review /
-  quarantine.
-
-**Innovative / differentiating features:**
-1. **Content-based discovery, not name-matching** — a full-text "obligation-phrase" lane finds
-   laws by *what their clauses say* (e.g. surfaces AU's Consumer Data Right Rules and Digital ID
-   Rules that no title match would find), then verifies each hit as in-force via the official API.
-2. **100%-verbatim evidence** — the snippet is copied from the source text, never generated by the
-   LLM; a grounding check confirms it appears in the fetched document.
-3. **Grade-all coverage** — for small corpora every provision is graded against every indicator, so
-   retrieval ranking is a signal, not a gate (protects non-English recall).
-4. **Reproducibility** — a 3-tier cache (fetched docs / embeddings / full results) makes a chosen
-   run replay identically for judging.
+**Not "we use AI" — here is exactly what runs (icon + one line each):**
+- **Per-portal discovery adapters** — SG: portal-scoped full-text web search. AU: official OData
+  `contains(name,…)` because the API's `$search` full-text is *broken* — verified live. MY: the
+  DataTables JSON behind the portal's own acts grid (~880 acts), because Google doesn't index it.
+  The *framework* is shared; only the entry strategy per portal differs. Zero law names hardcoded.
+- **TLS-fingerprint fetching** — WAFs block on the TLS/JA3 handshake signature, not the headers;
+  tier 1 impersonates a real Chrome handshake (no browser needed), tier 2 escalates to a stealth
+  browser (Camoufox) that clears JS challenges.
+- **JS-shell detection** — AU's site is an Angular SPA; a naive crawler "succeeds" and extracts
+  navigation menus as law text. VeriTrade detects the unrendered app shell and resolves the real
+  authorised-compilation PDF via the OData documents feed instead. Result: **0 garbage provisions**.
+- **Measured OCR** — text-density detector routes "secretly scanned" PDFs to raster OCR
+  (RapidOCR/Paddle); CER is measured against a ground-truth sidecar: **1.11%** (bar: 5%). Engines
+  that would score a circular 0% are excluded from the metric — honesty by construction.
+- **Font-aware, per-country extraction** — SG/MY statutes number sections at the margin
+  ("11.—(1)"); AU headings carry *no keyword at all* and are detected by **bold-glyph ratio** in
+  the PDF font data. Running headers/footers are stripped *statistically* (a line recurring in the
+  page-edge band on ≥¼ of pages is chrome). Keyword forms like "Section 26" in SG/MY bodies are
+  cross-references — treating them as boundaries would shred provisions; we don't.
+- **5-signal hybrid retrieval** — BM25 + multilingual dense embeddings + literal phrase bonus +
+  **sibling penalty** (down-ranks provisions dominated by a confusable indicator's vocabulary) +
+  cross-encoder rerank, with a dense-recall floor so a paraphrased provision can't be silently lost.
+- **Sibling-aware LLM grading** — each (provision, indicator) call includes every sibling's legal
+  test; conservative default (unsure ⇒ reject to review).
 
 **Tech stack & licensing compliance (all permissive — Apache-2.0 project):**
 
 | Layer | Library | License |
 | :--- | :--- | :--- |
-| Crawl / fetch | Scrapling, httpx, BeautifulSoup | BSD / BSD / MIT |
-| OCR / extract | MarkItDown, RapidOCR, PaddleOCR, pypdfium2 | MIT / Apache-2.0 / Apache-2.0 |
-| Retrieval | sentence-transformers, rank_bm25 | Apache-2.0 / Apache-2.0 |
+| Crawl / fetch | Scrapling (curl_cffi/Camoufox), httpx, BeautifulSoup | BSD / BSD / MIT |
+| OCR / extract | MarkItDown, RapidOCR, PaddleOCR, pdfplumber, pypdfium2 | MIT / Apache-2.0 |
+| Retrieval | sentence-transformers, rank_bm25 | Apache-2.0 |
 | App / core | Streamlit, pydantic, SQLite | Apache-2.0 / MIT / public domain |
-| LLM (default) | deepseek-v4-flash via OpenRouter (swappable) | API |
-
-> All dependencies are permissive (MIT/Apache/BSD); the project is Apache-2.0 — compliant with the
-> hackathon's open-source requirement. Verify exact versions against `requirements.txt`.
+| LLM (default) | deepseek-v4-flash via OpenRouter (swappable: Claude/GPT/Gemini/Ollama/mock) | API |
 
 ---
 
-## Slide 7 — Backend Logic (1 of 2): Discover → Extract → Retrieve
+## Slide 7 — Backend Logic (1 of 2): Discover → Fetch → Extract
 
-**Step-by-step workflow:**
-1. **Discover** — build indicator-derived queries (concept phrases + short title fragments, all
-   country-agnostic — never a specific law title). Fire them at the economy's portal(s); dedup
-   candidate laws; drop repealed/bill/non-law hits (AU verified in-force against the OData API).
-2. **Fetch** — Scrapling downloads each law's body (real-browser fingerprint), httpx as fallback;
-   content-addressed cache dedups identical files; a landing page that embeds a PDF viewer is
-   resolved to the actual PDF.
-3. **Extract** — detect text-layer vs scanned; MarkItDown reads text PDFs, RapidOCR/PaddleOCR OCRs
-   scans (CER measured); country-specific structural parsing splits the text into **verbatim
-   article/section chunks** (SG/MY numbered form, AU font-marked headings).
+**Step 1 — Discover (the part the rubric scores hardest):**
+- Queries are built from the indicator definitions, in two lanes: **name fragments** (shared
+  naming conventions — "privacy act", "computer crimes act") and **obligation phrases** ("data
+  must be stored in", "consent before transfer"). Obligation phrases only fire at portals with
+  working full-text search — at a title-only API they can never match and waste the query budget.
+- **SG:** search engine scoped `site:sso.agc.gov.sg` (the engine indexed the law *bodies*).
+  **AU:** OData title lane + a content lane whose every hit is re-verified **in-force** by
+  register title-id (bills, repealed acts, point-in-time compilations dropped). **MY:** filter the
+  portal's own bilingual catalogue; English title identified by its "As At" currency marker.
+- **Version resolution:** all URL variants of one law collapse to a statute identity (SG SL
+  number, MY act number, AU title-id); ranking prefers in-force > principal > consolidated >
+  newest. "Last Amended" comes from the portal's own timeline data (SG embeds it as a
+  .NET-serialised JSON blob; MY as `data-log-type` events; AU via the compilation feed) — never
+  guessed from a year in the title.
 
-**Identifying the relevant sections — chunking & retrieval:**
-- **Chunking:** article/section level (one provision = one chunk), preserving the exact source text.
-- **Retrieval: hybrid.** BM25 gives lexical recall; a multilingual bi-encoder gives semantic recall;
-  a cross-encoder reranks for precision. Scores are fused; the top provisions per indicator form a
-  shortlist. For small corpora (≤ 80 provisions) **every** provision is graded — retrieval is a
-  signal, not a filter.
-- **Complex legal language:** the LLM is prompted to first state the *operative rule* in one
-  sentence (ignoring definitions/recitals), then test it against the indicator — so a defining
-  clause isn't mistaken for an operative one.
+**Step 2 — Fetch:** TLS/JA3 impersonation → stealth-browser escalation → httpx fallback; polite
+per-host delay; content-addressed cache (same bytes never fetched twice); a landing page that
+embeds a PDF viewer is resolved to the actual PDF.
+
+**Step 3 — Extract (chunking strategy — per-country, not one regex):**
+- Text-density detector (avg chars/page) catches "secretly scanned" PDFs → raster OCR, CER measured.
+- **SG/MY profile:** split on margin-numbered sections ("11.—(1)", "20. (1)"); keyword forms are
+  cross-references and deliberately *not* boundaries. **AU profile:** headings detected by
+  bold-glyph ratio (≥60% bold on a number-led line), because AU drafting has no "Section" keyword.
+- Statistical page-chrome stripping + AU table-continuation dedup + SG consolidation-stamp removal
+  → every chunk is **verbatim** with a character span back into the source for re-verification.
 
 ---
 
-## Slide 8 — Backend Logic (2 of 2): Map → Verify (anti-hallucination) + Example
+## Slide 8 — Backend Logic (2 of 2): Retrieve → Map → Verify + Example
 
-**Mapping to RDTII indicators — LLM-based reasoning (not a black-box classifier):**
-- For each (provision, target indicator) pair, the model receives the indicator's **legal test**,
-  its **scope**, and **every sibling indicator's** legal test, then decides in explicit steps:
-  operative rule → does it satisfy the target's test? → is a sibling a better fit? → relevant?
-- **Edge cases / ambiguity:** a conservative default (unsure ⇒ reject) favours a precise miss over
-  a wrong over-assign; genuinely borderline rows are surfaced to the **review** queue rather than
-  silently accepted or dropped.
+**Retrieval — per indicator, five fused signals (semantic + keyword hybrid):**
+1. **BM25** — query = the indicator's title + description + *legal test* (whose "distinguish
+   from X" notes inject discriminative vocabulary at the cheapest stage).
+2. **Dense embeddings** (multilingual MiniLM) — catches paraphrase and cross-language matches; the
+   law name is deliberately *excluded* from the embedding so every PDPA section doesn't smell like
+   a P7-I1 hit.
+3. **Phrase bonus** (+0.10 per literal indicator phrase, cap 0.30).
+4. **Sibling penalty** (−0.07 per excess sibling-phrase hit, cap 0.20) — catches P6-I1↔I4 and
+   P7-I1↔I2 confusion *before* spending an LLM call.
+5. **Cross-encoder rerank** on the shortlist (precision), blended 50/50 — plus a dense-recall
+   floor: the strongest pure-semantic matches are re-admitted even if the reranker buried them.
+- **Coverage policy:** corpus ≤ 80 provisions → **grade-all** (every provision × every indicator;
+  retrieval is a signal, not a gate — this is what protects non-English recall). Larger corpora →
+  a shortlist of 20–40 per indicator with **per-law reserved slots**, so a short on-point act
+  (My Health Records s77) is never crowded out by a 485-section act. 1,200 provisions ⇒ ~360 LLM
+  calls, not 10,800.
 
-**How the citation is guaranteed to match the source 100% (anti-hallucination):**
-1. The **verbatim snippet is copied from the fetched source text** — the LLM never writes it.
-2. A **grounding check** confirms the snippet actually occurs in the source document.
-3. A **topical guard** flags a snippet that contains none of the pillar's concept vocabulary.
-4. The **source URL** points to the law on the official portal; the JSON keeps the surrounding
-   context (`raw_context_before/after`) for one-click human verification.
-5. Every row carries a **confidence score**; < 0.85 → human review, < 0.60 → quarantined.
+**Mapping — LLM-based reasoning (not a black-box classifier):** each (provision, target) call
+carries the target's legal test, scope, and **every sibling's** legal test; explicit steps —
+operative rule → satisfies target? → better sibling? → relevant? Unsure ⇒ reject to the review
+queue, never silently accepted or dropped.
 
-**Example input → output (use a real, clean row):**
+**Anti-hallucination — the citation matches the source 100% by construction:**
+1. The verbatim snippet is **copied from the fetched source text** — the LLM never writes it.
+2. A **grounding check** confirms the snippet occurs in the source document.
+3. A **topical guard** flags snippets with none of the pillar's concept vocabulary (score capped).
+4. The **source URL** is the official portal page; the JSON keeps surrounding context
+   (`raw_context_before/after`) for one-click human verification.
+5. **Confidence gate:** < 0.85 → human review, < 0.60 → quarantined.
 
-*Input:* `economy = Singapore, pillar = 6`
+**Example input → output (real row):** `economy = Singapore, pillar = 6`
 
-*Output (one CSV row):*
 | Field | Value |
 | :--- | :--- |
-| Economy | Singapore |
-| Law Name | Personal Data Protection Act 2012 |
-| Law Number / Ref | Act 26 of 2012 |
+| Law Name | Personal Data Protection Act 2012 (Act 26 of 2012) |
 | Indicator ID | **P6-I4** (conditional cross-border flow) |
 | Article / Section | Section 26 |
 | Verbatim Snippet | "An organisation shall not transfer any personal data to a country or territory outside Singapore except in accordance with requirements prescribed under this Act…" |
-| Mapping Rationale | "This Section permits cross-border transfer subject to prescribed protection requirements. Maps to P6-I4 because transfer is conditionally allowed, not banned." |
-| Source URL | https://sso.agc.gov.sg/Act/PDPA2012 |
-| Discovery Tag | KNOWN |
-| Confidence | 0.82 |
+| Mapping Rationale | "Transfer is permitted subject to prescribed requirements → conditionally allowed, not banned." |
+| Source URL | https://sso.agc.gov.sg/Act/PDPA2012 · Confidence 0.82 (review) |
 
-> Note it maps to **P6-I4 (conditional)**, not P6-I1 (ban) — the sibling-aware prompt makes exactly
-> this distinction. ‹FILL› optionally swap for a NEW-tagged row to showcase autonomous discovery.
+> It maps to **P6-I4 (conditional)**, not P6-I1 (ban) — the sibling-aware prompt makes exactly the
+> distinction a keyword classifier gets wrong. ‹FILL› optionally swap for a NEW-tagged row.
 
 ---
 
@@ -255,14 +283,15 @@ of the live run.
 
 | Metric | How measured | Result |
 | :--- | :--- | :--- |
-| **OCR quality (CER)** | edit distance vs ground-truth sidecar on the bundled scanned PDF | **1.11%** (PASS < 5%) |
-| **Indicator-mapping correctness** | mappings checked against the official RDTII answer key (e.g. SG: PDPA→P7-I1, Cybersecurity Act→P7-I2, Companies Act §199→P6-I2, Criminal Procedure Code→P7-I5) | ‹FILL› report N correct / N checked |
-| **Discovery precision** | share of surfaced laws that are in-force & on-topic (AU content lane verified in-force via OData) | AU P6: 14 laws, 0 junk after in-force filter |
+| **OCR quality (CER)** | edit distance vs ground-truth sidecar on the bundled scanned PDF; sidecar-reading engines excluded (would score a circular 0%) | **1.11%** (PASS < 5%) |
+| **Indicator-mapping correctness** | mappings checked against the official RDTII answer key (SG: PDPA→P7-I1, Cybersecurity Act→P7-I2, Companies Act §199→P6-I2, CPC→P7-I5) | ‹FILL› N correct / N checked |
+| **Discovery precision** | share of surfaced laws in-force & on-topic (AU content lane re-verified against the register) | AU P6: 14 laws, **0 junk** |
+| **Garbage-extraction guard** | AU SPA shell detected & suppressed instead of mapping nav chrome | **0 bogus provisions** |
 | **Citation fidelity** | snippet-grounding check: snippet must occur in source | 100% verbatim by construction |
-| **Coverage / no-blanks** | every indicator gets a row or an explicit "No evidence" placeholder | 9/9 indicators always populated |
-| **Confidence routing** | auto ≥0.85 / review 0.60–0.85 / quarantine <0.60 | distribution reported per run |
-| **Response time** | wall-clock per run (CPU-only) | ‹FILL› e.g. ~X min/economy live; repeat runs ~instant (cache) |
-| **Multilingual robustness** | multilingual embedding + grade-all so non-English recall doesn't depend on English reranking | qualitative (MY bilingual handled) |
+| **Coverage / no-blanks** | every indicator gets a row or an explicit "No evidence" placeholder | 9/9 indicators populated |
+| **Wall-clock profile** | measured per stage on a live crawl (CPU-only) | extract 44% · embed 37% · LLM 14%; embed disk-cache ⇒ **16×** faster repeats |
+| **Cost** | token-metered per grading call | ~$0.07/economy · $0 open-weight |
+| **Multilingual robustness** | multilingual embeddings + grade-all ⇒ non-English recall doesn't depend on English reranking | MY bilingual handled |
 
 **Honesty note (keep — judges reward transparency):** the LLM grader is stochastic, so borderline
 *definitional* clauses can flip between runs; the review queue is the safety net, and a chosen run
@@ -273,15 +302,17 @@ is frozen via the result cache for a reproducible submission.
 ## Slide 10 — Demo / Preview
 
 **Demo storyboard (screenshots or 60–90s screen recording):**
-1. **Dashboard** — pick *Singapore · Pillar 6*, choose LLM (deepseek) + OCR (MarkItDown), press Run.
-   ‹FILL› screenshot of the sidebar.
+1. **Dashboard** — pick *Singapore · Pillar 6*, press Run (defaults are sane; engine choices live
+   under Advanced settings). ‹FILL› screenshot of the sidebar.
 2. **Live log** — watch discovery find laws on `sso.agc.gov.sg`, fetch + OCR, then map. ‹FILL›
-   screenshot of the running log (`[discovery] … [ocr] … CER=1.11% PASS<5% … [done]`).
-3. **Results dossier** — per-indicator cards with verbatim snippet, confidence traffic-light, and a
-   clickable source URL; low-confidence rows flagged for review. ‹FILL› screenshot.
-4. **Output** — open `outputs/…csv` (13 columns) + the consolidated `VeriTrade_MASTER` sheet.
-   ‹FILL› screenshot of the CSV.
+   screenshot (`[discovery] … [ocr] … CER=1.11% PASS<5% … [done]`).
+3. **Results** — per-indicator cards with verbatim snippet, confidence traffic-light, clickable
+   source URL; low-confidence rows flagged for review. ‹FILL› screenshot.
+4. **Output** — open `outputs/…csv` (13 columns) + the consolidated `VeriTrade_MASTER` sheet +
+   the supplementary scored CSV. ‹FILL› screenshot.
 5. **Scanned-PDF proof** — run the bundled image-only gazette with RapidOCR, show CER 1.11%.
+6. **The trap, caught** — show the AU run: the SPA page a naive crawler would "read" vs the
+   authorised compilation PDF VeriTrade actually extracts.
 
 > Tip for the live demo: tick **"Fresh run"** (or clear `cache/_results/`) so judges see a genuine
 > live crawl, not a cached replay.
@@ -290,36 +321,45 @@ is frozen via the result cache for a reproducible submission.
 
 ## Slide 11 — Innovation & Competitive Advantage
 
-**What sets VeriTrade apart:**
-- **Content-based discovery, not a baked corpus.** It finds laws by what their *clauses say* and by
-  official APIs/catalogues — no seed URLs, no hardcoded law names — so it generalises to new
-  economies by adding one portal domain. (Rubric explicitly forbids a baked corpus.)
-- **Verifiable by design.** 100%-verbatim snippets + grounding checks + source URLs + confidence +
-  a full JSON audit trail. A second reviewer can reproduce and trust every row.
-- **Legal reliability.** Sibling-aware prompting encodes the RDTII "distinguish-from" rules; a
-  conservative default and a human-review queue prevent confident-but-wrong mappings; repealed/bill
-  hits are dropped against the official register.
-- **No vendor lock-in.** LLM and OCR are swappable via one config value — OpenRouter/Anthropic/
-  OpenAI/Gemini/**local Ollama**/mock; MarkItDown/RapidOCR/Paddle/Tesseract/Azure.
-- **Runs anywhere, cheaply.** CPU-only; **~$0.07/economy** on the default paid stack, **$0.00** on
-  an open-weight stack; 3-tier caching makes repeat runs free and instant.
-- **Built for the end user.** A plain-language dashboard for non-technical policy reviewers +
-  machine-readable JSON for technical validators — "judges are both types."
+**What sets VeriTrade apart (each point is a mechanism, not a slogan):**
+- **Discovery by content and by the portal's own data — not a baked corpus.** The obligation-phrase
+  lane finds laws by what their *clauses say* (that's how the Companies Act's record-storage clause
+  surfaces for P6-I2); the MY adapter reads the catalogue the portal itself renders from. No seed
+  URLs, no hardcoded law names — new economy = one portal domain + one entry strategy.
+- **It survives the portals as they actually are.** Broken `$search` (AU), unindexed portal (MY),
+  TLS-fingerprint WAFs, Angular shells serving no text, "secretly scanned" PDFs, bilingual
+  catalogues — each has a specific, tested countermeasure. Most pipelines demo on clean HTML;
+  ours demos on the real thing.
+- **Verifiable by design.** 100%-verbatim snippets with character spans + grounding checks +
+  official source URLs + a transparent 4-signal confidence + full JSON audit trail. A second
+  reviewer can reproduce and check every row.
+- **Legal reliability encoded.** Sibling-aware prompting implements the RDTII "distinguish-from"
+  rules; the sibling *penalty* implements them again at retrieval; conservative defaults + a human
+  review queue prevent confident-but-wrong mappings; repealed/bill hits are dropped against the
+  official register.
+- **Zone 3 scoring, polarity included.** Each measure gets the official 0/0.5/1 raw score — and
+  the system correctly handles the *inverted* polarity of 7.1/7.2 (a strong horizontal framework
+  scores 0 restrictiveness), with MIN roll-up for inverted indicators vs MAX otherwise. A detail
+  most teams will miss.
+- **No vendor lock-in, runs anywhere.** LLM and OCR swap via one config value (OpenRouter/
+  Anthropic/OpenAI/Gemini/local Ollama/mock; MarkItDown/RapidOCR/Paddle/Tesseract/Azure). CPU-only;
+  ~$0.07/economy; $0 open-weight; 3-tier caching makes repeat runs free and instant.
 
 ---
 
 ## Slide 12 — Scalability & Future Development
 
-**Scaling out:**
-- **More economies** — add a portal domain to `OFFICIAL_PORTAL`; discovery generalises. Finals
-  targets (Thailand, China, India, Indonesia, Russia, Lao, Mongolia, Timor-Leste) plug in the same way.
-- **More languages** — the embedding model is already multilingual; swap the cross-encoder to a
-  multilingual reranker (`BAAI/bge-reranker-v2-m3`) and add a dual-engine translation cross-check
-  (machine translation × LLM) with bilingual snippet tracking for non-English statutes.
-- **More domains** — the indicator layer is data-driven; add other RDTII pillars by defining their
-  indicators (legal test + query terms), no pipeline changes.
-- **Real-time monitoring** — scheduled re-crawls diff against cached results to flag amended/new
-  laws automatically.
+**Scaling out — what's already generic vs what each new economy needs:**
+- **Already generic:** the framework (query lanes, dedup, version resolution, confidence, export),
+  multilingual embeddings (Thai/Chinese/Russian covered), grade-all coverage, the indicator layer
+  (data-driven — new pillars = new definitions, no pipeline changes).
+- **Per-economy work (by design, pluggable):** one discovery entry strategy (like SG/AU/MY each
+  got) + one extraction profile for the drafting convention ("Điều 5", "第五条", "มาตรา ๕") —
+  the same adapter pattern already proven three times.
+- **Planned upgrades:** multilingual cross-encoder (`BAAI/bge-reranker-v2-m3`, one config line);
+  per-page scan detection for mixed text/scan gazettes; dual-engine translation cross-check with
+  bilingual snippet tracking; scheduled re-crawls diffing cached results to flag amendments
+  automatically (real-time monitoring).
 
 **Value created:**
 - **ESCAP** — faster, reproducible, auditable RDTII refreshes at a fraction of the manual cost.
@@ -347,11 +387,11 @@ consistent cross-country coverage · lower cost and effort per economy.
 - Reranker: `cross-encoder/ms-marco-MiniLM-L-6-v2`
 
 **Open-source libraries:** Scrapling · httpx · BeautifulSoup · MarkItDown · RapidOCR · PaddleOCR ·
-sentence-transformers · rank_bm25 · Streamlit · pydantic · pypdfium2
+pdfplumber · sentence-transformers · rank_bm25 · Streamlit · pydantic · pypdfium2
 
 **Search:** Serper.dev (Google results API) · DuckDuckGo / Mojeek (keyless fallback)
 
-**Repository:** ‹FILL› github.com/ftulabs/law-v2.0 · License: Apache-2.0
+**Repository:** github.com/ftulabs/law-v2.0 · License: Apache-2.0
 
 ---
 
@@ -367,3 +407,14 @@ sentence-transformers · rank_bm25 · Streamlit · pydantic · pypdfium2
 
 Pricing: deepseek-v4-flash $0.09/$0.18 per 1M input/output tokens; Serper 1 credit/query, 2,500 free
 then $1/1k. OCR, embeddings, retrieval run locally at $0. Caches make repeat runs free.
+
+### Appendix — Likely judge questions, one-line answers
+
+- *"How do you know your crawl isn't a baked corpus?"* — Every doc is tagged KNOWN/NEW; live mode
+  never falls back to samples; the AU/MY adapters query the portal's live API/catalogue at run time.
+- *"What if the portal changes?"* — Each portal-specific parser has a graceful fallback (title-year
+  date, regex path, httpx) and failures surface as explicit discovery errors, never silent blanks.
+- *"Why not fine-tune a classifier?"* — 9 indicators × few examples = no training set; the legal
+  tests change with the methodology; prompted reasoning + answer-key validation is auditable.
+- *"How do you handle a law in Malay/Thai/Chinese?"* — multilingual embeddings + grade-all (LLM
+  grades every provision, retrieval is only a hint) + planned multilingual reranker for Finals.

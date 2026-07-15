@@ -451,29 +451,52 @@
     <section id="discovery" class="reveal">
       <div class="secno">§4</div>
       <h2>Zone 1 — autonomous discovery &amp; bot-resistant fetching</h2>
-      <p>Discovery never uses a law name as a query. It builds <em>country-agnostic</em> queries from the indicator
-      definitions — concept phrases plus short title-robust fragments — and fires them at the portal(s):</p>
+      <p>Discovery never uses a law name as a query. Queries are built from the indicator definitions in two
+      <em>country-agnostic</em> lanes: <b>name fragments</b> (shared naming conventions — "privacy act",
+      "computer crimes act") and <b>obligation phrases</b> ("data must be stored in", "consent before transfer").
+      Obligation phrases fire only at portals with working full-text search; at a title-only API they can never
+      match, so the query budget is spent where it can return a law. The entry strategy is then chosen per portal —
+      because the Round-1 portals are genuinely different machines:</p>
       <div class="tbl-wrap"><table>
-        <thead><tr><th>Economy</th><th>Portal</th><th>Discovery strategy</th></tr></thead>
+        <thead><tr><th>Economy</th><th>Portal</th><th>Discovery strategy</th><th>Why this strategy</th></tr></thead>
         <tbody>
-          <tr><td><b>Singapore</b></td><td><code>sso.agc.gov.sg</code></td><td>Portal-scoped web search (Serper → keyless fallback); token/JS-gated pages cleared by a real-browser fetch.</td></tr>
-          <tr><td><b>Australia</b></td><td><code>legislation.gov.au</code></td><td>Official <b>OData API</b> for titles, plus a <b>content-based full-text lane</b> that finds laws by what their clauses <em>say</em> — then verifies each is in-force.</td></tr>
-          <tr><td><b>Malaysia</b></td><td><code>lom.agc.gov.my</code></td><td>The portal's own <b>acts catalogue</b> (Google barely indexes it), matched on bilingual titles, plus sectoral Codes of Practice.</td></tr>
+          <tr><td><b>Singapore</b></td><td><code>sso.agc.gov.sg</code></td><td><b>Full-text</b> portal-scoped web search (Serper → keyless fallback); both query lanes fire.</td><td>The search engine has indexed the law <em>bodies</em>, so obligation phrases match operative clauses directly.</td></tr>
+          <tr><td><b>Australia</b></td><td><code>legislation.gov.au</code></td><td><b>Title-only</b> official OData API (<code>contains(name,…)</code> + <code>isInForce</code> filter), plus a full-text content lane; every content hit is re-verified in-force by register title-id.</td><td>The API's <code>$search</code> full-text is <em>broken</em> (verified live) — bills, repealed acts and point-in-time compilations must be dropped explicitly.</td></tr>
+          <tr><td><b>Malaysia</b></td><td><code>lom.agc.gov.my</code></td><td><b>Catalogue</b>: the DataTables JSON behind the portal's own acts grid (~880 in-force acts, bilingual titles — English identified by its "As At" currency marker), plus sectoral Codes of Practice from <code>pdp.gov.my</code>.</td><td>Google barely indexes the portal (a <code>site:</code> query returns the homepage) — web search has nothing to find, so we read the portal's own data source.</td></tr>
         </tbody>
       </table></div>
       <div class="lead"><b>Why content-based discovery matters.</b> A title match finds the <em>Privacy Act</em>; it never finds
-      Australia's <em>Consumer Data Right Rules</em>, whose relevance is in their obligations, not their names. VeriTrade's
-      obligation-phrase lane surfaces exactly these, then drops repealed acts and bills against the official register — the
-      concrete answer to the rubric's ban on a "baked corpus": it finds laws by <em>what they regulate</em>.
-      Fetching uses Scrapling's real-browser TLS/JA3 fingerprint to clear WAFs that <code>403</code> a plain crawler.</div>
+      Australia's <em>Consumer Data Right Rules</em> or the Companies Act's record-storage clause (P6-I2), whose relevance is in
+      their obligations, not their names. VeriTrade's obligation-phrase lane surfaces exactly these, then drops repealed acts
+      and bills against the official register — the concrete answer to the rubric's ban on a "baked corpus": it finds laws by
+      <em>what they regulate</em>.</div>
+      <h3>Version resolution — one law, one row, the right date</h3>
+      <p>A portal exposes one law under many URLs (consolidated view, as-published snapshot, per-section slices, reprints in two
+      languages). All variants are collapsed to a single <b>statute identity</b> — Singapore's subsidiary-legislation number,
+      Malaysia's act number, Australia's register title-id — and ranking keeps the most current <em>in-force consolidated</em>
+      text (in-force &gt; principal &gt; consolidated &gt; newest). The <b>"Last Amended"</b> date is read from each portal's own
+      revision timeline — Singapore embeds it as a .NET-serialised JSON blob in the landing page, Malaysia server-renders
+      timeline events, Australia's compilation feed carries the exact date the register itself displays — never guessed from a
+      year in the title.</p>
+      <h3>Fetching — beating the WAF, and the SPA trap</h3>
+      <p>Modern WAFs fingerprint the <b>TLS/JA3 handshake</b> itself: a plain Python client is refused before it sends a single
+      header. Tier 1 impersonates a real Chrome handshake (curl_cffi — no browser needed); tier 2 escalates to a stealth
+      browser (Camoufox) that executes JS and clears challenge pages; httpx remains the fallback for portals that only check
+      the User-Agent. And because Australia's site is an Angular single-page app, a naive crawler "succeeds" and extracts
+      navigation menus as law text — VeriTrade detects the unrendered <b>JS app shell</b> (framework marker + no legal
+      structure in the text) and resolves the real authorised-compilation PDF via the OData documents feed instead.
+      Result on AU: <b>0 garbage provisions</b>.</p>
     </section>
 
     <section id="extraction" class="reveal">
       <div class="secno">§5</div>
       <h2>Zone 2a — extraction, OCR &amp; measured fidelity</h2>
-      <p>Each document is classified text-layer or scanned. <b>MarkItDown</b> reads text PDFs; <b>RapidOCR/PaddleOCR</b>
-      handle image-only scans, and the <b>Character Error Rate is measured</b> against a ground-truth sidecar. The result on
-      the bundled gazette scan is dramatic:</p>
+      <p>Scanned-vs-text classification is <em>measured, not assumed</em>: the text layer is extracted first and its density
+      checked (average characters per page) — a "secretly scanned" PDF that merely pretends to have text falls below the
+      threshold and is routed to real raster OCR (<b>RapidOCR/PaddleOCR</b>); healthy text PDFs keep the cleaner
+      pdfplumber/<b>MarkItDown</b> path. The <b>Character Error Rate is measured</b> against a ground-truth sidecar, and
+      engines that read the sidecar itself are excluded from the metric — they would score a circular 0%. The result on the
+      bundled gazette scan:</p>
 
       <div class="fig reveal"><div class="fhead"><span class="t">Figure 3 — OCR character-error rate vs the 5% bar</span><span class="badge b-good">PASS</span></div>
         <div class="fbody">
@@ -484,20 +507,49 @@
             <div class="threshlab" style="left:100%">5% bar</div>
             <div class="valtag" id="cerTag" style="left:0%">1.11%</div>
           </div>
-          <p class="figcap">Scale 0–5%. Measured CER <b>1.11%</b> sits at ~22% of the way to the fail bar — well inside spec.
-          Verbatim, country-aware chunking then splits the clean text into one provision per chunk, preserving exact source characters.</p>
+          <p class="figcap">Scale 0–5%. Measured CER <b>1.11%</b> sits at ~22% of the way to the fail bar — well inside spec.</p>
         </div>
       </div>
+      <h3>Chunking — per-country profiles, because drafting conventions differ</h3>
+      <p>One shared regex cannot split three countries' statutes correctly, so extraction runs a <b>profile per drafting
+      convention</b>:</p>
+      <ul>
+        <li><b>Singapore / Malaysia</b> — sections are numbered at the margin ("11.—(1)", "20.&nbsp;(1)"); the keyword forms
+        ("Section 26", "Regulation 4") inside the body are always <em>cross-references</em> to a parent Act, so they are
+        deliberately <em>not</em> boundaries — treating them as such would shred a provision into fragments.</li>
+        <li><b>Australia</b> — headings carry no keyword and no period at all ("77&nbsp;Requirement…"), invisible to any text
+        regex. They <em>are</em> typeset bold, so the extractor reads the PDF's per-glyph font data: a number-led line with
+        ≥60% bold glyphs is marked as a heading and becomes a split point.</li>
+      </ul>
+      <p>Page furniture is removed <b>statistically</b>: a line recurring in the top/bottom band on ≥¼ of pages (digits
+      masked, so only the page number varies) is running chrome and is stripped everywhere — plus targeted cleanup for AU
+      table-continuation repeats and Singapore's consolidation stamps. Every surviving chunk is <b>verbatim</b>, with a
+      character span back into the raw source so any snippet can be re-verified mechanically.</p>
     </section>
 
     <section id="retrieval" class="reveal">
       <div class="secno">§6</div>
       <h2>Zone 2b — hybrid retrieval</h2>
-      <p>Retrieval fuses three signals: <b>BM25</b> (lexical), a multilingual bi-encoder
-      (<code>paraphrase-multilingual-MiniLM-L12-v2</code>) for semantic recall, and a <b>cross-encoder</b> rerank for precision.</p>
-      <div class="lead"><b>Grade-all policy.</b> For small corpora (≤ 80 provisions) <em>every</em> provision is graded against
-      <em>every</em> indicator — retrieval ranking is a <b>signal, not a gate</b>. This protects non-English recall: even if the
-      English-only reranker mis-orders a Malay provision, the grader still sees it.</div>
+      <p>Each indicator runs its own retrieval pass — its query is built from its title, description and <em>legal test</em>
+      (whose "distinguish from X" notes inject discriminative vocabulary at the cheapest stage). <b>Five signals</b> are fused
+      per provision:</p>
+      <ol>
+        <li><b>BM25</b> (lexical) — exact-terminology recall.</li>
+        <li><b>Dense embeddings</b> (<code>paraphrase-multilingual-MiniLM-L12-v2</code>) — paraphrase and cross-language recall.
+        The law name is deliberately <em>excluded</em> from the embedded text, so every PDPA section doesn't "smell like" a
+        P7-I1 hit regardless of what it actually says.</li>
+        <li><b>Phrase bonus</b> — +0.10 per literal indicator phrase present (cap 0.30).</li>
+        <li><b>Sibling penalty</b> — −0.07 per excess sibling-phrase hit (cap 0.20): a provision dominated by a confusable
+        indicator's vocabulary (P6-I1↔I4, P7-I1↔I2) is down-ranked <em>before</em> an LLM call is spent on it.</li>
+        <li><b>Cross-encoder rerank</b> (<code>ms-marco-MiniLM</code>) on the shortlist, blended 50/50 — plus a
+        <b>dense-recall floor</b>: the strongest pure-semantic matches are re-admitted even when the English-only reranker
+        buried them (how a localisation ban phrased "must not hold records outside Australia" survives the cut).</li>
+      </ol>
+      <div class="lead"><b>Coverage policy.</b> Small corpus (≤ 80 provisions) → <b>grade-all</b>: every provision × every
+      indicator goes to the grader — retrieval ranking is a <b>signal, not a gate</b>, which is what protects non-English
+      recall. Large corpus → a shortlist of 20–40 per indicator (5% of the corpus, clamped), with <b>per-law reserved slots</b>
+      filled round-robin so a short on-point act (My Health Records s77) is never crowded out by a 485-section act.
+      1,200 provisions ⇒ ~360 LLM calls, not 10,800.</div>
     </section>
 
     <section id="mapping" class="reveal">
@@ -616,6 +668,8 @@
           <tr><td><b>Citation fidelity</b></td><td>grounding check — snippet must occur in source</td><td>100% verbatim by construction</td></tr>
           <tr><td><b>Coverage / no blanks</b></td><td>every indicator gets a row or a "No evidence" placeholder</td><td>9 / 9 indicators populated</td></tr>
           <tr><td><b>Discovery precision (AU P6)</b></td><td>share in-force &amp; on-topic after the register filter</td><td>14 laws, 0 junk</td></tr>
+          <tr><td><b>Garbage-extraction guard</b></td><td>AU SPA app-shell detected &amp; suppressed instead of mapping navigation chrome</td><td>0 bogus provisions</td></tr>
+          <tr><td><b>Wall-clock profile</b></td><td>measured per stage on a live crawl (CPU-only)</td><td>extract 44% · embed 37% · LLM 14%; embed disk-cache ⇒ ~16× faster repeats</td></tr>
           <tr><td><b>Mapping correctness</b></td><td>checked vs the official RDTII answer key (SG samples)</td><td>validated on worked examples</td></tr>
         </tbody>
       </table></div>
