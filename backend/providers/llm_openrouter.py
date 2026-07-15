@@ -48,14 +48,27 @@ class OpenRouterLLM(LLMProvider):
         last_err: Exception | None = None
         for model in self._candidates():
             try:
-                resp = self._client.chat.completions.create(
-                    model=model, temperature=0,
-                    max_tokens=settings.openrouter_max_tokens,
-                    messages=[{"role": "system", "content": sys_msg},
-                              {"role": "user", "content": user}],
-                )
-                self.model_version = model  # record the model that actually answered
-                return self._parse_json(resp.choices[0].message.content or "{}")
+                # Reasoning models (deepseek-v4-flash) spend the max_tokens budget on their
+                # thinking BEFORE the JSON answer, and the thinking length varies per call —
+                # a response can come back truncated (finish_reason=length) with empty or
+                # half-written JSON. One retry with 4× the budget covers the long-thinking
+                # tail; a still-broken response falls through so the caller can COUNT it as
+                # a failed call instead of silently misreading it as "not relevant".
+                parsed: dict[str, Any] = {}
+                for cap in (settings.openrouter_max_tokens, settings.openrouter_max_tokens * 4):
+                    resp = self._client.chat.completions.create(
+                        model=model, temperature=0, max_tokens=cap,
+                        messages=[{"role": "system", "content": sys_msg},
+                                  {"role": "user", "content": user}],
+                    )
+                    self.model_version = model  # record the model that actually answered
+                    choice = resp.choices[0]
+                    parsed = self._parse_json(choice.message.content or "{}")
+                    if parsed and not parsed.get("_parse_error"):
+                        return parsed
+                    if getattr(choice, "finish_reason", None) != "length":
+                        break   # unparseable but NOT truncated → a bigger budget won't help
+                return parsed
             except Exception as e:  # noqa: BLE001 — a paid model can transiently 429 under burst; fall over
                 last_err = e
                 # An AUTH failure (401/403) is the same for every model — the key itself is

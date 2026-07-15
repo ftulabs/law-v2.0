@@ -348,6 +348,15 @@ def map_provisions(
             reason = f"{type(e).__name__}: {e}"[:160]
             return ("FAIL", reason, ind.indicator_id, prov.provision_id)
 
+        # An empty or unparseable response is a FAILED call, not a considered rejection.
+        # Treating it as "not relevant" silently deleted known-good mappings: a reasoning
+        # model whose thinking overran the token budget returned truncated/empty JSON, and
+        # the row vanished with zero warnings (live case: Insurance Act 49Q → P6-I2 lost on
+        # ~2/3 of runs). Route it through the failure path so it's counted and surfaced.
+        if not graded or graded.get("_parse_error"):
+            return ("FAIL", "empty/unparseable LLM response (likely reasoning-token truncation)",
+                    ind.indicator_id, prov.provision_id)
+
         # relevant = satisfies the target AND not a mislabel for a better sibling. Prefer the
         # model's explicit `relevant`; else derive it (real LLMs return satisfies_target/
         # better_sibling; the offline mock returns `relevant` directly).
@@ -444,10 +453,14 @@ def map_provisions(
             continue
         mappings.append(res)
     if failures:
-        # Surface the ACTUAL first-failure reason (auth vs rate-limit vs timeout) instead of
-        # always blaming rate limits — a dead API key looks nothing like a 429.
-        hint = "check the LLM key/provider" if "401" in first_reason or "rejected" in first_reason \
-            else "possible rate limits — try a paid key or fewer pillars"
+        # Surface the ACTUAL first-failure reason (auth vs truncation vs rate-limit) instead
+        # of always blaming rate limits — a dead API key looks nothing like a 429.
+        if "401" in first_reason or "rejected" in first_reason:
+            hint = "check the LLM key/provider"
+        elif "truncation" in first_reason or "unparseable" in first_reason:
+            hint = "responses truncated/unparseable — try raising OPENROUTER_MAX_TOKENS"
+        else:
+            hint = "possible rate limits — try a paid key or fewer pillars"
         log(f"[warn] {failures} LLM call(s) failed and were skipped ({hint})")
     # most confident first
     mappings.sort(key=lambda m: m.confidence_score, reverse=True)

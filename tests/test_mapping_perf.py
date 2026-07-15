@@ -109,6 +109,31 @@ def test_per_law_reserved_slot_survives_on_score_not_discovery_order(monkeypatch
     assert "target-2" in ids, "the real answer must survive the cutoff on score, not discovery order"
 
 
+def test_empty_llm_response_counts_as_failure_not_silent_rejection():
+    """Regression for the OTHER half of the AU missing-mappings bug: a reasoning model whose
+    thinking overran the completion-token budget returned truncated/EMPTY JSON, and _grade
+    misread the empty dict as 'satisfies_target=false' — the mapping vanished with zero
+    warnings (live: Insurance Act 49Q → P6-I2 lost on ~2/3 of runs, varying run to run with
+    the model's thinking length). An empty or _parse_error response must be COUNTED and
+    SURFACED as a failed call, never silently treated as a considered rejection."""
+    logs = []
+
+    class _EmptyLLM:
+        name = "empty"
+        model_version = "empty-1"
+
+        def complete_json(self, system, user):
+            return {}                       # what a truncated reasoning response parses to
+
+    inds = get_indicators(6)[:1]
+    out = mapping.map_provisions(run_id="t", provisions=_provs(3), pillar=6, indicators=inds,
+                                 llm=_EmptyLLM(), top_k=5, log=logs.append)
+    assert out == []                        # nothing mappable — but NOT silently
+    joined = " ".join(logs)
+    assert "failed" in joined, "failed calls must be surfaced in the log, not swallowed"
+    assert "truncat" in joined or "unparseable" in joined  # names the real cause
+
+
 def test_concurrent_matches_sequential():
     inds = get_indicators(6)
     provs = _provs(120)

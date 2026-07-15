@@ -29,9 +29,17 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     # Paid default; `:free` tier removed from failover (429s daily even on funded keys).
     openrouter_model: str = "deepseek/deepseek-v4-flash"
-    # Cap completion tokens (replies are small JSON). Also keeps OpenRouter's per-request
-    # credit pre-authorisation small — unset, concurrent large prompts can 402.
-    openrouter_max_tokens: int = 1024
+    # Cap completion tokens. Two constraints pull in opposite directions:
+    #   • a cap keeps OpenRouter's per-request credit pre-authorisation small — with NO cap,
+    #     16-way concurrent calls can 402 (pre-auth exceeds balance) even on a funded key;
+    #   • REASONING models (deepseek-v4-flash emits ~4-5K thinking tokens before the JSON)
+    #     spend the SAME budget on thinking. At the old 1024 cap the thinking alone hit the
+    #     limit (finish_reason=length) on most calls → empty/truncated JSON → the mapping was
+    #     silently lost. Confirmed live: 49Q/P6-I2 vanished from runs at ~2/3 frequency.
+    # 8192 fits observed thinking + answer with ~1.7x headroom while still bounding pre-auth
+    # (16 × 8192 tokens ≈ $0.02 at deepseek-v4-flash prices). complete_json also retries once
+    # with 4× the cap if a response still comes back truncated/unparseable.
+    openrouter_max_tokens: int = 8192
     # Google Gemini (OpenAI-compatible endpoint). Key from env/.env/secrets — never commit.
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.0-flash"
