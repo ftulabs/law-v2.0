@@ -154,7 +154,18 @@ def _diverse_shortlist(indicator_id, provisions, global_k, per_law_k, log):
     any law's #2), so a short on-point Act (My Health Records s77) is graded even when a
     485-section Act would fill a pure global top-k; then we fill the rest of the budget with
     the globally-best provisions. Total never exceeds global_k — the per-law guarantee is
-    carved OUT of the budget, not added on top (which had ballooned it to ~60/indicator)."""
+    carved OUT of the budget, not added on top (which had ballooned it to ~60/indicator).
+
+    At AU's live-crawl scale (18-26 discovered laws x per_law_k=3 = 54-78 reserved slots)
+    the reservation phase alone can exceed global_k=40, so it runs out of budget PARTWAY
+    through a rank pass. Bug fixed here: within each rank pass, candidates used to be added
+    in dict/declaration order (by_law.values(), i.e. discovery order) — so whichever law's
+    #2/#3 pick happened to be enumerated LATE silently lost its reserved slot to an earlier
+    law's lower-scoring pick, not because it was less relevant. Confirmed on a live AU P6
+    run: My Health Records s77 ranked #2 within its OWN law for P6-I1 (0.455, a solid
+    mid-range score) yet never reached the LLM — purely a document-processing-order
+    accident. Sort each rank pass by score before spending the remaining budget, so a
+    budget-exhausted cutoff is score-fair, not order-dependent."""
     from collections import defaultdict
     chosen: dict[str, Retrieved] = {}
 
@@ -167,9 +178,12 @@ def _diverse_shortlist(indicator_id, provisions, global_k, per_law_k, log):
         per_law = [retrieve(indicator_id, lp, top_k=min(per_law_k, len(lp))) for lp in by_law.values()]
         depth = max((len(lst) for lst in per_law), default=0)
         for rank in range(depth):
-            for lst in per_law:
-                if rank < len(lst) and len(chosen) < global_k:
-                    chosen.setdefault(lst[rank].provision.provision_id, lst[rank])
+            at_rank = sorted((lst[rank] for lst in per_law if rank < len(lst)),
+                             key=lambda r: r.score, reverse=True)
+            for r in at_rank:
+                if len(chosen) >= global_k:
+                    break
+                chosen.setdefault(r.provision.provision_id, r)
 
     # 2. fill the remaining budget with the globally-best provisions
     if len(chosen) < global_k:

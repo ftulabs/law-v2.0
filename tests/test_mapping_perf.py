@@ -58,6 +58,57 @@ def test_short_law_provision_not_crowded_out():
     assert "s1" in ids        # the small law's on-point provision is graded, not crowded out
 
 
+def test_per_law_reserved_slot_survives_on_score_not_discovery_order(monkeypatch):
+    """Regression for a live AU P6 bug: with enough discovered laws that per-law reservations
+    (num_laws x per_law_k) exceed global_k, the round-robin ran out of budget PARTWAY through
+    a rank pass. The old code spent that remaining budget in dict/declaration order (i.e.
+    discovery order) — so a law's #2 pick lost its reserved slot to an earlier-enumerated
+    law's #2 pick EVEN WHEN IT SCORED HIGHER, purely because of where it fell in the input
+    list. Confirmed live: My Health Records s77 ranked #2 within its own law for P6-I1
+    (score 0.455, clearly on-topic — beaten internally only by an unrelated s55) yet never
+    reached the LLM. retrieve() is stubbed with FIXED scores here (real embeddings are too
+    unpredictable to reliably reproduce "a weak decoy coincidentally outscores the real
+    provision" in a fixture) so the shortlist algorithm's fairness is tested in isolation."""
+    from backend.pipeline.retrieval import Retrieved
+
+    provisions = []
+    for i in range(20):
+        provisions.append(Provision(
+            provision_id=f"noise{i}-1", doc_id=f"noise{i}", economy=Economy.AU,
+            law_name=f"Noise Act {i}", article_section="Section 1",
+            verbatim_snippet="x", source_url="u", ocr=OCRMetrics()))
+        provisions.append(Provision(
+            provision_id=f"noise{i}-2", doc_id=f"noise{i}", economy=Economy.AU,
+            law_name=f"Noise Act {i}", article_section="Section 2",
+            verbatim_snippet="x", source_url="u", ocr=OCRMetrics()))
+    # Enumerated LAST (21st law). Its rank-1 pick (target-2) outscores every OTHER law's
+    # rank-1 pick (0.8 vs 0.5) — it must win one of the few rank-1 slots on merit.
+    provisions += [
+        Provision(provision_id="target-1", doc_id="target", economy=Economy.AU,
+                 law_name="Target Act 2012", article_section="Section 1",
+                 verbatim_snippet="x", source_url="u", ocr=OCRMetrics()),
+        Provision(provision_id="target-2", doc_id="target", economy=Economy.AU,
+                 law_name="Target Act 2012", article_section="Section 77",
+                 verbatim_snippet="x", source_url="u", ocr=OCRMetrics()),
+    ]
+    scores = {f"noise{i}-1": 0.9 for i in range(20)}
+    scores.update({f"noise{i}-2": 0.5 for i in range(20)})
+    scores["target-1"] = 0.9
+    scores["target-2"] = 0.8   # beats every noise law's rank-1 pick (0.5)
+
+    def fake_retrieve(indicator_id, provs, top_k=5):
+        ranked = sorted(provs, key=lambda p: scores.get(p.provision_id, 0.0), reverse=True)
+        return [Retrieved(provision=p, score=scores.get(p.provision_id, 0.0),
+                          raw_context=p.verbatim_snippet, log=[]) for p in ranked[:top_k]]
+
+    monkeypatch.setattr(mapping, "retrieve", fake_retrieve)
+    # 21 laws x per_law_k=2 = 42 reserved slots > global_k=25 — rank-0 alone (21 picks) leaves
+    # only 4 slots for rank-1, where target-2 must out-compete 20 noise laws' rank-1 picks.
+    sl = mapping._diverse_shortlist("P6-I1", provisions, global_k=25, per_law_k=2, log=lambda *_: None)
+    ids = {r.provision.provision_id for r in sl}
+    assert "target-2" in ids, "the real answer must survive the cutoff on score, not discovery order"
+
+
 def test_concurrent_matches_sequential():
     inds = get_indicators(6)
     provs = _provs(120)
