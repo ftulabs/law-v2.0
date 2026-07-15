@@ -58,14 +58,23 @@ INDICATORS: list[Indicator] = [
         legal_test=(
             "The operative rule requires personal data to be STORED / kept (a copy) in a database or facility "
             "located within the territory (data-localisation for storage). Example: 'personal data shall be "
-            "stored in a database located in the territory of [country]'. Distinguish from P6-I1 (a ban on "
-            "transfer/processing — storage rules may still allow a copy to be transferred), from P6-I3 (local "
-            "SERVERS/data-centres/infrastructure as a condition for supplying a service, not merely where data "
-            "is stored), and from P7-I3 (a minimum RETENTION DURATION, which is about how long, not where)."
+            "stored in a database located in the territory of [country]'. The rule may equally be phrased "
+            "NEGATIVELY — 'records must not be held / kept / taken outside the country' imposes the same "
+            "obligation (the data must remain stored in-country) and SATISFIES this indicator. Such a "
+            "prohibition typically satisfies BOTH P6-I1 (ban) and P6-I2 (local storage) — the RDTII "
+            "methodology scores it under both, so judge this indicator on its own terms and do NOT treat "
+            "P6-I1 as a better fit. Distinguish from P6-I3 (local SERVERS/data-centres/infrastructure as a "
+            "condition for supplying a service, not merely where data is stored), and from P7-I3 (a minimum "
+            "RETENTION DURATION, which is about how long, not where)."
         ),
         scope="national",
         query_terms=["stored in a database located", "store within the territory", "kept within the country",
                      "data shall be stored in", "local storage", "retained within", "database located in the territory",
+                     # negative phrasing of the same obligation ("must not hold records outside the
+                     # country" ≡ "must store in-country") — without these, ban-worded localisation
+                     # sections rank low for THIS indicator and only surface under P6-I1.
+                     "not hold or take records outside", "must not be held outside",
+                     "shall not be kept outside", "records outside the country",
                      # business/accounting/tax record-keeping vocabulary: corporate & tax Acts phrase the
                      # in-country obligation as "keep accounting records / books of account, kept at the
                      # registered office; if kept outside the country, copies must be sent to and kept
