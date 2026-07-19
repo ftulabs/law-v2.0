@@ -63,7 +63,11 @@ INDICATORS: list[Indicator] = [
             "obligation (the data must remain stored in-country) and SATISFIES this indicator. Such a "
             "prohibition typically satisfies BOTH P6-I1 (ban) and P6-I2 (local storage) — the RDTII "
             "methodology scores it under both, so judge this indicator on its own terms and do NOT treat "
-            "P6-I1 as a better fit. Distinguish from P6-I3 (local SERVERS/data-centres/infrastructure as a "
+            "P6-I1 as a better fit. A CONDITIONAL / partial form also satisfies (the methodology scores it "
+            "0.5): rules that permit records to be kept ABROAD only if copies, accounts or returns are sent "
+            "to and KEPT IN-COUNTRY (classic companies/tax accounting-records drafting) — the mandatory "
+            "local copy IS a storage-localisation measure; do not reject it for permitting the originals "
+            "offshore. Distinguish from P6-I3 (local SERVERS/data-centres/infrastructure as a "
             "condition for supplying a service, not merely where data is stored), and from P7-I3 (a minimum "
             "RETENTION DURATION, which is about how long, not where)."
         ),
@@ -135,7 +139,16 @@ INDICATORS: list[Indicator] = [
         scope="national",
         query_terms=["personal data protection act", "this act applies to", "processing of personal data",
                      "protect personal data", "collect, use or disclose", "consent of the individual",
-                     "protection of personal data", "privacy of telecommunications", "health information privacy"],
+                     "protection of personal data", "privacy of telecommunications", "health information privacy",
+                     # principles-based framework drafting: the operative core of an omnibus privacy Act is
+                     # often one terse section binding entities to a schedule of privacy principles (AU s15
+                     # style: "must not breach a privacy principle") — without these phrasings that keystone
+                     # section ranks below verbose sectoral rules and the framework law misses the shortlist.
+                     # NOTE: phrase-bonus matching is literal — keep these as substrings that
+                     # actually occur in statutes ("breaches an Australian Privacy Principle").
+                     "privacy principle", "privacy principles", "breaches a privacy principle",
+                     "breaches an australian privacy principle",
+                     "interference with the privacy of an individual"],
     ),
     Indicator(
         indicator_id="P7-I2",          # ≡ Methodology 7.2
