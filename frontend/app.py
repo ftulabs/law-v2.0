@@ -40,20 +40,23 @@ db.init_db()  # ensure schema exists on fresh mounts (no-op if tables already pr
 # ── brand assets (drop files in frontend/assets/ — see ASSETS.md) ──────────
 ASSETS = Path(__file__).resolve().parent / "assets"
 
-# ── white paper: sync docs/whitepaper.html → frontend/static/ so Streamlit's static
-#    file server (enableStaticServing) exposes it at /app/static/whitepaper.html.
-#    docs/whitepaper.html stays the single source of truth; this copy is generated. ──
+# ── static docs: sync docs/<file> → frontend/static/ so Streamlit's static file server
+#    (enableStaticServing) exposes each at /app/static/<file>. docs/ stays the single
+#    source of truth; these copies are generated. The white paper opens from the app
+#    header; the landing page is served here for preview (its real home is the site root). ──
 _STATIC = Path(__file__).resolve().parent / "static"
+_DOCS = Path(__file__).resolve().parent.parent / "docs"
 WHITEPAPER_URL = "app/static/whitepaper.html"  # relative to the app origin (new-tab link)
+LANDING_URL = "app/static/landing.html"
 
 
-def _sync_whitepaper() -> bool:
-    src = Path(__file__).resolve().parent.parent / "docs" / "whitepaper.html"
+def _sync_static(filename: str) -> bool:
+    src = _DOCS / filename
     if not src.exists():
         return False
     try:
         _STATIC.mkdir(exist_ok=True)
-        dst = _STATIC / "whitepaper.html"
+        dst = _STATIC / filename
         if not dst.exists() or dst.stat().st_mtime < src.stat().st_mtime:
             dst.write_bytes(src.read_bytes())
         return True
@@ -61,7 +64,8 @@ def _sync_whitepaper() -> bool:
         return False
 
 
-_HAS_WHITEPAPER = _sync_whitepaper()
+_HAS_WHITEPAPER = _sync_static("whitepaper.html")
+_HAS_LANDING = _sync_static("landing.html")
 
 
 def _asset(*names: str) -> Path | None:
