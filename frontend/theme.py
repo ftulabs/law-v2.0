@@ -15,6 +15,7 @@ scale, minimal motion, WCAG-AA contrast in both modes.
 from __future__ import annotations
 
 import base64
+import os
 from pathlib import Path
 
 import streamlit as st
@@ -23,6 +24,49 @@ ASSETS = Path(__file__).resolve().parent / "assets"
 
 REPO_URL = "https://github.com/ftulabs/law-v2.0"
 WHITEPAPER_URL = "app/static/whitepaper.html"
+
+# ── typography ───────────────────────────────────────────────────────────
+# Combinations under evaluation — open /app/static/fonts.html to compare them
+# rendered in the real UI, then set VT_FONT_SET (or FONT_SET below) to the winner.
+# "display" is used for headings only; "body" for everything else; mono for
+# citations/IDs/URLs. Keeping them in one place means switching is a one-word change.
+FONT_SETS: dict[str, dict[str, str]] = {
+    # neutral, current
+    "inter":            {"display": "Inter",            "body": "Inter", "label": "Inter only"},
+    # the original VeriTrade display serif, over a readable sans body
+    "fraunces":         {"display": "Fraunces",         "body": "Inter", "label": "Fraunces + Inter"},
+    # softer editorial serif
+    "newsreader":       {"display": "Newsreader",       "body": "Inter", "label": "Newsreader + Inter"},
+    # modern high-contrast editorial
+    "instrument":       {"display": "Instrument Serif", "body": "Inter", "label": "Instrument Serif + Inter"},
+    # geometric/technical sans display
+    "space":            {"display": "Space Grotesk",    "body": "Inter", "label": "Space Grotesk + Inter"},
+}
+FONT_SET = os.getenv("VT_FONT_SET", "inter").lower()
+_ACTIVE = FONT_SETS.get(FONT_SET, FONT_SETS["inter"])
+
+BODY_FONT = _ACTIVE["body"]
+DISPLAY_FONT = _ACTIVE["display"]
+MONO_FONT = "IBM Plex Mono"
+BODY_STACK = f"'{BODY_FONT}',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif"
+HEAD_STACK = f"'{DISPLAY_FONT}',{BODY_STACK}"
+MONO_STACK = f"'{MONO_FONT}',ui-monospace,monospace"
+
+_GF = {
+    "Inter": "Inter:wght@400;500;600;700;800",
+    "Fraunces": "Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700",
+    "Newsreader": "Newsreader:opsz,wght@6..72,500;6..72,600;6..72,700",
+    "Instrument Serif": "Instrument+Serif:ital@0;1",
+    "Space Grotesk": "Space+Grotesk:wght@500;600;700",
+}
+
+
+def font_import_url() -> str:
+    """Google-Fonts URL loading exactly the families the active set needs."""
+    fams = {BODY_FONT, DISPLAY_FONT}
+    parts = [f"family={_GF[f]}" for f in fams if f in _GF]
+    parts.append("family=IBM+Plex+Mono:wght@400;500;600")
+    return "https://fonts.googleapis.com/css2?" + "&".join(parts) + "&display=swap"
 
 # ── tokens (mirror .streamlit/config.toml) ────────────────────────────────
 LIGHT = """
@@ -108,28 +152,58 @@ def keyboard_guard() -> None:
 
 
 # ── the stylesheet ───────────────────────────────────────────────────────
+def inject_style(css: str) -> None:
+    """Inject a stylesheet safely.
+
+    Two traps, both hit in practice:
+      • st.markdown ends a raw-HTML block at the first BLANK LINE, then parses the
+        indented remainder as a markdown code block — so every rule after the first
+        blank line was silently dropped (or printed on the page as text).
+      • st.html discards a payload whose only top-level node is a <style> tag.
+    Flattening to a single line sidesteps both: no blank lines, no indentation.
+    """
+    flat = " ".join(line.strip() for line in css.splitlines() if line.strip())
+    st.markdown(f"<style>{flat}</style>", unsafe_allow_html=True)
+
+
 def inject_css() -> None:
     """Base design system: tokens, typography, and the native-widget overrides that
     keep Streamlit's own components on-palette in both themes."""
     tokens = DARK if is_dark() else LIGHT
-    st.markdown(
+    inject_style(
         f"""
-        <style>
+          @import url('{font_import_url()}');
           :root {{ {tokens} }}
 
-          /* ── typography: one family everywhere (Inter), mono only for IDs/citations/URLs.
-                config.toml already points Streamlit's native widgets at Inter; this keeps
-                our own markup on the same family so headings and labels match. ── */
-          html, body, .stApp, [class*="st-"], button, input, optgroup, select, textarea {{
-              font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+          /* ── typography: one family everywhere ({BODY_FONT}), mono only for IDs/citations/URLs.
+                config.toml already points Streamlit's native widgets at the same family; this
+                keeps our own markup in step so headings and labels match.
+                NOTE: do NOT use a catch-all like [class*="st-"] here. Streamlit draws its icons
+                as Material Symbols LIGATURES (<span data-testid="stIconMaterial">expand_more</span>);
+                forcing a text font on them stops the ligature resolving and the raw icon name
+                renders as words ("light_mode", "arrow_drop_down", "keyboard_double_arrow_left"). ── */
+          html, body, .stApp, button, input, optgroup, select, textarea {{
+              font-family:{BODY_STACK};
           }}
+          [data-testid="stMarkdownContainer"], [data-testid="stWidgetLabel"],
+          .stTabs [data-baseweb="tab"], [data-baseweb="select"] {{ font-family:{BODY_STACK}; }}
+          /* restore the icon font, whatever else we set above */
+          [data-testid="stIconMaterial"], span[data-testid="stIconMaterial"],
+          .material-symbols-rounded, [class*="material-symbols"] {{
+              font-family:'Material Symbols Rounded' !important; font-weight:normal !important;
+              font-style:normal !important; letter-spacing:normal !important;
+              text-transform:none !important; white-space:nowrap; word-wrap:normal;
+              direction:ltr; -webkit-font-feature-settings:'liga'; font-feature-settings:'liga';
+              -webkit-font-smoothing:antialiased;
+          }}
+          h1,h2,h3,h4,h5 {{ font-family:{HEAD_STACK}; }}
           .stApp {{ background:var(--paper); color:var(--ink); }}
           .block-container {{ padding-top:1.2rem; max-width:1240px; }}
           [data-testid="stHeader"] {{ background:transparent; }}
           h1,h2,h3,h4 {{ color:var(--ink); letter-spacing:-.015em; }}
           a {{ color:var(--accent); text-decoration:none; }}
           a:hover {{ text-decoration:underline; }}
-          .mono {{ font-family:'IBM Plex Mono',ui-monospace,monospace; }}
+          .mono {{ font-family:{MONO_STACK}; }}
           .muted {{ color:var(--ink-faint); font-size:.85rem; }}
           .soft {{ color:var(--ink-soft); }}
           /* section label — sentence case, never a shouty all-caps eyebrow */
@@ -207,9 +281,7 @@ def inject_css() -> None:
           .s-flag {{ color:var(--flag); border-color:var(--flag); background:color-mix(in srgb,var(--flag) 12%,transparent); }}
           .s-none {{ color:var(--ink-faint); border-color:var(--rule); background:transparent; }}
           .hr-thin {{ border:none; border-top:1px solid var(--rule-soft); margin:.7rem 0; }}
-        </style>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
@@ -243,9 +315,11 @@ def _apply_streamlit_theme(name: str) -> None:
 
 
 def theme_toggle(key: str = "theme_toggle") -> None:
-    """Visible light/dark button. Labelled with the mode it switches TO."""
+    """Visible light/dark button, labelled with the mode it switches TO. Uses Streamlit's
+    own Material icons rather than an emoji, so it matches the rest of the chrome instead
+    of rendering in whatever the OS emoji font happens to be."""
     dark = is_dark()
     target = "Light" if dark else "Dark"
-    if st.button(f"{'☀' if dark else '☾'}  {target}", key=key,
+    if st.button(target, key=key, icon=":material/light_mode:" if dark else ":material/dark_mode:",
                  help=f"Switch to {target.lower()} mode", width="stretch"):
         _apply_streamlit_theme(target)

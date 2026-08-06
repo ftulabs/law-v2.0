@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VeriTrade — typography comparison</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Newsreader:opsz,wght@6..72,500;6..72,600;6..72,700&family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#ffffff; --paper-2:#f5f8fc; --paper-3:#eaeff6;
+    --ink:#0f172a; --ink-soft:#48566b; --ink-faint:#7a879c;
+    --rule:#dbe2ec; --accent:#2563eb; --accent-ink:#fff; --accent-soft:#e6effe;
+    --warn:#a16207; --warn-soft:#faf1dd;
+    --panel:#f7f9fc; --shadow:0 1px 2px rgba(15,23,42,.06),0 10px 34px rgba(15,23,42,.07);
+  }
+  :root[data-theme="dark"]{
+    --paper:#0b1120; --paper-2:#111a2b; --paper-3:#1a2740;
+    --ink:#e9eef8; --ink-soft:#a3b0c9; --ink-faint:#6f7d99;
+    --rule:#26334d; --accent:#4f9cff; --accent-ink:#04122b; --accent-soft:#12213c;
+    --warn:#fbbf24; --warn-soft:#322709;
+    --panel:#111a2b; --shadow:0 1px 2px rgba(0,0,0,.3),0 16px 46px rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,sans-serif;
+       -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1180px;margin:0 auto;padding:2rem 1.5rem 5rem;}
+  header.top{display:flex;justify-content:space-between;align-items:center;gap:1rem;
+    border-bottom:1px solid var(--rule);padding-bottom:1rem;margin-bottom:1.6rem;flex-wrap:wrap;}
+  h1.page{font-size:1.5rem;font-weight:800;letter-spacing:-.02em;margin:0;}
+  .hint{color:var(--ink-soft);font-size:.92rem;margin:.4rem 0 0;max-width:70ch;}
+  .btn{font:inherit;font-size:.88rem;font-weight:600;cursor:pointer;border:1px solid var(--rule);
+    background:var(--panel);color:var(--ink);border-radius:9px;padding:.45rem .9rem;}
+  .btn:hover{border-color:var(--accent);color:var(--accent);}
+
+  /* one specimen per font set */
+  .spec{border:1px solid var(--rule);border-radius:14px;background:var(--panel);
+    box-shadow:var(--shadow);margin:1.4rem 0;overflow:hidden;}
+  .spec > .head{display:flex;justify-content:space-between;align-items:center;gap:1rem;
+    padding:.7rem 1.1rem;border-bottom:1px solid var(--rule);background:var(--paper-2);flex-wrap:wrap;}
+  .spec .name{font-weight:700;font-size:1rem;}
+  .spec .key{font-family:'IBM Plex Mono',monospace;font-size:.75rem;color:var(--accent);
+    background:var(--accent-soft);border:1px solid var(--accent);border-radius:99px;padding:.15rem .6rem;}
+  .spec .body{padding:1.4rem 1.5rem;background:var(--paper);}
+  .cols{display:grid;grid-template-columns:1.3fr 1fr;gap:1.6rem;align-items:start;}
+  @media(max-width:820px){.cols{grid-template-columns:1fr;}}
+
+  .eyebrow{display:inline-flex;align-items:center;gap:.5rem;font-size:.78rem;font-weight:600;
+    color:var(--accent);background:var(--accent-soft);border-radius:99px;padding:.25rem .7rem;margin-bottom:.9rem;}
+  .eyebrow::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent);}
+  .hero{font-size:2.35rem;font-weight:700;letter-spacing:-.03em;line-height:1.08;margin:0 0 .7rem;}
+  .hero .accent{color:var(--accent);}
+  .lede{color:var(--ink-soft);font-size:1.02rem;line-height:1.6;margin:0 0 1.1rem;max-width:52ch;}
+  .step{display:grid;grid-template-columns:28px 1fr;gap:.7rem;margin:.55rem 0;}
+  .step .n{width:28px;height:28px;border-radius:50%;background:var(--accent);color:var(--accent-ink);
+    font-weight:700;font-size:.82rem;display:flex;align-items:center;justify-content:center;}
+  .step .t{font-weight:600;font-size:.96rem;}
+  .step .d{color:var(--ink-soft);font-size:.88rem;line-height:1.5;}
+  .facts{display:flex;flex-wrap:wrap;gap:.45rem;margin-top:.9rem;}
+  .fact{border:1px solid var(--rule);background:var(--panel);border-radius:99px;padding:.25rem .7rem;
+    font-size:.8rem;color:var(--ink-soft);} .fact b{color:var(--ink);}
+
+  .card{border:1px solid var(--rule);border-radius:13px;background:var(--panel);padding:1.1rem 1.2rem;}
+  .card h3{margin:0 0 .8rem;font-size:1.08rem;font-weight:700;}
+  label.f{display:block;font-size:.88rem;font-weight:600;margin:.7rem 0 .25rem;}
+  input.f{width:100%;padding:.55rem .7rem;border:1px solid var(--rule);border-radius:8px;
+    background:var(--paper);color:var(--ink);font:inherit;font-size:.92rem;}
+  input.f::placeholder{color:var(--ink-faint);}
+  .cta{width:100%;margin-top:1rem;background:var(--accent);color:var(--accent-ink);border:0;
+    border-radius:9px;padding:.6rem;font:inherit;font-weight:700;font-size:.95rem;cursor:pointer;}
+  .evidence{margin-top:1.1rem;border:1px solid var(--rule);border-left:4px solid var(--warn);
+    border-radius:0 10px 10px 0;background:var(--paper);padding:.7rem .9rem;}
+  .evidence .ind{font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--accent);font-size:.85rem;}
+  .evidence .law{font-weight:600;margin:.2rem 0;}
+  .evidence .cite{font-family:'IBM Plex Mono',monospace;font-size:.75rem;color:var(--ink-soft);}
+  .evidence .quote{font-style:italic;color:var(--ink-soft);font-size:.88rem;line-height:1.55;
+    border-left:3px solid var(--rule);background:var(--paper-2);padding:.45rem .7rem;margin:.5rem 0 .3rem;border-radius:0 6px 6px 0;}
+  .pill{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:.7rem;font-weight:600;
+    color:var(--warn);border:1px solid var(--warn);background:var(--warn-soft);border-radius:99px;padding:.08rem .5rem;}
+  .note{color:var(--ink-faint);font-size:.82rem;margin-top:.9rem;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1 class="page">Typography comparison</h1>
+      <p class="hint">The same VeriTrade screen rendered in five combinations. Body text and the mono
+      face (IBM Plex Mono, for citations and IDs) stay constant — only the <b>display face used for
+      headings</b> changes, which is the decision to make. Pick one and tell me its key.</p>
+    </div>
+    <button class="btn" id="t">☾ Dark</button>
+  </header>
+  <div id="out"></div>
+  <p class="note">Set the winner with <code>VT_FONT_SET=&lt;key&gt;</code> (or the <code>FONT_SET</code> default in <code>frontend/theme.py</code>).</p>
+</div>
+
+<script>
+const SETS = [
+  {key:"inter",      name:"Inter only",              display:"Inter",
+   why:"Neutral and highly legible. Safest for non-technical readers; least distinctive."},
+  {key:"fraunces",   name:"Fraunces + Inter",        display:"Fraunces",
+   why:"The original VeriTrade display serif over a readable sans body — most brand character."},
+  {key:"newsreader", name:"Newsreader + Inter",      display:"Newsreader",
+   why:"Softer editorial serif. Authoritative but calmer than Fraunces."},
+  {key:"instrument", name:"Instrument Serif + Inter",display:"Instrument Serif",
+   why:"High-contrast modern editorial. Elegant at large sizes, needs generous spacing."},
+  {key:"space",      name:"Space Grotesk + Inter",   display:"Space Grotesk",
+   why:"Technical geometric sans. Modern and product-like without going serif."},
+];
+
+const spec = s => `
+<section class="spec">
+  <div class="head">
+    <div><span class="name">${s.name}</span></div>
+    <span class="key">VT_FONT_SET=${s.key}</span>
+  </div>
+  <div class="body" style="--display:'${s.display}'">
+    <p style="color:var(--ink-faint);font-size:.85rem;margin:0 0 1rem">${s.why}</p>
+    <div class="cols">
+      <div>
+        <div class="eyebrow">UN ESCAP · RDTII 2.1 · Team FTU</div>
+        <h2 class="hero" style="font-family:'${s.display}',Inter,sans-serif">Find the law, <span class="accent">prove the clause</span></h2>
+        <p class="lede">VeriTrade searches official government websites, reads the documents
+        (including scanned PDFs), and matches each provision to the right RDTII indicator — with the
+        exact quote, a link to the source, and a confidence score you can check.</p>
+        <div class="step"><div class="n">1</div><div><div class="t" style="font-family:'${s.display}',Inter,sans-serif">Choose a country and a pillar</div>
+          <div class="d">Singapore, Australia or Malaysia · cross-border data, or data protection &amp; cybersecurity.</div></div></div>
+        <div class="step"><div class="n">2</div><div><div class="t" style="font-family:'${s.display}',Inter,sans-serif">VeriTrade finds and reads the law</div>
+          <div class="d">No seed links, no hand-picked corpus — it searches the official portals live.</div></div></div>
+        <div class="facts">
+          <span class="fact"><b>3</b> economies</span>
+          <span class="fact"><b>9</b> RDTII indicators</span>
+          <span class="fact"><b>1.11%</b> OCR error rate</span>
+        </div>
+      </div>
+      <div>
+        <div class="card">
+          <h3 style="font-family:'${s.display}',Inter,sans-serif">Sign in</h3>
+          <label class="f">Email</label>
+          <input class="f" placeholder="you@organisation.org">
+          <label class="f">Password</label>
+          <input class="f" type="password" placeholder="Your password">
+          <button class="cta">Sign in</button>
+        </div>
+        <div class="evidence">
+          <span class="ind">P6-I4 · conditional cross-border flow</span>
+          <div class="law" style="font-family:'${s.display}',Inter,sans-serif">Personal Data Protection Act 2012</div>
+          <div class="cite">Act 26 of 2012 · Section 26 · Singapore</div>
+          <div class="quote">"An organisation shall not transfer any personal data to a country or
+          territory outside Singapore except in accordance with requirements prescribed…"</div>
+          <span class="pill">confidence 0.82 · review</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>`;
+
+document.getElementById("out").innerHTML = SETS.map(spec).join("");
+
+const root = document.documentElement, btn = document.getElementById("t");
+const dark = () => (root.getAttribute("data-theme") || "light") === "dark";
+btn.onclick = () => { root.setAttribute("data-theme", dark() ? "light" : "dark");
+                      btn.textContent = dark() ? "☀ Light" : "☾ Dark"; };
+</script>
+</body>
+</html>

@@ -68,6 +68,7 @@ def _sync_static(filename: str) -> bool:
 
 _HAS_WHITEPAPER = _sync_static("whitepaper.html")
 _HAS_LANDING = _sync_static("landing.html")
+_HAS_FONTS = _sync_static("fonts.html")      # typography comparison (design decision aid)
 
 
 def _asset(*names: str) -> Path | None:
@@ -148,8 +149,12 @@ st.markdown(
       .masthead {{border-bottom:1px solid var(--rule); padding-bottom:.9rem; margin-bottom:.4rem;}}
       .masthead .row {{display:flex; align-items:center; justify-content:space-between; gap:1rem;}}
       .masthead .strap {{color:var(--ink-soft); font-size:.95rem; margin-top:.35rem;}}
+      /* the confidence bands sit opposite the logo; they must not wrap mid-band or get
+         clipped by the flex row, so give the block room and keep each band intact */
       .masthead .edition {{text-align:right; font-family:'IBM Plex Mono',monospace; font-size:.72rem;
-                           color:var(--ink-faint); line-height:1.5; white-space:nowrap;}}
+                           color:var(--ink-faint); line-height:1.7; flex:none;}}
+      .masthead .edition .tip {{flex-wrap:wrap; justify-content:flex-end;}}
+      .masthead .edition span {{white-space:nowrap;}}
 
       /* ── summary strip ── */
       .ledger {{display:flex; flex-wrap:wrap; gap:.6rem; margin:1rem 0 .4rem;}}
@@ -728,7 +733,7 @@ def _secret(name: str, fallback: str = "") -> str:
 if _HAS_WHITEPAPER:
     _sp, _wp_col, _th_col, _acct_col = st.columns([5.4, 1.6, 1.1, 1.8])
     with _wp_col:
-        st.link_button("📄 White paper", WHITEPAPER_URL,
+        st.link_button("White paper", WHITEPAPER_URL, icon=":material/description:",
                        help="Open the technical white paper in a new tab", width="stretch")
 else:
     _sp, _th_col, _acct_col = st.columns([7.1, 1.1, 1.8])
