@@ -1,147 +1,174 @@
-"""SQLite audit store — the spine of auditability.
+"""Audit store — the spine of auditability.
 
 Every run, document, provision, mapping, and human review action is persisted, so
 any exported row can be traced back through the exact provision, retrieval log, OCR
 metrics, and reviewer decisions that produced it. JSON blobs keep the schema simple
 while preserving the full structured record.
+
+Backed by SQLAlchemy (see `engine.py`), so the same code runs on the local SQLite
+file today and on a hosted Postgres by setting `DATABASE_URL`. The public function
+signatures below are unchanged from the original sqlite3 implementation — callers in
+the pipeline, CLI, API and dashboard were not touched.
 """
 from __future__ import annotations
 
 import json
-import sqlite3
-from contextlib import contextmanager
-from typing import Iterator
+from datetime import datetime, timezone
 
-from ..config import settings
+from sqlalchemy import delete, insert, select, update
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
 from ..schemas import DiscoveredDoc, EvidenceMapping, Provision, RunMeta
-
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS runs (
-    run_id TEXT PRIMARY KEY, economy TEXT, pillars TEXT, started_at TEXT,
-    finished_at TEXT, ocr_provider TEXT, llm_provider TEXT, model_version TEXT,
-    meta_json TEXT
-);
-CREATE TABLE IF NOT EXISTS documents (
-    doc_id TEXT, run_id TEXT, economy TEXT, title TEXT, source_url TEXT,
-    portal TEXT, fmt TEXT, relevance REAL, discovery_tag TEXT, amendment_date TEXT,
-    doc_json TEXT, PRIMARY KEY (doc_id, run_id)
-);
-CREATE TABLE IF NOT EXISTS provisions (
-    provision_id TEXT, run_id TEXT, doc_id TEXT, law_name TEXT, article_section TEXT,
-    prov_json TEXT, PRIMARY KEY (provision_id, run_id)
-);
-CREATE TABLE IF NOT EXISTS mappings (
-    mapping_id TEXT PRIMARY KEY, run_id TEXT, economy TEXT, pillar INT,
-    indicator_id TEXT, confidence REAL, review_status TEXT, human_note TEXT,
-    mapping_json TEXT
-);
-CREATE TABLE IF NOT EXISTS review_log (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, mapping_id TEXT, action TEXT,
-    reviewer TEXT, note TEXT, ts TEXT, before_json TEXT, after_json TEXT
-);
-"""
+from .engine import (
+    documents, get_engine, init_schema, mappings, provisions, review_log, runs,
+)
 
 
-@contextmanager
-def _conn() -> Iterator[sqlite3.Connection]:
-    conn = sqlite3.connect(settings.db_path)
-    conn.row_factory = sqlite3.Row
-    try:
-        yield conn
-        conn.commit()
-    finally:
-        conn.close()
+def _upsert(table, values: dict, pk_cols: list[str]):
+    """INSERT … ON CONFLICT DO UPDATE, portable across SQLite and Postgres."""
+    eng = get_engine()
+    if eng.dialect.name == "sqlite":
+        stmt = sqlite_insert(table).values(**values)
+    else:  # postgresql
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+        stmt = pg_insert(table).values(**values)
+    update_cols = {k: v for k, v in values.items() if k not in pk_cols}
+    return stmt.on_conflict_do_update(index_elements=pk_cols, set_=update_cols) if update_cols else \
+        stmt.on_conflict_do_nothing(index_elements=pk_cols)
 
 
 def init_db() -> None:
-    with _conn() as c:
-        c.executescript(SCHEMA)
+    init_schema()
 
 
 # ─────────── writes ───────────
-def start_run(run_id, economy, pillars, started_at, ocr_provider, llm_provider, model_version) -> None:
-    with _conn() as c:
-        c.execute(
-            "INSERT OR REPLACE INTO runs(run_id,economy,pillars,started_at,ocr_provider,llm_provider,model_version,meta_json)"
-            " VALUES(?,?,?,?,?,?,?,?)",
-            (run_id, economy, json.dumps(pillars), started_at, ocr_provider, llm_provider, model_version, "{}"),
-        )
+def start_run(run_id, economy, pillars, started_at, ocr_provider, llm_provider, model_version,
+              user_id: str | None = None) -> None:
+    with get_engine().begin() as c:
+        c.execute(_upsert(runs, {
+            "run_id": run_id, "economy": economy, "pillars": json.dumps(pillars),
+            "started_at": started_at, "ocr_provider": ocr_provider, "llm_provider": llm_provider,
+            "model_version": model_version, "meta_json": "{}", "user_id": user_id,
+        }, ["run_id"]))
 
 
 def finish_run(meta: RunMeta) -> None:
-    with _conn() as c:
-        c.execute(
-            "UPDATE runs SET finished_at=?, meta_json=? WHERE run_id=?",
-            (meta.finished_at, meta.model_dump_json(), meta.run_id),
-        )
+    with get_engine().begin() as c:
+        c.execute(update(runs).where(runs.c.run_id == meta.run_id).values(
+            finished_at=meta.finished_at, meta_json=meta.model_dump_json()))
 
 
 def save_doc(run_id: str, d: DiscoveredDoc) -> None:
-    with _conn() as c:
-        c.execute(
-            "INSERT OR REPLACE INTO documents VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-            (d.doc_id, run_id, d.economy.value, d.title, d.source_url, d.portal, d.fmt.value,
-             d.relevance_score, d.discovery_tag.value, d.amendment_date, d.model_dump_json()),
-        )
+    with get_engine().begin() as c:
+        c.execute(_upsert(documents, {
+            "doc_id": d.doc_id, "run_id": run_id, "economy": d.economy.value, "title": d.title,
+            "source_url": d.source_url, "portal": d.portal, "fmt": d.fmt.value,
+            "relevance": d.relevance_score, "discovery_tag": d.discovery_tag.value,
+            "amendment_date": d.amendment_date, "doc_json": d.model_dump_json(),
+        }, ["doc_id", "run_id"]))
 
 
 def save_provision(run_id: str, p: Provision) -> None:
-    with _conn() as c:
-        c.execute(
-            "INSERT OR REPLACE INTO provisions VALUES(?,?,?,?,?,?)",
-            (p.provision_id, run_id, p.doc_id, p.law_name, p.article_section, p.model_dump_json()),
-        )
+    with get_engine().begin() as c:
+        c.execute(_upsert(provisions, {
+            "provision_id": p.provision_id, "run_id": run_id, "doc_id": p.doc_id,
+            "law_name": p.law_name, "article_section": p.article_section,
+            "prov_json": p.model_dump_json(),
+        }, ["provision_id", "run_id"]))
 
 
 def save_mapping(m: EvidenceMapping) -> None:
-    with _conn() as c:
-        c.execute(
-            "INSERT OR REPLACE INTO mappings VALUES(?,?,?,?,?,?,?,?,?)",
-            (m.mapping_id, m.run_id, m.economy.value, m.pillar, m.indicator_id,
-             m.confidence_score, m.review_status.value, m.human_note, m.model_dump_json()),
-        )
+    with get_engine().begin() as c:
+        c.execute(_upsert(mappings, {
+            "mapping_id": m.mapping_id, "run_id": m.run_id, "economy": m.economy.value,
+            "pillar": m.pillar, "indicator_id": m.indicator_id, "confidence": m.confidence_score,
+            "review_status": m.review_status.value, "human_note": m.human_note,
+            "mapping_json": m.model_dump_json(),
+        }, ["mapping_id"]))
 
 
 def log_review(mapping_id, action, reviewer, note, ts, before_json, after_json) -> None:
-    with _conn() as c:
-        c.execute(
-            "INSERT INTO review_log(mapping_id,action,reviewer,note,ts,before_json,after_json)"
-            " VALUES(?,?,?,?,?,?,?)",
-            (mapping_id, action, reviewer, note, ts, before_json, after_json),
-        )
+    with get_engine().begin() as c:
+        c.execute(insert(review_log).values(
+            mapping_id=mapping_id, action=action, reviewer=reviewer, note=note, ts=ts,
+            before_json=before_json, after_json=after_json))
 
 
 # ─────────── reads ───────────
 def get_mapping(mapping_id: str) -> EvidenceMapping | None:
-    with _conn() as c:
-        row = c.execute("SELECT mapping_json FROM mappings WHERE mapping_id=?", (mapping_id,)).fetchone()
-    return EvidenceMapping.model_validate_json(row["mapping_json"]) if row else None
+    with get_engine().connect() as c:
+        row = c.execute(select(mappings.c.mapping_json).where(
+            mappings.c.mapping_id == mapping_id)).fetchone()
+    return EvidenceMapping.model_validate_json(row[0]) if row else None
 
 
 def list_mappings(run_id: str | None = None, status: str | None = None) -> list[EvidenceMapping]:
-    q, args = "SELECT mapping_json FROM mappings", []
-    where = []
+    q = select(mappings.c.mapping_json)
     if run_id:
-        where.append("run_id=?"); args.append(run_id)
+        q = q.where(mappings.c.run_id == run_id)
     if status:
-        where.append("review_status=?"); args.append(status)
-    if where:
-        q += " WHERE " + " AND ".join(where)
-    q += " ORDER BY confidence DESC"
-    with _conn() as c:
-        rows = c.execute(q, args).fetchall()
-    return [EvidenceMapping.model_validate_json(r["mapping_json"]) for r in rows]
+        q = q.where(mappings.c.review_status == status)
+    q = q.order_by(mappings.c.confidence.desc())
+    with get_engine().connect() as c:
+        rows = c.execute(q).fetchall()
+    return [EvidenceMapping.model_validate_json(r[0]) for r in rows]
 
 
 def get_run(run_id: str) -> RunMeta | None:
-    with _conn() as c:
-        row = c.execute("SELECT meta_json FROM runs WHERE run_id=?", (run_id,)).fetchone()
-    if not row or row["meta_json"] in (None, "{}"):
+    with get_engine().connect() as c:
+        row = c.execute(select(runs.c.meta_json).where(runs.c.run_id == run_id)).fetchone()
+    if not row or row[0] in (None, "{}"):
         return None
-    return RunMeta.model_validate_json(row["meta_json"])
+    return RunMeta.model_validate_json(row[0])
 
 
-def list_runs() -> list[dict]:
-    with _conn() as c:
-        rows = c.execute("SELECT run_id,economy,pillars,started_at,finished_at FROM runs ORDER BY started_at DESC").fetchall()
-    return [dict(r) for r in rows]
+def list_runs(user_id: str | None = None, limit: int | None = None) -> list[dict]:
+    """Run index, newest first. `user_id` scopes it to one account's history; omit it
+    (CLI/API/admin) to list every run including the pre-accounts ones."""
+    q = select(runs.c.run_id, runs.c.economy, runs.c.pillars, runs.c.started_at,
+               runs.c.finished_at, runs.c.user_id)
+    if user_id:
+        q = q.where(runs.c.user_id == user_id)
+    q = q.order_by(runs.c.started_at.desc())
+    if limit:
+        q = q.limit(limit)
+    with get_engine().connect() as c:
+        rows = c.execute(q).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+
+def claim_run(run_id: str, user_id: str) -> None:
+    """Attach a run to the account that launched it (set after the pipeline returns)."""
+    with get_engine().begin() as c:
+        c.execute(update(runs).where(runs.c.run_id == run_id).values(user_id=user_id))
+
+
+def run_summary(user_id: str | None = None) -> dict:
+    """Headline counts for the account's history panel."""
+    from sqlalchemy import func
+    q = select(func.count()).select_from(runs)
+    if user_id:
+        q = q.where(runs.c.user_id == user_id)
+    mq = select(func.count()).select_from(mappings)
+    if user_id:
+        mq = mq.where(mappings.c.run_id.in_(select(runs.c.run_id).where(runs.c.user_id == user_id)))
+    with get_engine().connect() as c:
+        return {"runs": c.execute(q).scalar() or 0, "mappings": c.execute(mq).scalar() or 0}
+
+
+def delete_run(run_id: str, user_id: str | None = None) -> bool:
+    """Remove a run and everything traceable to it. When `user_id` is given the delete
+    only lands if that account owns the run (so one user can't delete another's history)."""
+    eng = get_engine()
+    with eng.begin() as c:
+        owner = c.execute(select(runs.c.user_id).where(runs.c.run_id == run_id)).fetchone()
+        if not owner or (user_id is not None and owner[0] != user_id):
+            return False
+        for tbl in (documents, provisions, mappings):
+            c.execute(delete(tbl).where(tbl.c.run_id == run_id))
+        c.execute(delete(runs).where(runs.c.run_id == run_id))
+    return True
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)

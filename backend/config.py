@@ -79,6 +79,18 @@ class Settings(BaseSettings):
     # storage / outputs
     veritrade_db: str = "outputs/veritrade.db"
     output_dir: str = "outputs"
+    # Cloud-ready storage: everything goes through SQLAlchemy, so moving to a hosted
+    # Postgres is a one-line change — set DATABASE_URL=postgresql+psycopg://user:pw@host/db
+    # (and pip install psycopg[binary]). Empty → the local SQLite file above.
+    database_url: str = ""
+
+    # auth / sessions
+    auth_enabled: bool = True
+    # Days a "stay signed in" session cookie stays valid before re-login is required.
+    session_days: int = 14
+    # Google sign-in is optional: it only appears when Streamlit's OIDC block is
+    # configured in .streamlit/secrets.toml (see docs/AUTH.md). Email+password always works.
+    google_auth_enabled: bool = True
 
     # crawl / fetch (Zone 1 live discovery)
     # A browser-like UA gets past the basic bot blocks some gov portals apply (SG SSO
@@ -217,6 +229,13 @@ class Settings(BaseSettings):
         p = (ROOT / self.veritrade_db) if not Path(self.veritrade_db).is_absolute() else Path(self.veritrade_db)
         p.parent.mkdir(parents=True, exist_ok=True)
         return p
+
+    @property
+    def sqlalchemy_url(self) -> str:
+        """DATABASE_URL when set (cloud Postgres), else the local SQLite file."""
+        if self.database_url.strip():
+            return self.database_url.strip()
+        return f"sqlite:///{self.db_path.as_posix()}"
 
     @property
     def output_path(self) -> Path:

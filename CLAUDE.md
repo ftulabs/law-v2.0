@@ -201,7 +201,16 @@ Register new providers in `backend/providers/llm_factory.py`.
 
 ## 5. FRONTEND DESIGN REQUIREMENTS
 
-**Requirement:** All UI/CSS/frontend work must use a design skill (`frontend-design`, or the taste-skill principles the current design follows).
+**Requirement:** All UI/CSS/frontend work must use **taste-skill** (https://github.com/leonxlnx/taste-skill) — **not** the `frontend-design` skill, which produced interfaces users found unfriendly. Pull it with
+`gh api repos/Leonxlnx/taste-skill/contents/skills/taste-skill/SKILL.md --jq '.content' | base64 -d`.
+Its own SKILL.md scopes itself to landing pages (not dashboards) and targets React/Tailwind, so apply its **principles** — the public-sector / trust-first preset — not its stack.
+
+### Design-system plumbing (2026-08)
+Two files, one palette, and they must stay in sync:
+- **`.streamlit/config.toml`** styles Streamlit's **native** widgets. It defines BOTH `[theme.light]` and `[theme.dark]` (plus Inter/IBM Plex Mono via the `"Name:URL"` font form). Defining only one base was why light mode kept inheriting dark chrome.
+- **`frontend/theme.py`** styles **our own** markup, from the same hex values.
+
+Light/dark is switched in Streamlit's ⋮ → Settings; the app *follows* `st.context.theme.type`. Do **not** reintroduce an app-level theme toggle — a second independent switch is what let the two halves disagree.
 
 ### Design Direction: "Clear Research Tool" (2026-07 redesign)
 **Audience-first.** The users are **policy researchers (non-technical)**, who found the earlier "Legal Dossier" aesthetic hard to use. The dashboard now prioritises **clarity and ease of use over editorial style** — taste-skill's public-sector / trust-first preset (low visual variance, minimal motion, plain language, progressive disclosure).
@@ -372,6 +381,11 @@ Use this as if you're a judge reviewing VeriTrade for the RDTII hackathon:
 
 | Task | Command / File |
 |---|---|
+| Accounts / sessions | `backend/auth/service.py` · docs: `docs/AUTH_AND_DATABASE.md` |
+| Landing + sign-in screen | `frontend/auth_ui.py` (the app's signed-out state) |
+| Design system (shared) | `frontend/theme.py` + `.streamlit/config.toml` |
+| Storage engine / schema | `backend/storage/engine.py` (SQLAlchemy; `DATABASE_URL` → Postgres) |
+| Bypass login for a demo | `AUTH_ENABLED=false` in `.env` |
 | Run sample (offline) | `python main.py --economy Singapore --pillar 6` |
 | Run live | `python main.py --economy Singapore --pillar 6 --live --llm openrouter` |
 | Dashboard | `streamlit run frontend/app.py` |

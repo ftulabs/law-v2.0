@@ -10,8 +10,16 @@ python-dotenv>=1.0
 httpx>=0.27
 
 # --- Frontend ---
-streamlit>=1.33
+# 1.42+ for st.login/st.user (Google OIDC); 1.45+ for [theme.light]/[theme.dark] and
+# theme font registration, which the design system depends on.
+streamlit>=1.45
 pandas>=2.2
+
+# --- Storage & accounts ---
+# All persistence goes through SQLAlchemy, so moving to a hosted Postgres is just
+# DATABASE_URL=postgresql+psycopg://…  (then also add: psycopg[binary]>=3.1)
+SQLAlchemy>=2.0
+bcrypt>=4.1                # password hashing (never store or log a plaintext password)
 
 # --- Document parsing / extraction ---
 markitdown[pdf]>=0.0.1a2   # Microsoft MarkItDown — DEFAULT OCR/extraction engine

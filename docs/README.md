@@ -4,6 +4,7 @@
 |---|---|
 | [`landing.html`](landing.html) | **Landing page** — the public front door. Served by the app's static server at `/app/static/landing.html` (share `https://veritrade.ftu.fyi/app/static/landing.html`); "Open the app" points to the site root, "White paper" to the sibling file. WebGL earth with an SVG fallback when offline. |
 | [`whitepaper.html`](whitepaper.html) | **Technical white paper** — the full project write-up (open in a browser). Interactive: live confidence-score calculator, indicator explorer, architecture diagram, cost model. |
+| [`AUTH_AND_DATABASE.md`](AUTH_AND_DATABASE.md) | **Accounts & database** — how sign-in works (email+password, optional Google), sessions, the SQLAlchemy storage layer, and the one env var that moves it to cloud Postgres. |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | System architecture reference. |
 | [`PITCH.md`](PITCH.md) · [`DEMO.md`](DEMO.md) · [`HACKATHON_STATUS.md`](HACKATHON_STATUS.md) | Pitch notes, demo script, status. |
 | [`presentation/`](presentation/) | Pitch deck — `pitch-deck.html` (interactive, standalone) and `pitch-deck-content.md` (the 13-slide content pack). |

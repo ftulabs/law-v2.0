@@ -35,6 +35,8 @@ from backend.review import workflow  # noqa: E402
 from backend.schemas import Economy, RunResult, SUBMISSION_COLUMNS  # noqa: E402
 from backend.storage import db  # noqa: E402
 
+from frontend import auth_ui, theme  # noqa: E402
+
 db.init_db()  # ensure schema exists on fresh mounts (no-op if tables already present)
 
 # ── brand assets (drop files in frontend/assets/ — see ASSETS.md) ──────────
@@ -92,69 +94,24 @@ def logo_html() -> str:
     return '<h1 class="wordmark">Veri<span class="mark">Trade</span></h1>'
 
 
-_favicon = _asset("veritrade_favicon.png", "veritrade_icon.png", "veritrade_logo.png",
-                  "veritrade_logo.webp", "veritrade_logo.svg", "ftu_logo.png")
-st.set_page_config(page_title="VeriTrade", page_icon=str(_favicon) if _favicon else "⚖", layout="wide")
+theme.page_config("VeriTrade")
+theme.keyboard_guard()
+theme.inject_css()          # tokens + typography + native-widget palette (both themes)
 
-# ── keyboard guard ─────────────────────────────────────────────────────────
-# Streamlit binds BARE single keys on the page — notably "C" = Clear cache and "R" = Rerun.
-# When you press Ctrl/Cmd+C to COPY selected text, the "C" keydown also fires Streamlit's
-# shortcut, so a "Clear caches?" dialog pops up. This invisible (0-height) component installs a
-# capture-phase keydown listener on the PARENT document that stops any Ctrl/Cmd combo from
-# reaching Streamlit's global handler — so copy/paste/cut/select-all behave natively again.
-# It never calls preventDefault(), so the browser's own clipboard actions still work.
-import streamlit.components.v1 as _components  # noqa: E402
+# ── who's signed in ───────────────────────────────────────────────────────
+# Renders the landing page and stops here when nobody is; everything below this
+# line therefore always has a real account to attribute runs to.
+USER = auth_ui.require_user()
 
-_components.html(
-    """
-    <script>
-    (function () {
-      var doc = window.parent && window.parent.document;
-      if (!doc || doc.__veritradeKbdGuard) return;
-      doc.__veritradeKbdGuard = true;
-      doc.addEventListener('keydown', function (e) {
-        if (e.ctrlKey || e.metaKey) { e.stopImmediatePropagation(); }
-      }, true);  // capture phase → runs before Streamlit's listener
-    })();
-    </script>
-    """,
-    height=0,
-)
-
-# ── theme: the app owns it. A visible toggle (top-right) drives the palette via
-#    session_state. Dark (slate) is the default; Light is a clean white sheet. ──
-if "dark" not in st.session_state:
-    _t0 = getattr(getattr(st.context, "theme", None), "type", None)
-    st.session_state["dark"] = (_t0 != "light")
-DARK = st.session_state["dark"]
-
-if DARK:
-    PALETTE = (
-        "--paper:#0b1120; --paper-2:#111a2b; --paper-3:#1a2740;"
-        "--ink:#e9eef8; --ink-soft:#a3b0c9; --ink-faint:#6f7d99;"
-        "--rule:#26334d; --rule-soft:#1b2740;"
-        "--accent:#4f9cff; --accent-ink:#04122b;"
-        "--good:#34d399; --warn:#fbbf24; --bad:#f87171;"
-        "--appr:#60a5fa; --flag:#c084fc; --gold:#7cc4ff;"
-        "--panel:#111a2b; --panel-2:#16233a;"
-    )
-    APP_BG = "background-color:var(--paper);"
-    # the blue wordmark sits close to navy in luminance — lift it and add a thin light edge
-    # + a soft blue halo so it separates cleanly from the dark background
-    LOGO_FX = ("filter:brightness(1.15) drop-shadow(0 0 1px rgba(232,240,255,.55)) "
-               "drop-shadow(0 0 18px rgba(90,170,255,.28));")
-else:
-    PALETTE = (
-        "--paper:#ffffff; --paper-2:#f5f8fc; --paper-3:#eaeff6;"
-        "--ink:#0f172a; --ink-soft:#48566b; --ink-faint:#7a879c;"
-        "--rule:#dbe2ec; --rule-soft:#eaeff5;"
-        "--accent:#2563eb; --accent-ink:#ffffff;"
-        "--good:#15803d; --warn:#a16207; --bad:#dc2626;"  # gold (not orange) — distinct from red, AA on white
-        "--appr:#1d4ed8; --flag:#9333ea; --gold:#2563eb;"
-        "--panel:#f7f9fc; --panel-2:#eef3f9;"
-    )
-    APP_BG = "background-color:var(--paper);"
-    LOGO_FX = ""   # dark navy logo reads fine on the white sheet — no effect needed
+# The palette follows Streamlit's active theme (see theme.py) — the app no longer
+# keeps a second, independent theme flag that could disagree with native widgets.
+DARK = theme.is_dark()
+PALETTE = (theme.DARK if DARK else theme.LIGHT) + ("--gold:#7cc4ff;" if DARK else "--gold:#2563eb;")
+APP_BG = "background-color:var(--paper);"
+# the blue wordmark sits close to navy in luminance — lift it and add a thin light edge
+# + a soft blue halo so it separates cleanly from the dark background
+LOGO_FX = (("filter:brightness(1.15) drop-shadow(0 0 1px rgba(232,240,255,.55)) "
+            "drop-shadow(0 0 18px rgba(90,170,255,.28));") if DARK else "")
 
 st.markdown(
     f"""
@@ -765,20 +722,19 @@ def _secret(name: str, fallback: str = "") -> str:
     return fallback
 
 
-# ── top-right: white-paper link + theme toggle ─────────────────────────────
+# ── top-right: white-paper link + account ──────────────────────────────────
+# Light/dark now lives in Streamlit's own ⋮ → Settings menu: the app follows that one
+# setting so its custom markup and the native widgets can never disagree (they did when
+# the app kept a second toggle of its own).
 if _HAS_WHITEPAPER:
-    _sp, _wp_col, _theme_col = st.columns([7.6, 1.5, 1])
+    _sp, _wp_col, _acct_col = st.columns([6.6, 1.6, 1.8])
     with _wp_col:
-        # a real Streamlit link button → identical format to the theme toggle, opens a new tab
         st.link_button("📄 White paper", WHITEPAPER_URL,
                        help="Open the technical white paper in a new tab", width="stretch")
 else:
-    _sp, _theme_col = st.columns([9, 1])
-with _theme_col:
-    if st.button("☀ Light" if DARK else "☾ Dark", key="theme_toggle",
-                 help="Switch between light and dark", width="stretch"):
-        st.session_state["dark"] = not DARK
-        st.rerun()
+    _sp, _acct_col = st.columns([8.2, 1.8])
+with _acct_col:
+    auth_ui.account_control(USER)
 
 # ── header ─────────────────────────────────────────────────────────────────
 _a, _r = settings.conf_auto_accept, settings.conf_review_floor
@@ -903,10 +859,25 @@ with st.sidebar:
                                     "submission file.")
 
     st.markdown('<hr class="hr-thin">', unsafe_allow_html=True)
-    st.markdown('<div class="kicker">Past analyses</div>', unsafe_allow_html=True)
-    prev = db.list_runs()
+    st.markdown('<div class="kicker">Your past analyses</div>', unsafe_allow_html=True)
+    # scoped to the signed-in account, so one researcher never sees another's history
+    prev = db.list_runs(user_id=USER.user_id, limit=200)
+    _ECON_SHORT = {"SG": "Singapore", "AU": "Australia", "MY": "Malaysia"}
+
+    def _run_label(rid: str) -> str:
+        if rid == "—":
+            return "—"
+        r = next((x for x in prev if x["run_id"] == rid), None)
+        if not r:
+            return rid
+        econ = _ECON_SHORT.get(r["economy"], r["economy"] or "?")
+        when = (r["started_at"] or "")[:16].replace("T", " ")
+        return f"{econ} · {when}"
+
     chosen_prev = st.selectbox("Open a past analysis", ["—"] + [r["run_id"] for r in prev],
-                               label_visibility="collapsed")
+                               format_func=_run_label, label_visibility="collapsed")
+    if not prev:
+        st.caption("No analyses yet — run one above and it will be saved here.")
 
 # defaults when the Advanced expander was never opened this run
 ocr_choice = locals().get("ocr_choice", settings.ocr_provider)
@@ -980,6 +951,8 @@ if run_clicked and pillars:
             raise outcome["error"]
 
         result = outcome["result"]
+        # attribute the run to this account so it shows up in their history
+        db.claim_run(result.meta.run_id, USER.user_id)
         export_csv(result.mappings, result.meta.run_id)
         export_json(result)
         if any(m.raw_score is not None for m in result.mappings):

@@ -1,0 +1,268 @@
+"""Landing page + sign-in gate.
+
+Visiting the app signed-out shows the landing screen: a short, plain-language
+description of what VeriTrade does, links to the source and the white paper, and the
+sign-in / create-account card. Signing in reveals the tool itself. Nothing about the
+deployment changes — the landing simply *is* the app's unauthenticated state.
+
+Sessions survive a browser refresh via an opaque cookie whose SHA-256 is what the
+database stores (see backend/auth/service.py).
+"""
+from __future__ import annotations
+
+import streamlit as st
+import streamlit.components.v1 as components
+
+from backend import auth
+from backend.auth import AuthError
+from backend.config import settings
+
+from . import theme
+
+COOKIE = "vt_session"
+
+
+# ── cookie helpers ───────────────────────────────────────────────────────
+def _read_cookie() -> str:
+    try:
+        return (st.context.cookies or {}).get(COOKIE, "") or ""
+    except Exception:
+        return ""
+
+
+def _write_cookie(token: str, days: int) -> None:
+    """Set the session cookie on the PARENT document (the component runs in an iframe).
+    SameSite=Lax keeps it from riding along on cross-site requests."""
+    components.html(
+        f"""<script>(function(){{var d=window.parent&&window.parent.document; if(!d)return;
+        var s=(location.protocol==='https:')?';Secure':'';
+        d.cookie="{COOKIE}={token};path=/;max-age={days*86400};SameSite=Lax"+s;}})();</script>""",
+        height=0,
+    )
+
+
+def _clear_cookie() -> None:
+    components.html(
+        f"""<script>(function(){{var d=window.parent&&window.parent.document; if(!d)return;
+        d.cookie="{COOKIE}=;path=/;max-age=0;SameSite=Lax";}})();</script>""",
+        height=0,
+    )
+
+
+# ── session ──────────────────────────────────────────────────────────────
+def current_user() -> auth.User | None:
+    """Signed-in user for this script run: session_state first (fast), then the cookie
+    (survives refresh)."""
+    u = st.session_state.get("user")
+    if u is not None:
+        return u
+    token = st.session_state.get("session_token") or _read_cookie()
+    if token:
+        user = auth.resolve_session(token)
+        if user:
+            st.session_state["user"] = user
+            st.session_state["session_token"] = token
+            return user
+    return None
+
+
+def _start_session(user: auth.User) -> None:
+    token = auth.create_session(user.user_id)
+    st.session_state["user"] = user
+    st.session_state["session_token"] = token
+    _write_cookie(token, settings.session_days)
+
+
+def sign_out() -> None:
+    auth.destroy_session(st.session_state.get("session_token", ""))
+    for k in ("user", "session_token", "run_id"):
+        st.session_state.pop(k, None)
+    _clear_cookie()
+    try:                      # also end Streamlit's own OIDC session if one is active
+        if getattr(st.user, "is_logged_in", False):
+            st.logout()
+    except Exception:
+        pass
+    st.rerun()
+
+
+# ── Google (native OIDC) ─────────────────────────────────────────────────
+def _google_ready() -> bool:
+    """True only when an OIDC provider is actually configured in secrets.toml — the
+    button stays hidden otherwise, so it can never fail in front of a user."""
+    if not settings.google_auth_enabled:
+        return False
+    try:
+        a = st.secrets.get("auth", {})
+        return bool(a) and ("google" in a or "client_id" in a)
+    except Exception:
+        return False
+
+
+def _adopt_google_login() -> auth.User | None:
+    """If Streamlit's OIDC flow has completed, turn that identity into our own account."""
+    try:
+        if not getattr(st.user, "is_logged_in", False):
+            return None
+        email = getattr(st.user, "email", "") or ""
+        if not email:
+            return None
+        return auth.sign_in_with_google(email, getattr(st.user, "name", "") or "")
+    except Exception:
+        return None
+
+
+# ── UI ───────────────────────────────────────────────────────────────────
+_LANDING_CSS = """
+<style>
+  .land-hero{padding:.5rem 0 1.4rem;}
+  .land-eyebrow{display:inline-flex;align-items:center;gap:.5rem;font-size:.78rem;font-weight:600;
+    color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-soft);
+    padding:.28rem .7rem;border-radius:99px;margin-bottom:1rem;}
+  .land-eyebrow::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent);}
+  .land-title{font-size:clamp(1.9rem,3.6vw,2.7rem);font-weight:800;letter-spacing:-.03em;
+    line-height:1.1;margin:.2rem 0 .7rem;}
+  .land-title .accent{color:var(--accent);}
+  .land-lede{font-size:1.05rem;color:var(--ink-soft);max-width:56ch;margin:0 0 1.2rem;}
+  .land-steps{display:grid;gap:.6rem;margin:1.2rem 0;}
+  .land-step{display:grid;grid-template-columns:30px 1fr;gap:.8rem;align-items:start;}
+  .land-step .n{width:30px;height:30px;border-radius:50%;background:var(--accent);color:var(--accent-ink);
+    font-weight:700;font-size:.85rem;display:flex;align-items:center;justify-content:center;}
+  .land-step .t{font-weight:600;}
+  .land-step .d{color:var(--ink-soft);font-size:.9rem;line-height:1.5;}
+  .land-facts{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.1rem;}
+  .land-fact{border:1px solid var(--rule);background:var(--panel);border-radius:99px;
+    padding:.3rem .8rem;font-size:.8rem;color:var(--ink-soft);}
+  .land-fact b{color:var(--ink);}
+  .auth-card{border:1px solid var(--rule);border-radius:14px;background:var(--panel);
+    padding:1.3rem 1.4rem;box-shadow:var(--shadow);}
+  .auth-card h3{margin:0 0 .2rem;font-size:1.15rem;}
+  .auth-card .sub{color:var(--ink-soft);font-size:.88rem;margin-bottom:.6rem;}
+  .auth-or{display:flex;align-items:center;gap:.7rem;color:var(--ink-faint);font-size:.78rem;margin:.8rem 0 .4rem;}
+  .auth-or::before,.auth-or::after{content:"";flex:1;height:1px;background:var(--rule);}
+  .land-foot{color:var(--ink-faint);font-size:.82rem;margin-top:1.6rem;
+    border-top:1px solid var(--rule-soft);padding-top:1rem;}
+</style>
+"""
+
+
+def _landing_intro() -> None:
+    st.markdown(_LANDING_CSS, unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="land-hero">{theme.wordmark_html(52)}'
+        '<div class="land-eyebrow" style="margin-top:.9rem">UN ESCAP · RDTII 2.1 · Team FTU</div>'
+        '<div class="land-title">Find the law, <span class="accent">prove the clause</span></div>'
+        '<p class="land-lede">VeriTrade searches official government websites, reads the documents '
+        '(including scanned PDFs), and matches each provision to the right RDTII indicator — with the '
+        'exact quote, a link to the source, and a confidence score you can check.</p>'
+        '<div class="land-steps">'
+        '<div class="land-step"><div class="n">1</div><div><div class="t">Choose a country and a pillar</div>'
+        '<div class="d">Singapore, Australia or Malaysia · cross-border data, or data protection &amp; cybersecurity.</div></div></div>'
+        '<div class="land-step"><div class="n">2</div><div><div class="t">VeriTrade finds and reads the law</div>'
+        '<div class="d">No seed links, no hand-picked corpus — it searches the official portals live.</div></div></div>'
+        '<div class="land-step"><div class="n">3</div><div><div class="t">Get citable evidence</div>'
+        '<div class="d">A verbatim quote, article-level citation and source URL for every result, ready to export.</div></div></div>'
+        '</div>'
+        '<div class="land-facts">'
+        '<span class="land-fact"><b>3</b> economies</span>'
+        '<span class="land-fact"><b>9</b> RDTII indicators</span>'
+        '<span class="land-fact"><b>1.11%</b> OCR error rate</span>'
+        '<span class="land-fact"><b>100%</b> verbatim citations</span>'
+        '</div></div>',
+        unsafe_allow_html=True,
+    )
+    c1, c2 = st.columns(2)
+    c1.link_button("📄  White paper", theme.WHITEPAPER_URL, width="stretch")
+    c2.link_button("⌥  Source on GitHub", theme.REPO_URL, width="stretch")
+
+
+def _auth_card() -> None:
+    st.markdown('<div class="auth-card">', unsafe_allow_html=True)
+    tab_in, tab_up = st.tabs(["Sign in", "Create account"])
+
+    with tab_in:
+        with st.form("sign_in", clear_on_submit=False):
+            email = st.text_input("Email", key="in_email", placeholder="you@organisation.org")
+            pw = st.text_input("Password", type="password", key="in_pw", placeholder="Your password")
+            ok = st.form_submit_button("Sign in", type="primary", width="stretch")
+        if ok:
+            try:
+                with st.spinner("Signing you in…"):
+                    user = auth.sign_in(email, pw)
+                _start_session(user)
+                st.success(f"Welcome back, {user.display_name}.")
+                st.rerun()
+            except AuthError as e:
+                st.error(str(e))
+            except Exception:
+                st.error("Sorry — sign-in is unavailable right now. Please try again.")
+
+    with tab_up:
+        with st.form("sign_up", clear_on_submit=False):
+            name = st.text_input("Your name", key="up_name", placeholder="Jane Researcher")
+            org = st.text_input("Organisation (optional)", key="up_org", placeholder="Ministry / university / firm")
+            email2 = st.text_input("Email", key="up_email", placeholder="you@organisation.org")
+            pw2 = st.text_input("Password", type="password", key="up_pw",
+                                placeholder="At least 8 characters",
+                                help="At least 8 characters. Stored only as a secure hash.")
+            ok2 = st.form_submit_button("Create account", type="primary", width="stretch")
+        if ok2:
+            try:
+                with st.spinner("Creating your account…"):
+                    user = auth.sign_up(email2, pw2, name, org)
+                _start_session(user)
+                st.success("Account created — welcome to VeriTrade.")
+                st.rerun()
+            except AuthError as e:
+                st.error(str(e))
+            except Exception:
+                st.error("Sorry — we couldn't create the account right now. Please try again.")
+
+    if _google_ready():
+        st.markdown('<div class="auth-or">or</div>', unsafe_allow_html=True)
+        if st.button("Continue with Google", width="stretch", key="google_btn"):
+            try:
+                st.login("google")
+            except Exception:
+                st.error("Google sign-in isn't configured on this deployment.")
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.caption("Your email is used only to save your analysis history. Passwords are stored hashed, never in plain text.")
+
+
+def require_user() -> auth.User:
+    """Gate the app. Returns the signed-in user, or renders the landing page and stops."""
+    if not settings.auth_enabled:                      # escape hatch for CLI-style demos
+        return auth.User(user_id="local", email="local@veritrade", name="Local user")
+
+    user = current_user()
+    if user is None:                                   # a completed Google flow counts as signed in
+        g = _adopt_google_login()
+        if g:
+            _start_session(g)
+            user = g
+    if user is not None:
+        return user
+
+    left, right = st.columns([1.35, 1], gap="large")
+    with left:
+        _landing_intro()
+    with right:
+        _auth_card()
+    st.markdown(
+        '<div class="land-foot">Team FTU · Foreign Trade University · '
+        'UN ESCAP / KMITL Global Hackathon 2026 · Apache-2.0</div>',
+        unsafe_allow_html=True,
+    )
+    st.stop()
+
+
+def account_control(user: auth.User) -> None:
+    """Signed-in identity + sign-out, rendered in the app's top-right."""
+    with st.popover(f"👤  {user.display_name}", width="stretch"):
+        st.markdown(f"**{user.display_name}**")
+        st.caption(user.email + (f" · {user.organisation}" if user.organisation else ""))
+        if user.auth_provider == "google":
+            st.caption("Signed in with Google")
+        st.markdown('<hr class="hr-thin">', unsafe_allow_html=True)
+        if st.button("Sign out", key="sign_out_btn", width="stretch"):
+            sign_out()
