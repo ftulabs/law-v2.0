@@ -134,10 +134,6 @@ _LANDING_CSS = """
   .land-fact{border:1px solid var(--rule);background:var(--panel);border-radius:99px;
     padding:.3rem .8rem;font-size:.8rem;color:var(--ink-soft);}
   .land-fact b{color:var(--ink);}
-  .auth-card{border:1px solid var(--rule);border-radius:14px;background:var(--panel);
-    padding:1.3rem 1.4rem;box-shadow:var(--shadow);}
-  .auth-card h3{margin:0 0 .2rem;font-size:1.15rem;}
-  .auth-card .sub{color:var(--ink-soft);font-size:.88rem;margin-bottom:.6rem;}
   .auth-or{display:flex;align-items:center;gap:.7rem;color:var(--ink-faint);font-size:.78rem;margin:.8rem 0 .4rem;}
   .auth-or::before,.auth-or::after{content:"";flex:1;height:1px;background:var(--rule);}
   .land-foot{color:var(--ink-faint);font-size:.82rem;margin-top:1.6rem;
@@ -149,7 +145,7 @@ _LANDING_CSS = """
 def _landing_intro() -> None:
     st.markdown(_LANDING_CSS, unsafe_allow_html=True)
     st.markdown(
-        f'<div class="land-hero">{theme.wordmark_html(52)}'
+        f'<div class="land-hero">{theme.wordmark_html(76)}'
         '<div class="land-eyebrow" style="margin-top:.9rem">UN ESCAP · RDTII 2.1 · Team FTU</div>'
         '<div class="land-title">Find the law, <span class="accent">prove the clause</span></div>'
         '<p class="land-lede">VeriTrade searches official government websites, reads the documents '
@@ -177,7 +173,14 @@ def _landing_intro() -> None:
 
 
 def _auth_card() -> None:
-    st.markdown('<div class="auth-card">', unsafe_allow_html=True)
+    # A real bordered container — a raw <div> can't wrap Streamlit widgets (each element
+    # gets its own container), so an opening tag just renders as an empty box.
+    card = st.container(border=True)
+    with card:
+        _auth_card_body()
+
+
+def _auth_card_body() -> None:
     tab_in, tab_up = st.tabs(["Sign in", "Create account"])
 
     with tab_in:
@@ -225,8 +228,8 @@ def _auth_card() -> None:
                 st.login("google")
             except Exception:
                 st.error("Google sign-in isn't configured on this deployment.")
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.caption("Your email is used only to save your analysis history. Passwords are stored hashed, never in plain text.")
+    st.caption("Your email is used only to save your analysis history. "
+               "Passwords are stored hashed, never in plain text.")
 
 
 def require_user() -> auth.User:
@@ -243,6 +246,9 @@ def require_user() -> auth.User:
     if user is not None:
         return user
 
+    _sp, _th = st.columns([8.4, 1.1])      # theme switch is available before signing in too
+    with _th:
+        theme.theme_toggle(key="theme_toggle_landing")
     left, right = st.columns([1.35, 1], gap="large")
     with left:
         _landing_intro()

@@ -722,17 +722,18 @@ def _secret(name: str, fallback: str = "") -> str:
     return fallback
 
 
-# ── top-right: white-paper link + account ──────────────────────────────────
-# Light/dark now lives in Streamlit's own ⋮ → Settings menu: the app follows that one
-# setting so its custom markup and the native widgets can never disagree (they did when
-# the app kept a second toggle of its own).
+# ── top-right: white-paper link + theme switch + account ───────────────────
+# The theme button drives Streamlit's own light/dark setting (see theme.theme_toggle),
+# so the native widgets and our CSS always switch together.
 if _HAS_WHITEPAPER:
-    _sp, _wp_col, _acct_col = st.columns([6.6, 1.6, 1.8])
+    _sp, _wp_col, _th_col, _acct_col = st.columns([5.4, 1.6, 1.1, 1.8])
     with _wp_col:
         st.link_button("📄 White paper", WHITEPAPER_URL,
                        help="Open the technical white paper in a new tab", width="stretch")
 else:
-    _sp, _acct_col = st.columns([8.2, 1.8])
+    _sp, _th_col, _acct_col = st.columns([7.1, 1.1, 1.8])
+with _th_col:
+    theme.theme_toggle()
 with _acct_col:
     auth_ui.account_control(USER)
 

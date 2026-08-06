@@ -4,9 +4,10 @@ Single source of truth pairing with `.streamlit/config.toml`: that file styles
 Streamlit's NATIVE widgets, this module styles our own markup. The two use the same
 hex values, so a light-mode screen can no longer end up with dark-mode chrome.
 
-The app FOLLOWS Streamlit's active theme (`st.context.theme.type`) rather than
-owning a separate toggle — a second, independent switch was exactly what let the two
-halves disagree. Users change the theme from the ⋮ menu → Settings, or their OS.
+The app FOLLOWS Streamlit's active theme (`st.context.theme.type`); it never keeps a
+theme flag of its own. The visible toggle (`theme_toggle`) sets *Streamlit's* stored
+preference and reloads, so native widgets and our markup always switch together — a
+second, independent switch was exactly what let the two halves disagree.
 
 Design direction: "clear research tool" — plain language, one accent, one radius
 scale, minimal motion, WCAG-AA contrast in both modes.
@@ -215,3 +216,36 @@ def inject_css() -> None:
 def page_config(title: str = "VeriTrade") -> None:
     ico = favicon()
     st.set_page_config(page_title=title, page_icon=ico or "⚖", layout="wide")
+
+
+# ── light / dark switch ──────────────────────────────────────────────────
+# This drives Streamlit's REAL theme, not a private flag of our own. Streamlit keeps
+# the user's choice in localStorage under `stActiveTheme-<pathname>-v2`, whose value is
+# a JSON string: "Light" | "Dark" | "System". Writing that key and reloading is exactly
+# what its own Settings dialog does, so native widgets AND our CSS switch together —
+# the previous app-level toggle only ever repainted our own markup.
+_THEME_KEY_JS = "'stActiveTheme-' + w.location.pathname + '-v2'"
+
+
+def _apply_streamlit_theme(name: str) -> None:
+    """Persist the choice the way Streamlit does, then reload so it takes effect."""
+    import streamlit.components.v1 as components
+    components.html(
+        f"""<script>(function(){{
+          var w = window.parent; if (!w) return;
+          try {{
+            w.localStorage.setItem({_THEME_KEY_JS}, JSON.stringify("{name}"));
+            w.location.reload();
+          }} catch (e) {{}}
+        }})();</script>""",
+        height=0,
+    )
+
+
+def theme_toggle(key: str = "theme_toggle") -> None:
+    """Visible light/dark button. Labelled with the mode it switches TO."""
+    dark = is_dark()
+    target = "Light" if dark else "Dark"
+    if st.button(f"{'☀' if dark else '☾'}  {target}", key=key,
+                 help=f"Switch to {target.lower()} mode", width="stretch"):
+        _apply_streamlit_theme(target)

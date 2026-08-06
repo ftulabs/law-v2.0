@@ -104,6 +104,9 @@ operator/audit view needs.
 inheriting dark chrome, and Inter/IBM Plex Mono are registered as theme fonts so widget
 labels match our headings.
 
-Light/dark is switched from Streamlit's **⋮ → Settings** menu (or the OS setting). The
-app *follows* that single setting — it no longer keeps a second toggle of its own,
-because two independent switches were exactly what let the two halves disagree.
+Light/dark has a visible toggle in the top-right (and on the landing page). It drives
+**Streamlit's own** theme preference rather than a private flag: it writes
+`localStorage["stActiveTheme-<pathname>-v2"]` (`"Light"` / `"Dark"` / `"System"`) and
+reloads — the same thing Streamlit's ⋮ → Settings dialog does — so the native widgets
+and our CSS switch together. The old toggle only repainted our own markup, which is why
+light mode used to keep dark chrome.

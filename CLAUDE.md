@@ -210,7 +210,9 @@ Two files, one palette, and they must stay in sync:
 - **`.streamlit/config.toml`** styles Streamlit's **native** widgets. It defines BOTH `[theme.light]` and `[theme.dark]` (plus Inter/IBM Plex Mono via the `"Name:URL"` font form). Defining only one base was why light mode kept inheriting dark chrome.
 - **`frontend/theme.py`** styles **our own** markup, from the same hex values.
 
-Light/dark is switched in Streamlit's ⋮ → Settings; the app *follows* `st.context.theme.type`. Do **not** reintroduce an app-level theme toggle — a second independent switch is what let the two halves disagree.
+Light/dark: the visible toggle (`theme.theme_toggle()`) writes **Streamlit's own** preference — `localStorage["stActiveTheme-<pathname>-v2"] = "Light"|"Dark"|"System"` — then reloads, which is exactly what its Settings dialog does. The app then *follows* `st.context.theme.type`.
+
+**Never give the app its own theme flag** (e.g. `session_state["dark"]`). That was the original bug: a private flag repainted only our markup while native widgets kept the config theme. One source of truth — Streamlit's — or the two halves drift apart again.
 
 ### Design Direction: "Clear Research Tool" (2026-07 redesign)
 **Audience-first.** The users are **policy researchers (non-technical)**, who found the earlier "Legal Dossier" aesthetic hard to use. The dashboard now prioritises **clarity and ease of use over editorial style** — taste-skill's public-sector / trust-first preset (low visual variance, minimal motion, plain language, progressive disclosure).
