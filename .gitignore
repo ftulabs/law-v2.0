@@ -31,3 +31,16 @@ streamlit*.log
 
 # generated: white paper copied from docs/whitepaper.html for Streamlit static serving
 frontend/static/
+
+# submission build artifacts (zips generated for the JotForm upload)
+FTU-VeriTrade_*.zip
+
+# separate AI4Econ paper project (kept out of the hackathon repo)
+docs/paper/
+
+# personal working docs — internal notes, not deliverables
+docs/precompute-corpus.md
+docs/video-script.md
+
+# organiser-provided reference PDFs (not our authored work)
+docs/presentation/Pitching Rules.pdf
