@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VeriTrade — cue diagram · 6:00</title>
+<style>
+:root{
+  --bg:#080b10; --card:#0d1219; --box:#101821; --rule:#1e2833; --rule2:#2c3c4d;
+  --txt:#e6edf5; --dim:#8a9cb0; --faint:#516375;
+  --sig:#5cc8ff; --amber:#ffb454; --late:#ff6b6b;
+  --mono:"Cascadia Code","JetBrains Mono","IBM Plex Mono",Consolas,monospace;
+  --cond:"Bahnschrift","DIN Alternate","Segoe UI Semibold",sans-serif;
+  --body:"Segoe UI","Inter",system-ui,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--txt);font-family:var(--body);font-size:16px;line-height:1.5;
+  overflow:hidden;display:flex;flex-direction:column}
+::selection{background:#0e4a6b;color:#fff}
+
+/* ---------- clock ---------- */
+.top{display:flex;align-items:center;gap:15px;padding:9px 24px;border-bottom:1px solid var(--rule);flex:none}
+.time{font-family:var(--mono);font-size:25px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
+.tot{font-family:var(--mono);font-size:12px;color:var(--faint)}
+.bar{flex:1;height:4px;background:#131c26;border-radius:2px;position:relative;overflow:hidden;min-width:60px}
+.bar .fill{position:absolute;inset:0 auto 0 0;width:0;background:var(--sig);transition:width .3s linear}
+.bar .tick{position:absolute;top:0;bottom:0;width:1px;background:#243444}
+.delta{font-family:var(--mono);font-size:12px;color:var(--dim);white-space:nowrap}
+.delta.late{color:var(--late)}
+.btn{font-family:var(--cond);font-size:12px;letter-spacing:.14em;color:var(--dim);background:#101822;
+  border:1px solid var(--rule2);border-radius:3px;padding:6px 12px;cursor:pointer}
+.btn:hover{color:var(--txt);border-color:#3d566e}
+.btn.live{background:var(--sig);color:#06121c;border-color:var(--sig);font-weight:700}
+
+/* ---------- pipeline strip ---------- */
+.pipe{display:flex;align-items:center;padding:8px 24px;border-bottom:1px solid var(--rule);
+  overflow-x:auto;scrollbar-width:none;flex:none}
+.pipe::-webkit-scrollbar{display:none}
+.st{font-family:var(--mono);font-size:11.5px;color:#3f4f60;white-space:nowrap;padding:3px 9px;
+  border-radius:3px;transition:.18s}
+.st.on{color:#06121c;background:var(--sig);font-weight:700}
+.sep{color:#233241;font-size:11px}
+.zn{font-family:var(--cond);font-size:10px;letter-spacing:.16em;color:var(--faint);padding:0 8px 0 4px}
+
+/* ---------- diagram ---------- */
+.map{flex:none;padding:16px 24px 12px;border-bottom:1px solid var(--rule);
+  display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+.col{min-width:0;position:relative}
+.col+.col::before{content:"›";position:absolute;left:-14px;top:5px;color:#2c3d4e;font-size:17px}
+.chead{display:flex;align-items:baseline;gap:9px;margin-bottom:9px;padding-left:2px}
+.chead .cid{font-family:var(--cond);font-size:12.5px;letter-spacing:.13em;color:#7b90a6;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chead .crng{font-family:var(--mono);font-size:10px;color:var(--faint);flex:none}
+.col.act .chead .cid{color:var(--sig)}
+
+.stack{display:flex;flex-direction:column;gap:9px}
+.blk{position:relative;text-align:left;cursor:pointer;font:inherit;color:inherit;
+  background:var(--box);border:1px solid var(--rule);border-left:3px solid var(--rule2);
+  border-radius:4px;padding:9px 12px;min-height:56px;transition:.14s}
+.blk+.blk::before{content:"";position:absolute;left:14px;top:-9px;height:9px;width:1px;background:var(--rule2)}
+.blk:hover{border-color:#3d566e;background:#131e29}
+.blk .tm{font-family:var(--mono);font-size:10.5px;color:var(--faint);display:block;margin-bottom:2px}
+.blk .tt{font-family:var(--cond);font-size:15px;line-height:1.22;color:#9aafc4;display:block}
+.blk.on{background:linear-gradient(180deg,#123449,#0e2739);border-color:var(--sig);
+  border-left-color:var(--sig);box-shadow:0 0 0 1px var(--sig)}
+.blk.on .tt{color:#fff;font-weight:600}
+.blk.on .tm{color:var(--sig)}
+.blk.past{opacity:.5}
+.blk.due{border-left-color:var(--amber)}
+.blk.due .tm{color:var(--amber)}
+
+/* ---------- fixed detail card ---------- */
+.card{flex:1;min-height:0;overflow-y:auto;padding:20px 26px 62px;
+  scrollbar-width:thin;scrollbar-color:var(--rule2) transparent}
+.slide{font-family:var(--mono);font-size:11.5px;color:var(--faint);margin-bottom:13px}
+.slide b{color:var(--sig);font-weight:400}
+.keys{list-style:none;margin-bottom:18px;max-width:1250px}
+.keys li{position:relative;padding-left:19px;margin-bottom:7px;font-size:19px;line-height:1.4;color:#dde8f3}
+.keys li::before{content:"";position:absolute;left:0;top:.66em;width:9px;height:1px;background:var(--sig)}
+.keys b{color:#fff;font-weight:600}
+.lbl{font-family:var(--cond);font-size:10.5px;letter-spacing:.2em;color:var(--faint);margin:0 0 9px;
+  display:flex;align-items:center;gap:10px}
+.lbl::after{content:"";flex:1;height:1px;background:var(--rule)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+.chip{font-family:var(--mono);font-size:14.5px;color:#b7e5ff;background:#0c2434;border:1px solid #1d4c69;
+  border-radius:3px;padding:5px 10px}
+.nums{display:flex;flex-wrap:wrap;gap:9px 26px;margin-bottom:14px}
+.num{font-family:var(--mono);font-size:15px;color:#e4eff9}
+.num span{color:var(--dim);font-size:13px;margin-left:7px}
+.watch{font-size:15px;color:#f3ddb4;border-left:2px solid var(--amber);padding:5px 0 5px 13px;max-width:1100px}
+
+.foot{position:fixed;bottom:0;left:0;right:0;padding:7px 24px;background:#060910;
+  border-top:1px solid var(--rule);font-family:var(--mono);font-size:11px;color:#485b6e;display:flex;gap:22px}
+.foot kbd{background:#111a24;border:1px solid var(--rule2);border-radius:2px;padding:1px 5px;color:var(--dim)}
+@media (max-width:1100px){.map{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="time" id="time">0:00</div><div class="tot">/ 6:00</div>
+  <div class="bar" id="bar"><div class="fill" id="fill"></div></div>
+  <div class="delta" id="delta">not started</div>
+  <button class="btn" id="run">START</button>
+  <button class="btn" id="auto">AUTO ▪</button>
+  <button class="btn" id="rst">RESET</button>
+</div>
+
+<div class="pipe" id="pipe"></div>
+<div class="map" id="map"></div>
+<div class="card" id="card"></div>
+
+<div class="foot">
+  <span><kbd>←</kbd><kbd>→</kbd> next block</span>
+  <span><kbd>S</kbd> clock</span>
+  <span><kbd>A</kbd> auto-follow</span>
+  <span><kbd>G</kbd> jump to due block</span>
+  <span><kbd>R</kbd> reset</span>
+</div>
+
+<script>
+const STAGES = [
+  {k:"input", n:"Economy + Pillar", z:""},
+  {k:"discover", n:"Discover", z:"ZONE 1"},
+  {k:"resolve", n:"Resolve versions", z:""},
+  {k:"fetch", n:"Fetch", z:""},
+  {k:"extract", n:"Extract", z:"ZONE 2"},
+  {k:"retrieve", n:"Retrieve", z:""},
+  {k:"map", n:"Map", z:""},
+  {k:"conf", n:"Confidence", z:""},
+  {k:"score", n:"Score", z:"ZONE 3"},
+  {k:"out", n:"CSV + JSON", z:""}
+];
+
+const PARTS = [
+  {id:"① ACCURACY & ARCHITECTURE", from:0,   to:60},
+  {id:"② ZONE 1 — FIND THE LAW",   from:60,  to:180},
+  {id:"③ ZONE 2 & 3 — READ · MAP · SCORE", from:180, to:300},
+  {id:"④ CLOSE",                   from:300, to:360}
+];
+
+const B = [
+{p:0,t:0,stage:["out","extract"],slide:"Evaluation & Performance — <b>Citation fidelity</b>",
+ title:"Verbatim above everything",
+ keys:["The one thing that must be right: <b>the quote is exactly what the law says</b>",
+       "A wrong quote looks right → reviewer accepts it → it enters an index governments read",
+       "Paraphrase can't be audited → verbatim made a <b>property of the design</b>, not a target",
+       "Model never writes the snippet · copied from source · grounding-checked · character span",
+       "Other numbers protect the same promise (OCR measured · 9/9 · 14 laws 0 junk)"],
+ tech:["snippet copied, never generated","grounding check (snippet ∈ fetched doc)","character-span provenance",
+       "ground-truth sidecar CER","in-force re-verification","explicit “no evidence” rows"],
+ nums:[["100%","verbatim by construction"],["1.11%","CER vs 5% bar"],["9/9","indicators"],["14 / 0","laws / junk, AU P6"]],
+ watch:"Close with: pick any row in Q&A and we verify it against the portal together."},
+
+{p:0,t:30,stage:[],slide:"System Architecture",
+ title:"The pipeline built around it",
+ keys:["Input = <b>economy + pillar</b>. Nothing else. No seed URLs, no hardcoded law names",
+       "Three zones mirror the researcher: <b>find → read & cite → score</b>",
+       "Every row: verbatim quote · article · source URL · confidence · audit log",
+       "Live and sample runs share the same code"],
+ tech:["Zone 1 / 2 / 3","confidence routing 0.85 / 0.60","content-addressed cache",
+       "13-column CSV + JSON audit trail","SQLite review store","same code path live & sample"],
+ nums:[["9","indicators, Pillars 6 + 7"],["0","seed URLs / hardcoded names"]],
+ watch:"Frame only — no technique yet."},
+
+{p:1,t:60,stage:["discover"],slide:"Backend Logic (1/2) · 1. Discover",
+ title:"Two query lanes",
+ keys:["Queries <b>generated from the indicator definitions</b> — the proof nothing is hardcoded",
+       "Lane 1 <b>name fragments</b> · Lane 2 <b>obligation phrases</b> (what the clause requires)",
+       "“data must be stored in” → <b>Companies Act</b> for 6.2 — a title that says nothing about data",
+       "Obligation lane only where real full-text search exists"],
+ tech:["two query lanes","obligation-phrase search","name fragments","queries built from indicator legal_test",
+       "site-scoped full-text search","Serper.dev + DuckDuckGo / Mojeek fallback","NAME_ONLY_PORTALS = {AU, MY}"],
+ nums:[["0","seed URLs"]],
+ watch:""},
+
+{p:1,t:90,stage:["resolve"],slide:"Backend Logic (1/2) · 1. Discover, bullets 2–3",
+ title:"Right law ≠ right version",
+ keys:["Every URL variant collapses to <b>one statute identity</b>",
+       "Keep the <b>in-force consolidated text</b>; repealed acts and bills dropped",
+       "<b>“Last Amended” read from the portal's own revision timeline</b>, never guessed from the title",
+       "AU hits re-verified in force by register id"],
+ tech:["statute identity dedup","in-force consolidated text","repealed / bill filter",
+       "AU register title-id re-verification","SG embedded JSON timeline","MY data-log-type events",
+       "AU compilation feed","“Original” for never-amended laws"],
+ nums:[],
+ watch:"Pre-answers “how do you know it's still in force?”"},
+
+{p:1,t:120,stage:["fetch"],slide:"Backend Logic (1/2) · 2. Fetch",
+ title:"Blocked at the handshake",
+ keys:["A plain crawler takes <b>403 before sending a single header</b>",
+       "Tier 1 <b>impersonates a real Chrome TLS fingerprint</b> — no browser",
+       "Tier 2 <b>stealth browser</b> only when challenged · Tier 3 plain httpx",
+       "Polite per-host delay · same bytes never fetched twice"],
+ tech:["TLS / JA3 fingerprint impersonation","curl_cffi · Scrapling (tier 1)","Camoufox stealth browser (tier 2)",
+       "httpx fallback (tier 3)","per-host polite delay","content-addressed cache",
+       "landing page → real PDF resolution"],
+ nums:[["403 → 200","same URL, different handshake"]],
+ watch:"Say “the handshake, not the headers.”"},
+
+{p:1,t:150,stage:["fetch","discover"],slide:"Competitive Advantage · <b>Survives real portals</b>",
+ title:"Three traps, one invisible",
+ keys:["<b>AU</b>: official full-text <code>$search</code> is <b>broken</b> — verified live → title lane + content lane",
+       "<b>MY</b>: Google barely indexes the portal → read <b>the portal's own catalogue</b>, ~880 acts, bilingual",
+       "<b>AU again</b>: Angular app → a crawler gets <b>menus, not law</b>, and <b>does not error</b>",
+       "A naive pipeline “succeeds” and maps navigation chrome to indicators — silent garbage",
+       "Detected by <b>framework markers + no statute structure</b> → authorised PDF via documents feed"],
+ tech:["broken OData $search (verified live)","portal catalogue JSON (~880 acts, bilingual)",
+       "Angular / JS shell detection","framework markers + absent statute structure",
+       "OData documents feed","authorised compilation PDF"],
+ nums:[["0","bogus provisions from the shell"]],
+ watch:"STRONGEST BEAT — slow down. “The success that is a failure.”"},
+
+{p:2,t:180,stage:["extract"],slide:"Backend Logic (1/2) · 3. Extract, bullet 1",
+ title:"Documents that lie about themselves",
+ keys:["PDFs that <b>claim</b> a text layer and are photographs of paper",
+       "<b>Character density per page</b> decides the route: text layer vs real raster OCR",
+       "We don't claim accuracy — <b>edit distance against a hand-checked sidecar</b>",
+       "Engines that could read the sidecar are <b>excluded from the metric</b>"],
+ tech:["per-page text-density detector","MarkItDown (text layer)","RapidOCR · PaddleOCR (raster)",
+       "CER = edit distance vs ground-truth sidecar","sidecar-reading engines excluded",
+       "word spacing inferred from glyph gaps"],
+ nums:[["1.11%","measured CER"],["5%","official bar"]],
+ watch:"“No grading your own homework.”"},
+
+{p:2,t:208,stage:["extract"],slide:"Backend Logic (1/2) · 3. Extract, bullets 2–3",
+ title:"One rule, three countries, two failures",
+ keys:["<b>SG / MY</b>: margin-numbered <code>11.—(1)</code> — but “section 26” mid-sentence is a <b>cross-reference</b>",
+       "<b>AU</b>: headings carry <b>no keyword</b> — “77 Requirement…” — invisible to regex",
+       "They're <b>bold</b> → read font data per glyph: number-led line + mostly-bold = heading",
+       "Repeating headers/footers stripped <b>statistically</b>",
+       "Every chunk keeps a <b>character span</b> — verbatim is machine-checkable"],
+ tech:["per-country extraction profiles","margin-numbered split (SG / MY)","cross-reference guard",
+       "AU font-marked headings","bold-glyph ratio ≥ 60%","pdfplumber font data",
+       "statistical page-chrome stripping (edge band, ≥¼ pages)","AU table-continuation dedup",
+       "SG consolidation-stamp removal","character spans"],
+ nums:[["3","extraction profiles"]],
+ watch:"Tell both failure cases — don't compress."},
+
+{p:2,t:236,stage:["retrieve"],slide:"Backend Logic (1/2) · 5-signal retrieval band",
+ title:"Five signals → one score",
+ keys:["Query = the indicator's own <b>title + description + legal test</b> → “distinguish from X” becomes vocabulary",
+       "<b>BM25</b> for terminology · <b>multilingual dense</b> for meaning",
+       "“must not hold records outside Australia” found with <b>zero shared keywords</b>",
+       "<b>Phrase bonus</b> · <b>sibling penalty</b> · <b>cross-encoder rerank</b>",
+       "Small corpus → <b>grade every provision</b>: retrieval is a signal, never a gate",
+       "Large corpus → shortlist + <b>per-law reserved slots</b>"],
+ tech:["BM25 (rank_bm25)","multilingual MiniLM-L12-v2 (sentence-transformers)","phrase bonus +0.10 (cap 0.30)",
+       "sibling penalty −0.07 (cap 0.20)","ms-marco MiniLM-L-6-v2 cross-encoder","50/50 blend + dense-recall floor",
+       "grade-all ≤ 80 provisions","shortlist 20–40 per indicator","per-law reserved slots","embedding disk cache"],
+ nums:[["1,200 → ~360","provisions → LLM calls, not 10,800"]],
+ watch:"Tight on time → keep only “a signal, never a gate.”"},
+
+{p:2,t:264,stage:["map","conf"],slide:"Backend Logic (2/2) · Map & Verify",
+ title:"Each pair is its own hearing",
+ keys:["PDPA s26: keywords say <b>ban</b>; the law says <b>conditional transfer</b> — one indicator over",
+       "Prompt carries the target's legal test, its scope, <b>and every sibling's legal test</b>",
+       "Fixed steps: operative rule → satisfies target → better sibling → match score → scope → <b>subsection copied verbatim</b>",
+       "Unsure ⇒ <b>reject</b>. A precise miss beats a confident over-assignment",
+       "<b>CROSS-MODEL SECOND OPINION</b> — only on a <b>borderline rejection</b>: the grader named a sibling, or still scored ≥0.3 legal match while rejecting. Clear misses are never re-asked",
+       "A second model re-grades in a <b>fresh, context-free call</b> — never sees the first answer: <b>independent voting, not persuasion</b>",
+       "Agrees → 2–0 rejected. Disagrees → 1–1 → a <b>third, distinct model</b> decides → <b>2–1 overturn</b>, the accepting verdict is recorded. Votes logged",
+       "Any doubt keeps the rejection: budget spent, call error, or the “independent” vote landing on the same model"],
+ tech:["sibling-aware prompt","structured 8-step verdict JSON","pydantic validation","conservative default",
+       "borderline trigger: better_sibling OR legal_match ≥ 0.3","context-free re-grade (no anchoring)",
+       "panel: deepseek-v4-flash (primary) + gemini-2.5-flash + gpt-4o-mini","2–0 upheld / 2–1 overturn",
+       "same-model failover rejected as a vote","panel call budget","rejections only — acceptances never re-asked",
+       "4-signal confidence: legal_match .40 / retrieval .25 / grounding .20 / scope .15",
+       "hard caps: sectoral 0.55 (P7-I1 only) · off-topic 0.45"],
+ nums:[["P6-I4","not P6-I1"],["0.82","→ human review"],["2–1","majority overturns a rejection"]],
+ watch:"The legal half — slow down. Panel in one breath: borderline rejections only, independent context-free vote, 2–1 overturns."},
+
+{p:2,t:292,stage:["score"],slide:"Competitive Advantage · <b>Zone 3 scoring</b>",
+ title:"Zone 3 — what & how",
+ keys:["The optional zone. <b>Implemented.</b> Zone 2 decided <i>which</i> indicator; Zone 3 decides <b>how restrictive</b>",
+       "Scale = <b>compliance cost</b>, not “did we find it”: 1 broad / all-sector · 0.5 one sector or non-personal · 0 nothing restrictive",
+       "Runs <b>after all of Zone 2 finishes</b> — <b>one LLM call per surviving mapping</b>, user prompt carries a <code>&lt;RUBRIC&gt;</code> block",
+       "That block = the indicator's <b>scoring tiers quoted verbatim from the judges' Scoring-criteria sheet</b> + polarity flag + FAQ exceptions",
+       "Evidence shown to the model = <b>only the verbatim snippet</b> + law and section → <b>raw_score · coverage · impact</b>",
+       "<b>Inverted 7.1 / 7.2</b>: titles are phrased as a <i>lack</i> → strong horizontal framework scores <b>0</b>",
+       "Roll-up per indicator: <b>MAX</b> (most restrictive) · <b>MIN</b> for the inverted pair · ≥2 sectoral 0.5 in 6.1/6.2 → 1",
+       "Written to a <b>supplementary scored CSV in the judges' Database shape</b> — the 13-column submission file is never touched"],
+ tech:["runs after mapping, one LLM call per measure","opt-in: --score / SCORING_ENABLED",
+       "&lt;RUBRIC&gt; block in the user prompt","tiers verbatim from the official Scoring-criteria sheet",
+       "FAQ exceptions encoded (gov-only data, 6.3, 7.3 duration, 7.5 court order)","raw_score / coverage / impact",
+       "inverted polarity 7.1 + 7.2","roll-up MAX, MIN for inverted","≥2 sectoral 0.5 in 6.1/6.2 → 1",
+       "supplementary *_scored.csv (Database shape)","13-column submission CSV byte-for-byte on template"],
+ nums:[["0 / 0.5 / 1","raw score per measure"]],
+ watch:"~20s. Say what + how, then move."},
+
+{p:3,t:300,stage:[],slide:"Evaluation & Performance — <b>cost, time, caveat</b>",
+ title:"Cost, time, one caveat",
+ keys:["<b>~$0.07</b> per economy · <b>$0.00</b> open-weight · <b>10–17 min</b> · CPU-only",
+       "Hours of manual searching <b>per indicator</b> → a run cheap enough to <b>repeat</b>",
+       "<b>LLM is only 14% of the run</b> — extraction + embedding are 80%. A data-engineering problem",
+       "Honest caveat: <b>grader is stochastic</b> on borderline clauses → panel · review queue · frozen cache"],
+ tech:["extract 44% / embed 37% / LLM 14%","embedding disk cache → 16× on repeats",
+       "result cache freezes a run for judging","open-weight stack: Ollama + Tesseract = $0.00"],
+ nums:[["~$0.07","per economy, both pillars"],["10–17 min","CPU-only"]],
+ watch:"Keep the “LLM is only 14%” line."},
+
+{p:3,t:325,stage:["input","discover","resolve","fetch","extract","retrieve","map","conf","score","out"],
+ slide:"References",
+ title:"Open stack, one config value",
+ keys:["Name four or five, don't read the list",
+       "Every library MIT / Apache-2.0 / BSD · project <b>Apache-2.0</b> · <b>CPU-only</b>",
+       "Swap LLM or OCR engine = <b>one config value</b>, no code change"],
+ tech:["Serper.dev · DuckDuckGo · Mojeek","Scrapling · curl_cffi · Camoufox · httpx","BeautifulSoup",
+       "MarkItDown · pdfplumber","RapidOCR · PaddleOCR · Tesseract","rank_bm25 · sentence-transformers",
+       "multilingual MiniLM-L12-v2 · ms-marco MiniLM-L-6-v2","DeepSeek V4 Flash via OpenRouter (swappable)",
+       "pydantic · Streamlit · SQLite"],
+ nums:[["1","config value swaps LLM or OCR"]],
+ watch:"~12s. Don't recite."},
+
+{p:3,t:337,stage:["discover","extract"],slide:"Scalability & Impact — incl. <b>Real-time monitoring</b>",
+ title:"Direction: a standing corpus",
+ keys:["<b>Crawl each portal's whole catalogue</b> on a schedule into the content-addressed store",
+       "Split · embed · index <b>once, ahead of time</b> — not inside every run",
+       "A run searches the corpus first (keyword + semantic, seconds)",
+       "Live portal used for <b>one job</b>: is our copy still the latest amendment? If not → pull + update",
+       "Then the four Finals barriers: <b>languages · drafting conventions · messier portals · worse scans</b>",
+       "Each plugs into a slot that already exists — <b>no new architecture</b>"],
+ tech:["standing pre-extracted, pre-embedded corpus","content-addressed store","precompute split + embed + index",
+       "live last-amendment check","scheduled re-crawl & diff","bge-reranker-v2-m3 (one config line)",
+       "per-page scan detection","per-portal entry-strategy adapter (proven 3×)","one extraction profile per drafting style"],
+ nums:[["44 + 37%","of wall-clock precomputed once"],["8","Finals economies"],["2","plug-ins per economy"]],
+ watch:"Lead with the corpus. Close on “no new architecture”, then STOP."}
+];
+const TOTAL = 360;
+
+function fmt(s){s=Math.max(0,Math.round(s));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
+
+/* ---------- pipeline strip ---------- */
+const pipe=document.getElementById('pipe');
+STAGES.forEach((s,i)=>{
+  if(s.z){const z=document.createElement('span');z.className='zn';z.textContent=s.z;pipe.appendChild(z)}
+  else if(i){const d=document.createElement('span');d.className='sep';d.textContent='›';pipe.appendChild(d)}
+  const el=document.createElement('span');el.className='st';el.dataset.k=s.k;el.textContent=s.n;pipe.appendChild(el);
+});
+
+/* ---------- diagram (built once, states updated) ---------- */
+const map=document.getElementById('map');
+map.innerHTML = PARTS.map((p,pi)=>{
+  const kids=B.map((b,i)=>({b,i})).filter(x=>x.b.p===pi);
+  return `<div class="col" data-p="${pi}">
+    <div class="chead"><span class="cid">${p.id}</span><span class="crng">${fmt(p.from)}–${fmt(p.to)}</span></div>
+    <div class="stack">${kids.map(({b,i})=>
+      `<button class="blk" data-i="${i}"><span class="tm">${fmt(b.t)}</span><span class="tt">${b.title}</span></button>`
+    ).join('')}</div></div>`;
+}).join('');
+map.querySelectorAll('.blk').forEach(el=>el.onclick=()=>go(+el.dataset.i));
+
+/* ---------- fixed detail card ---------- */
+const cardEl=document.getElementById('card');
+let cur=0;
+function render(){
+  const b=B[cur];
+  cardEl.innerHTML=`
+    <div class="slide">SLIDE · ${b.slide}</div>
+    <ul class="keys">${b.keys.map(k=>`<li>${k}</li>`).join('')}</ul>
+    <p class="lbl">TERMS &amp; TECH — SAY THESE</p>
+    <div class="chips">${b.tech.map(t=>`<span class="chip">${t}</span>`).join('')}</div>
+    ${b.nums.length?`<div class="nums">${b.nums.map(n=>`<span class="num">${n[0]}<span>${n[1]}</span></span>`).join('')}</div>`:''}
+    ${b.watch?`<div class="watch">${b.watch}</div>`:''}`;
+  cardEl.scrollTop=0;
+  document.querySelectorAll('.blk').forEach(el=>{
+    const i=+el.dataset.i;
+    el.classList.toggle('on', i===cur);
+    el.classList.toggle('past', i<cur);
+  });
+  document.querySelectorAll('.col').forEach(el=>el.classList.toggle('act', +el.dataset.p===B[cur].p));
+  const st=new Set(b.stage||[]);
+  document.querySelectorAll('.st').forEach(e=>e.classList.toggle('on', st.has(e.dataset.k)));
+}
+function go(i){cur=Math.max(0,Math.min(B.length-1,i));render()}
+
+/* ---------- clock ---------- */
+let t0=null,elapsed=0,running=false,tick=null,follow=false;
+const timeEl=document.getElementById('time'),deltaEl=document.getElementById('delta'),
+      fillEl=document.getElementById('fill'),runBtn=document.getElementById('run'),
+      autoBtn=document.getElementById('auto');
+B.forEach(b=>{const d=document.createElement('div');d.className='tick';
+  d.style.left=(b.t/TOTAL*100)+'%';document.getElementById('bar').appendChild(d)});
+function due(s){let k=0;B.forEach((b,i)=>{if(s>=b.t)k=i});return k}
+function paint(){
+  timeEl.textContent=fmt(elapsed);
+  timeEl.style.color=elapsed>TOTAL?'var(--late)':elapsed>TOTAL-30?'var(--amber)':'var(--txt)';
+  fillEl.style.width=Math.min(100,elapsed/TOTAL*100)+'%';
+  if(running&&follow&&due(elapsed)!==cur) go(due(elapsed));
+  const d=running?due(elapsed):-1;
+  document.querySelectorAll('.blk').forEach(el=>el.classList.toggle('due', +el.dataset.i===d && d!==cur));
+  if(!running&&elapsed===0){deltaEl.textContent='not started';deltaEl.className='delta';return}
+  const end=B[cur+1]?.t ?? TOTAL, over=elapsed-end;
+  deltaEl.textContent = over>0 ? fmt(over)+' over this block' : fmt(-over)+' left on this block';
+  deltaEl.className='delta'+(over>0?' late':'');
+}
+function toggle(){
+  running=!running;runBtn.textContent=running?'PAUSE':'START';runBtn.classList.toggle('live',running);
+  if(running){t0=Date.now()-elapsed*1000;tick=setInterval(()=>{elapsed=(Date.now()-t0)/1000;paint()},250)}
+  else clearInterval(tick);
+  paint();
+}
+function reset(){running=false;clearInterval(tick);elapsed=0;runBtn.textContent='START';
+  runBtn.classList.remove('live');go(0);paint()}
+runBtn.onclick=toggle;
+document.getElementById('rst').onclick=reset;
+autoBtn.onclick=()=>{follow=!follow;autoBtn.textContent='AUTO '+(follow?'●':'▪');autoBtn.classList.toggle('live',follow)};
+addEventListener('keydown',e=>{
+  if(['ArrowRight','ArrowDown','PageDown',' '].includes(e.key)){go(cur+1);e.preventDefault()}
+  else if(['ArrowLeft','ArrowUp','PageUp'].includes(e.key)){go(cur-1);e.preventDefault()}
+  else if(e.key==='s'||e.key==='S'){toggle()}
+  else if(e.key==='r'||e.key==='R'){reset()}
+  else if(e.key==='g'||e.key==='G'){go(due(elapsed))}
+  else if(e.key==='a'||e.key==='A'){autoBtn.click()}
+});
+render();paint();
+</script>
+</body>
+</html>
