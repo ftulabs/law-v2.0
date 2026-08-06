@@ -14,7 +14,7 @@ Automate the manual legal-data-collection workflow: **given an economy + regulat
 
 **Scoring pillar:** The judges test the app by giving it:
 - An economy (SG/AU/MY mandatory for Round 1; later: Thailand/China/India/Indonesia/Russia/Lao/Mongolia/Timor-Leste)
-- A regulatory pillar (6 = Cross-border Data Policies; 7 = Domestic Data Protection)
+- A regulatory pillar (6 = Cross-border Data Policies; 7 = Domestic Data Protection and Privacy)
 
 The app must, with zero seed URLs:
 1. **Discover** relevant laws on official government portals (live, real-time, not a baked corpus)
@@ -40,6 +40,8 @@ Zone 3 (scoring/quality gates) is optional — and now IMPLEMENTED (Raw Score 0/
 
 ## 2. RDTII 2.1 INDICATORS — OFFICIAL DEFINITIONS
 
+**RDTII = Regional Digital Trade Integration Index** (NOT "Regulatory"). Full framework (ESCAP, 2025) has **12 pillars**; VeriTrade targets **pillars 6 and 7 only** (9 indicators total). Official pillar names: Pillar 6 = "Cross-border data policies"; Pillar 7 = "Domestic data protection **and privacy**".
+
 ### Pillar 6: Cross-border Data Policies (data localisation)
 All indicators are **extraction scope** (not "binding commitments" / P6-I5, which is non-regulatory).
 
@@ -56,7 +58,7 @@ All indicators are **extraction scope** (not "binding commitments" / P6-I5, whic
 - P6-I2 = storage location
 - P6-I3 = infrastructure mandate
 
-### Pillar 7: Domestic Data Protection (framework & cybersecurity)
+### Pillar 7: Domestic Data Protection and Privacy (framework & cybersecurity)
 
 | ID | Title | Legal Test |
 |---|---|---|
