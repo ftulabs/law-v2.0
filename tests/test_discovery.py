@@ -133,9 +133,28 @@ def test_sg_source_url_stripped_to_law():
     from backend.pipeline.discovery import _clean_source_url
     assert _clean_source_url(Economy.SG, "https://sso.agc.gov.sg/Act/CoA1967?ProvIds=pr26-&DocDate=2020") \
         == "https://sso.agc.gov.sg/Act/CoA1967"
-    # non-SG URLs are untouched
-    assert _clean_source_url(Economy.AU, "https://www.legislation.gov.au/C2004A03712/x") \
-        == "https://www.legislation.gov.au/C2004A03712/x"
+
+
+def test_au_source_url_canonicalised_to_latest():
+    """AU is not passed through: the register exposes one act under many URL shapes
+    (/Details/{id}, /{id}/latest, /{id}/latest/text …). They all collapse to the same
+    landing page so dedup and PDF resolution see one document, not several."""
+    from backend.pipeline.discovery import _clean_source_url
+    canonical = "https://www.legislation.gov.au/C2004A03712/latest"
+    for variant in ("https://www.legislation.gov.au/C2004A03712/x",
+                    "https://www.legislation.gov.au/Details/C2004A03712",
+                    "https://www.legislation.gov.au/C2004A03712/latest/text"):
+        assert _clean_source_url(Economy.AU, variant) == canonical
+    # nothing to canonicalise (no title id) → left alone rather than mangled
+    assert _clean_source_url(Economy.AU, "https://www.legislation.gov.au/") \
+        == "https://www.legislation.gov.au/"
+
+
+def test_other_economy_source_url_untouched():
+    """Only SG (query-stripped) and AU (canonicalised) are rewritten; MY passes through."""
+    from backend.pipeline.discovery import _clean_source_url
+    my_url = "https://lom.agc.gov.my/act-view.php?type=pua&no=123"
+    assert _clean_source_url(Economy.MY, my_url) == my_url
 
 
 # ─────────────────── SG: statute-ID dedup (one law, many SSO URLs) ───────────────────
