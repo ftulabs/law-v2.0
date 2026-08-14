@@ -122,9 +122,13 @@ PROFILES: dict[str, LangProfile] = {
         azure="mn", preferred=(RAPIDOCR, PADDLE, AZURE, TESSERACT), validated=False,
         note=("Cyrillic Khalkha only. PIN PaddleOCR >= v5: the v3/v4 cyrillic dictionary lacks Ө/Ү "
               "entirely. Tesseract's mon training text contains legacy mis-encodings (Ukrainian "
-              "є/ї substituted for ө/ү). NO engine reads traditional vertical Mongol Bichig, which "
-              "Mongolia has mandated alongside Cyrillic in official documents since Jan 2025 — that "
-              "content must be flagged unextractable, never guessed at with a Cyrillic model."),
+              "є/ї substituted for ө/ү). On vertical Mongol Bichig: no engine reads it, and "
+              "Tesseract's `mon` model will silently emit CYRILLIC when fed it (verified: "
+              "mon.unicharset has 70 Cyrillic entries and 0 in U+1800-18AF) — a failure that "
+              "looks like success. But it is NOT on the critical path for legislation: a sweep "
+              "of legalinfo.mn found zero U+1800-18AF bytes across nine pages, and the Jan 2025 "
+              "dual-script mandate binds administrative record-keeping rather than statutes. "
+              "Keep the U+1800-18AF check as a guard, not as an expected case."),
         unicode_ranges=((0x0400, 0x04FF),),
     ),
     "VN": LangProfile(
@@ -181,7 +185,11 @@ PROFILES: dict[str, LangProfile] = {
               "the best VLM scored ~64.5 NED (~35% error) while scoring 79 on synthetic Lao — "
               "treat any vendor Lao claim resting on synthetic data as unproven. Additional "
               "hazard: legacy Lao fonts map characters into upper-ASCII with no standard, so even "
-              "text-layer extraction can yield garbage."),
+              "text-layer extraction can yield garbage. Also: ໝ (U+0EDD), which opens the "
+              "chapter marker ໝວດທີ, has a <compat> decomposition, so NFC will not merge it "
+              "and NFD will not split it — government HTML emits the precomposed form while "
+              "OCR emits the decomposed one, so a single-form regex loses every chapter "
+              "heading from one of the two ingestion paths. Match both forms."),
         unicode_ranges=((0x0E80, 0x0EFF),), spaces_between_words=False,
         stacking_marks=True, legacy_encoding_risk=True, segmenter="laonlp",
     ),
