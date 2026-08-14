@@ -152,3 +152,25 @@ def test_script_validity_is_neutral_when_nothing_is_checkable():
 
 def test_latin_economies_accept_ordinary_english():
     assert not L.looks_mojibake("An organisation shall not transfer personal data", "SG")
+
+
+def test_india_defaults_to_english_not_devanagari():
+    """indiacode.nic.in publishes Central Acts in English as the authoritative text, so the
+    cheap Latin path carries India. Devanagari is only needed for Hindi editions, and is hard
+    for classical engines (EasyOCR measured 34.3% CER on real printed Devanagari)."""
+    assert L.ocr_code("rapidocr", "IN") == "latin"
+    assert L.ocr_code("tesseract", "IN") == "eng+hin"   # both, single pass
+    assert L.needs_segmentation("IN") is None
+
+
+def test_portuguese_ordinal_indicator_survives_nfc_but_not_nfkc():
+    """Timor-Leste's hazard is normalisation, not OCR. U+00BA (º) decomposes to plain 'o'
+    under NFKC, silently rewriting 'Artigo 1.º' to 'Artigo 1.o' and breaking citation
+    matching — while a mis-OCR'd degree sign U+00B0 has no decomposition and survives intact,
+    so NFKC neither repairs nor flags the error. Portuguese text must use NFC."""
+    import unicodedata
+    ref = "Lei n.º 13.709"
+    assert unicodedata.normalize("NFC", ref) == ref
+    assert unicodedata.normalize("NFKC", ref) == "Lei n.o 13.709"   # the destructive case
+    assert unicodedata.normalize("NFKC", "25°C") == "25°C"          # the asymmetry
+    assert not L.looks_mojibake(ref, "TL")

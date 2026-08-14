@@ -137,6 +137,40 @@ PROFILES: dict[str, LangProfile] = {
               "EasyOCR 0.25."),
         unicode_ranges=((0x0020, 0x024F), (0x1EA0, 0x1EF9)), stacking_marks=True,
     ),
+    "IN": LangProfile(
+        # indiacode.nic.in publishes Central Acts in ENGLISH as the authoritative text, so the
+        # Latin path carries the load and Devanagari is only needed for Hindi editions. That
+        # makes India by far the cheapest non-Round-1 economy on the extraction side.
+        script="Latin (+ Devanagari for Hindi editions)",
+        rapidocr="latin", paddle="en", tesseract="eng+hin", azure="en",
+        preferred=(RAPIDOCR, PADDLE, AZURE, TESSERACT), validated=True,
+        note=("English is the authoritative language of Central Acts, so default to the Latin "
+              "path. If a Hindi edition must be read, note Devanagari is hard for CLASSICAL "
+              "engines: measured CER 34.3% for EasyOCR on real printed Devanagari versus 4.4% "
+              "for the best VLM (arXiv 2606.29213, Jun 2026) — the shirorekha headline joins "
+              "characters within a word so there is no whitespace to segment on, and matras "
+              "attach above/below/either side of a base glyph or conjunct. No head-to-head of "
+              "Tesseract vs Google vs Azure on Devanagari exists in the literature."),
+        unicode_ranges=((0x0020, 0x024F), (0x0900, 0x097F)),
+    ),
+    "TL": LangProfile(
+        # Portuguese + Tetum, both Latin script with complete legacy codepage coverage
+        # (ISO-8859-1/CP1252), so extraction risk is low. The hazard here is NOT the script.
+        script="Latin (Portuguese / Tetum)",
+        rapidocr="latin", paddle="en", tesseract="por+eng", azure="pt",
+        preferred=(RAPIDOCR, PADDLE, AZURE, TESSERACT), validated=True,
+        note=("Lowest script risk of any candidate: every Portuguese diacritic sits in Latin-1 "
+              "Supplement and Tetum is near-ASCII. The real hazard is NORMALISATION, not OCR — "
+              "U+00BA MASCULINE ORDINAL INDICATOR (º), used in every Portuguese article "
+              "reference ('Artigo 1.º', 'Lei n.º 13.709'), carries a compatibility "
+              "decomposition to plain 'o'. Applying NFKC silently rewrites 'n.º' to 'n.o' and "
+              "breaks citation matching, while leaving a mis-OCR'd degree sign (U+00B0, no "
+              "decomposition) untouched — so normalisation neither repairs nor flags the error. "
+              "Use NFC, never NFKC, on Portuguese text. Unicode only classified º/° as "
+              "confusable in the 18.0 beta (2026-08-06), so tools on 17.0 will not detect the "
+              "substitution. A citation matcher must treat n.º / nº / n.o / n.° / no alike."),
+        unicode_ranges=((0x0020, 0x024F),),
+    ),
     "LA": LangProfile(
         script="Lao", rapidocr=None, paddle=None, tesseract="lao", azure=None,
         preferred=(TESSERACT, GOOGLE), validated=False,
