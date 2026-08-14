@@ -104,14 +104,33 @@ def _no_evidence_placeholders(run_id, economy, indicators, mappings, log) -> lis
     return out
 
 
-def _resolve_ocr(name, log):
-    """Resolve the requested OCR provider, falling back to mock (with a clear log)
-    if the library/keys are missing — a judge experimenting must never crash a run."""
+def _resolve_ocr(name, log, economy=None):
+    """Resolve the OCR engine AND its recognition language, then say so in the log.
+
+    `economy` selects the per-script model (see providers/ocr_languages.py). Without it the
+    engine loads whatever dictionary it defaults to, which is invisible on Latin text and
+    silently destructive on Thai/Cyrillic/Vietnamese — so the language is resolved here and
+    printed, rather than being a setting nobody can confirm took effect.
+    """
+    from ..providers.ocr_languages import is_validated, ocr_code, profile_for
+
+    eco = getattr(economy, "value", economy)
     try:
-        return get_ocr_provider(name) if name else get_ocr_provider()
-    except Exception as e:  # noqa: BLE001
+        provider = get_ocr_provider(name, economy=eco) if name else get_ocr_provider(economy=eco)
+    except Exception as e:  # noqa: BLE001 — a judge experimenting must never crash a run
         log(f"[warn] OCR provider '{name}' unavailable ({e}); falling back to mock")
         return get_ocr_provider("mock")
+
+    prof = profile_for(eco)
+    code = ocr_code(provider.name, eco)
+    if code is None and prof.rapidocr is None:
+        # The configured engine has no model for this script at all.
+        log(f"[ocr] {provider.name}: NO model for {prof.script} — recommended engine is "
+            f"{prof.preferred[0] if prof.preferred else 'none'}; output will be unreliable")
+    else:
+        log(f"[ocr] engine={provider.name} script={prof.script} lang={code or 'default'}"
+            f"{'' if is_validated(eco) else ' (accuracy UNVALIDATED for this script)'}")
+    return provider
 
 
 def _resolve_llm(name, model, api_key, log):
@@ -151,7 +170,7 @@ def run_pipeline(
     started = _now()
 
     # runtime-selected providers (dashboard) with safe fallback to mock
-    ocr = _resolve_ocr(ocr_provider, log)
+    ocr = _resolve_ocr(ocr_provider, log, economy)
     llm = _resolve_llm(llm_provider, llm_model, llm_api_key, log)
     log(f"[providers] OCR={ocr.name} LLM={llm.name} ({llm.model_version})")
 

@@ -814,6 +814,24 @@ with st.sidebar:
 
         ocr_choice = st.selectbox("Text reader (OCR)", reg.OCR_PROVIDERS, format_func=_ocr_fmt,
                                   index=reg.OCR_PROVIDERS.index(settings.ocr_provider))
+        # Show what the pipeline will ACTUALLY load for the selected country: the engine alone
+        # does not determine the result, the per-script recognition model does. Without this the
+        # panel claims a choice the run may not honour.
+        try:
+            from backend.providers.ocr_languages import is_validated, ocr_code, profile_for
+            _eco_code = economy.value if hasattr(economy, "value") else str(economy)
+            _prof, _code = profile_for(_eco_code), ocr_code(ocr_choice, _eco_code)
+            if _code:
+                _lang_msg = f"Will read <b>{_prof.script}</b> using the <code>{_code}</code> model."
+                if not is_validated(_eco_code):
+                    _lang_msg += " Accuracy for this script is <b>not yet validated</b>."
+            else:
+                _best = _prof.preferred[0] if _prof.preferred else "none"
+                _lang_msg = (f"This engine has <b>no model</b> for {_prof.script}. "
+                             f"Recommended: <b>{_best}</b>.")
+            st.markdown(f'<div class="prov-note">{_lang_msg}</div>', unsafe_allow_html=True)
+        except Exception:  # noqa: BLE001 — an advisory line must never break the sidebar
+            pass
         _oa = reg.ocr_availability(ocr_choice)
         st.markdown(f'<div class="prov-note {"ready" if _oa.ready else ""}">'
                     f'{"✓ ready" if _oa.ready else "⚙ " + _oa.note}</div>', unsafe_allow_html=True)
