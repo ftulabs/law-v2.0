@@ -1,4 +1,4 @@
-"""OCR / extraction: MarkItDown (default engine) extracts the bundled PDFs."""
+"""OCR / extraction: engine selection and text-layer handling on the bundled PDFs."""
 from pathlib import Path
 
 import pytest
@@ -10,14 +10,22 @@ ROOT = Path(__file__).resolve().parent.parent
 AU_PDF = ROOT / "data" / "samples" / "AU" / "privacy_act.pdf"
 
 
-def test_markitdown_is_default_and_available():
+def test_default_engine_does_real_raster_ocr():
+    """The default must be an engine that can actually read a scanned page.
+
+    It used to be MarkItDown, which does not do raster OCR at all — it re-reads a text layer.
+    On a genuinely scanned page that returned little or nothing, and what it did return was
+    markdown fed into a splitter that only understands plain text. Text-layer PDFs never
+    reached it either, since the pipeline tries pdfplumber first.
+    """
     from backend.config import settings
-    assert settings.ocr_provider == "markitdown"
-    assert reg.ocr_availability("markitdown").ready
+    assert settings.ocr_provider == "rapidocr"
+    assert reg.ocr_availability("rapidocr").ready
 
 
 @pytest.mark.skipif(not AU_PDF.exists(), reason="sample PDF missing")
-def test_markitdown_extracts_pdf_text():
+def test_markitdown_remains_selectable():
+    """Engines stay swappable — a judge may still pick MarkItDown explicitly."""
     provider = get_ocr_provider("markitdown")
     result = provider.ocr_pdf(str(AU_PDF))
     assert result.provider == "markitdown"

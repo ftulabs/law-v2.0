@@ -32,7 +32,22 @@ RAPIDOCR, PADDLE, TESSERACT, AZURE, GOOGLE = "rapidocr", "paddle", "tesseract", 
 
 @dataclass(frozen=True)
 class LangProfile:
-    """How each engine names this economy's script, and which engine to prefer."""
+    """How each engine names this economy's script, and which engine to prefer.
+
+    The fields after `validated` are NOT about OCR — they describe properties of the script
+    that break stages further down the pipeline, and each one has already caused a real bug
+    class somewhere in the industry:
+
+    * `spaces_between_words=False` (Thai, Lao, Chinese) breaks every whitespace tokeniser.
+      BM25 retrieval silently degrades to near-zero recall because the "words" it indexes are
+      whole sentences, and this happens even when OCR is perfect. A segmenter is required.
+    * `stacking_marks=True` (Thai, Lao, Vietnamese) is the dominant OCR error mode for these
+      scripts, and it also means CER must be computed on Unicode-normalised text or the metric
+      reports phantom errors from NFC/NFD differences alone.
+    * `legacy_encoding_risk=True` means a PDF can carry a perfectly good text layer that still
+      extracts as mojibake, with no OCR involved — so the OCR-side CER gate cannot see it.
+      A Unicode-range validity check on extracted text is the only defence.
+    """
 
     script: str
     #: `Rec.lang_rec` for rapidocr>=3.9; None when that engine has no model for the script.
@@ -48,6 +63,16 @@ class LangProfile:
     #: True only when a document-level accuracy figure exists that we could actually cite.
     validated: bool
     note: str
+    #: Unicode ranges the extracted text should predominantly fall in, for a sanity check.
+    unicode_ranges: tuple[tuple[int, int], ...] = ()
+    #: False for scripts written without inter-word spaces → needs a word segmenter.
+    spaces_between_words: bool = True
+    #: True when vowel/tone marks stack on a base character.
+    stacking_marks: bool = False
+    #: True when non-Unicode legacy font encodings are common in older official PDFs.
+    legacy_encoding_risk: bool = False
+    #: Word segmenter to use when `spaces_between_words` is False.
+    segmenter: str | None = None
 
 
 # Latin-script default. Round 1 economies all land here, which is why the missing language
@@ -56,6 +81,7 @@ _LATIN = LangProfile(
     script="Latin", rapidocr="latin", paddle="en", tesseract="eng", azure="en",
     preferred=(RAPIDOCR, PADDLE, TESSERACT, AZURE), validated=True,
     note="Measured on the bundled scanned SG notice: CER 1.11% with RapidOCR.",
+    unicode_ranges=((0x0020, 0x024F),),
 )
 
 PROFILES: dict[str, LangProfile] = {
@@ -73,18 +99,23 @@ PROFILES: dict[str, LangProfile] = {
               "that is LINE-level exact match on a private set, not CER — do not quote it as CER. "
               "On ThaiOCRBench full-page OCR Tesseract scores 0.614, level with GPT-4o, so it is a "
               "reasonable fallback. No published Thai document CER exists for any engine."),
+        unicode_ranges=((0x0E00, 0x0E7F),), spaces_between_words=False,
+        stacking_marks=True, segmenter="pythainlp",
     ),
     "CN": LangProfile(
         script="Han (Simplified)", rapidocr="ch", paddle="ch", tesseract="chi_sim", azure="zh-Hans",
         preferred=(RAPIDOCR, PADDLE, AZURE, TESSERACT), validated=False,
         note=("Best-served non-Latin script. PP-OCRv5 is the mature path; PP-OCRv6 is ~5x faster "
               "on CPU via OpenVINO. No independent CER measurement obtained."),
+        unicode_ranges=((0x4E00, 0x9FFF), (0x3000, 0x303F)), spaces_between_words=False,
+        segmenter="jieba",
     ),
     "RU": LangProfile(
         script="Cyrillic", rapidocr="eslav", paddle="eslav", tesseract="rus", azure="ru",
         preferred=(RAPIDOCR, PADDLE, AZURE, TESSERACT), validated=False,
         note=("Use eslav (East Slavic) ahead of the generic cyrillic model. Tesseract rus is weak "
               "out of the box (CER 21.6% on historical Russian print) — keep it last."),
+        unicode_ranges=((0x0400, 0x04FF),),
     ),
     "MN": LangProfile(
         script="Cyrillic (Mongolian)", rapidocr="cyrillic", paddle="cyrillic", tesseract="mon",
@@ -94,6 +125,7 @@ PROFILES: dict[str, LangProfile] = {
               "є/ї substituted for ө/ү). NO engine reads traditional vertical Mongol Bichig, which "
               "Mongolia has mandated alongside Cyrillic in official documents since Jan 2025 — that "
               "content must be flagged unextractable, never guessed at with a Cyrillic model."),
+        unicode_ranges=((0x0400, 0x04FF),),
     ),
     "VN": LangProfile(
         # Deliberately NOT paddle: its latin dictionary cannot emit Vietnamese tone marks.
@@ -103,6 +135,7 @@ PROFILES: dict[str, LangProfile] = {
               "letters are absent from the output dictionary, so diacritics are lost by "
               "construction. Measured on VieBookRead: Azure 0.04 CER, Tesseract vie 0.12, "
               "EasyOCR 0.25."),
+        unicode_ranges=((0x0020, 0x024F), (0x1EA0, 0x1EF9)), stacking_marks=True,
     ),
     "LA": LangProfile(
         script="Lao", rapidocr=None, paddle=None, tesseract="lao", azure=None,
@@ -115,6 +148,8 @@ PROFILES: dict[str, LangProfile] = {
               "treat any vendor Lao claim resting on synthetic data as unproven. Additional "
               "hazard: legacy Lao fonts map characters into upper-ASCII with no standard, so even "
               "text-layer extraction can yield garbage."),
+        unicode_ranges=((0x0E80, 0x0EFF),), spaces_between_words=False,
+        stacking_marks=True, legacy_encoding_risk=True, segmenter="laonlp",
     ),
 }
 
@@ -140,3 +175,42 @@ def best_engine(economy: str | None, available: set[str] | None = None) -> str |
         if available is None or eng in available:
             return eng
     return None
+
+
+def needs_segmentation(economy: str | None) -> str | None:
+    """Word segmenter required before whitespace tokenisation, or None.
+
+    Thai, Lao and Chinese are written without inter-word spaces. Splitting them on whitespace
+    yields "words" that are whole sentences, so BM25 indexes almost nothing matchable and
+    keyword retrieval quietly collapses — with perfect OCR and no error anywhere to see.
+    """
+    p = profile_for(economy)
+    return None if p.spaces_between_words else p.segmenter
+
+
+def script_validity(text: str, economy: str | None, sample: int = 4000) -> float:
+    """Fraction of letter-ish characters that fall inside the expected script ranges.
+
+    This is the defence against the failure the CER gate structurally cannot catch: a PDF
+    carrying a text layer encoded with a legacy non-Unicode font. Lao is the known case —
+    the language never adopted an 8-bit standard, so fonts such as Saysettha map Lao letters
+    into the upper-ASCII range with no agreed convention. Extraction then "succeeds", the
+    density check passes, OCR never runs, and the provision text is mojibake. Measuring OCR
+    accuracy cannot see this, because no OCR happened.
+
+    Returns 1.0 when nothing is checkable (no ranges configured, or no letters found), so a
+    caller can treat "low score" as a genuine signal rather than a default.
+    """
+    ranges = profile_for(economy).unicode_ranges
+    if not ranges or not text:
+        return 1.0
+    letters = [c for c in text[:sample] if c.isalpha()]
+    if not letters:
+        return 1.0
+    ok = sum(1 for c in letters if any(lo <= ord(c) <= hi for lo, hi in ranges))
+    return ok / len(letters)
+
+
+def looks_mojibake(text: str, economy: str | None, floor: float = 0.5) -> bool:
+    """True when extracted text is mostly outside the economy's script. Advisory only."""
+    return script_validity(text, economy) < floor

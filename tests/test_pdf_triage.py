@@ -119,3 +119,36 @@ def test_non_latin_economies_are_not_silently_claimed_as_validated(eco):
     """Guards the honesty statement: only scripts with a citable document-level measurement
     may report validated coverage. Everything else must stay explicitly unproven."""
     assert not L.is_validated(eco)
+
+
+# ── Script properties that break stages AFTER ocr ─────────────────────────────────────────
+def test_spaceless_scripts_are_flagged_for_segmentation():
+    """Thai, Lao and Chinese have no inter-word spaces. Splitting them on whitespace makes
+    BM25 index whole sentences as single terms, so keyword retrieval collapses even when OCR
+    is perfect — a failure with no visible error anywhere."""
+    assert L.needs_segmentation("TH") == "pythainlp"
+    assert L.needs_segmentation("LA") == "laonlp"
+    assert L.needs_segmentation("CN") == "jieba"
+    for eco in ("SG", "AU", "MY", "RU", "VN"):
+        assert L.needs_segmentation(eco) is None
+
+
+def test_script_validity_detects_legacy_encoded_text():
+    """The Lao legacy-font trap: a text layer that extracts as upper-ASCII instead of Lao.
+    The CER gate cannot see this because no OCR ran, so the script check is the only defence."""
+    real_lao = "ກົດໝາຍວ່າດ້ວຍການປົກປ້ອງຂໍ້ມູນ"
+    mojibake = "¡ÃÐÊÇ§ÂØµÔ¸ÃÃÁ¢éÍÁÙÅ"      # Lao letters mapped into upper-ASCII
+    assert L.script_validity(real_lao, "LA") == 1.0
+    assert L.looks_mojibake(mojibake, "LA")
+    assert not L.looks_mojibake(real_lao, "LA")
+
+
+def test_script_validity_is_neutral_when_nothing_is_checkable():
+    """Must return 1.0 rather than 0.0 on empty or unconfigured input, so a low score is a
+    real signal instead of a default."""
+    assert L.script_validity("", "TH") == 1.0
+    assert L.script_validity("12345 ...", "TH") == 1.0
+
+
+def test_latin_economies_accept_ordinary_english():
+    assert not L.looks_mojibake("An organisation shall not transfer personal data", "SG")
