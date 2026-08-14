@@ -201,9 +201,19 @@ Register new providers in `backend/providers/llm_factory.py`.
 
 ## 5. FRONTEND DESIGN REQUIREMENTS
 
-**Requirement:** All UI/CSS/frontend work must use **taste-skill** (https://github.com/leonxlnx/taste-skill) — **not** the `frontend-design` skill, which produced interfaces users found unfriendly. Pull it with
-`gh api repos/Leonxlnx/taste-skill/contents/skills/taste-skill/SKILL.md --jq '.content' | base64 -d`.
-Its own SKILL.md scopes itself to landing pages (not dashboards) and targets React/Tailwind, so apply its **principles** — the public-sector / trust-first preset — not its stack.
+**Requirement (2026-08-14):** All UI/UX/CSS/frontend work must go through the **`ui-ux-pro-max`** skill
+(https://github.com/nextlevelbuilder/ui-ux-pro-max-skill), installed at `.claude/skills/`. Invoke it with
+the Skill tool *before* writing interface code — it ships searchable local data (styles, palettes, font
+pairings, UX guidelines, chart types, per-stack notes) that the design decisions below should be checked
+against. Companion skills installed alongside it: `design`, `design-system`, `ui-styling`, `brand`,
+`slides`, `banner-design`.
+
+Reinstall or update with `npx ui-ux-pro-max-cli@latest init --ai claude` from the repo root. The skill
+directory is gitignored (tooling, not a deliverable), so a fresh clone runs that command once.
+
+**Superseded:** `taste-skill` and the built-in `frontend-design` skill are both retired for this project;
+do not pull or apply either. The design decisions already made below still stand as project constraints —
+`ui-ux-pro-max` informs *new* work, it does not license a redesign of the shipped dashboard.
 
 ### Design-system plumbing (2026-08)
 Two files, one palette, and they must stay in sync:
@@ -215,7 +225,7 @@ Light/dark: the visible toggle (`theme.theme_toggle()`) writes **Streamlit's own
 **Never give the app its own theme flag** (e.g. `session_state["dark"]`). That was the original bug: a private flag repainted only our markup while native widgets kept the config theme. One source of truth — Streamlit's — or the two halves drift apart again.
 
 ### Design Direction: "Clear Research Tool" (2026-07 redesign)
-**Audience-first.** The users are **policy researchers (non-technical)**, who found the earlier "Legal Dossier" aesthetic hard to use. The dashboard now prioritises **clarity and ease of use over editorial style** — taste-skill's public-sector / trust-first preset (low visual variance, minimal motion, plain language, progressive disclosure).
+**Audience-first.** The users are **policy researchers (non-technical)**, who found the earlier "Legal Dossier" aesthetic hard to use. The dashboard now prioritises **clarity and ease of use over editorial style**: a public-sector / trust-first posture (low visual variance, minimal motion, plain language, progressive disclosure).
 - **Background:** clean white (#ffffff light) / deep slate (#0b1120 dark). No parchment, no grain.
 - **Typography:** **Inter** (sans-serif) for everything; **IBM Plex Mono** for citations, IDs, URLs, numbers only. No serif (Fraunces/Newsreader were removed).
 - **Accent:** single trustworthy blue (#2563eb light / #4f9cff dark).

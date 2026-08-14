@@ -44,3 +44,10 @@ docs/video-script.md
 
 # organiser-provided reference PDFs (not our authored work)
 docs/presentation/Pitching Rules.pdf
+
+# UI/UX Pro Max skill — vendored tooling, reinstall with:
+#   npx ui-ux-pro-max-cli@latest init --ai claude
+.claude/skills/
+
+# internal planning deck (not a submission deliverable)
+docs/roadmap-final-round.html
