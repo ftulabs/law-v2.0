@@ -87,8 +87,24 @@ Tesseract `vie` 0.12, EasyOCR 0.25.
 
 No Lao model exists in PaddleOCR, RapidOCR, EasyOCR, docTR or Azure Document Intelligence.
 Tesseract `lao` is the only offline option; its weights date from the 2016–17 training round
-and **no measured accuracy of any kind has ever been published** for it. Google Cloud Vision
-is the only production service accepting Lao, also with no published accuracy.
+and **no measured accuracy of any kind has ever been published** for it.
+
+On the cloud side the position is sharper than "Azure lacks it, Google has it":
+
+* **Azure Document Intelligence lists Lao only under language *detection*, not under
+  printed-text extraction** for either the Read or Layout model. It can tell you a document
+  is Lao; it is not documented to transcribe it.
+* **Google Cloud Vision lists Lao `lo` in its first-tier *Supported* table**, which Google
+  defines as prioritised and regularly evaluated — as opposed to the *Experimental* tier
+  (under development, not regularly evaluated) where Mongolian sits. That tiering is a
+  support commitment, not an accuracy measurement, and no CER for Lao is published by
+  anyone.
+
+So Lao is currently a **cloud-API problem rather than an open-weights problem**: the best
+open real-document result is ~64.5/100 (≈35% error) under a non-permissive licence, while two
+widely-cited open models collapse to 0.89 and 0.00 on the same test. If Lao enters scope,
+Google Cloud Vision is the primary candidate, Tesseract `lao` the offline fallback, and human
+review is mandatory on every Lao provision either way.
 
 Two further hazards specific to Lao:
 
