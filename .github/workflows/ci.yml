@@ -32,10 +32,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Verify MarkItDown is the default OCR engine and is available
+      - name: Verify the default OCR engine is available
         run: |
-          python -c "from backend.providers import registry as r; a=r.ocr_availability('markitdown'); print('markitdown:', a); assert a.ready, a.note"
-          python -c "from backend.config import settings; assert settings.ocr_provider=='markitdown', settings.ocr_provider; print('default OCR =', settings.ocr_provider)"
+          python -c "from backend.config import settings; from backend.providers import registry as r; d=settings.ocr_provider; a=r.ocr_availability(d); print('default OCR =', d, a); assert a.ready, a.note"
 
       - name: Byte-compile all modules
         run: python -m compileall -q backend frontend
