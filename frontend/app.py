@@ -810,7 +810,7 @@ with st.sidebar:
                     'change them.</div>', unsafe_allow_html=True)
 
         def _ocr_fmt(n):
-            return f"{reg.OCR_LABELS[n]}  {'✓' if reg.ocr_availability(n).ready else '⚙'}"
+            return f"{reg.ocr_label(n)}  {'✓' if reg.ocr_availability(n).ready else '⚙'}"
 
         ocr_choice = st.selectbox("Text reader (OCR)", reg.OCR_PROVIDERS, format_func=_ocr_fmt,
                                   index=reg.OCR_PROVIDERS.index(settings.ocr_provider))

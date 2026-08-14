@@ -11,12 +11,23 @@ from dataclasses import dataclass
 
 from ..config import settings
 
-OCR_PROVIDERS = ["markitdown", "mock", "rapidocr", "tesseract", "paddle", "azure"]
+OCR_PROVIDERS = ["rapidocr", "mock", "markitdown", "tesseract", "paddle", "azure"]
 LLM_PROVIDERS = ["openrouter", "mock", "gemini", "anthropic", "openai", "local"]
 
-OCR_LABELS = {"markitdown": "MarkItDown (default)", "mock": "Mock (offline)",
+# No "(default)" is baked into a name here — it is appended by ocr_label() from the CONFIGURED
+# default, so the dropdown can never disagree with settings.ocr_provider the way it did when
+# the default moved from MarkItDown to RapidOCR.
+OCR_LABELS = {"markitdown": "MarkItDown (text layer only)", "mock": "Mock (offline)",
               "rapidocr": "RapidOCR (scanned, pip-only)",
               "tesseract": "Tesseract", "paddle": "PaddleOCR", "azure": "Azure Vision"}
+
+
+def ocr_label(name: str) -> str:
+    """Display name, marking whichever engine is actually configured as the default."""
+    from ..config import settings
+
+    base = OCR_LABELS.get(name, name)
+    return f"{base} (default)" if name == settings.ocr_provider else base
 LLM_LABELS = {"openrouter": "OpenRouter (paid · DeepSeek default)", "mock": "Mock grader (offline)",
               "gemini": "Google Gemini", "anthropic": "Anthropic Claude", "openai": "OpenAI",
               "local": "Self-hosted (Ollama/OpenAI-compatible)"}

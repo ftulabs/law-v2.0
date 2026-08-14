@@ -57,7 +57,7 @@ def providers():
     """Which OCR/LLM engines are available on this host (for the UI to surface)."""
     from .providers import registry as reg
     return {
-        "ocr": [{"name": n, "label": reg.OCR_LABELS[n], **reg.ocr_availability(n).__dict__} for n in reg.OCR_PROVIDERS],
+        "ocr": [{"name": n, "label": reg.ocr_label(n), **reg.ocr_availability(n).__dict__} for n in reg.OCR_PROVIDERS],
         "llm": [{"name": n, "label": reg.LLM_LABELS[n], **reg.llm_availability(n).__dict__} for n in reg.LLM_PROVIDERS],
     }
 
