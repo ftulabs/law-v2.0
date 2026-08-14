@@ -28,7 +28,7 @@ class MarkItDownOCR(OCRProvider):
         kwargs = {"docintel_endpoint": docintel_endpoint} if docintel_endpoint else {}
         self._md = MarkItDown(**kwargs)
 
-    def ocr_pdf(self, pdf_path: str) -> OCRResult:
+    def ocr_pdf(self, pdf_path: str, pages: list[int] | None = None) -> OCRResult:
         p = Path(pdf_path)
         text = ""
         if p.exists():

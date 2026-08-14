@@ -90,3 +90,4 @@ pytest>=8.0
 # --- Crawling (optional — sample mode needs none of these) ---
 # playwright>=1.43
 # scrapy>=2.11
+pdf-inspector>=1.14   # page-level scan/text triage (optional; density fallback if absent)

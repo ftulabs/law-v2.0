@@ -17,7 +17,7 @@ class AzureOCR(OCRProvider):
         from pdf2image import convert_from_path
         self._convert = convert_from_path
 
-    def ocr_pdf(self, pdf_path: str) -> OCRResult:
+    def ocr_pdf(self, pdf_path: str, pages: list[int] | None = None) -> OCRResult:
         import io
         from azure.ai.vision.imageanalysis.models import VisualFeatures
 

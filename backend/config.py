@@ -16,7 +16,15 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # providers
-    ocr_provider: str = "markitdown"   # default doc-extraction engine (MS MarkItDown)
+    # Default OCR engine, changed from "markitdown" (2026-08-14). MarkItDown does not do
+    # raster OCR at all — it re-reads a text layer — so on a genuinely scanned page it
+    # returned little or nothing, and what it did return was MARKDOWN fed into a splitter
+    # that only understands plain text. It also placed last on the 200-document
+    # opendataloader benchmark (0.589 overall, 0.000 on headings) against pdf-inspector's
+    # 0.875. Text-layer PDFs never reached it anyway: the pipeline tries pdfplumber first.
+    # RapidOCR is real raster OCR, pip-only (no system binaries), Apache-2.0 code, and the
+    # engine the bundled CER=1.11% measurement was made with. Still swappable via OCR_PROVIDER.
+    ocr_provider: str = "rapidocr"
     llm_provider: str = "mock"
 
     # llm

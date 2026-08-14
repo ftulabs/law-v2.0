@@ -15,7 +15,7 @@ from .ocr_base import OCRProvider, OCRResult, OCRPageResult
 class MockOCR(OCRProvider):
     name = "mock"
 
-    def ocr_pdf(self, pdf_path: str) -> OCRResult:
+    def ocr_pdf(self, pdf_path: str, pages: list[int] | None = None) -> OCRResult:
         p = Path(pdf_path)
         text = ""
         # 1) sidecar .txt (sample scanned doc ships its ground-truth text)
@@ -50,10 +50,21 @@ def _chunk(text: str, size: int) -> list[str]:
 
 
 def get_ocr_provider(name: str | None = None, azure_endpoint: str | None = None,
-                     azure_key: str | None = None) -> OCRProvider:
-    """Azure endpoint/key can be overridden at runtime (dashboard) — other providers
-    read their settings (tesseract path, poppler) from `.env`."""
-    name = (name or settings.ocr_provider or "markitdown").lower()
+                     azure_key: str | None = None, economy: str | None = None) -> OCRProvider:
+    """Build an OCR engine, configured for the document's language.
+
+    `economy` selects the recognition model: engines are per-script, so an engine loaded
+    without a language hint can only emit characters from whatever dictionary it defaulted
+    to. Before this argument existed every provider ran its English/Chinese default no
+    matter what the document was, which is invisible on Round-1 Latin text and silently
+    destructive on Thai, Cyrillic or Vietnamese.
+
+    Azure endpoint/key can be overridden at runtime (dashboard) — other providers read
+    their settings (tesseract path, poppler) from `.env`.
+    """
+    from .ocr_languages import ocr_code
+
+    name = (name or settings.ocr_provider or "rapidocr").lower()
     if name == "markitdown":
         from .ocr_markitdown import MarkItDownOCR
         return MarkItDownOCR(settings.azure_vision_endpoint)
@@ -61,13 +72,16 @@ def get_ocr_provider(name: str | None = None, azure_endpoint: str | None = None,
         return MockOCR()
     if name == "tesseract":
         from .ocr_tesseract import TesseractOCR
-        return TesseractOCR(settings.tesseract_cmd, settings.poppler_path)
+        return TesseractOCR(settings.tesseract_cmd, settings.poppler_path,
+                            lang=ocr_code("tesseract", economy) or "eng")
     if name == "paddle":
         from .ocr_paddle import PaddleOCRProvider
-        return PaddleOCRProvider()
+        # Was PaddleOCRProvider() — the constructor's lang="en" default was never overridden,
+        # so recognition ran English-only for every document in every economy.
+        return PaddleOCRProvider(lang=ocr_code("paddle", economy) or "en")
     if name == "rapidocr":
         from .ocr_rapidocr import RapidOCRProvider
-        return RapidOCRProvider()
+        return RapidOCRProvider(lang=ocr_code("rapidocr", economy))
     if name == "azure":
         from .ocr_azure import AzureOCR
         return AzureOCR(azure_endpoint or settings.azure_vision_endpoint,

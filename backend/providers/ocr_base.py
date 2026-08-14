@@ -33,7 +33,17 @@ class OCRResult:
 class OCRProvider(ABC):
     name: str = "base"
 
+    #: BCP-47-ish language hint honoured by engines with per-language models. Set by the
+    #: factory from the economy being processed; engines that ignore it are unaffected.
+    lang: str | None = None
+
     @abstractmethod
-    def ocr_pdf(self, pdf_path: str) -> OCRResult:
-        """Run OCR over a scanned PDF and return text + per-page confidence."""
+    def ocr_pdf(self, pdf_path: str, pages: list[int] | None = None) -> OCRResult:
+        """Run OCR over a scanned PDF and return text + per-page confidence.
+
+        `pages` is a 1-indexed subset to process, used by the hybrid router so a mixed
+        document only pays for OCR on the pages that genuinely lack a text layer. Engines
+        that cannot select pages may ignore it and process the whole file; the caller
+        tolerates that (it costs time, never correctness).
+        """
         raise NotImplementedError

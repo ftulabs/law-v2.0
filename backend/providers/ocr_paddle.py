@@ -68,7 +68,7 @@ class PaddleOCRProvider(OCRProvider):
                     pass
         return lines, confs
 
-    def ocr_pdf(self, pdf_path: str) -> OCRResult:
+    def ocr_pdf(self, pdf_path: str, pages: list[int] | None = None) -> OCRResult:
         doc = self._pdfium.PdfDocument(pdf_path)
         pages: list[OCRPageResult] = []
         try:
