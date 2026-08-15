@@ -134,10 +134,14 @@ _LANDING_CSS = """
     background:var(--panel);box-shadow:var(--shadow-lg);border-radius:14px;}
   /* the markers are layout hooks only — collapse the wrappers Streamlit gives them */
   .vt-authcol,.vt-herocol{display:none;}
-  [data-testid="stElementContainer"]:has(> .vt-authcol),
-  [data-testid="stElementContainer"]:has(> .vt-herocol){display:none;}
+  /* descendant, NOT ">": st.html nests the marker one level deeper, so a direct-child
+     :has() never matched. The container then stayed display:block at height 0 and still
+     took a 16px flex gap — which is exactly what left the hero sitting below the card. */
+  [data-testid="stElementContainer"]:has(.vt-authcol),
+  [data-testid="stElementContainer"]:has(.vt-herocol){display:none;}
 
-  .land-hero{padding:.2rem 0 0;}
+  .vt-brand{display:flex;align-items:center;}
+  .land-hero{padding:.1rem 0 0;}
   .land-eyebrow{display:inline-flex;align-items:center;gap:.5rem;font-size:.78rem;font-weight:600;
     color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-soft);
     padding:.28rem .7rem;border-radius:99px;margin-bottom:1rem;}
@@ -208,9 +212,12 @@ def _landing_intro() -> None:
     # here put an extra (invisible but space-occupying) element container at the top of the
     # left column, which pushed the logo ~70px below the top of the sign-in card.
     st.html('<div class="vt-herocol"></div>')
+    # The wordmark lives in the top bar (see require_user), not here: the logo PNG carries
+    # its own transparent padding, so as the hero's first element its visible ink sat ~28px
+    # below the card's top edge and the two columns never looked level.
     st.markdown(
-        f'<div class="land-hero">{theme.wordmark_html(74)}'
-        '<div class="land-eyebrow" style="margin-top:1rem">UN ESCAP · RDTII 2.1 · Team FTU</div>'
+        '<div class="land-hero">'
+        '<div class="land-eyebrow">UN ESCAP · RDTII 2.1 · Team FTU</div>'
         '<div class="land-title">Find the law, <span class="accent">prove the clause</span></div>'
         '<p class="land-lede">VeriTrade searches official government websites, reads the documents '
         '(including scanned PDFs), and matches each provision to the right RDTII indicator — with the '
@@ -365,7 +372,10 @@ def require_user() -> auth.User:
     # Top bar uses the SAME 1.35/1 split as the content below, with the actions nested in
     # the right-hand column — so their outer edges line up with the sign-in card instead of
     # hanging past it.
-    _bar_l, _bar_r = st.columns([1.35, 1], gap="large")
+    _bar_l, _bar_r = st.columns([1.35, 1], gap="large", vertical_alignment="center")
+    with _bar_l:
+        st.markdown(f'<div class="vt-brand">{theme.wordmark_html(46)}</div>',
+                    unsafe_allow_html=True)
     with _bar_r:
         c_wp, c_src, c_th = st.columns([1.5, 1.1, 1.0])
         with c_wp:
