@@ -130,7 +130,8 @@ _LANDING_CSS = """
     flex:1;display:flex;flex-direction:column;gap:0;}
   /* st.container(border=True) renders as stLayoutWrapper */
   [data-testid="stColumn"]:has(.vt-authcol) [data-testid="stLayoutWrapper"]{
-    flex:1;display:flex;flex-direction:column;justify-content:center;}
+    flex:1;display:flex;flex-direction:column;justify-content:center;
+    background:var(--panel);box-shadow:var(--shadow-lg);border-radius:14px;}
   /* the markers are layout hooks only — collapse the wrappers Streamlit gives them */
   .vt-authcol,.vt-herocol{display:none;}
   [data-testid="stElementContainer"]:has(> .vt-authcol),

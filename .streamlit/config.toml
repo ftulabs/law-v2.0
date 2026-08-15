@@ -1,18 +1,16 @@
 # VeriTrade design system — the single source of truth for the app's look.
 #
 # Why this file matters: Streamlit's own widgets (labels, tabs, inputs, buttons,
-# dataframes) are styled from THIS config, not from our CSS. Previously only a
-# `base = "dark"` theme existed, so in light mode the native widgets kept painting
-# themselves with dark chrome while our custom HTML went light — the mismatch users
-# reported. Defining BOTH [theme.light] and [theme.dark] fixes it at the root: each
-# mode now has a complete, matching palette, and the app follows whichever one is
-# active (see `st.context.theme.type` in frontend/theme.py).
+# dataframes) are styled from THIS config, not from our CSS. It defines BOTH light and
+# dark variants below; when only one existed, light mode kept painting native widgets
+# with dark chrome while our custom HTML went light. frontend/theme.py styles OUR markup
+# from the same hex values — the two must stay in step.
 #
-# Typography is registered here too, so native widgets render in Inter — the same
-# family as the custom cards/headings — instead of Streamlit's default sans.
+# Palette profile: accessible / public-sector. Grounded slate neutrals with a deep blue
+# (sky-700) rather than a bright product blue, and an OFF-WHITE page ground so white
+# cards read as layered surfaces instead of dissolving into the background.
 
 [theme]
-# "<name>:<url>" lets Streamlit load the font itself rather than relying on our CSS @import.
 font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap, sans-serif"
 headingFont = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap, sans-serif"
 codeFont = "IBM Plex Mono:https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap, monospace"
@@ -24,18 +22,16 @@ showWidgetBorder = true
 linkUnderline = false
 
 [theme.light]
-primaryColor = "#2563eb"              # single accent — matches --accent
-backgroundColor = "#ffffff"           # --paper
-secondaryBackgroundColor = "#f5f8fc"  # --paper-2 (sidebar, inputs)
-textColor = "#0f172a"                 # --ink
-linkColor = "#2563eb"
-borderColor = "#dbe2ec"               # --rule
-dataframeBorderColor = "#dbe2ec"
-dataframeHeaderBackgroundColor = "#f5f8fc"
-codeBackgroundColor = "#eaeff6"       # --paper-3
-codeTextColor = "#0f172a"
-# semantic colours (st.success / st.warning / st.error) tied to the confidence
-# traffic-light so status reads the same everywhere
+primaryColor = "#0369a1"
+backgroundColor = "#f8fafc"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#020617"
+linkColor = "#0369a1"
+borderColor = "#e2e8f0"
+dataframeBorderColor = "#e2e8f0"
+dataframeHeaderBackgroundColor = "#f1f5f9"
+codeBackgroundColor = "#e8ecf1"
+codeTextColor = "#020617"
 greenColor = "#15803d"
 greenTextColor = "#15803d"
 greenBackgroundColor = "#e7f4ec"
@@ -48,44 +44,44 @@ orangeBackgroundColor = "#faf1dd"
 redColor = "#dc2626"
 redTextColor = "#dc2626"
 redBackgroundColor = "#fdeaea"
-grayColor = "#7a879c"
-grayTextColor = "#48566b"
-grayBackgroundColor = "#f5f8fc"
-blueColor = "#2563eb"
-blueTextColor = "#2563eb"
-blueBackgroundColor = "#e6effe"
+grayColor = "#64748b"
+grayTextColor = "#475569"
+grayBackgroundColor = "#f1f5f9"
+blueColor = "#0369a1"
+blueTextColor = "#0369a1"
+blueBackgroundColor = "#e0f2fe"
 
 [theme.dark]
-primaryColor = "#4f9cff"
-backgroundColor = "#0b1120"
-secondaryBackgroundColor = "#111a2b"
-textColor = "#e9eef8"
-linkColor = "#4f9cff"
-borderColor = "#26334d"
-dataframeBorderColor = "#26334d"
-dataframeHeaderBackgroundColor = "#111a2b"
-codeBackgroundColor = "#1a2740"
-codeTextColor = "#e9eef8"
+primaryColor = "#38bdf8"
+backgroundColor = "#020617"
+secondaryBackgroundColor = "#0f172a"
+textColor = "#f1f5f9"
+linkColor = "#38bdf8"
+borderColor = "#1e293b"
+dataframeBorderColor = "#1e293b"
+dataframeHeaderBackgroundColor = "#0f172a"
+codeBackgroundColor = "#1e293b"
+codeTextColor = "#f1f5f9"
 greenColor = "#34d399"
 greenTextColor = "#34d399"
-greenBackgroundColor = "#123122"
+greenBackgroundColor = "#0d2a1d"
 yellowColor = "#fbbf24"
 yellowTextColor = "#fbbf24"
-yellowBackgroundColor = "#322709"
+yellowBackgroundColor = "#2b2208"
 orangeColor = "#fbbf24"
 orangeTextColor = "#fbbf24"
-orangeBackgroundColor = "#322709"
+orangeBackgroundColor = "#2b2208"
 redColor = "#f87171"
 redTextColor = "#f87171"
-redBackgroundColor = "#341417"
-grayColor = "#6f7d99"
-grayTextColor = "#a3b0c9"
-grayBackgroundColor = "#111a2b"
-blueColor = "#4f9cff"
-blueTextColor = "#4f9cff"
-blueBackgroundColor = "#12213c"
+redBackgroundColor = "#2e1315"
+grayColor = "#64748b"
+grayTextColor = "#94a3b8"
+grayBackgroundColor = "#0f172a"
+blueColor = "#38bdf8"
+blueTextColor = "#38bdf8"
+blueBackgroundColor = "#0c2d43"
 
 [server]
 runOnSave = true
-# serves docs/whitepaper.html + docs/landing.html at /app/static/…
+# serves docs/whitepaper.html + docs/landing.html + docs/fonts.html at /app/static/…
 enableStaticServing = true
