@@ -323,8 +323,13 @@ st.markdown(
       div[data-baseweb="select"] > div {{ background:var(--paper) !important;
               border-color:var(--rule) !important; border-radius:8px !important; }}
       div[data-baseweb="select"] * {{ color:var(--ink) !important; }}
-      [data-baseweb="popover"] > div, [data-baseweb="popover"] div, [data-baseweb="popover"] ul,
-      [data-baseweb="menu"], ul[role="listbox"], div[role="listbox"] {{
+      /* Dropdown surfaces ONLY — scoped to popovers that actually contain a listbox/menu.
+         The old blanket `[data-baseweb="popover"] div … !important` painted every div in
+         every popover, which flattened the account menu's avatar and stat tiles. */
+      [data-baseweb="popover"]:has([role="listbox"]) > div,
+      [data-baseweb="popover"]:has([data-baseweb="menu"]) > div,
+      [data-baseweb="popover"] ul, [data-baseweb="menu"],
+      ul[role="listbox"], div[role="listbox"] {{
               background-color:var(--paper-2) !important; }}
       [role="option"], [role="option"] *, [data-baseweb="menu"] li {{
               background-color:transparent !important; color:var(--ink) !important; }}

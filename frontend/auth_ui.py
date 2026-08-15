@@ -16,6 +16,7 @@ import streamlit.components.v1 as components
 from backend import auth
 from backend.auth import AuthError
 from backend.config import settings
+from backend.storage import db
 
 from . import theme
 
@@ -422,31 +423,100 @@ def require_user() -> auth.User:
     st.stop()
 
 
+_MENU_CSS = """
+  /* The menu is a dense card, not a stack of buttons floating in whitespace: Streamlit's
+     default 1rem block gap between every element was what left those big empty bands. */
+  [data-testid="stPopoverBody"]:has(.vt-menu){padding:.55rem .6rem .5rem;min-width:270px;}
+  [data-testid="stPopoverBody"]:has(.vt-menu) [data-testid="stVerticalBlock"]{gap:.3rem;}
+  [data-testid="stPopoverBody"]:has(.vt-menu) [data-testid="stElementContainer"]{margin:0;}
+  [data-testid="stPopoverBody"]:has(.vt-menu) .stButton button,
+  [data-testid="stPopoverBody"]:has(.vt-menu) .stLinkButton a{
+    justify-content:flex-start;min-height:36px;border:none !important;background:transparent !important;
+    padding:.3rem .5rem;font-weight:500;}
+  [data-testid="stPopoverBody"]:has(.vt-menu) .stButton button:hover,
+  [data-testid="stPopoverBody"]:has(.vt-menu) .stLinkButton a:hover{
+    background:var(--paper-3) !important;}
+  /* menu rows read left-to-right like a menu; the label sits in an inner container that
+     Streamlit centres, so flex-start on the button alone is not enough */
+  [data-testid="stPopoverBody"]:has(.vt-menu) .stButton button > div,
+  [data-testid="stPopoverBody"]:has(.vt-menu) .stLinkButton a > div,
+  [data-testid="stPopoverBody"]:has(.vt-menu) .stButton button [data-testid="stMarkdownContainer"],
+  [data-testid="stPopoverBody"]:has(.vt-menu) .stLinkButton a [data-testid="stMarkdownContainer"]{
+    flex:1;text-align:left;justify-content:flex-start;}
+  [data-testid="stPopoverBody"]:has(.vt-menu) [data-testid="stExpander"]{
+    border:none !important;background:transparent !important;}
+  [data-testid="stPopoverBody"]:has(.vt-menu) [data-testid="stExpander"] summary{padding:.3rem .5rem;}
+  .vt-id{display:flex;align-items:center;gap:.6rem;padding:.35rem .5rem .5rem;}
+  .vt-id .av{width:38px;height:38px;border-radius:50%;flex:none;display:flex;align-items:center;
+    justify-content:center;background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:.86rem;}
+  .vt-id .nm{font-weight:700;line-height:1.25;}
+  /* the email was muted grey on a dark card — barely readable. Use secondary ink. */
+  .vt-id .em{color:var(--ink-soft);font-size:.8rem;line-height:1.3;word-break:break-all;}
+  .vt-usage{display:flex;gap:.5rem;padding:.1rem .5rem .45rem;}
+  .vt-usage div{flex:1;border:1px solid var(--rule);border-radius:8px;background:var(--paper-2);
+    padding:.35rem .5rem;}
+  .vt-usage .n{font-weight:700;font-size:1.02rem;line-height:1.1;}
+  .vt-usage .k{font-size:.68rem;color:var(--ink-faint);}
+  .vt-sep{height:1px;background:var(--rule-soft);margin:.35rem .25rem;}
+  .vt-lbl{font-size:.68rem;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-faint);
+    font-weight:700;padding:.25rem .5rem .1rem;}
+"""
+
+
 def account_control(user: auth.User) -> None:
-    """The app's ONE chrome control (top-right): identity, the links, the theme switch
-    and sign-out in a single menu.
+    """The app's ONE chrome control (top-right).
 
     Streamlit's own ⋮ toolbar is hidden (see theme.inject_css) because it duplicated the
     light/dark switch and otherwise only exposes developer actions — Rerun, Clear cache,
-    Deploy — that a policy researcher has no use for. Its menu cannot take custom items,
-    so consolidating here is the only way to get a single, non-duplicated entry point.
+    Deploy. Its menu cannot take custom items, so everything a user needs lives here:
+    who they are, what they have run, the reading links, appearance, and account actions.
     """
     with st.popover(user.display_name, icon=":material/account_circle:", width="stretch"):
-        st.markdown(f"**{user.display_name}**")
-        st.caption(user.email + (f" · {user.organisation}" if user.organisation else ""))
-        if user.auth_provider == "google":
-            st.caption("Signed in with Google")
+        theme.inject_style(_MENU_CSS)
+        st.html('<div class="vt-menu"></div>')
 
-        st.markdown('<hr class="hr-thin">', unsafe_allow_html=True)
+        org = f" · {user.organisation}" if user.organisation else ""
+        st.html(f'<div class="vt-id"><div class="av">{user.initials}</div>'
+                f'<div><div class="nm">{user.display_name}</div>'
+                f'<div class="em">{user.email}{org}</div></div></div>')
+
+        # Real usage, straight from the audit store — tells you at a glance whether your
+        # history is there, which is the thing you actually come to this menu unsure about.
+        try:
+            s = db.run_summary(user.user_id)
+            st.html('<div class="vt-usage">'
+                    f'<div><div class="n">{s["runs"]}</div><div class="k">analyses run</div></div>'
+                    f'<div><div class="n">{s["mappings"]}</div><div class="k">laws mapped</div></div>'
+                    '</div>')
+        except Exception:
+            pass
+
+        st.html('<div class="vt-sep"></div><div class="vt-lbl">Read</div>')
         st.link_button("White paper", theme.WHITEPAPER_URL, icon=":material/description:",
                        help="The technical write-up, in a new tab", width="stretch")
-        st.link_button("Source on GitHub", theme.REPO_URL, icon=":material/code:",
-                       width="stretch")
+        st.link_button("Source on GitHub", theme.REPO_URL, icon=":material/code:", width="stretch")
 
-        st.markdown('<hr class="hr-thin">', unsafe_allow_html=True)
-        st.caption("Appearance")
+        st.html('<div class="vt-sep"></div><div class="vt-lbl">Appearance</div>')
         theme.theme_toggle(key="menu_theme_toggle")
 
-        st.markdown('<hr class="hr-thin">', unsafe_allow_html=True)
+        st.html('<div class="vt-sep"></div><div class="vt-lbl">Account</div>')
+        # There was no way to change a password anywhere in the app, even though the auth
+        # service supported it. Google-only accounts have no current password to confirm.
+        _pw_label = "Set a password" if user.auth_provider == "google" else "Change password"
+        with st.expander(_pw_label, icon=":material/key:"):
+            with st.form("change_pw", clear_on_submit=True):
+                cur = ("" if user.auth_provider == "google"
+                       else st.text_input("Current password", type="password", key="pw_cur"))
+                new = st.text_input("New password", type="password", key="pw_new",
+                                    help=f"At least {auth.MIN_PASSWORD} characters.")
+                if st.form_submit_button("Update password", type="primary", width="stretch"):
+                    try:
+                        auth.change_password(user.user_id, cur, new)
+                        st.success("Password updated.")
+                    except AuthError as e:
+                        st.error(str(e))
+                    except Exception:
+                        st.error("Couldn't update the password right now.")
+
         if st.button("Sign out", key="sign_out_btn", icon=":material/logout:", width="stretch"):
             sign_out()

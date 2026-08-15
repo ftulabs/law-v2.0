@@ -244,8 +244,15 @@ def inject_css() -> None:
           div[data-baseweb="select"] > div {{ background:var(--paper) !important;
                   border-color:var(--rule) !important; border-radius:8px !important; }}
           div[data-baseweb="select"] * {{ color:var(--ink) !important; }}
-          [data-baseweb="popover"] > div, [data-baseweb="popover"] div, [data-baseweb="popover"] ul,
-          [data-baseweb="menu"], ul[role="listbox"], div[role="listbox"] {{ background-color:var(--paper-2) !important; }}
+          /* Dropdown surfaces only. This used to be a blanket
+             `[data-baseweb="popover"] div` with !important, which painted EVERY div in
+             every popover — including the avatar and stat tiles in the account menu, so
+             they rendered as invisible white-on-grey. Scope it to popovers that actually
+             contain a listbox/menu, i.e. real dropdowns. */
+          [data-baseweb="popover"]:has([role="listbox"]) > div,
+          [data-baseweb="popover"]:has([data-baseweb="menu"]) > div,
+          [data-baseweb="popover"] ul, [data-baseweb="menu"],
+          ul[role="listbox"], div[role="listbox"] {{ background-color:var(--paper-2) !important; }}
           [role="option"], [role="option"] *, [data-baseweb="menu"] li {{
                   background-color:transparent !important; color:var(--ink) !important; }}
           [role="option"]:hover, li[role="option"][aria-selected="true"] {{ background-color:var(--paper-3) !important; }}
