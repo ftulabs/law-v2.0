@@ -741,21 +741,14 @@ _bands = (f'<span style="color:var(--good)">&ge;{_a:.2f} accept</span> &middot; 
 _bands_plain = (f"Accept ≥{_a:.2f} · Review {_r:.2f}–{_a:.2f} · Set aside <{_r:.2f}. "
                 "Confidence = weighted blend of 4 signals. Hover for details.")
 
-_brand_col, _act_col = st.columns([2.0, 1.6], vertical_alignment="center")
+# Brand left, ONE menu right. The white-paper link, the theme switch and sign-out all
+# live inside that menu now — three separate top-right buttons plus Streamlit's own ⋮
+# (which held a duplicate theme switch) was four competing controls for the same corner.
+_brand_col, _act_col = st.columns([3.4, 1.0], vertical_alignment="center")
 with _brand_col:
     st.markdown(f'<div class="vt-brand">{logo_html()}</div>', unsafe_allow_html=True)
 with _act_col:
-    if _HAS_WHITEPAPER:
-        _wp_col, _th_col, _acct_col = st.columns([1.5, 1.0, 1.5])
-        with _wp_col:
-            st.link_button("White paper", WHITEPAPER_URL, icon=":material/description:",
-                           help="Open the technical white paper in a new tab", width="stretch")
-    else:
-        _th_col, _acct_col = st.columns([1.0, 1.5])
-    with _th_col:
-        theme.theme_toggle()
-    with _acct_col:
-        auth_ui.account_control(USER)
+    auth_ui.account_control(USER)
 
 st.markdown(
     '<div class="masthead"><div class="subrow">'

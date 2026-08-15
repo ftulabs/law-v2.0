@@ -423,12 +423,30 @@ def require_user() -> auth.User:
 
 
 def account_control(user: auth.User) -> None:
-    """Signed-in identity + sign-out, rendered in the app's top-right."""
+    """The app's ONE chrome control (top-right): identity, the links, the theme switch
+    and sign-out in a single menu.
+
+    Streamlit's own ⋮ toolbar is hidden (see theme.inject_css) because it duplicated the
+    light/dark switch and otherwise only exposes developer actions — Rerun, Clear cache,
+    Deploy — that a policy researcher has no use for. Its menu cannot take custom items,
+    so consolidating here is the only way to get a single, non-duplicated entry point.
+    """
     with st.popover(user.display_name, icon=":material/account_circle:", width="stretch"):
         st.markdown(f"**{user.display_name}**")
         st.caption(user.email + (f" · {user.organisation}" if user.organisation else ""))
         if user.auth_provider == "google":
             st.caption("Signed in with Google")
+
         st.markdown('<hr class="hr-thin">', unsafe_allow_html=True)
-        if st.button("Sign out", key="sign_out_btn", width="stretch"):
+        st.link_button("White paper", theme.WHITEPAPER_URL, icon=":material/description:",
+                       help="The technical write-up, in a new tab", width="stretch")
+        st.link_button("Source on GitHub", theme.REPO_URL, icon=":material/code:",
+                       width="stretch")
+
+        st.markdown('<hr class="hr-thin">', unsafe_allow_html=True)
+        st.caption("Appearance")
+        theme.theme_toggle(key="menu_theme_toggle")
+
+        st.markdown('<hr class="hr-thin">', unsafe_allow_html=True)
+        if st.button("Sign out", key="sign_out_btn", icon=":material/logout:", width="stretch"):
             sign_out()

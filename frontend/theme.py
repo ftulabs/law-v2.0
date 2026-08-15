@@ -292,6 +292,14 @@ def inject_css() -> None:
           .s-flag {{ color:var(--flag); border-color:var(--flag); background:color-mix(in srgb,var(--flag) 12%,transparent); }}
           .s-none {{ color:var(--ink-faint); border-color:var(--rule); background:transparent; }}
           .hr-thin {{ border:none; border-top:1px solid var(--rule-soft); margin:.7rem 0; }}
+          /* ── Hide Streamlit's own toolbar (Deploy + the ⋮ menu). It carried a SECOND
+                light/dark switch that duplicated ours, and its other entries — Rerun,
+                Clear cache, Print, Deploy — are developer actions, not something a policy
+                researcher should be offered. Everything a user needs now lives in the one
+                account menu (frontend/auth_ui.account_control). ── */
+          [data-testid="stToolbar"], [data-testid="stMainMenu"],
+          [data-testid="stStatusWidget"] {{ display:none !important; }}
+          [data-testid="stHeader"] {{ height:0; min-height:0; }}
           /* ── accessibility: a visible keyboard focus ring. There was none before, so a
                 keyboard user had no idea where they were. 3px + offset, on the accent. ── */
           *:focus-visible {{ outline:3px solid var(--ring) !important; outline-offset:2px !important;
