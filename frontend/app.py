@@ -146,9 +146,11 @@ st.markdown(
       .muted {{color:var(--ink-faint); font-size:.85rem;}}
 
       /* ── header ── */
-      .masthead {{border-bottom:1px solid var(--rule); padding-bottom:.9rem; margin-bottom:.4rem;}}
-      .masthead .row {{display:flex; align-items:center; justify-content:space-between; gap:1rem;}}
-      .masthead .strap {{color:var(--ink-soft); font-size:.95rem; margin-top:.35rem;}}
+      .vt-brand {{display:flex; align-items:center;}}
+      .masthead {{border-bottom:1px solid var(--rule); padding-bottom:.8rem; margin-bottom:.6rem;}}
+      .masthead .subrow {{display:flex; align-items:baseline; justify-content:space-between;
+                          gap:1.2rem; flex-wrap:wrap;}}
+      .masthead .strap {{color:var(--ink-soft); font-size:.95rem;}}
       /* the confidence bands sit opposite the logo; they must not wrap mid-band or get
          clipped by the flex row, so give the block room and keep each band intact */
       .masthead .edition {{text-align:right; font-family:'IBM Plex Mono',monospace; font-size:.72rem;
@@ -727,35 +729,39 @@ def _secret(name: str, fallback: str = "") -> str:
     return fallback
 
 
-# ── top-right: white-paper link + theme switch + account ───────────────────
-# The theme button drives Streamlit's own light/dark setting (see theme.theme_toggle),
-# so the native widgets and our CSS always switch together.
-if _HAS_WHITEPAPER:
-    _sp, _wp_col, _th_col, _acct_col = st.columns([5.4, 1.6, 1.1, 1.8])
-    with _wp_col:
-        st.link_button("White paper", WHITEPAPER_URL, icon=":material/description:",
-                       help="Open the technical white paper in a new tab", width="stretch")
-else:
-    _sp, _th_col, _acct_col = st.columns([7.1, 1.1, 1.8])
-with _th_col:
-    theme.theme_toggle()
-with _acct_col:
-    auth_ui.account_control(USER)
-
 # ── header ─────────────────────────────────────────────────────────────────
+# ONE aligned bar: brand on the left, actions on the right, vertically centred — then a
+# single quiet line underneath carrying the strapline and the confidence bands. The old
+# layout stacked three separate strips (a floating button row, then a logo row, then the
+# strapline), which is what made the top of the app look cluttered.
 _a, _r = settings.conf_auto_accept, settings.conf_review_floor
 _bands = (f'<span style="color:var(--good)">&ge;{_a:.2f} accept</span> &middot; '
           f'<span style="color:var(--warn)">{_r:.2f}&ndash;{_a:.2f} review</span> &middot; '
           f'<span style="color:var(--bad)">&lt;{_r:.2f} set aside</span>')
 _bands_plain = (f"Accept ≥{_a:.2f} · Review {_r:.2f}–{_a:.2f} · Set aside <{_r:.2f}. "
                 "Confidence = weighted blend of 4 signals. Hover for details.")
+
+_brand_col, _act_col = st.columns([2.0, 1.6], vertical_alignment="center")
+with _brand_col:
+    st.markdown(f'<div class="vt-brand">{logo_html()}</div>', unsafe_allow_html=True)
+with _act_col:
+    if _HAS_WHITEPAPER:
+        _wp_col, _th_col, _acct_col = st.columns([1.5, 1.0, 1.5])
+        with _wp_col:
+            st.link_button("White paper", WHITEPAPER_URL, icon=":material/description:",
+                           help="Open the technical white paper in a new tab", width="stretch")
+    else:
+        _th_col, _acct_col = st.columns([1.0, 1.5])
+    with _th_col:
+        theme.theme_toggle()
+    with _acct_col:
+        auth_ui.account_control(USER)
+
 st.markdown(
-    '<div class="masthead"><div class="row">'
-    f'<div>{logo_html()}'
+    '<div class="masthead"><div class="subrow">'
     '<div class="strap">Find and map data-regulation laws for UN ESCAP RDTII 2.1 &middot; '
-    'Singapore, Australia, Malaysia</div></div>'
-    f'<div class="edition" style="white-space:normal">RDTII 2.1<br>'
-    f'{tip_html(_bands, _cutoff_tip_inner(), right=True, plain=_bands_plain)}</div>'
+    'Singapore, Australia, Malaysia</div>'
+    f'<div class="edition">{tip_html(_bands, _cutoff_tip_inner(), right=True, plain=_bands_plain)}</div>'
     '</div></div>',
     unsafe_allow_html=True,
 )

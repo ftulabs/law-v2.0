@@ -204,7 +204,9 @@ _LANDING_CSS = """
 
 
 def _landing_intro() -> None:
-    theme.inject_style(_LANDING_CSS)     # flattened — see theme.inject_style for why
+    # NOTE: the stylesheet is injected by require_user() BEFORE the columns. Injecting it
+    # here put an extra (invisible but space-occupying) element container at the top of the
+    # left column, which pushed the logo ~70px below the top of the sign-in card.
     st.html('<div class="vt-herocol"></div>')
     st.markdown(
         f'<div class="land-hero">{theme.wordmark_html(74)}'
@@ -358,16 +360,22 @@ def require_user() -> auth.User:
     if user is not None:
         return user
 
-    # top bar: white paper / source / theme — available before signing in
-    _sp, c_wp, c_src, c_th = st.columns([5.3, 1.5, 1.5, 1.1])
-    with c_wp:
-        st.link_button("White paper", theme.WHITEPAPER_URL, icon=":material/description:",
-                       help="Open the technical white paper", width="stretch")
-    with c_src:
-        st.link_button("Source", theme.REPO_URL, icon=":material/code:",
-                       help="View the code on GitHub", width="stretch")
-    with c_th:
-        theme.theme_toggle(key="theme_toggle_landing")
+    theme.inject_style(_LANDING_CSS)     # flattened — see theme.inject_style for why
+
+    # Top bar uses the SAME 1.35/1 split as the content below, with the actions nested in
+    # the right-hand column — so their outer edges line up with the sign-in card instead of
+    # hanging past it.
+    _bar_l, _bar_r = st.columns([1.35, 1], gap="large")
+    with _bar_r:
+        c_wp, c_src, c_th = st.columns([1.5, 1.1, 1.0])
+        with c_wp:
+            st.link_button("White paper", theme.WHITEPAPER_URL, icon=":material/description:",
+                           help="Open the technical white paper", width="stretch")
+        with c_src:
+            st.link_button("Source", theme.REPO_URL, icon=":material/code:",
+                           help="View the code on GitHub", width="stretch")
+        with c_th:
+            theme.theme_toggle(key="theme_toggle_landing")
 
     left, right = st.columns([1.35, 1], gap="large")
     with left:
