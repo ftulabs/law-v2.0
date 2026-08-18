@@ -147,8 +147,13 @@ Input: (economy, pillar)
 | **Confidence** | `backend/pipeline/confidence.py` | 4-signal scoring (model confidence, retrieval quality, rarity flag, scope flag) |
 | **Export** | `backend/export/csv_export.py`, `json_export.py` | Official CSV template (13 cols) + JSON trace |
 | **Orchestrator** | `backend/pipeline/orchestrator.py` | End-to-end run, SQLite audit trail |
+| **Corpus (precompute)** | `backend/corpus/` | L0 catalogue → L1 fetch → L2 extract → L3 split, stored per LAW VERSION. `store.py` `catalogue.py` `build.py` `version.py` `cli.py`. Stops at L3 — candidate selection (L4) and grading (L5) are not wired yet. See `docs/precompute-corpus.md` |
+| **Evaluation** | `backend/eval/` | Labels from the judges' Database (`ground_truth.py`), law linkage, stratified eval corpus, retrieval metrics (`harness.py`), sweepable ranker (`rank_lab.py`), grader/confidence experiment (`grader_eval.py`). See `docs/retrieval-redesign.md` |
 | **CLI** | `main.py`, `backend/cli.py` | Command-line interface |
-| **Frontend** | `frontend/app.py` | Streamlit dashboard (pick economy, pillar, LLM, OCR engine) |
+| **Frontend** | `frontend/app.py` | Streamlit dashboard — shell, sidebar, tabs, exports |
+| **Results surface** | `frontend/matrix.py` + `components/matrix/` | Coverage matrix: laws × 9 indicators; press a cell for the evidence |
+| **Run surface** | `frontend/runview.py` | The live run as five stages + counters, not a log |
+| **Engine surface** | `frontend/enginebench.py` | OCR/LLM chosen on the main screen, each card stating purpose, readiness, cost, where the document goes |
 
 ### LLM Providers (vendor-agnostic)
 - **OpenRouter** (default, free models) — `meta-llama/llama-3.3-70b-instruct:free` with auto-failover
@@ -192,6 +197,18 @@ Register new providers in `backend/providers/llm_factory.py`.
 
 ### Known Gaps
 ❌ **Live crawl not wired to SG/MY portals yet** — discovery skeleton is ready; Playwright auto-escalation for JS-heavy sites (DataTables, token auth) needs QA  
+✅ **Three portal defects found and fixed (2026-08-15)** — all were SILENT, all cost whole Acts:
+  (1) `legislation.gov.au` publishes large Acts as **multi-volume** compilations and 404s on the
+  single-file PDF URL — the Telecommunications (Interception and Access) Act 1979 was yielding
+  **1 provision instead of 618**, and the Telecommunications Act 1997 **0 instead of 1,377**;
+  fixed via `discovery._au_compilation_pdf_urls` + per-volume splitting in `corpus/build.py`.
+  (2) `lom.agc.gov.my` now **AES-GCM-encrypts** its catalogue JSON (key published in its own
+  page); the shipped MY adapter was silently returning **0 Acts** — see `pipeline/portal_crypto.py`.
+  (3) `sso.agc.gov.sg` **ignores `CurrentPage`**, so its index is enumerated by sort-window union.
+❌ **10 of 37 laws the judges cite are outside our catalogue** — PDPC/OAIC guidance, an IMDA
+  licence, AU's Telecommunications Regulations 2021 (an instrument, not an Act), MY sectoral
+  Codes of Practice + PDP Standard 2015. **This is the largest remaining coverage gap, and it
+  is a discovery problem, not a retrieval one.**  
 ❌ **No real-world test on final 3 economies** — Thailand/China/India/Indonesia/Russia/Lao/Mongolia/Timor-Leste are for Finals; Round 1 is SG/AU/MY only  
 ❌ **Mock grader is lexical only** — can confuse closely-related indicators (P6-I1 vs P6-I4, P7-I1 vs P7-I2) without a real LLM  
 ❌ **Manual review UI** — confidence routing flags rows for review, but the review workflow is minimal (data structure exists, UI not built)  
@@ -242,6 +259,32 @@ Light/dark: the visible toggle (`theme.theme_toggle()`) writes **Streamlit's own
 - Minimal motion; one corner-radius scale; WCAG-AA contrast in both themes.
 
 **Avoid:** metaphor/editorial jargon, serif for the working surface, dumping technical controls on non-tech users, spectacle over clarity.
+
+### The three working surfaces (2026-08-19 rebuild)
+The dashboard was rebuilt around what a policy researcher actually asks, after feedback that
+block-by-block panels were clear but not usable enough. `docs/redesign.html` is the
+interactive demo these were agreed from — open it directly, or at
+`/app/static/redesign.html` while the app is running.
+
+1. **Results = coverage matrix** (`frontend/matrix.py`). Laws down the side, the nine
+   indicators across the top. A gap is an empty column with a red zero under it; a law
+   meeting several indicators is one row crossing several columns; an amber result is
+   found by eye. The evidence panel leads with the indicator's `legal_test`, then the
+   verbatim quote, and only then the confidence — so the mapping can be *judged*, not
+   taken on trust. It is a real bidirectional component because `st.markdown` is
+   write-only and a clicked cell must reach Python.
+   **Column widths are measured, not guessed** — the Results column runs ~1050px, so the
+   matrix is sized to clear 660px with all nine indicators visible; header labels may not
+   contain a word longer than nine characters or the ninth indicator scrolls off.
+2. **Run = five stages, not a log** (`frontend/runview.py`). It consumes the `log()`
+   strings the pipeline already emits, so the pipeline needs no change and the two cannot
+   drift. Add a new log prefix → add it to `STAGES` there. The raw log still runs, into a
+   collapsed expander.
+3. **Engines on the main screen** (`frontend/enginebench.py`). Provider-swappability is
+   scored, so it is no longer two dropdowns inside a collapsed expander. Every figure on a
+   card is measured in this repo or a plain fact; where nothing was measured the card says
+   *"not measured here"* rather than inventing a number. The sidebar only reads the choice
+   back — two widgets writing the same choice is how they drift apart.
 
 **Current state:** `frontend/app.py` and `.streamlit/config.toml` implement this. When adding UI, preserve this clean, plain-language, progressive-disclosure system — do NOT reintroduce the parchment/serif dossier look.
 
@@ -300,13 +343,47 @@ Reports KNOWN (sample-kit) vs NEW (crawled) provisions, coverage by indicator.
 
 ## 7. MULTILINGUAL & RETRIEVAL STRATEGY
 
+### Retrieval parameters are MEASURED — do not hand-tune them
+`hybrid_alpha=0.65`, `retrieve_max_top_k=300`, `retrieve_per_law_k=1`, `dense_recall_extra=0`
+were derived by sweeping against the judges' own Round-1 Database on a 383-law / 36.6k-provision
+corpus (provision recall 0.833 → **1.000**). Two results are counter-intuitive and are recorded
+so they are not re-litigated: a **law-level prefilter makes recall worse** at every budget, and
+`retrieve_per_law_k=3` degenerates into one-provision-per-law (breadth without depth) on a
+multi-hundred-law corpus. Re-run `tools/sweep_retrieval.py` + `tools/validate_retrieval.py`
+before changing any of them. Full write-up: `docs/retrieval-redesign.md`.
+
 ### Retrieval Stack
 - **Embedding model:** `paraphrase-multilingual-MiniLM-L12-v2` (multilingual, covers Malay, Thai, Chinese, Russian…)
-- **Cross-encoder reranker:** `ms-marco-MiniLM-L-6-v2` (English-only; weak on non-English text)
-- **Query terms:** English keywords in `indicators.py`; weak lexical match on non-English law
+- **Cross-encoder reranker:** `ms-marco-MiniLM-L-6-v2` for Latin-script economies;
+  `BAAI/bge-reranker-v2-m3` (`cross_encoder_model_multilingual`) for non-Latin. A non-Latin
+  economy NEVER falls back to the English model — if the multilingual one is unavailable the
+  reranker is switched OFF, because an English cross-encoder on Chinese text contributes noise
+  to the fusion at the same weight as BM25.
+- **Query terms:** English in `indicators.py`, PLUS native statutory phrases per language in
+  `backend/rdtii/query_terms_i18n.py` (additive, lexical side only — the dense query stays
+  English because the embedding model is cross-lingual by construction).
+- **Tokenisation is script-aware** (`retrieval._tok`): no-space scripts (Han/kana/Thai/Lao/
+  Khmer/Myanmar) are indexed as character BIGRAMS; ASCII keeps the exact Round-1 `[a-z0-9]+`
+  path so the measured parameters below still hold; other scripts tokenise as words.
 
-### Why This Works for Round 1
-Round 1 is SG/AU/MY (English/Malay, both covered by multilingual embed). Non-English weakness is low-risk now.
+### Round 2 — China, India, Mongolia (see `docs/round2-expansion.md`)
+The English-only assumption was load-bearing well beyond the LLM. The worst breakage was
+`_TOKEN = [a-z0-9]+`, which returns NO tokens for 不得向境外提供 — so every Chinese provision
+scored a flat 0.0 on BM25 (65% of the hybrid score) with nothing in any log to show it. That is
+the shape of every bug in this expansion: **nothing throws**; the run completes and reports "No
+provision found", which is indistinguishable from an economy that has no such law.
+
+**Prompting strategy for non-English provisions:** English instructions + the provision fed
+UNCHANGED + `<SNIPPET_LANGUAGE>` naming the language + a step-8 rule that output
+(`operative_rule`, `rationale`) must be ENGLISH while the snippet is never rewritten. Translating
+the snippet is not an option — the Verbatim Snippet column IS the statute's text, so a translated
+snippet is a false citation. A Chinese worked example (PIPL art.40 → 6.2, the panel's own answer)
+is placed first in SYSTEM to demonstrate the rule rather than describe it.
+
+⚠ **Round-2 portals are all `verified: false`** and no CN/IN/MN corpus has been built yet, so
+none of this is measured. Mongolian native terms are a SEED vocabulary (agglutinative: BM25
+indexes "дамжуулахыг", so the stem "дамжуулах" may never fire) — validate with
+`tools/audit_native_terms.py --economy MN --suggest` before trusting them.
 
 ### Mitigation: Grade-All Policy
 When corpus ≤80 provisions, **every provision is graded by the LLM against every indicator** → retrieval is just a signal, not a gate. The grading LLM is multilingual (gpt-oss/Gemini), so the decision is robust even if retrieval ranking is imperfect. Only large live crawls (hundreds of provisions) fall back to a shortlist, where a multilingual reranker (e.g., `BAAI/bge-reranker-v2-m3`) would help.
@@ -405,6 +482,14 @@ Use this as if you're a judge reviewing VeriTrade for the RDTII hackathon:
 | Change OCR | Edit `.env`: `OCR_PROVIDER=rapidocr` or `paddle` |
 | Change retriever | Edit `.env`: `RETRIEVER=auto` (default) or `hybrid` or `lightrag` |
 | Run tests | `pytest tests/` |
+| Enumerate an economy's whole corpus | `python -m backend.corpus.cli catalogue --economy MY` |
+| Fetch/extract/split it | `python -m backend.corpus.cli build --economy MY` |
+| Corpus contents | `python -m backend.corpus.cli stats` |
+| Rebuild eval labels | `python -m backend.eval.ground_truth` · `python -m backend.eval.linkage` |
+| Ground-truth reference (6 economies) | `python tools/build_reference_dataset.py` → `data/ground_truth/rdtii_reference_p67.csv` |
+| Check native retrieval terms | `python tools/audit_native_terms.py --economy MN --suggest` |
+| Re-measure retrieval | `python tools/sweep_retrieval.py --stage final` |
+| Verify shipped retrieval | `python tools/validate_retrieval.py` |
 | View audit trail | `logs/run_<timestamp>.log` or SQLite: `backend/storage/*.db` |
 | Output files | `outputs/<Economy>_P<pillar>_<timestamp>.csv/json` |
 | Indicator definitions | `backend/rdtii/indicators.py` |
@@ -423,5 +508,6 @@ Use this as if you're a judge reviewing VeriTrade for the RDTII hackathon:
 ---
 
 ## Last Updated
+2026-08-19 — Round-2 expansion (CN/IN/MN): multilingual retrieval, script-aware extraction, language-aware grading prompt. See `docs/round2-expansion.md`.
 2026-06-07  
 Claude Code auto-memory + consolidated from project memory files + README + code inspection.

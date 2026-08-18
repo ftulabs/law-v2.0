@@ -35,7 +35,7 @@ from backend.review import workflow  # noqa: E402
 from backend.schemas import ECONOMY_UN_NAME, Economy, RunResult, SUBMISSION_COLUMNS  # noqa: E402
 from backend.storage import db  # noqa: E402
 
-from frontend import auth_ui, geo, matrix, runview, theme  # noqa: E402
+from frontend import auth_ui, enginebench, geo, matrix, runview, theme  # noqa: E402
 from frontend.theme import site_footer  # noqa: E402
 from backend.rdtii.indicators import get_indicator  # noqa: E402
 
@@ -408,14 +408,6 @@ st.markdown(
               color:var(--accent); margin-right:.4rem;}}
       .glossary-item .gi-title {{font-weight:600; font-size:.92rem;}}
       .glossary-item .gi-desc {{color:var(--ink-soft); font-size:.85rem; margin-top:.15rem; line-height:1.45;}}
-      .feed-row {{display:flex; justify-content:space-between; gap:.8rem; align-items:baseline;
-              padding:.4rem 0; border-bottom:1px solid var(--rule-soft); font-size:.86rem;}}
-      .feed-row:last-child {{border-bottom:none;}}
-      .feed-row .ft {{color:var(--ink); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}}
-      .feed-row .fu {{font-family:'IBM Plex Mono',monospace; font-size:.7rem; color:var(--ink-faint); flex:none;}}
-      .feed-row a {{color:var(--ink-soft);}}
-      .feed-empty {{color:var(--ink-faint); font-size:.85rem; padding:.3rem 0;}}
-      .feed-scroll {{max-height:260px; overflow-y:auto;}}
 
       /* ── hover tooltip (explains the confidence formula + cut-offs) ── */
       /* let tooltips escape their Streamlit containers instead of being clipped */
@@ -943,41 +935,30 @@ with st.sidebar:
 
         st.markdown('<hr class="hr-thin">', unsafe_allow_html=True)
         st.markdown('<div class="kicker">Engines</div>', unsafe_allow_html=True)
-        st.markdown('<div class="prov-note">Smart defaults are already set. Each option below '
-                    'says what it is for, so you can tell them apart without knowing the tech.</div>',
-                    unsafe_allow_html=True)
+        # The engines are now chosen on the main screen, where each one can state what it is
+        # for and what it costs. This stays as a read-out so the sidebar never disagrees with
+        # the bench — two widgets writing the same choice is how they drift apart.
+        ocr_choice = st.session_state.setdefault("ocr_provider", settings.ocr_provider)
+        if ocr_choice not in reg.OCR_PROVIDERS:
+            ocr_choice = st.session_state["ocr_provider"] = settings.ocr_provider
+        _llm_default = (settings.llm_provider if settings.llm_provider in reg.LLM_PROVIDERS
+                        else reg.LLM_PROVIDERS[0])
+        llm_choice = st.session_state.setdefault("llm_provider", _llm_default)
+        if llm_choice not in reg.LLM_PROVIDERS:
+            llm_choice = st.session_state["llm_provider"] = _llm_default
 
-        # A researcher cannot be expected to know what "rapidocr" or "openrouter" mean. Every
-        # option carries a plain-language purpose and a live readiness dot, so the dropdown
-        # reads as a choice between OUTCOMES rather than between library names.
-        _OCR_ABOUT = {
-            "rapidocr":   "Scanned pages · 1.11% error · no setup",
-            "markitdown": "Text-layer PDFs only · fastest",
-            "paddle":     "Scanned pages · strong multilingual · ~1 GB",
-            "tesseract":  "Scanned pages · needs a system install",
-            "azure":      "Best on noisy gazette scans · needs a key",
-            "mock":       "Offline demo · does not really read",
-        }
-        _LLM_ABOUT = {
-            "openrouter": "Default · ~$0.07 per country run",
-            "anthropic":  "Claude · needs a key",
-            "openai":     "GPT · needs a key",
-            "gemini":     "Google · needs a key",
-            "local":      "Your own server (Ollama) · free, private",
-            "mock":       "Offline demo · lexical, not a real model",
-        }
+        _oa, _la = reg.ocr_availability(ocr_choice), reg.llm_availability(llm_choice)
+        st.markdown(
+            f'<div class="prov-note {"ready" if _oa.ready else ""}">Reads documents with '
+            f'<b>{reg.ocr_label(ocr_choice)}</b> — {"ready" if _oa.ready else _oa.note}</div>'
+            f'<div class="prov-note {"ready" if _la.ready else ""}">Judges the law with '
+            f'<b>{reg.LLM_LABELS.get(llm_choice, llm_choice)}</b> — '
+            f'{"ready" if _la.ready else _la.note}</div>'
+            '<div class="prov-note">Change either on the <b>Engines</b> screen, where every '
+            'option says what it is for.</div>', unsafe_allow_html=True)
 
-        def _dot(ready: bool) -> str:
-            return "●" if ready else "○"
-
-        def _ocr_fmt(n):
-            about = _OCR_ABOUT.get(n, "")
-            return f"{_dot(reg.ocr_availability(n).ready)} {reg.ocr_label(n)} — {about}"
-
-        ocr_choice = st.selectbox("Text reader (OCR)", reg.OCR_PROVIDERS, format_func=_ocr_fmt,
-                                  index=reg.OCR_PROVIDERS.index(settings.ocr_provider))
-        # Show what the pipeline will ACTUALLY load for the selected country: the engine alone
-        # does not determine the result, the per-script recognition model does. Without this the
+        # What the pipeline will ACTUALLY load for the selected country: the engine alone does
+        # not determine the result, the per-script recognition model does. Without this the
         # panel claims a choice the run may not honour.
         try:
             from backend.providers.ocr_languages import is_validated, ocr_code, profile_for
@@ -994,16 +975,7 @@ with st.sidebar:
             st.markdown(f'<div class="prov-note">{_lang_msg}</div>', unsafe_allow_html=True)
         except Exception:  # noqa: BLE001 — an advisory line must never break the sidebar
             pass
-        _oa = reg.ocr_availability(ocr_choice)
-        st.markdown(f'<div class="prov-note {"ready" if _oa.ready else ""}">'
-                    f'{"✓ ready" if _oa.ready else "⚙ " + _oa.note}</div>', unsafe_allow_html=True)
 
-        def _llm_fmt(n):
-            about = _LLM_ABOUT.get(n, "")
-            return f"{_dot(reg.llm_availability(n).ready)} {reg.LLM_LABELS[n]} — {about}"
-
-        _llm_index = reg.LLM_PROVIDERS.index(settings.llm_provider) if settings.llm_provider in reg.LLM_PROVIDERS else 0
-        llm_choice = st.selectbox("AI model provider", reg.LLM_PROVIDERS, format_func=_llm_fmt, index=_llm_index)
         llm_model, llm_key = None, None
         if llm_choice == "openrouter":
             llm_key = _secret("OPENROUTER_API_KEY", settings.openrouter_api_key)
@@ -1215,6 +1187,15 @@ if not run_id:
                 st.session_state["pillar"] = _pn
                 st.rerun()
 
+    # Step 3 on the main surface, not buried in a sidebar expander: swapping the reader or
+    # the model is a scored requirement, so it gets real estate and every option explains
+    # itself.
+    st.markdown('<div class="kicker" style="margin:1.8rem 0 .5rem">Choose the engines '
+                '<span class="muted">— or leave the defaults, they are already sensible'
+                '</span></div>', unsafe_allow_html=True)
+    enginebench.render(st.session_state.get("ocr_provider", settings.ocr_provider),
+                       st.session_state.get("llm_provider", settings.llm_provider))
+
     site_footer()
     st.stop()
 
@@ -1279,8 +1260,8 @@ _scorecard = scorecard_html(mappings)
 if _scorecard:
     st.markdown(_scorecard, unsafe_allow_html=True)
 
-tab_ev, tab_review, tab_audit, tab_export = st.tabs(
-    ["Results", f"Needs review · {len(workflow.queue(run_id))}", "Details", "Download"]
+tab_ev, tab_review, tab_audit, tab_export, tab_eng = st.tabs(
+    ["Results", f"Needs review · {len(workflow.queue(run_id))}", "Details", "Download", "Engines"]
 )
 
 # ── results ────────────────────────────────────────────────────────────────
@@ -1460,6 +1441,14 @@ with tab_export:
         cols[2].download_button("⬇  Scored CSV", Path(scored_path).read_bytes(),
                                 file_name=Path(scored_path).name, mime="text/csv", width="stretch")
     st.dataframe(pd.read_csv(csv_path, dtype=str).fillna(""), width="stretch", height=380)
+
+# ── engines ────────────────────────────────────────────────────────────────
+with tab_eng:
+    st.markdown('<div class="quote">Changing an engine here applies to your <b>next</b> run — '
+                'this analysis keeps the engines it was made with, so the two stay comparable '
+                'side by side in your history.</div>', unsafe_allow_html=True)
+    enginebench.render(st.session_state.get("ocr_provider", settings.ocr_provider),
+                       st.session_state.get("llm_provider", settings.llm_provider))
 
 # every screen ends with the site footer, not mid-content
 site_footer()
