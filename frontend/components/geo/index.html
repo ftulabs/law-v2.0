@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:transparent;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+  #wrap{border:1px solid var(--rule);border-radius:14px;background:var(--panel);overflow:hidden;box-shadow:var(--shadow)}
+  #stage{position:relative;height:300px;background:radial-gradient(120% 90% at 50% -10%,
+        color-mix(in srgb,var(--accent) 14%,transparent),transparent 70%)}
+  canvas{display:block;width:100%;height:100%;cursor:grab;outline:none}
+  canvas:active{cursor:grabbing}
+  #globe{position:absolute;inset:0}
+  #flat{position:absolute;inset:0;display:none}
+  #flat img{width:100%;height:100%;object-fit:cover;opacity:.9}
+  #pins{position:absolute;inset:0;display:none}
+  .pin{position:absolute;transform:translate(-50%,-50%);cursor:pointer;border:0;background:none;padding:0}
+  .pin .dot{display:block;width:14px;height:14px;border-radius:50%;background:var(--accent);
+        box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 32%,transparent);transition:transform .15s}
+  .pin:hover .dot{transform:scale(1.35)}
+  .pin.on .dot{background:var(--good);box-shadow:0 0 0 4px color-mix(in srgb,var(--good) 38%,transparent)}
+  .pin.soon{cursor:default}
+  .pin.soon .dot{width:9px;height:9px;background:var(--ink-faint);box-shadow:none;opacity:.65}
+  .pin .lb{position:absolute;left:50%;top:15px;transform:translateX(-50%);white-space:nowrap;
+        font-size:10.5px;font-weight:600;color:var(--ink);background:var(--panel);
+        border:1px solid var(--rule);border-radius:5px;padding:1px 5px;pointer-events:none}
+  .pin.soon .lb{color:var(--ink-faint);font-weight:500}
+  .pin:focus-visible{outline:3px solid var(--ring);outline-offset:3px;border-radius:50%}
+  #bar{display:flex;align-items:center;gap:.45rem;padding:.5rem .6rem;border-top:1px solid var(--rule);
+       background:var(--panel-2);flex-wrap:wrap}
+  .seg{display:flex;border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--panel)}
+  .seg button{border:0;background:transparent;font:inherit;font-size:11.5px;font-weight:600;
+        color:var(--ink-soft);padding:.3rem .65rem;cursor:pointer}
+  .seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+  .seg button:focus-visible{outline:3px solid var(--ring);outline-offset:-3px}
+  .seg button:disabled{opacity:.45;cursor:not-allowed}
+  #names{margin-left:auto;display:flex;gap:.3rem;flex-wrap:wrap}
+  .name{border:1px solid var(--rule);background:var(--panel);border-radius:99px;font:inherit;
+        font-size:11.5px;font-weight:600;color:var(--ink-soft);padding:.26rem .75rem;cursor:pointer}
+  .name:hover{border-color:var(--accent);color:var(--accent)}
+  .name[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+  .name:focus-visible{outline:3px solid var(--ring);outline-offset:2px}
+  #hint{font-size:11px;color:var(--ink-faint)}
+  @media (prefers-reduced-motion: reduce){.pin .dot{transition:none}}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <div id="globe"></div>
+    <div id="flat"><img id="flatimg" alt="World map"></div>
+    <div id="pins"></div>
+  </div>
+  <div id="bar">
+    <div class="seg" role="group" aria-label="View">
+      <button id="bGlobe" type="button" aria-pressed="true" title="3D globe - drag to spin">Globe</button>
+      <button id="bMap" type="button" aria-pressed="false" title="Flat map">Map</button>
+    </div>
+    <span id="hint">Drag to spin &middot; click the globe for the map</span>
+    <div id="names" role="group" aria-label="Choose a country by name"></div>
+  </div>
+</div>
+
+<script type="importmap">
+{"imports":{"three":"https://esm.sh/three@0.160.0","three/addons/":"https://esm.sh/three@0.160.0/examples/jsm/"}}
+</script>
+
+<script>
+/* Streamlit component protocol, implemented by hand so the component needs no build step.
+   componentReady -> Streamlit sends streamlit:render with our args; setComponentValue
+   sends the chosen ISO back to Python. */
+var P = window.parent;
+function send(type, data){
+  var m = {isStreamlitMessage:true, type:type};
+  for (var k in (data||{})) m[k] = data[k];
+  P.postMessage(m, "*");
+}
+function setValue(v){ send("streamlit:setComponentValue", {value:v, dataType:"json"}); }
+function fitHeight(){ send("streamlit:setFrameHeight", {height:document.body.scrollHeight + 2}); }
+
+var ECON = [], SOON = [], selected = null, mode = "globe", booted = false;
+window.__ECON = [];
+
+window.addEventListener("message", function(e){
+  if (!e.data || e.data.type !== "streamlit:render") return;
+  var a = e.data.args || {};
+  ECON = a.economies || []; SOON = a.upcoming || []; window.__ECON = ECON;
+  if (!booted) { selected = a.selected || null; booted = true; }
+  applyTokens(a.tokens || {});
+  renderNames(); placePins(); paint(); fitHeight();
+});
+
+function applyTokens(t){ for (var k in t) document.documentElement.style.setProperty(k, t[k]); }
+
+/* equirectangular projection -> percentage position on the flat map */
+function proj(lat, lon){ return { x:(lon+180)/360*100, y:(90-lat)/180*100 }; }
+
+function renderNames(){
+  var box = document.getElementById("names"); box.innerHTML = "";
+  ECON.forEach(function(c){
+    var b = document.createElement("button");
+    b.className = "name"; b.type = "button"; b.textContent = c.name;
+    /* pointer/keyboard route to the same choice, so the globe drag is never the only
+       way to select a country (WCAG 2.2 dragging-alternative) */
+    b.setAttribute("aria-pressed", String(c.iso === selected));
+    b.onclick = function(){ choose(c.iso); };
+    box.appendChild(b);
+  });
+}
+
+function placePins(){
+  var box = document.getElementById("pins"); box.innerHTML = "";
+  function mk(c, soon){
+    var p = proj(c.lat, c.lon);
+    var b = document.createElement("button");
+    b.className = "pin" + (soon ? " soon" : "") + (c.iso === selected ? " on" : "");
+    b.style.left = p.x + "%"; b.style.top = p.y + "%"; b.type = "button";
+    b.setAttribute("aria-label", soon ? c.name + " - not available yet" : "Select " + c.name);
+    b.innerHTML = '<span class="dot"></span><span class="lb">' + c.name + '</span>';
+    if (soon) b.disabled = true; else b.onclick = function(){ choose(c.iso); };
+    box.appendChild(b);
+  }
+  ECON.forEach(function(c){ mk(c, false); });
+  SOON.forEach(function(c){ mk(c, true); });
+}
+
+function choose(iso){ selected = iso; renderNames(); placePins(); paint(); setValue(iso); }
+window.__choose = choose;
+
+function setMode(m){
+  mode = m;
+  document.getElementById("bGlobe").setAttribute("aria-pressed", String(m === "globe"));
+  document.getElementById("bMap").setAttribute("aria-pressed", String(m === "map"));
+  document.getElementById("globe").style.display = m === "globe" ? "block" : "none";
+  document.getElementById("flat").style.display  = m === "map" ? "block" : "none";
+  document.getElementById("pins").style.display  = m === "map" ? "block" : "none";
+  document.getElementById("hint").textContent = m === "globe"
+    ? "Drag to spin · click the globe for the map" : "Click a marker to choose";
+}
+document.getElementById("bGlobe").onclick = function(){ setMode("globe"); };
+document.getElementById("bMap").onclick = function(){ setMode("map"); };
+
+function paint(){ if (window.__globePaint) window.__globePaint(selected); }
+
+send("streamlit:componentReady", {apiVersion:1});
+fitHeight();
+</script>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+const TEX = "https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/";
+document.getElementById("flatimg").src = TEX + "earth_atmos_2048.jpg";
+
+const mount = document.getElementById("globe");
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+try {
+  const W = () => mount.clientWidth || 600;
+  const H = () => mount.clientHeight || 300;
+  const scene = new THREE.Scene();
+  const cam = new THREE.PerspectiveCamera(38, 2, 0.1, 100);
+  cam.position.set(0, 0, 3.05);
+  const rnd = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+  rnd.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+  rnd.setClearColor(0x000000, 0);
+  mount.appendChild(rnd.domElement);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.2); sun.position.set(4, 2, 4); scene.add(sun);
+  const rim = new THREE.DirectionalLight(0x6aa7ff, 0.45); rim.position.set(-4, 1, -3); scene.add(rim);
+
+  const ld = new THREE.TextureLoader(); ld.setCrossOrigin("anonymous");
+  const earth = new THREE.Mesh(
+    new THREE.SphereGeometry(1, 64, 64),
+    new THREE.MeshPhongMaterial({
+      map: ld.load(TEX + "earth_atmos_2048.jpg"),
+      normalMap: ld.load(TEX + "earth_normal_2048.jpg"),
+      specularMap: ld.load(TEX + "earth_specular_2048.jpg"),
+      specular: new THREE.Color(0x334466), shininess: 12 }));
+  scene.add(earth);
+
+  const clouds = new THREE.Mesh(
+    new THREE.SphereGeometry(1.012, 64, 64),
+    new THREE.MeshPhongMaterial({ map: ld.load(TEX + "earth_clouds_2048.png"),
+      transparent: true, opacity: 0.3, depthWrite: false }));
+  scene.add(clouds);
+
+  scene.add(new THREE.Mesh(
+    new THREE.SphereGeometry(1.10, 40, 40),
+    new THREE.ShaderMaterial({ transparent: true, side: THREE.BackSide,
+      uniforms: { c: { value: 0.5 }, p: { value: 4.0 } },
+      vertexShader: "varying vec3 vN; void main(){vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",
+      fragmentShader: "uniform float c,p; varying vec3 vN; void main(){float i=pow(c-dot(vN,vec3(0,0,1)),p); gl_FragColor=vec4(0.24,0.62,0.98,1.0)*i;}" })));
+
+  // lat/lon -> point on the sphere, so markers sit on real geography
+  const toVec = (lat, lon, r) => {
+    const a = (90 - lat) * Math.PI / 180, b = (lon + 180) * Math.PI / 180;
+    return new THREE.Vector3(-r * Math.sin(a) * Math.cos(b), r * Math.cos(a), r * Math.sin(a) * Math.sin(b));
+  };
+  const markers = new THREE.Group(); earth.add(markers);
+
+  window.__globePaint = (sel) => {
+    while (markers.children.length) markers.remove(markers.children[0]);
+    (window.__ECON || []).forEach(c => {
+      const on = c.iso === sel;
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(on ? 0.036 : 0.024, 16, 16),
+        new THREE.MeshBasicMaterial({ color: on ? 0x34d399 : 0x38bdf8 }));
+      dot.position.copy(toVec(c.lat, c.lon, 1.02));
+      dot.userData.iso = c.iso; markers.add(dot);
+      const halo = new THREE.Mesh(new THREE.SphereGeometry(on ? 0.062 : 0.046, 16, 16),
+        new THREE.MeshBasicMaterial({ color: on ? 0x34d399 : 0x38bdf8, transparent: true, opacity: 0.22 }));
+      halo.position.copy(dot.position); markers.add(halo);
+    });
+  };
+
+  const ctl = new OrbitControls(cam, rnd.domElement);
+  ctl.enablePan = false; ctl.enableZoom = false;
+  ctl.enableDamping = true; ctl.dampingFactor = 0.08;
+  ctl.autoRotate = !reduce; ctl.autoRotateSpeed = 0.5; ctl.rotateSpeed = 0.5;
+
+  // A click on a marker selects it; a click on empty globe opens the flat map. A drag
+  // (moved more than a few px) is a rotation, never a selection.
+  const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
+  let down = null;
+  rnd.domElement.addEventListener("pointerdown", e => { down = { x: e.clientX, y: e.clientY }; });
+  rnd.domElement.addEventListener("pointerup", e => {
+    if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5) { down = null; return; }
+    down = null;
+    const r = rnd.domElement.getBoundingClientRect();
+    ptr.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+    ptr.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+    ray.setFromCamera(ptr, cam);
+    const hit = ray.intersectObjects(markers.children, false)[0];
+    if (hit && hit.object.userData.iso) window.__choose(hit.object.userData.iso);
+    else document.getElementById("bMap").click();
+  });
+
+  const clock = new THREE.Clock();
+  (function loop(){
+    const dt = clock.getDelta();
+    clouds.rotation.y += 0.015 * dt;
+    ctl.update(); rnd.render(scene, cam);
+    requestAnimationFrame(loop);
+  })();
+
+  const resize = () => { rnd.setSize(W(), H()); cam.aspect = W() / Math.max(H(), 1); cam.updateProjectionMatrix(); };
+  addEventListener("resize", resize); resize();
+} catch (err) {
+  // No WebGL: fall back to the flat map, which is fully usable on its own.
+  document.getElementById("bGlobe").disabled = true;
+  document.getElementById("bMap").click();
+}
+</script>
+</body>
+</html>

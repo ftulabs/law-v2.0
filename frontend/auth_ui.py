@@ -413,13 +413,7 @@ def require_user() -> auth.User:
     with right:
         _auth_card()
     _landing_below()
-    st.markdown(
-        '<div class="land-foot">'
-        '<span>Team FTU · Foreign Trade University · UN ESCAP / KMITL Global Hackathon 2026</span>'
-        f'<span>Apache-2.0 · <a href="{theme.REPO_URL}" target="_blank">github.com/ftulabs/law-v2.0</a></span>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
+    theme.site_footer()
     st.stop()
 
 

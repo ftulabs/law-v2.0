@@ -35,7 +35,8 @@ from backend.review import workflow  # noqa: E402
 from backend.schemas import Economy, RunResult, SUBMISSION_COLUMNS  # noqa: E402
 from backend.storage import db  # noqa: E402
 
-from frontend import auth_ui, theme  # noqa: E402
+from frontend import auth_ui, geo, theme  # noqa: E402
+from frontend.theme import site_footer  # noqa: E402
 
 db.init_db()  # ensure schema exists on fresh mounts (no-op if tables already present)
 
@@ -771,8 +772,16 @@ with st.sidebar:
     # Step 1 — country
     st.markdown('<div class="kicker" style="margin:.4rem 0 .1rem">1. Choose a country</div>',
                 unsafe_allow_html=True)
-    economy = st.selectbox("Country", [e.value for e in Economy], format_func=lambda v: ECON_NAME[v],
+    # One source of truth shared with the globe/map picker in the main pane. The selectbox
+    # deliberately has NO widget key: Streamlit forbids writing to a key after its widget is
+    # instantiated, and the globe (rendered later in the script) needs to set this.
+    _ECON_CODES = [e.value for e in Economy]
+    if st.session_state.get("economy") not in _ECON_CODES:
+        st.session_state["economy"] = _ECON_CODES[0]
+    economy = st.selectbox("Country", _ECON_CODES, format_func=lambda v: ECON_NAME[v],
+                           index=_ECON_CODES.index(st.session_state["economy"]),
                            label_visibility="collapsed")
+    st.session_state["economy"] = economy
 
     # Step 2 — pillar (RDTII's term), with a plain-language explanation
     st.markdown('<div class="kicker" style="margin:.7rem 0 .1rem">2. Choose a pillar (topic)</div>',
@@ -810,11 +819,36 @@ with st.sidebar:
 
         st.markdown('<hr class="hr-thin">', unsafe_allow_html=True)
         st.markdown('<div class="kicker">Engines</div>', unsafe_allow_html=True)
-        st.markdown('<div class="prov-note">Leave these on the defaults unless you know you need to '
-                    'change them.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="prov-note">Smart defaults are already set. Each option below '
+                    'says what it is for, so you can tell them apart without knowing the tech.</div>',
+                    unsafe_allow_html=True)
+
+        # A researcher cannot be expected to know what "rapidocr" or "openrouter" mean. Every
+        # option carries a plain-language purpose and a live readiness dot, so the dropdown
+        # reads as a choice between OUTCOMES rather than between library names.
+        _OCR_ABOUT = {
+            "rapidocr":   "Scanned pages · 1.11% error · no setup",
+            "markitdown": "Text-layer PDFs only · fastest",
+            "paddle":     "Scanned pages · strong multilingual · ~1 GB",
+            "tesseract":  "Scanned pages · needs a system install",
+            "azure":      "Best on noisy gazette scans · needs a key",
+            "mock":       "Offline demo · does not really read",
+        }
+        _LLM_ABOUT = {
+            "openrouter": "Default · ~$0.07 per country run",
+            "anthropic":  "Claude · needs a key",
+            "openai":     "GPT · needs a key",
+            "gemini":     "Google · needs a key",
+            "local":      "Your own server (Ollama) · free, private",
+            "mock":       "Offline demo · lexical, not a real model",
+        }
+
+        def _dot(ready: bool) -> str:
+            return "●" if ready else "○"
 
         def _ocr_fmt(n):
-            return f"{reg.ocr_label(n)}  {'✓' if reg.ocr_availability(n).ready else '⚙'}"
+            about = _OCR_ABOUT.get(n, "")
+            return f"{_dot(reg.ocr_availability(n).ready)} {reg.ocr_label(n)} — {about}"
 
         ocr_choice = st.selectbox("Text reader (OCR)", reg.OCR_PROVIDERS, format_func=_ocr_fmt,
                                   index=reg.OCR_PROVIDERS.index(settings.ocr_provider))
@@ -841,7 +875,8 @@ with st.sidebar:
                     f'{"✓ ready" if _oa.ready else "⚙ " + _oa.note}</div>', unsafe_allow_html=True)
 
         def _llm_fmt(n):
-            return f"{reg.LLM_LABELS[n]}  {'✓' if reg.llm_availability(n).ready else '⚙'}"
+            about = _LLM_ABOUT.get(n, "")
+            return f"{_dot(reg.llm_availability(n).ready)} {reg.LLM_LABELS[n]} — {about}"
 
         _llm_index = reg.LLM_PROVIDERS.index(settings.llm_provider) if settings.llm_provider in reg.LLM_PROVIDERS else 0
         llm_choice = st.selectbox("AI model provider", reg.LLM_PROVIDERS, format_func=_llm_fmt, index=_llm_index)
@@ -1010,7 +1045,19 @@ if not run_id:
         '</div></div>',
         unsafe_allow_html=True,
     )
+    # The globe is the headline way in: spin it, click a marker (or a name) to choose the
+    # economy. It writes the same session_state the sidebar select reads, so the two stay
+    # in step whichever one you touch.
+    st.markdown('<div class="kicker" style="margin:1.4rem 0 .5rem">Choose an economy '
+                '<span class="muted">— spin the globe, or pick a name</span></div>',
+                unsafe_allow_html=True)
+    _picked = geo.country_picker(selected=st.session_state.get("economy"), key="geo_home")
+    if _picked and _picked != st.session_state.get("economy"):
+        st.session_state["economy"] = _picked
+        st.rerun()
+
     st.markdown(indicator_glossary_html(pillar), unsafe_allow_html=True)
+    site_footer()
     st.stop()
 
 meta = db.get_run(run_id)
@@ -1234,3 +1281,6 @@ with tab_export:
         cols[2].download_button("⬇  Scored CSV", Path(scored_path).read_bytes(),
                                 file_name=Path(scored_path).name, mime="text/csv", width="stretch")
     st.dataframe(pd.read_csv(csv_path, dtype=str).fillna(""), width="stretch", height=380)
+
+# every screen ends with the site footer, not mid-content
+site_footer()

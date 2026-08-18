@@ -130,6 +130,25 @@ def favicon() -> str | None:
     return str(p) if p else None
 
 
+def escap_logo_html(height: int = 34) -> str:
+    """The official UN ESCAP mark. Rendered only when the asset is present, and never
+    recoloured or reproportioned — it is someone else's trademark, not a design element."""
+    p = _asset("escap_logo.png", "escap_logo.webp", "escap_logo.svg")
+    if not p:
+        return ""
+    if p.suffix == ".svg":
+        return f'<span class="escap" style="height:{height}px">{p.read_text(encoding="utf-8")}</span>'
+    return (f'<img class="escap" alt="UN ESCAP" style="height:{height}px" '
+            f'src="data:image/{p.suffix[1:]};base64,{_b64(p)}"/>')
+
+
+def ftu_logo_html(height: int = 30) -> str:
+    p = _asset("ftu_logo.png", "ftu_logo.webp")
+    return ("" if not p else
+            f'<img class="ftulogo" alt="Foreign Trade University" style="height:{height}px" '
+            f'src="data:image/{p.suffix[1:]};base64,{_b64(p)}"/>')
+
+
 def logo_data_uri() -> str | None:
     p = _asset("veritrade_favicon.png", "veritrade_logo.png")
     return f"data:image/png;base64,{_b64(p)}" if p else None
@@ -373,3 +392,62 @@ def theme_toggle(key: str = "theme_toggle") -> None:
     if st.button(target, key=key, icon=":material/light_mode:" if dark else ":material/dark_mode:",
                  help=f"Switch to {target.lower()} mode", width="stretch"):
         _apply_streamlit_theme(target)
+
+
+# ── site footer ──────────────────────────────────────────────────────────
+_FOOTER_CSS = """
+  .vt-foot{margin-top:3rem;border-top:1px solid var(--rule);padding:1.6rem 0 .8rem;}
+  .vt-foot .cols{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:1.6rem;}
+  @media(max-width:820px){.vt-foot .cols{grid-template-columns:1fr;}}
+  .vt-foot .about{color:var(--ink-soft);font-size:.86rem;line-height:1.6;max-width:44ch;}
+  .vt-foot h4{font-size:.72rem;text-transform:uppercase;letter-spacing:.09em;
+    color:var(--ink-faint);font-weight:700;margin:0 0 .5rem;}
+  .vt-foot a{color:var(--ink-soft);text-decoration:none;font-size:.86rem;display:block;
+    padding:.14rem 0;}
+  .vt-foot a:hover{color:var(--accent);}
+  .vt-foot .marks{display:flex;align-items:center;gap:1.1rem;flex-wrap:wrap;margin-bottom:.8rem;}
+  .vt-foot img.escap,.vt-foot img.ftulogo{display:block;width:auto;opacity:.92;}
+  .vt-foot .bar{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;
+    border-top:1px solid var(--rule-soft);margin-top:1.3rem;padding-top:.9rem;
+    color:var(--ink-faint);font-size:.78rem;}
+  .vt-foot .bar .mono{font-family:'IBM Plex Mono',ui-monospace,monospace;}
+"""
+
+
+def site_footer() -> None:
+    """The page's closing block: who made this, under whose framework, and where to read
+    more. Shown on every screen — the app previously just ended mid-content."""
+    import datetime
+    inject_style(_FOOTER_CSS)
+    year = datetime.date.today().year
+    st.markdown(
+        '<footer class="vt-foot"><div class="cols">'
+        '<div>'
+        f'<div class="marks">{escap_logo_html(36)}{ftu_logo_html(32)}</div>'
+        '<p class="about">VeriTrade finds digital-trade law on official government portals, '
+        'reads it, and maps each provision to a UN ESCAP RDTII 2.1 indicator with a verbatim '
+        'citation you can check. Built by Team FTU for the UN ESCAP / KMITL Global Hackathon.</p>'
+        '</div>'
+        '<div><h4>Product</h4>'
+        f'<a href="{WHITEPAPER_URL}" target="_blank">White paper</a>'
+        '<a href="app/static/landing.html" target="_blank">About VeriTrade</a>'
+        f'<a href="{REPO_URL}" target="_blank">Source on GitHub</a>'
+        '</div>'
+        '<div><h4>Framework</h4>'
+        '<a href="https://www.unescap.org" target="_blank">UN ESCAP</a>'
+        '<a href="https://sso.agc.gov.sg" target="_blank">Singapore Statutes Online</a>'
+        '<a href="https://www.legislation.gov.au" target="_blank">Federal Register (AU)</a>'
+        '<a href="https://lom.agc.gov.my" target="_blank">Laws of Malaysia</a>'
+        '</div>'
+        '</div>'
+        '<div class="bar">'
+        f'<span>© {year} Team FTU · Foreign Trade University · Apache-2.0</span>'
+        '<span class="mono">RDTII 2.1 · Pillars 6 &amp; 7 · SG · AU · MY</span>'
+        '</div></footer>',
+        unsafe_allow_html=True,
+    )
+
+    # The ESCAP mark identifies the framework this tool implements; it does not imply
+    # endorsement, so say so rather than leaving the logo to speak for itself.
+    st.caption("UN ESCAP name and emblem used to identify the RDTII framework this tool "
+               "implements. Not an official UN product and not endorsed by the United Nations.")
