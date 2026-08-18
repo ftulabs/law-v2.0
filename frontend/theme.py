@@ -323,9 +323,24 @@ def inject_css() -> None:
                 Clear cache, Print, Deploy — are developer actions, not something a policy
                 researcher should be offered. Everything a user needs now lives in the one
                 account menu (frontend/auth_ui.account_control). ── */
-          [data-testid="stToolbar"], [data-testid="stMainMenu"],
+          /* Hide the ⋮ menu and Deploy, but NOT stToolbar itself — Streamlit puts the
+             "expand sidebar" control inside that same toolbar, so display:none on the
+             toolbar left a collapsed sidebar with no way to reopen it. */
+          [data-testid="stMainMenu"], [data-testid="stAppDeployButton"],
           [data-testid="stStatusWidget"] {{ display:none !important; }}
-          [data-testid="stHeader"] {{ height:0; min-height:0; }}
+          /* Do NOT collapse stHeader. Streamlit's "expand sidebar" control lives inside it,
+             so height:0 here left a collapsed sidebar with no way to reopen it. Hide the
+             toolbar's contents instead and keep the header as the sidebar control's home. */
+          [data-testid="stHeader"] {{ background:transparent; pointer-events:none; }}
+          [data-testid="stHeader"] > * {{ pointer-events:auto; }}
+          [data-testid="stSidebarCollapsedControl"], [data-testid="stExpandSidebarButton"],
+          [data-testid="collapsedControl"], [data-testid="stSidebarCollapseButton"] {{
+                  display:flex !important; visibility:visible !important; opacity:1 !important;
+                  pointer-events:auto !important; z-index:100; }}
+          [data-testid="stSidebarCollapsedControl"] button,
+          [data-testid="stExpandSidebarButton"] button {{
+                  background:var(--panel) !important; border:1px solid var(--rule) !important;
+                  border-radius:9px; color:var(--ink) !important; box-shadow:var(--shadow); }}
           /* ── accessibility: a visible keyboard focus ring. There was none before, so a
                 keyboard user had no idea where they were. 3px + offset, on the accent. ── */
           *:focus-visible {{ outline:3px solid var(--ring) !important; outline-offset:2px !important;

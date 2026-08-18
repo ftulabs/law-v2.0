@@ -10,10 +10,27 @@
         color-mix(in srgb,var(--accent) 14%,transparent),transparent 70%)}
   canvas{display:block;width:100%;height:100%;cursor:grab;outline:none}
   canvas:active{cursor:grabbing}
-  #globe{position:absolute;inset:0}
-  #flat{position:absolute;inset:0;display:none}
-  #flat img{width:100%;height:100%;object-fit:cover;opacity:.9}
-  #pins{position:absolute;inset:0;display:none}
+  /* Both layers stay mounted and crossfade; toggling display would snap and would also
+     tear down the WebGL context every time you switched. */
+  #globe,#flat{position:absolute;inset:0;transition:opacity .45s ease, transform .45s ease}
+  #globe{opacity:1}
+  #globe.hide{opacity:0;transform:scale(1.08);pointer-events:none}
+  #flat{opacity:0;transform:scale(.96);pointer-events:none}
+  #flat.show{opacity:1;transform:none;pointer-events:auto}
+  #view{position:absolute;inset:0;overflow:hidden;cursor:grab}
+  #view:active{cursor:grabbing}
+  #canvasmap{position:absolute;top:0;left:0;width:100%;height:100%;transform-origin:0 0;
+    will-change:transform}
+  #canvasmap img{width:100%;height:100%;object-fit:cover;opacity:.92;display:block;
+    user-select:none;-webkit-user-drag:none}
+  #pins{position:absolute;inset:0}
+  #zoom{position:absolute;right:8px;bottom:8px;display:flex;flex-direction:column;gap:4px;z-index:5}
+  #zoom button{width:28px;height:28px;border:1px solid var(--rule);background:var(--panel);
+    color:var(--ink);border-radius:7px;font:inherit;font-size:15px;font-weight:700;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow)}
+  #zoom button:hover{border-color:var(--accent);color:var(--accent)}
+  #zoom button:focus-visible{outline:3px solid var(--ring);outline-offset:2px}
+  @media (prefers-reduced-motion: reduce){#globe,#flat{transition:none}}
   .pin{position:absolute;transform:translate(-50%,-50%);cursor:pointer;border:0;background:none;padding:0}
   .pin .dot{display:block;width:14px;height:14px;border-radius:50%;background:var(--accent);
         box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 32%,transparent);transition:transform .15s}
@@ -48,8 +65,16 @@
 <div id="wrap">
   <div id="stage">
     <div id="globe"></div>
-    <div id="flat"><img id="flatimg" alt="World map"></div>
-    <div id="pins"></div>
+    <div id="flat">
+      <div id="view">
+        <div id="canvasmap"><img id="flatimg" alt="World map"><div id="pins"></div></div>
+      </div>
+      <div id="zoom">
+        <button id="zIn"  type="button" aria-label="Zoom in">+</button>
+        <button id="zOut" type="button" aria-label="Zoom out">&minus;</button>
+        <button id="zRst" type="button" aria-label="Reset zoom" title="Reset">&#9678;</button>
+      </div>
+    </div>
   </div>
   <div id="bar">
     <div class="seg" role="group" aria-label="View">
@@ -122,6 +147,7 @@ function placePins(){
   }
   ECON.forEach(function(c){ mk(c, false); });
   SOON.forEach(function(c){ mk(c, true); });
+  if (typeof applyZoom === "function") applyZoom(false);
 }
 
 function choose(iso){ selected = iso; renderNames(); placePins(); paint(); setValue(iso); }
@@ -131,12 +157,64 @@ function setMode(m){
   mode = m;
   document.getElementById("bGlobe").setAttribute("aria-pressed", String(m === "globe"));
   document.getElementById("bMap").setAttribute("aria-pressed", String(m === "map"));
-  document.getElementById("globe").style.display = m === "globe" ? "block" : "none";
-  document.getElementById("flat").style.display  = m === "map" ? "block" : "none";
-  document.getElementById("pins").style.display  = m === "map" ? "block" : "none";
+  /* crossfade: both layers stay mounted, so the WebGL context is never torn down and the
+     switch reads as one continuous move rather than a hard cut */
+  document.getElementById("globe").classList.toggle("hide", m !== "globe");
+  document.getElementById("flat").classList.toggle("show", m === "map");
   document.getElementById("hint").textContent = m === "globe"
-    ? "Drag to spin · click the globe for the map" : "Click a marker to choose";
+    ? "Drag to spin · click the globe for the map"
+    : "Scroll to zoom · drag to pan · click a marker";
 }
+
+/* ── map zoom & pan ─────────────────────────────────────────────────────── */
+var Z = { k:1, x:0, y:0 }, MINK = 1, MAXK = 8;
+function applyZoom(animate){
+  var m = document.getElementById("canvasmap");
+  var v = document.getElementById("view");
+  var w = v.clientWidth, h = v.clientHeight;
+  /* keep the image covering the viewport at every zoom level */
+  Z.x = Math.min(0, Math.max(Z.x, w - w * Z.k));
+  Z.y = Math.min(0, Math.max(Z.y, h - h * Z.k));
+  m.style.transition = animate ? "transform .3s ease" : "none";
+  m.style.transform = "translate(" + Z.x + "px," + Z.y + "px) scale(" + Z.k + ")";
+  /* counter-scale the markers so they stay the same size as you zoom in */
+  var pins = document.querySelectorAll("#pins .pin");
+  for (var i = 0; i < pins.length; i++)
+    pins[i].style.transform = "translate(-50%,-50%) scale(" + (1 / Z.k) + ")";
+}
+function zoomAt(cx, cy, factor, animate){
+  var k2 = Math.min(MAXK, Math.max(MINK, Z.k * factor));
+  if (k2 === Z.k) return;
+  /* zoom toward the pointer: keep the map point under the cursor fixed */
+  Z.x = cx - (cx - Z.x) * (k2 / Z.k);
+  Z.y = cy - (cy - Z.y) * (k2 / Z.k);
+  Z.k = k2;
+  applyZoom(animate);
+}
+(function initMapControls(){
+  var v = document.getElementById("view");
+  v.addEventListener("wheel", function(e){
+    e.preventDefault();
+    var r = v.getBoundingClientRect();
+    zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.18 : 1 / 1.18, false);
+  }, { passive:false });
+  var drag = null;
+  v.addEventListener("pointerdown", function(e){
+    if (e.target.closest(".pin")) return;              // let a marker click through
+    drag = { x:e.clientX, y:e.clientY, ox:Z.x, oy:Z.y }; v.setPointerCapture(e.pointerId);
+  });
+  v.addEventListener("pointermove", function(e){
+    if (!drag) return;
+    Z.x = drag.ox + (e.clientX - drag.x); Z.y = drag.oy + (e.clientY - drag.y); applyZoom(false);
+  });
+  v.addEventListener("pointerup", function(){ drag = null; });
+  v.addEventListener("pointercancel", function(){ drag = null; });
+  function mid(){ var v2 = document.getElementById("view");
+    return [v2.clientWidth / 2, v2.clientHeight / 2]; }
+  document.getElementById("zIn").onclick  = function(){ var c = mid(); zoomAt(c[0], c[1], 1.5, true); };
+  document.getElementById("zOut").onclick = function(){ var c = mid(); zoomAt(c[0], c[1], 1/1.5, true); };
+  document.getElementById("zRst").onclick = function(){ Z = { k:1, x:0, y:0 }; applyZoom(true); };
+})();
 document.getElementById("bGlobe").onclick = function(){ setMode("globe"); };
 document.getElementById("bMap").onclick = function(){ setMode("map"); };
 

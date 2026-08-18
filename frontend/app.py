@@ -446,6 +446,42 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+_PILLAR_CARD_CSS = """
+  .pcard{border:1px solid var(--rule);border-radius:14px;background:var(--panel);
+    padding:1.1rem 1.2rem .9rem;box-shadow:var(--shadow);position:relative;overflow:hidden;
+    transition:border-color .18s ease, transform .18s ease, box-shadow .18s ease;}
+  .pcard:hover{transform:translateY(-2px);border-color:var(--accent);box-shadow:var(--shadow-lg);}
+  .pcard.on{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft),var(--shadow-lg);}
+  .pcard::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent);
+    opacity:0;transition:opacity .18s;}
+  .pcard.on::before{opacity:1;}
+  .pcard .pnum{font-family:'IBM Plex Mono',monospace;font-size:.72rem;font-weight:700;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--accent);}
+  .pcard .ptitle{font-size:1.18rem;font-weight:700;letter-spacing:-.02em;margin:.25rem 0 .3rem;}
+  .pcard .psub{color:var(--ink-soft);font-size:.9rem;line-height:1.5;margin-bottom:.8rem;}
+  .pcard .plist{display:flex;flex-wrap:wrap;gap:.32rem;margin-bottom:.7rem;}
+  .pcard .plist span{font-size:.74rem;color:var(--ink-soft);background:var(--paper-2);
+    border:1px solid var(--rule);border-radius:99px;padding:.16rem .55rem;}
+  .pcard .pfoot{font-size:.72rem;color:var(--ink-faint);margin-top:auto;}
+  /* both cards share one height so their buttons line up, however many indicator chips
+     each pillar wraps onto. Flex only — a percentage height would resolve against a
+     content-height parent and pin each column to its own content. */
+  [data-testid="stHorizontalBlock"]:has(.pcard){align-items:stretch;}
+  [data-testid="stColumn"]:has(.pcard){display:flex;flex-direction:column;}
+  [data-testid="stColumn"]:has(.pcard) > [data-testid="stVerticalBlock"]{
+    flex:1;display:flex;flex-direction:column;}
+  [data-testid="stElementContainer"]:has(.pcard){flex:1;display:flex;}
+  /* stretch the wrappers Streamlit puts between the container and our markup, or the
+     card sits at its own content height and leaves a gap above the button */
+  [data-testid="stElementContainer"]:has(.pcard) > div,
+  [data-testid="stElementContainer"]:has(.pcard) [data-testid="stMarkdownContainer"]{
+    flex:1;display:flex;flex-direction:column;}
+  /* Streamlit nests our markup several wrappers deep and flex:1 does not survive the
+     chain, so pin a shared min-height instead: predictable, and both cards hold the same
+     shape whichever pillar wraps an extra row of chips. */
+  .pcard{flex:1;display:flex;flex-direction:column;min-height:215px;}
+"""
+
 SEAL = {"auto_accepted": "s-auto", "pending_review": "s-review", "quarantined": "s-quar",
         "approved": "s-appr", "rejected": "s-rej", "corrected": "s-appr"}
 # plain-language status names (shown to users instead of raw codes)
@@ -790,10 +826,16 @@ with st.sidebar:
         6: "Pillar 6 — Cross-border data rules (can data leave the country?)",
         7: "Pillar 7 — Data protection & cybersecurity (privacy, DPO, retention, gov access)",
     }
-    pillar = st.radio("Pillar", [6, 7], index=0, format_func=lambda p: _PILLAR_OPT[p],
+    # Shared with the big pillar cards in the main pane (same pattern as the economy/globe):
+    # no widget key, so the cards can write session_state after this widget is instantiated.
+    if st.session_state.get("pillar") not in (6, 7):
+        st.session_state["pillar"] = 6
+    pillar = st.radio("Pillar", [6, 7], format_func=lambda p: _PILLAR_OPT[p],
+                      index=[6, 7].index(st.session_state["pillar"]),
                       label_visibility="collapsed",
                       help="Pick one pillar per run. Pillar 6 covers cross-border data flows and "
                            "localisation; Pillar 7 covers domestic data-protection and cybersecurity.")
+    st.session_state["pillar"] = pillar
     pillars = [pillar]
 
     # Step 3 — run
@@ -1056,7 +1098,40 @@ if not run_id:
         st.session_state["economy"] = _picked
         st.rerun()
 
-    st.markdown(indicator_glossary_html(pillar), unsafe_allow_html=True)
+    # ── pillar as two large choice cards, not a radio ────────────────────────
+    # The two pillars are the second real decision, so they get real estate and the
+    # indicators they cover shown up front — a dropdown label could never carry that.
+    st.markdown('<div class="kicker" style="margin:1.6rem 0 .5rem">Choose a pillar '
+                '<span class="muted">— what kind of rule are you looking for?</span></div>',
+                unsafe_allow_html=True)
+    theme.inject_style(_PILLAR_CARD_CSS)
+    _pc = st.columns(2, gap="medium")
+    for _i, (_pn, _title, _sub, _inds) in enumerate([
+        (6, "Cross-border data rules",
+         "Can data leave the country, and on what conditions?",
+         ["Ban &amp; local processing", "Local storage", "Infrastructure", "Conditional flow"]),
+        (7, "Data protection &amp; cybersecurity",
+         "How personal data must be protected at home.",
+         ["Comprehensive framework", "Dedicated cybersecurity", "Minimum retention",
+          "DPO / DPIA", "Government access"]),
+    ]):
+        with _pc[_i]:
+            _on = st.session_state.get("pillar") == _pn
+            st.markdown(
+                f'<div class="pcard {"on" if _on else ""}">'
+                f'<div class="pnum">Pillar {_pn}</div>'
+                f'<div class="ptitle">{_title}</div>'
+                f'<div class="psub">{_sub}</div>'
+                f'<div class="plist">' +
+                "".join(f'<span>{x}</span>' for x in _inds) +
+                f'</div><div class="pfoot">{len(_inds)} indicators</div></div>',
+                unsafe_allow_html=True)
+            if st.button(("Selected" if _on else f"Choose Pillar {_pn}"),
+                         key=f"pick_pillar_{_pn}", width="stretch",
+                         type=("primary" if _on else "secondary"), disabled=_on):
+                st.session_state["pillar"] = _pn
+                st.rerun()
+
     site_footer()
     st.stop()
 
