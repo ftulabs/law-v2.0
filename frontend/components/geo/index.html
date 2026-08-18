@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{background:transparent;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
@@ -17,20 +18,19 @@
   #globe.hide{opacity:0;transform:scale(1.08);pointer-events:none}
   #flat{opacity:0;transform:scale(.96);pointer-events:none}
   #flat.show{opacity:1;transform:none;pointer-events:auto}
-  #view{position:absolute;inset:0;overflow:hidden;cursor:grab}
-  #view:active{cursor:grabbing}
-  #canvasmap{position:absolute;top:0;left:0;width:100%;height:100%;transform-origin:0 0;
-    will-change:transform}
-  #canvasmap img{width:100%;height:100%;object-fit:cover;opacity:.92;display:block;
-    user-select:none;-webkit-user-drag:none}
-  #pins{position:absolute;inset:0}
-  #zoom{position:absolute;right:8px;bottom:8px;display:flex;flex-direction:column;gap:4px;z-index:5}
-  #zoom button{width:28px;height:28px;border:1px solid var(--rule);background:var(--panel);
-    color:var(--ink);border-radius:7px;font:inherit;font-size:15px;font-weight:700;cursor:pointer;
-    display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow)}
-  #zoom button:hover{border-color:var(--accent);color:var(--accent)}
-  #zoom button:focus-visible{outline:3px solid var(--ring);outline-offset:2px}
-  @media (prefers-reduced-motion: reduce){#globe,#flat{transition:none}}
+  #lmap{position:absolute;inset:0;background:var(--paper-2)}
+  .leaflet-container{background:var(--paper-2);font-family:inherit}
+  .leaflet-control-zoom a{background:var(--panel) !important;color:var(--ink) !important;
+    border-color:var(--rule) !important}
+  .leaflet-control-zoom a:hover{color:var(--accent) !important}
+  .leaflet-control-attribution{background:color-mix(in srgb,var(--panel) 82%,transparent) !important;
+    color:var(--ink-faint) !important;font-size:9.5px !important}
+  .leaflet-control-attribution a{color:var(--ink-soft) !important}
+  .geo-tip{background:var(--panel) !important;color:var(--ink) !important;
+    border:1px solid var(--rule) !important;border-radius:6px !important;
+    box-shadow:var(--shadow) !important;font-size:11.5px !important;font-weight:600;
+    padding:2px 7px !important}
+  .geo-tip::before{display:none !important}
   .pin{position:absolute;transform:translate(-50%,-50%);cursor:pointer;border:0;background:none;padding:0}
   .pin .dot{display:block;width:14px;height:14px;border-radius:50%;background:var(--accent);
         box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 32%,transparent);transition:transform .15s}
@@ -65,16 +65,7 @@
 <div id="wrap">
   <div id="stage">
     <div id="globe"></div>
-    <div id="flat">
-      <div id="view">
-        <div id="canvasmap"><img id="flatimg" alt="World map"><div id="pins"></div></div>
-      </div>
-      <div id="zoom">
-        <button id="zIn"  type="button" aria-label="Zoom in">+</button>
-        <button id="zOut" type="button" aria-label="Zoom out">&minus;</button>
-        <button id="zRst" type="button" aria-label="Reset zoom" title="Reset">&#9678;</button>
-      </div>
-    </div>
+    <div id="flat"><div id="lmap"></div></div>
   </div>
   <div id="bar">
     <div class="seg" role="group" aria-label="View">
@@ -86,6 +77,8 @@
   </div>
 </div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/topojson-client@3"></script>
 <script type="importmap">
 {"imports":{"three":"https://esm.sh/three@0.160.0","three/addons/":"https://esm.sh/three@0.160.0/examples/jsm/"}}
 </script>
@@ -101,9 +94,26 @@ function send(type, data){
   P.postMessage(m, "*");
 }
 function setValue(v){ send("streamlit:setComponentValue", {value:v, dataType:"json"}); }
-function fitHeight(){ send("streamlit:setFrameHeight", {height:document.body.scrollHeight + 2}); }
+/* Measure the wrapper, not document.body.scrollHeight: on first paint the body can
+   still report 0 (Leaflet's stylesheet had not applied yet), which shipped a 2px iframe
+   and collapsed the whole component to a sliver. A ResizeObserver re-reports whenever
+   the content actually changes size, so late-loading tiles/CSS cannot strand a bad value. */
+function fitHeight(){
+  var w = document.getElementById("wrap");
+  var h = w ? Math.ceil(w.getBoundingClientRect().height) : 0;
+  if (!h) h = document.body.scrollHeight;
+  if (h > 0) send("streamlit:setFrameHeight", {height: h + 4});
+}
+if (typeof ResizeObserver !== "undefined") {
+  var __ro = new ResizeObserver(function(){ fitHeight(); });
+  addEventListener("DOMContentLoaded", function(){
+    var w = document.getElementById("wrap"); if (w) __ro.observe(w);
+  });
+}
+addEventListener("load", fitHeight);
+setTimeout(fitHeight, 250); setTimeout(fitHeight, 1200);
 
-var ECON = [], SOON = [], selected = null, mode = "globe", booted = false;
+var ECON = [], SOON = [], selected = null, mode = "globe", booted = false, themeName = "dark";
 window.__ECON = [];
 
 window.addEventListener("message", function(e){
@@ -111,46 +121,15 @@ window.addEventListener("message", function(e){
   var a = e.data.args || {};
   ECON = a.economies || []; SOON = a.upcoming || []; window.__ECON = ECON;
   if (!booted) { selected = a.selected || null; booted = true; }
+  themeName = a.theme || "dark";
   applyTokens(a.tokens || {});
-  renderNames(); placePins(); paint(); fitHeight();
+  renderNames(); paint(); if (window.__mapPaint) window.__mapPaint(); fitHeight();
 });
 
 function applyTokens(t){ for (var k in t) document.documentElement.style.setProperty(k, t[k]); }
 
-/* equirectangular projection -> percentage position on the flat map */
-function proj(lat, lon){ return { x:(lon+180)/360*100, y:(90-lat)/180*100 }; }
-
-function renderNames(){
-  var box = document.getElementById("names"); box.innerHTML = "";
-  ECON.forEach(function(c){
-    var b = document.createElement("button");
-    b.className = "name"; b.type = "button"; b.textContent = c.name;
-    /* pointer/keyboard route to the same choice, so the globe drag is never the only
-       way to select a country (WCAG 2.2 dragging-alternative) */
-    b.setAttribute("aria-pressed", String(c.iso === selected));
-    b.onclick = function(){ choose(c.iso); };
-    box.appendChild(b);
-  });
-}
-
-function placePins(){
-  var box = document.getElementById("pins"); box.innerHTML = "";
-  function mk(c, soon){
-    var p = proj(c.lat, c.lon);
-    var b = document.createElement("button");
-    b.className = "pin" + (soon ? " soon" : "") + (c.iso === selected ? " on" : "");
-    b.style.left = p.x + "%"; b.style.top = p.y + "%"; b.type = "button";
-    b.setAttribute("aria-label", soon ? c.name + " - not available yet" : "Select " + c.name);
-    b.innerHTML = '<span class="dot"></span><span class="lb">' + c.name + '</span>';
-    if (soon) b.disabled = true; else b.onclick = function(){ choose(c.iso); };
-    box.appendChild(b);
-  }
-  ECON.forEach(function(c){ mk(c, false); });
-  SOON.forEach(function(c){ mk(c, true); });
-  if (typeof applyZoom === "function") applyZoom(false);
-}
-
-function choose(iso){ selected = iso; renderNames(); placePins(); paint(); setValue(iso); }
+function choose(iso){ selected = iso; renderNames(); paint();
+  if (window.__mapPaint) window.__mapPaint(); setValue(iso); }
 window.__choose = choose;
 
 function setMode(m){
@@ -163,58 +142,10 @@ function setMode(m){
   document.getElementById("flat").classList.toggle("show", m === "map");
   document.getElementById("hint").textContent = m === "globe"
     ? "Drag to spin · click the globe for the map"
-    : "Scroll to zoom · drag to pan · click a marker";
+    : "Scroll to zoom · drag to pan · click a country";
+  if (m === "map" && window.__mapReady) window.__mapReady();
 }
 
-/* ── map zoom & pan ─────────────────────────────────────────────────────── */
-var Z = { k:1, x:0, y:0 }, MINK = 1, MAXK = 8;
-function applyZoom(animate){
-  var m = document.getElementById("canvasmap");
-  var v = document.getElementById("view");
-  var w = v.clientWidth, h = v.clientHeight;
-  /* keep the image covering the viewport at every zoom level */
-  Z.x = Math.min(0, Math.max(Z.x, w - w * Z.k));
-  Z.y = Math.min(0, Math.max(Z.y, h - h * Z.k));
-  m.style.transition = animate ? "transform .3s ease" : "none";
-  m.style.transform = "translate(" + Z.x + "px," + Z.y + "px) scale(" + Z.k + ")";
-  /* counter-scale the markers so they stay the same size as you zoom in */
-  var pins = document.querySelectorAll("#pins .pin");
-  for (var i = 0; i < pins.length; i++)
-    pins[i].style.transform = "translate(-50%,-50%) scale(" + (1 / Z.k) + ")";
-}
-function zoomAt(cx, cy, factor, animate){
-  var k2 = Math.min(MAXK, Math.max(MINK, Z.k * factor));
-  if (k2 === Z.k) return;
-  /* zoom toward the pointer: keep the map point under the cursor fixed */
-  Z.x = cx - (cx - Z.x) * (k2 / Z.k);
-  Z.y = cy - (cy - Z.y) * (k2 / Z.k);
-  Z.k = k2;
-  applyZoom(animate);
-}
-(function initMapControls(){
-  var v = document.getElementById("view");
-  v.addEventListener("wheel", function(e){
-    e.preventDefault();
-    var r = v.getBoundingClientRect();
-    zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.18 : 1 / 1.18, false);
-  }, { passive:false });
-  var drag = null;
-  v.addEventListener("pointerdown", function(e){
-    if (e.target.closest(".pin")) return;              // let a marker click through
-    drag = { x:e.clientX, y:e.clientY, ox:Z.x, oy:Z.y }; v.setPointerCapture(e.pointerId);
-  });
-  v.addEventListener("pointermove", function(e){
-    if (!drag) return;
-    Z.x = drag.ox + (e.clientX - drag.x); Z.y = drag.oy + (e.clientY - drag.y); applyZoom(false);
-  });
-  v.addEventListener("pointerup", function(){ drag = null; });
-  v.addEventListener("pointercancel", function(){ drag = null; });
-  function mid(){ var v2 = document.getElementById("view");
-    return [v2.clientWidth / 2, v2.clientHeight / 2]; }
-  document.getElementById("zIn").onclick  = function(){ var c = mid(); zoomAt(c[0], c[1], 1.5, true); };
-  document.getElementById("zOut").onclick = function(){ var c = mid(); zoomAt(c[0], c[1], 1/1.5, true); };
-  document.getElementById("zRst").onclick = function(){ Z = { k:1, x:0, y:0 }; applyZoom(true); };
-})();
 document.getElementById("bGlobe").onclick = function(){ setMode("globe"); };
 document.getElementById("bMap").onclick = function(){ setMode("map"); };
 
@@ -222,6 +153,111 @@ function paint(){ if (window.__globePaint) window.__globePaint(selected); }
 
 send("streamlit:componentReady", {apiVersion:1});
 fitHeight();
+</script>
+
+
+<script>
+/* -- Flat map: real tiled cartography ----------------------------------------
+   This used to be the globe's 2048px texture stretched to fill, so zooming in only
+   magnified pixels. Leaflet + Esri raster tiles fetch the right tile for each zoom
+   level, so the map stays sharp all the way in, and world-atlas country polygons make
+   whole countries clickable instead of just a marker dot. Same stack the reference
+   project (ftulabs/law, components/mapflat.ts) uses. */
+(function(){
+  var map = null, geoLayer = null, markers = [], initialised = false, base = null;
+
+  var TILES = {
+    light: { url:"https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+             attr:'Tiles &copy; <a href="https://www.esri.com/">Esri</a> - World Topographic Map' },
+    dark:  { url:"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+             attr:'Tiles &copy; <a href="https://www.esri.com/">Esri</a> - World Imagery' }
+  };
+  /* world-atlas tags each country with a UN M49 numeric id. Only the codes this tool
+     shows are listed; the full 200-row table would be dead weight here. */
+  var M49 = { "702":"SG", "036":"AU", "458":"MY", "764":"TH", "156":"CN", "356":"IN",
+              "360":"ID", "643":"RU", "418":"LA", "496":"MN", "626":"TL" };
+
+  function isoOf(f){
+    if (!f || f.id == null) return null;
+    var raw = String(f.id), pad = raw.length < 3 ? ("00" + raw).slice(-3) : raw;
+    return M49[pad] || M49[raw] || null;
+  }
+  function isLive(iso){ return (window.__ECON || []).some(function(c){ return c.iso === iso; }); }
+  function nameOf(iso){
+    var all = (window.__ECON || []).concat(SOON || []);
+    for (var i = 0; i < all.length; i++) if (all[i].iso === iso) return all[i].name;
+    return iso;
+  }
+  function cssv(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim() || "#38bdf8"; }
+  function tiles(){ return TILES[themeName === "light" ? "light" : "dark"]; }
+
+  function styleFor(iso){
+    if (iso === selected)
+      return { color: cssv("--good"), weight: 2.2, opacity: 1, fillColor: cssv("--good"), fillOpacity: 0.45 };
+    if (isLive(iso))
+      return { color: cssv("--accent"), weight: 1.6, opacity: 0.95, fillColor: cssv("--accent"), fillOpacity: 0.22 };
+    return { color: "#94a3b8", weight: 0.8, opacity: 0.5, fillColor: "#94a3b8", fillOpacity: 0.10 };
+  }
+
+  window.__mapReady = function(){
+    if (initialised || typeof L === "undefined") return;
+    initialised = true;
+    map = L.map("lmap", { center:[6, 112], zoom:3, minZoom:2, maxZoom:12,
+                          zoomControl:true, worldCopyJump:true, scrollWheelZoom:true });
+    base = L.tileLayer(tiles().url, { attribution: tiles().attr, maxZoom:19, detectRetina:true }).addTo(map);
+
+    if (typeof topojson !== "undefined") {
+      fetch("https://unpkg.com/world-atlas@2.0.2/countries-50m.json")
+        .then(function(r){ return r.json(); })
+        .then(function(topo){
+          var fc = topojson.feature(topo, topo.objects.countries);
+          var feats = fc.features.filter(function(f){ return isoOf(f) !== null; });
+          geoLayer = L.geoJSON({ type:"FeatureCollection", features:feats }, {
+            style: function(f){ return styleFor(isoOf(f)); },
+            onEachFeature: function(f, layer){
+              var iso = isoOf(f), live = isLive(iso);
+              layer.bindTooltip(nameOf(iso) + (live ? "" : " - not available yet"),
+                                { sticky:true, direction:"top", className:"geo-tip" });
+              if (!live) return;
+              layer.on("click", function(){ window.__choose(iso); });
+              layer.on("mouseover", function(e){ e.target.setStyle({ fillOpacity:0.42, weight:2.4 }); e.target.bringToFront(); });
+              layer.on("mouseout",  function(e){ e.target.setStyle(styleFor(iso)); });
+            }
+          }).addTo(map);
+          window.__mapPaint();
+        })
+        .catch(function(){ /* offline: tiles + markers still work */ });
+    }
+    window.__mapPaint();
+    setTimeout(function(){ if (map) map.invalidateSize(); }, 80);
+  };
+
+  window.__mapPaint = function(){
+    if (!map) return;
+    var want = tiles();
+    if (base && base._url !== want.url) {          /* basemap follows the app theme */
+      map.removeLayer(base);
+      base = L.tileLayer(want.url, { attribution: want.attr, maxZoom:19, detectRetina:true }).addTo(map);
+      base.bringToBack();
+    }
+    if (geoLayer) geoLayer.eachLayer(function(l){ l.setStyle(styleFor(isoOf(l.feature))); });
+    markers.forEach(function(m){ map.removeLayer(m); });
+    markers = [];
+    var all = (window.__ECON || []).map(function(c){ return [c, true]; })
+              .concat((SOON || []).map(function(c){ return [c, false]; }));
+    all.forEach(function(pair){
+      var c = pair[0], live = pair[1], on = c.iso === selected;
+      var col = on ? cssv("--good") : (live ? cssv("--accent") : "#94a3b8");
+      var m = L.circleMarker([c.lat, c.lon], {
+        radius: on ? 8 : (live ? 6 : 4), color: col, fillColor: col,
+        fillOpacity: live ? 0.95 : 0.55, weight: 2 });
+      m.bindTooltip(c.name + (live ? "" : " - not available yet"),
+                    { direction:"top", offset:[0,-6], className:"geo-tip" });
+      if (live) m.on("click", function(){ window.__choose(c.iso); });
+      m.addTo(map); markers.push(m);
+    });
+  };
+})();
 </script>
 
 <script type="module">
