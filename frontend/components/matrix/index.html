@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:transparent;
+    font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+  #wrap{border:1px solid var(--rule);border-radius:14px;background:var(--panel);
+    box-shadow:var(--shadow);overflow-x:auto}
+  table{border-collapse:separate;border-spacing:0;width:100%;min-width:660px}
+  th,td{border-bottom:1px solid var(--rule-soft);text-align:left}
+  thead th{position:sticky;top:0;background:var(--panel-2);z-index:2;
+    padding:10px 3px;font-size:11px;font-weight:600;color:var(--ink-soft);
+    border-bottom:1px solid var(--rule);vertical-align:bottom}
+  thead th.ind{text-align:center;width:52px;cursor:help}
+  thead th.ind b{display:block;font-family:'IBM Plex Mono',ui-monospace,monospace;
+    font-size:13px;color:var(--ink);font-weight:600}
+  thead th.ind span{display:block;font-weight:500;font-size:9.5px;line-height:1.2;
+    color:var(--ink-faint);margin-top:2px;min-height:2.4em}
+  thead th.lawcol{padding-left:14px;min-width:192px}
+  tbody td{padding:0}
+  .lawcell{padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+  .lawcell b{font-size:13.5px;font-weight:600;line-height:1.3;color:var(--ink)}
+  .lawcell span{font-size:11px;color:var(--ink-faint)}
+  .lawcell span em{font-style:normal;font-family:'IBM Plex Mono',ui-monospace,monospace}
+  tbody tr:hover .lawcell b{color:var(--accent)}
+
+  .cell{width:100%;height:100%;min-height:54px;border:0;background:none;cursor:pointer;
+    display:grid;place-items:center;padding:6px;font:inherit;transition:background .15s ease}
+  .cell:disabled{cursor:default}
+  .cell:not(:disabled):hover{background:var(--paper-2)}
+  .cell:focus-visible{outline:3px solid var(--ring);outline-offset:-3px}
+  .chip{display:grid;place-items:center;min-width:36px;padding:0 4px;height:28px;
+    border-radius:8px;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;
+    font-weight:600;letter-spacing:-.02em;border:1px solid transparent}
+  /* Colour is never the only signal: every filled chip also carries its section number,
+     and the aria-label spells the band out for a screen reader. */
+  .chip.g{background:var(--good-soft);color:var(--good);
+    border-color:color-mix(in srgb,var(--good) 34%,transparent)}
+  .chip.a{background:var(--warn-soft);color:var(--warn);
+    border-color:color-mix(in srgb,var(--warn) 34%,transparent)}
+  .chip.r{background:var(--bad-soft);color:var(--bad);
+    border-color:color-mix(in srgb,var(--bad) 34%,transparent)}
+  .chip.n{background:var(--paper-2);color:var(--ink-faint);border-color:var(--rule)}
+  .chip.none{color:var(--ink-faint);font-size:15px;opacity:.4}
+  .cell[aria-pressed="true"] .chip{outline:2.5px solid var(--accent);outline-offset:2px}
+
+  tfoot td{padding:9px 3px;background:var(--panel-2);font-size:11px;text-align:center;
+    color:var(--ink-faint);border-top:1px solid var(--rule);
+    font-family:'IBM Plex Mono',ui-monospace,monospace}
+  tfoot td.lab{text-align:left;padding-left:14px;font-weight:600;color:var(--ink-soft);
+    font-family:inherit}
+  tfoot td.gap{color:var(--bad);font-weight:700}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <table>
+    <thead><tr id="head"></tr></thead>
+    <tbody id="body"></tbody>
+    <tfoot><tr id="foot"></tr></tfoot>
+  </table>
+</div>
+
+<script>
+/* Streamlit component protocol by hand — same handshake as the geo picker, no build step.
+   The matrix is a component rather than plain markup for one reason: st.markdown is
+   write-only, so a clicked cell could never tell Python which evidence to open. */
+var P = window.parent;
+function send(type, data){
+  var m = {isStreamlitMessage:true, type:type};
+  for (var k in (data||{})) m[k] = data[k];
+  P.postMessage(m, "*");
+}
+function setValue(v){ send("streamlit:setComponentValue", {value:v, dataType:"json"}); }
+function fitHeight(){
+  var w = document.getElementById("wrap");
+  var h = w ? Math.ceil(w.getBoundingClientRect().height) : 0;
+  if (!h) h = document.body.scrollHeight;
+  if (h > 0) send("streamlit:setFrameHeight", {height: h + 6});
+}
+if (typeof ResizeObserver !== "undefined") {
+  var __ro = new ResizeObserver(function(){ fitHeight(); });
+  addEventListener("DOMContentLoaded", function(){
+    var w = document.getElementById("wrap"); if (w) __ro.observe(w);
+  });
+}
+addEventListener("load", fitHeight);
+setTimeout(fitHeight, 200); setTimeout(fitHeight, 900);
+
+var ROWS = [], INDS = [], selected = null, booted = false;
+
+window.addEventListener("message", function(e){
+  if (!e.data || e.data.type !== "streamlit:render") return;
+  var a = e.data.args || {};
+  ROWS = a.rows || []; INDS = a.indicators || [];
+  if (!booted) { selected = a.selected || null; booted = true; }
+  for (var k in (a.tokens || {})) document.documentElement.style.setProperty(k, a.tokens[k]);
+  build(); fitHeight();
+});
+
+/* A cell is 58px wide, so the chip carries a short locator and the panel beside the
+   matrix carries the full citation: "s199(1)" -> "§199", "s39-40" -> "§39+". Truncating
+   mid-token ("§199(1") reads as a rendering bug, so the subsection is dropped instead. */
+function shortRef(t){
+  if (!t) return "·";
+  var s = String(t).trim()
+    .replace(/^(section|sec\.?|s)\s*/i, "§")
+    .replace(/^(article|art\.?)\s*/i, "Art ")
+    .replace(/[–—-]\s*\d+.*$/, "+")
+    .replace(/\(.*$/, "");
+  return s.length > 6 ? s.slice(0, 6) : s;
+}
+function esc(s){
+  return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; });
+}
+
+function build(){
+  var head = document.getElementById("head");
+  head.innerHTML = '<th class="lawcol" scope="col">Law found</th>' +
+    INDS.map(function(i){
+      return '<th class="ind" scope="col" title="' + esc(i.id + " " + i.title) + '">' +
+             '<b>' + esc(i.num) + '</b><span>' + esc(i.short) + '</span></th>';
+    }).join("");
+
+  var body = document.getElementById("body");
+  body.innerHTML = "";
+  ROWS.forEach(function(row, li){
+    var tr = document.createElement("tr");
+    var td = document.createElement("td");
+    td.innerHTML = '<div class="lawcell"><b>' + esc(row.law) + '</b><span>' +
+      (row.ref ? '<em>' + esc(row.ref) + '</em> · ' : '') + esc(row.host) + '</span></div>';
+    tr.appendChild(td);
+
+    INDS.forEach(function(ind){
+      var c = document.createElement("td");
+      var cell = row.cells[ind.id];
+      var btn = document.createElement("button");
+      btn.className = "cell";
+      if (cell){
+        btn.innerHTML = '<span class="chip ' + cell.s + '">' +
+          esc(cell.s === "n" ? "none" : shortRef(cell.t)) + '</span>';
+        btn.setAttribute("aria-pressed", String(row.law + "|" + ind.id === selected));
+        btn.setAttribute("aria-label", esc(row.law) + ", indicator " + ind.id + ", " +
+          (cell.s === "n" ? "no provision found" : cell.t + ", " + cell.band));
+        btn.dataset.k = row.law + "|" + ind.id;
+        btn.onclick = function(){ choose(btn.dataset.k); };
+      } else {
+        btn.innerHTML = '<span class="chip none" aria-hidden="true">·</span>';
+        btn.disabled = true;
+        btn.setAttribute("aria-label", esc(row.law) + ", indicator " + ind.id + ", not mapped");
+      }
+      c.appendChild(btn); tr.appendChild(c);
+    });
+    body.appendChild(tr);
+  });
+
+  /* Column totals turn an empty column into a stated finding rather than something the
+     reader has to notice for themselves. */
+  var foot = document.getElementById("foot");
+  foot.innerHTML = '<td class="lab">Laws per indicator</td>' + INDS.map(function(i){
+    var n = ROWS.filter(function(r){ var c = r.cells[i.id]; return c && c.s !== "n"; }).length;
+    return '<td class="' + (n ? '' : 'gap') + '">' + n + '</td>';
+  }).join("");
+}
+
+function choose(k){
+  selected = k;
+  document.querySelectorAll('.cell[aria-pressed]').forEach(function(b){
+    b.setAttribute("aria-pressed", String(b.dataset.k === k)); });
+  setValue(k);
+}
+
+send("streamlit:componentReady", {apiVersion:1});
+fitHeight();
+</script>
+</body>
+</html>

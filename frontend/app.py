@@ -32,11 +32,12 @@ from backend.pipeline.orchestrator import run_pipeline  # noqa: E402
 from backend.providers import registry as reg  # noqa: E402
 from backend.rdtii import get_indicators  # noqa: E402
 from backend.review import workflow  # noqa: E402
-from backend.schemas import Economy, RunResult, SUBMISSION_COLUMNS  # noqa: E402
+from backend.schemas import ECONOMY_UN_NAME, Economy, RunResult, SUBMISSION_COLUMNS  # noqa: E402
 from backend.storage import db  # noqa: E402
 
-from frontend import auth_ui, geo, theme  # noqa: E402
+from frontend import auth_ui, geo, matrix, runview, theme  # noqa: E402
 from frontend.theme import site_footer  # noqa: E402
+from backend.rdtii.indicators import get_indicator  # noqa: E402
 
 db.init_db()  # ensure schema exists on fresh mounts (no-op if tables already present)
 
@@ -446,6 +447,47 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+_EVIDENCE_CSS = """
+  /* Panel that opens beside the coverage matrix. Its job is to let a researcher judge the
+     mapping themselves, so the indicator's legal test sits directly above the quote —
+     without it the reader can only take the confidence score on trust. */
+  .evp{border:1px solid var(--rule);border-radius:14px;background:var(--panel);
+    padding:1.05rem 1.15rem 1.15rem;box-shadow:var(--shadow-lg);}
+  .evp .evhead{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;}
+  .evp .evid{font-family:var(--mono);font-size:.82rem;font-weight:600;color:var(--accent);
+    background:var(--accent-soft);padding:2px 8px;border-radius:6px;}
+  .evp h4{font-size:1.02rem;line-height:1.3;margin:.5rem 0 .1rem;font-weight:600;}
+  .evp .evcite{font-family:var(--mono);font-size:.72rem;color:var(--ink-faint);}
+  .evp .test{background:var(--paper-2);border-left:3px solid var(--accent);
+    border-radius:0 8px 8px 0;padding:.6rem .75rem;margin:.85rem 0;font-size:.78rem;
+    color:var(--ink-soft);}
+  .evp .test b{display:block;font-size:.66rem;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--ink-faint);margin-bottom:.15rem;font-weight:600;}
+  .evp blockquote{margin:0;padding:.85rem .95rem;border-radius:10px;background:var(--panel-2);
+    border:1px solid var(--rule);font-size:.87rem;line-height:1.62;color:var(--ink);}
+  .evp blockquote::before{content:"C";font-size:1.6rem;color:var(--accent);line-height:0;
+    vertical-align:-.35rem;margin-right:2px;}
+  .evp .why{font-size:.78rem;color:var(--ink-soft);margin:.75rem 0 0;}
+  .evp .why b{color:var(--ink);}
+  .evp .bars{margin:.95rem 0 0;display:flex;flex-direction:column;gap:.35rem;}
+  .evp .bd{display:grid;grid-template-columns:88px 1fr 34px;align-items:center;gap:.55rem;
+    font-size:.72rem;}
+  .evp .bd .lab{color:var(--ink-faint);}
+  .evp .bd .track{height:6px;border-radius:99px;background:var(--paper-2);overflow:hidden;}
+  .evp .bd .track i{display:block;height:100%;border-radius:99px;background:var(--accent);}
+  .evp .bd .val{font-family:var(--mono);text-align:right;color:var(--ink-soft);}
+  .evp .bd.tot{font-weight:600;font-size:.78rem;margin-top:.15rem;}
+  .evp .bd.tot .lab{color:var(--ink);} .evp .bd.tot .track{height:9px;}
+  .evp .evlink{display:block;margin-top:.85rem;font-family:var(--mono);font-size:.72rem;
+    word-break:break-all;}
+  .evp.empty{box-shadow:var(--shadow);}
+  .evp .nofind{font-size:.85rem;color:var(--ink-soft);line-height:1.6;}
+  .mxhint{font-size:.75rem;color:var(--ink-faint);margin:.5rem 0 .75rem;}
+  .mxkey{display:flex;flex-wrap:wrap;gap:.25rem 1.1rem;margin:.7rem 0 0;
+    font-size:.72rem;color:var(--ink-faint);}
+  .mxkey b{font-family:var(--mono);color:var(--ink-soft);font-weight:600;}
+"""
+
 _PILLAR_CARD_CSS = """
   .pcard{border:1px solid var(--rule);border-radius:14px;background:var(--panel);
     padding:1.1rem 1.2rem .9rem;box-shadow:var(--shadow);position:relative;overflow:hidden;
@@ -488,7 +530,9 @@ SEAL = {"auto_accepted": "s-auto", "pending_review": "s-review", "quarantined": 
 STATUS_LABEL = {"auto_accepted": "high confidence", "pending_review": "needs review",
                 "quarantined": "set aside", "approved": "approved", "rejected": "rejected",
                 "corrected": "corrected"}
-ECON_NAME = {"SG": "Singapore", "AU": "Australia", "MY": "Malaysia"}
+ECON_NAME = dict(ECONOMY_UN_NAME)          # never hardcode: the enum is the source of truth
+# "Singapore, Australia and Malaysia" for prose, derived so the copy cannot go stale
+_ECON_PROSE = ", ".join(list(ECON_NAME.values())[:-1]) + " and " + list(ECON_NAME.values())[-1]
 
 
 def vcolor(c: float) -> str:
@@ -708,6 +752,76 @@ def _esc(s: str) -> str:
     return _html_mod.escape(str(s), quote=True)
 
 
+_SIGNAL_LABEL = {"retrieval_score": "search match", "legal_match": "legal fit",
+                 "snippet_grounding": "quote grounding", "scope_alignment": "scope fit"}
+
+
+def evidence_panel_html(cell_key: str | None, mappings) -> str:
+    """The evidence for one matrix cell, rendered beside the matrix.
+
+    Deliberately leads with the indicator's own legal test and then the verbatim quote:
+    that ordering lets a policy researcher judge the mapping themselves instead of
+    taking the confidence number on trust. The number comes last, broken into the four
+    signals that produced it.
+    """
+    m = None
+    if cell_key and "|" in cell_key:
+        law, _, ind = cell_key.partition("|")
+        m = next((x for x in mappings if x.law_name == law and x.indicator_id == ind), None)
+    if m is None:
+        return ('<div class="evp empty"><div class="nofind">Press a cell in the matrix to read '
+                'the law behind it — the exact quote, why it was mapped there, and how '
+                'confident the system is.</div></div>')
+
+    ind = get_indicator(m.indicator_id)
+    head = (f'<div class="evhead"><span class="evid">{matrix.num(m.indicator_id)}</span>'
+            f'{seal_html(m.review_status.value)}</div>')
+
+    if is_no_evidence(m):
+        where = (f'<a class="evlink" href="{m.source_url}" target="_blank">'
+                 f'Searched · {_host(m.source_url)}</a>') if m.source_url else ""
+        return (f'<div class="evp empty">{head}'
+                f'<h4>No relevant law found</h4>'
+                f'<div class="evcite">{m.economy.value} · Pillar {m.pillar}</div>'
+                f'<div class="test"><b>{matrix.num(m.indicator_id)} '
+                f'{_esc(ind.title) if ind else ""} — the legal test</b>'
+                f'{_esc(ind.legal_test) if ind else ""}</div>'
+                f'<div class="nofind">The official portal was searched and no active provision '
+                f'matched this test. It ships in the submission file as an explicit '
+                f'“no evidence” row, so the indicator is never left blank.</div>{where}</div>')
+
+    cb = m.confidence.model_dump()
+    bars = "".join(
+        f'<div class="bd"><div class="lab">{_SIGNAL_LABEL[k]}</div>'
+        f'<div class="track"><i style="width:{int(float(cb[k]) * 100)}%"></i></div>'
+        f'<div class="val">{float(cb[k]):.2f}</div></div>'
+        for k in ("legal_match", "retrieval_score", "snippet_grounding", "scope_alignment")
+        if k in cb)
+    tone = vcolor(m.confidence_score)
+    bars += (f'<div class="bd tot"><div class="lab">Confidence</div>'
+             f'<div class="track"><i style="width:{int(m.confidence_score * 100)}%;'
+             f'background:{tone}"></i></div>'
+             f'<div class="val">{m.confidence_score:.2f}</div></div>')
+
+    score = (score_stamp_html(m.raw_score, mini=True) + " ") if m.raw_score is not None else ""
+    flag = (f'<div class="why" style="color:var(--flag)">Sector-flagged · {_esc(m.scope_flag)} '
+            f'— capped so a sector-specific rule is not auto-accepted.</div>'
+            if m.scope_flag else "")
+    return (
+        f'<div class="evp">{head}'
+        f'<h4>{_esc(m.law_name)}</h4>'
+        f'<div class="evcite">{_esc(m.article_section)} · {_esc(m.law_number or m.economy.value)}'
+        f' · {_host(m.source_url)}</div>'
+        f'<div class="test"><b>{matrix.num(m.indicator_id)} {_esc(ind.title) if ind else ""}'
+        f' — the legal test</b>{_esc(ind.legal_test) if ind else ""}</div>'
+        f'<blockquote>{_esc(m.verbatim_snippet)}</blockquote>'
+        f'<p class="why"><b>Why this mapping.</b> {_esc(m.mapping_rationale)}</p>{flag}'
+        f'<div class="bars">{bars}</div>'
+        f'<div style="margin-top:.7rem">{score}</div>'
+        f'<a class="evlink" href="{m.source_url}" target="_blank">{m.source_url}</a>'
+        f'</div>')
+
+
 def indicator_glossary_html(pillar: int) -> str:
     """'What we're looking for' — the legal test for every indicator in the chosen pillar,
     so a researcher can read this WHILE a run is in progress instead of only after. Useful,
@@ -726,38 +840,6 @@ def indicator_glossary_html(pillar: int) -> str:
         f'<div class="muted" style="margin-bottom:.4rem">The legal test behind each indicator in '
         f'Pillar {pillar}, so you can judge results as soon as they appear.</div>'
         f'{items}</div>'
-    )
-
-
-def discovery_feed_html(docs_found: list[tuple[str, str]]) -> str:
-    """Live 'documents found so far' feed — a researcher can start opening/reading these
-    source laws in parallel instead of waiting for the whole run to finish."""
-    if not docs_found:
-        return ('<div class="waitpanel"><div class="wp-head">Documents found so far</div>'
-                '<div class="feed-empty">Searching the official portal…</div></div>')
-    rows = "".join(
-        f'<div class="feed-row"><span class="ft">{_esc(title)}</span>'
-        f'<a class="fu" href="{_esc(url)}" target="_blank">{_esc(_host(url))}</a></div>'
-        for title, url in reversed(docs_found)
-    )
-    return (
-        '<div class="waitpanel"><div class="wp-head">Documents found so far '
-        f'<span class="muted">({len(docs_found)})</span></div>'
-        f'<div class="feed-scroll">{rows}</div></div>'
-    )
-
-
-def results_so_far_html(results_so_far: list[str]) -> str:
-    """Live 'high-confidence results so far' feed, fed by the SAME log channel — a researcher
-    can start reading strong matches while lower-confidence ones are still being graded."""
-    if not results_so_far:
-        return ""
-    rows = "".join(f'<div class="feed-row"><span class="ft">{_esc(r)}</span></div>'
-                   for r in reversed(results_so_far))
-    return (
-        '<div class="waitpanel"><div class="wp-head">High-confidence results so far '
-        f'<span class="muted">({len(results_so_far)})</span></div>'
-        f'<div class="feed-scroll">{rows}</div></div>'
     )
 
 
@@ -795,7 +877,7 @@ with _act_col:
 st.markdown(
     '<div class="masthead"><div class="subrow">'
     '<div class="strap">Find and map data-regulation laws for UN ESCAP RDTII 2.1 &middot; '
-    'Singapore, Australia, Malaysia</div>'
+    f'{_ECON_PROSE}</div>'
     f'<div class="edition">{tip_html(_bands, _cutoff_tip_inner(), right=True, plain=_bands_plain)}</div>'
     '</div></div>',
     unsafe_allow_html=True,
@@ -814,7 +896,7 @@ with st.sidebar:
     _ECON_CODES = [e.value for e in Economy]
     if st.session_state.get("economy") not in _ECON_CODES:
         st.session_state["economy"] = _ECON_CODES[0]
-    economy = st.selectbox("Country", _ECON_CODES, format_func=lambda v: ECON_NAME[v],
+    economy = st.selectbox("Country", _ECON_CODES, format_func=lambda v: ECON_NAME.get(v, v),
                            index=_ECON_CODES.index(st.session_state["economy"]),
                            label_visibility="collapsed")
     st.session_state["economy"] = economy
@@ -967,7 +1049,6 @@ with st.sidebar:
     st.markdown('<div class="kicker">Your past analyses</div>', unsafe_allow_html=True)
     # scoped to the signed-in account, so one researcher never sees another's history
     prev = db.list_runs(user_id=USER.user_id, limit=200)
-    _ECON_SHORT = {"SG": "Singapore", "AU": "Australia", "MY": "Malaysia"}
 
     def _run_label(rid: str) -> str:
         if rid == "—":
@@ -975,7 +1056,7 @@ with st.sidebar:
         r = next((x for x in prev if x["run_id"] == rid), None)
         if not r:
             return rid
-        econ = _ECON_SHORT.get(r["economy"], r["economy"] or "?")
+        econ = ECON_NAME.get(r["economy"], r["economy"] or "?")
         when = (r["started_at"] or "")[:16].replace("T", " ")
         return f"{econ} · {when}"
 
@@ -1019,14 +1100,18 @@ if run_clicked and pillars:
     thread = threading.Thread(target=_worker, daemon=True)
     thread.start()
 
+    # The run is shown as work, not as a log: five stages, four counters, and one plain
+    # sentence about what is happening right now. The pipeline's own log still runs, into
+    # the collapsed expander below, because a technical reviewer does need it.
+    theme.inject_style(runview.CSS)
+    rv = runview.new_state()
+    track_box = st.empty()
+    stream_box = st.empty()
+    track_box.markdown(runview.track_html(rv), unsafe_allow_html=True)
+    stream_box.markdown(runview.streams_html(rv), unsafe_allow_html=True)
     st.markdown(indicator_glossary_html(pillar), unsafe_allow_html=True)
-    doc_box = st.empty()
-    result_box = st.empty()
-    doc_box.markdown(discovery_feed_html([]), unsafe_allow_html=True)
 
-    with st.status("Working on it — searching, reading, and mapping…", expanded=True) as status:
-        docs_found: list[tuple[str, str]] = []
-        results_so_far: list[str] = []
+    with st.status("Technical log — the pipeline's own output", expanded=False) as status:
         import time as _time
         while True:
             drained = False
@@ -1037,22 +1122,20 @@ if run_clicked and pillars:
                     break
                 drained = True
                 status.write(m)
-                if m.startswith("[doc] "):
-                    title, _, url = m[len("[doc] "):].partition(" | ")
-                    docs_found.append((title, url))
-                elif m.startswith("[result] "):
-                    results_so_far.append(m[len("[result] "):])
+                runview.absorb(rv, m)
             if drained:
-                doc_box.markdown(discovery_feed_html(docs_found), unsafe_allow_html=True)
-                if results_so_far:
-                    result_box.markdown(results_so_far_html(results_so_far), unsafe_allow_html=True)
+                track_box.markdown(runview.track_html(rv), unsafe_allow_html=True)
+                stream_box.markdown(runview.streams_html(rv), unsafe_allow_html=True)
             if not thread.is_alive() and log_q.empty():
                 break
             _time.sleep(0.25)
         thread.join()
 
         if "error" in outcome:
-            status.update(label="Run failed — see error below", state="error")
+            rv["now"] = "The run stopped early"
+            rv["sub"] = "the error is shown below; the technical log has the detail"
+            track_box.markdown(runview.track_html(rv), unsafe_allow_html=True)
+            status.update(label="Technical log — the run failed here", state="error")
             raise outcome["error"]
 
         result = outcome["result"]
@@ -1062,9 +1145,9 @@ if run_clicked and pillars:
         export_json(result)
         if any(m.raw_score is not None for m in result.mappings):
             export_scored_csv(result.mappings, result.meta.run_id)
-        status.update(label=f"Done — {result.meta.run_id}", state="complete")
-    doc_box.empty()
-    result_box.empty()
+        status.update(label=f"Technical log · {result.meta.run_id}", state="complete")
+    track_box.empty()
+    stream_box.empty()
     st.session_state["run_id"] = result.meta.run_id
 elif chosen_prev and chosen_prev != "—":
     st.session_state["run_id"] = chosen_prev
@@ -1079,7 +1162,7 @@ if not run_id:
         'to the source. Follow three steps in the panel on the left.</p>'
         '<div class="steps">'
         '<div class="step"><div class="n">1</div><div class="t">Choose a country</div>'
-        '<div class="d">Singapore, Australia, or Malaysia.</div></div>'
+        f'<div class="d">{_ECON_PROSE}.</div></div>'
         '<div class="step"><div class="n">2</div><div class="t">Choose a pillar</div>'
         '<div class="d">Pillar 6 — cross-border data rules, or Pillar 7 — data protection &amp; cybersecurity.</div></div>'
         '<div class="step"><div class="n">3</div><div class="t">Press “Run analysis”</div>'
@@ -1202,7 +1285,10 @@ tab_ev, tab_review, tab_audit, tab_export = st.tabs(
 
 # ── results ────────────────────────────────────────────────────────────────
 with tab_ev:
-    f1, f2, f3 = st.columns(3)
+    # ── filters ───────────────────────────────────────────────────────────
+    # Kept, but demoted: the matrix answers most questions the filters used to,
+    # so they sit on one quiet row above it rather than heading the screen.
+    f1, f2, f3 = st.columns([1, 1, 1])
     pillar_f = f1.multiselect("Pillar", sorted({m.pillar for m in mappings}),
                               default=sorted({m.pillar for m in mappings}),
                               format_func=lambda p: f"Pillar {p}")
@@ -1213,27 +1299,45 @@ with tab_ev:
                           help="Show only results flagged as a sector-specific (not general) rule.")
     view = [m for m in mappings if m.pillar in pillar_f and m.review_status.value in status_f
             and (not only_flag or m.scope_flag)]
-    st.markdown(f'<div class="kicker" style="margin:.5rem 0 .8rem">{len(view)} laws mapped</div>',
-                unsafe_allow_html=True)
-    for m in view:
-        if is_no_evidence(m):
-            st.markdown(no_evidence_card_html(m), unsafe_allow_html=True)
-            continue
-        snip = m.verbatim_snippet[:260] + ("…" if len(m.verbatim_snippet) > 260 else "")
-        flag = f' {seal_html("scope")}'.replace("s-review", "s-flag") if m.scope_flag else ""
-        st.markdown(
-            f'<div class="vt-card" style="--c:{vcolor(m.confidence_score)}">'
-            f'<div class="docket"><b>{m.indicator_id}</b><span>Pillar {m.pillar}</span>'
-            f'<span>{m.discovery_tag.value}</span></div>'
-            f'<div><div class="law">{m.law_name}</div>'
-            f'<div class="cite">{m.article_section} &middot; {m.economy.value}{flag}</div>'
-            f'<div class="quote">{snip}</div>'
-            f'<a class="srcurl" href="{m.source_url}" target="_blank">{m.source_url}</a></div>'
-            f'<div>{(score_stamp_html(m.raw_score) + "<div style=margin-top:.5rem></div>") if m.raw_score is not None else ""}'
-            f'{verdict_html(m.confidence_score)}<div style="margin-top:.5rem">{seal_html(m.review_status.value)}</div></div>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
+
+    theme.inject_style(_EVIDENCE_CSS)
+    rows = matrix.build_rows(view, is_no_evidence, _host)
+    inds = matrix.indicator_columns(sorted({m.pillar for m in mappings}))
+    _covered = sum(1 for i in inds
+                   if any(r["cells"].get(i["id"], {}).get("s", "n") != "n" for r in rows))
+    st.markdown(
+        f'<div class="kicker" style="margin:.6rem 0 .1rem">Coverage matrix '
+        f'<span class="muted">— {len(rows)} laws · {_covered} of {len(inds)} indicators covered'
+        f'</span></div>'
+        '<div class="mxhint">Each row is a law found on the official portal; each column is an '
+        'RDTII indicator. A filled cell means a provision in that law meets that indicator’s '
+        'legal test — press one to read the evidence. An empty column is a gap.</div>',
+        unsafe_allow_html=True)
+
+    # Open on the strongest real finding, so the panel is never empty on arrival.
+    _real = [m for m in view if not is_no_evidence(m)]
+    _default = (f"{max(_real, key=lambda m: m.confidence_score).law_name}|"
+                f"{max(_real, key=lambda m: m.confidence_score).indicator_id}") if _real else None
+
+    # Measured, not guessed: the Results column runs ~1050px at a normal window,
+    # so this split hands the matrix ~660px — clear of its 624px minimum — and
+    # still leaves the evidence panel enough width for a readable quote.
+    mcol, ecol = st.columns([2, 1.18], gap="medium")
+    with mcol:
+        picked = matrix.coverage_matrix(
+            rows, inds, selected=st.session_state.get("cell") or _default,
+            key=f"mx_{run_id}")
+    st.session_state["cell"] = picked or _default
+
+    with ecol:
+        st.markdown(evidence_panel_html(picked, view), unsafe_allow_html=True)
+
+    # The column headers are abbreviated to fit; the full official titles go here so the
+    # abbreviation never has to carry meaning on its own.
+    st.markdown(
+        '<div class="mxkey">' + " ".join(
+            f'<span><b>{i["num"]}</b> {_esc(i["title"])}</span>' for i in inds) + '</div>',
+        unsafe_allow_html=True)
 
 # ── needs review ───────────────────────────────────────────────────────────
 with tab_review:

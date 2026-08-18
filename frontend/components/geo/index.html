@@ -128,6 +128,22 @@ window.addEventListener("message", function(e){
 
 function applyTokens(t){ for (var k in t) document.documentElement.style.setProperty(k, t[k]); }
 
+/* The name buttons are not a convenience — they are the single-pointer/keyboard route to
+   the same choice, so spinning the globe is never the ONLY way to pick a country
+   (WCAG 2.2 "dragging movements"). This was dropped by accident when the flat map replaced
+   the stretched texture, which left the bar empty and every render throwing. */
+function renderNames(){
+  var box = document.getElementById("names"); if (!box) return;
+  box.innerHTML = "";
+  ECON.forEach(function(c){
+    var b = document.createElement("button");
+    b.className = "name"; b.type = "button"; b.textContent = c.name;
+    b.setAttribute("aria-pressed", String(c.iso === selected));
+    b.onclick = function(){ choose(c.iso); };
+    box.appendChild(b);
+  });
+}
+
 function choose(iso){ selected = iso; renderNames(); paint();
   if (window.__mapPaint) window.__mapPaint(); setValue(iso); }
 window.__choose = choose;
@@ -265,7 +281,10 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 const TEX = "https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/";
-document.getElementById("flatimg").src = TEX + "earth_atmos_2048.jpg";
+/* #flatimg was the flat map's stretched earth texture, replaced by real Leaflet tiles.
+   The element is gone but this line survived, so it threw at module top level — and
+   because that is the first statement in the module, EVERY line below it (the entire
+   globe) never ran. */
 
 const mount = document.getElementById("globe");
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
