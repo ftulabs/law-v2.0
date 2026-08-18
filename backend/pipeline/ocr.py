@@ -75,6 +75,35 @@ def _page_count(path: str) -> int:
 HEADING_MARK = "\x1e"
 _HEADING_NUM_RE = re.compile(r"^\s*\d{1,3}[A-Za-z]{0,2}\s+[A-Za-z]")
 
+# Page-boundary sentinel. The submission template's "Location Reference" column is a page
+# number, and it used to be INTERPOLATED from the character offset (offset/total * pages) —
+# which assumes every page holds the same number of characters. Real statute PDFs are nothing
+# like that: schedules, tables and forms swing density wildly, so on a 1,800-page consolidated
+# Act the cited page could be tens of pages out. An audit sampling provisions and re-reading
+# the cited page with a second extractor found the citation wrong about half the time, while
+# the snippet text itself was perfectly verbatim — a defect no amount of reading the output
+# would reveal, because the text looks right.
+# Fix: mark the real page boundaries in the text itself. \x0c (form feed) is the conventional
+# page separator, never appears in legal drafting, and travels WITH the text through every
+# later chrome/TOC strip — so counting sentinels before an offset gives the true page even
+# after the text has been rewritten. A newline follows it so line-anchored section regexes
+# still match at a page start.
+#
+# The sentinel carries its ABSOLUTE page number (`\x0c12\x0c`) rather than being a bare
+# delimiter. Counting bare delimiters looked sufficient and was not: `_strip_arrangement_toc`
+# and the chrome strippers DELETE whole spans of text, taking any delimiters inside them with
+# it, so every page after a deleted block was numbered short. A self-describing sentinel
+# survives arbitrary deletion — the last one before an offset still states its own page.
+# It occupies its own line so the line-anchored section regexes cannot match it.
+PAGE_MARK = "\x0c"
+PAGE_MARK_RE = re.compile(r"\x0c(\d+)\x0c")
+
+
+def _join_pages(pages: list[str]) -> str:
+    """Join extracted pages, tagging each with a self-describing page sentinel."""
+    return "\n\n".join(f"{PAGE_MARK}{i}{PAGE_MARK}\n{p}"
+                       for i, p in enumerate(pages, start=1))
+
 
 def _is_bold_heading(text: str, chars: list) -> bool:
     if not _HEADING_NUM_RE.match(text):
@@ -165,7 +194,7 @@ def _pdf_text_layer(path: str) -> str:
     if not texts:
         return ""
     ordered = [texts[k] for k in sorted(texts)]
-    return "\n\n".join(_strip_running_chrome(ordered))
+    return _join_pages(_strip_running_chrome(ordered))
 
 
 def _content_key(doc: DiscoveredDoc) -> str | None:
@@ -188,7 +217,10 @@ def _content_key(doc: DiscoveredDoc) -> str | None:
 # Bump when the canonical text format changes (page routing, sentinel rules, markdown
 # normalisation). The cache key is content-hash + engine, so without this a format change
 # would keep serving text produced by the OLD rules until the directory was purged by hand.
-EXTRACT_FORMAT_VERSION = "v2"
+# v3: pages are now joined with a PAGE_MARK sentinel so Location Reference page numbers are
+# COUNTED rather than interpolated. Text cached under v2 has no marks and would silently keep
+# producing estimated page citations.
+EXTRACT_FORMAT_VERSION = "v4"
 
 
 def _extract_cache_path(key: str, provider_name: str) -> Path:
@@ -283,7 +315,7 @@ def _extract_pdf(path: str, provider, metrics: OCRMetrics) -> tuple[str, OCRMetr
         page_text[page] = chunk
 
     ordered = [page_text.get(p, "") for p in range(1, (prof.page_count or 0) + 1)]
-    merged = "\n\n".join(_strip_running_chrome(ordered))
+    merged = _join_pages(_strip_running_chrome(ordered))
     metrics.used = True
     metrics.provider = ocr_metrics.provider
     metrics.mean_confidence = ocr_metrics.mean_confidence
@@ -306,7 +338,8 @@ def _split_pages(text: str, expected: int) -> list[str]:
 
 
 # ── Canonical extraction format ───────────────────────────────────────────────────────────
-# ONE format flows out of Zone 2a: line-structured PLAIN TEXT, pages joined by a blank line,
+# ONE format flows out of Zone 2a: line-structured PLAIN TEXT, pages joined by a blank line
+# plus a PAGE_MARK sentinel (so the true page of any offset is recoverable — see PAGE_MARK),
 # bold section headings prefixed with HEADING_MARK. Everything downstream is built on it —
 # the per-country boundary regexes are line-anchored, `Provision.char_span` indexes into this
 # exact string, and `confidence.snippet_grounding` requires the verbatim snippet to be a

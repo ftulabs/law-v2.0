@@ -15,6 +15,8 @@ import re
 from ..schemas import DiscoveredDoc, Economy, OCRMetrics, Provision
 
 HEADING_MARK = "\x1e"   # font-detected heading sentinel emitted by ocr._pdf_text_layer
+PAGE_MARK = "\x0c"      # page sentinel emitted by ocr._join_pages, as "\x0c<page>\x0c"
+PAGE_MARK_RE = re.compile(r"\x0c(\d+)\x0c")
 
 # Provision-boundary markers, line-anchored so cross-references mid-sentence ("apart from",
 # "under section 26") never match. Covers the drafting conventions across SG/AU/MY and the
@@ -65,6 +67,17 @@ _STRUCT_RE = re.compile(
 # "Schedule N"/"Part N" reference becomes a boundary and mis-scopes the sections that follow.
 _STRUCT_RE_AU = re.compile(
     r"(?im)^[ \t]*((?:schedule|part|division)\s+\d+[A-Za-z]?)\s*[—–]\s*(?=[A-Z])")
+# Chinese statutes number articles as 第<numeral>条, with the numeral written in Han digits
+# (第四十条) far more often than Arabic (第40条); chapters use 章 and are the structural divider.
+# Line-anchored, because 第X条 also appears mid-sentence as a cross-reference ("依照本法第四十条
+# 的规定"), which is exactly the trap the Latin patterns above guard against.
+_STRUCT_RE_CN = re.compile(r"(?m)^[ 	　]*(第[一二三四五六七八九十百千零〇两0-9]{1,8}[条章节])")
+# Mongolian statutes head each article "<n> дүгээр зүйл." (ordinal suffix varies with vowel
+# harmony: дүгээр/дугаар, and дэх/дахь for some drafting). The 14.1 / 20.1.5 forms below it are
+# CLAUSES inside the article — splitting on those would shatter one article into a dozen
+# fragments and destroy the verbatim context the grader needs.
+_STRUCT_RE_MN = re.compile(
+    r"(?im)^[ 	]*(\d{1,3}\s*(?:д[үу]г[эа]{0,2}р|дэх|дахь)\s+з[үу]йл)")
 _APP_HEADING_RE = re.compile(
     r"^\s*(?:\d{1,3}[A-Za-z]{0,2}\s+)?Australian Privacy Principle\s+(\d+[A-Za-z]?)\b", re.I)
 _DOTTED_TOC_RE = re.compile(r"(?m)^.*\.{4,}.*$")        # a table-of-contents dotted-leader line
@@ -495,9 +508,25 @@ def _law_name(doc: DiscoveredDoc, raw_text: str = "") -> str:
     return cleaned or title
 
 
-def _location_ref(ocr: OCRMetrics, start: int, total_len: int, label: str) -> str:
-    """Template 'Location Reference': PDF → page number; HTML/text → URL anchor/path."""
+def _location_ref(ocr: OCRMetrics, start: int, total_len: int, label: str,
+                  text: str | None = None) -> str:
+    """Template 'Location Reference': PDF → page number; HTML/text → URL anchor/path.
+
+    The page is COUNTED, not estimated. `ocr._join_pages` marks every page boundary with
+    PAGE_MARK, so the page holding an offset is just the number of marks before it. The old
+    formula interpolated (offset/total × pages), which assumes uniform characters per page —
+    false for any statute with schedules or tables. An audit that re-read each cited page with
+    a second extractor found the interpolated citation wrong roughly half the time even though
+    the snippet text was exactly verbatim (see backend/eval/extraction_audit.py, check D).
+    Interpolation remains only as the fallback for text with no marks (e.g. an OCR engine that
+    returns one undivided block)."""
     if ocr.pages:
+        if text is not None and PAGE_MARK in text:
+            last = None
+            for m in PAGE_MARK_RE.finditer(text, 0, max(start, 1)):
+                last = m
+            if last is not None:
+                return f"p. {min(ocr.pages, int(last.group(1)))}"
         page = min(ocr.pages, max(1, int(start / max(total_len, 1) * ocr.pages) + 1))
         return f"p. {page}"
     # HTML/text → an anchor-style ref (e.g. "Section 26D" -> "#sec26D")
@@ -512,7 +541,23 @@ def _boundaries(text: str, economy=None) -> list[tuple]:
     dividers; SG/MY use numbered + structural markers (their 'Section N' keyword forms are
     only cross-references); everything else uses the full SECTION_RE (keyword + numbered)."""
     out: list[tuple] = []
-    if economy in (Economy.SG, Economy.MY):
+    if economy == Economy.CN:
+        # Han-script statutes carry none of the Latin markers, and the font-marked path is
+        # meaningless here — 第X条 IS the heading, marked or not.
+        out = [(m.start(), m.end(), m.group(1), False) for m in _STRUCT_RE_CN.finditer(text)]
+    elif economy == Economy.MN:
+        out = [(m.start(), m.end(), m.group(1), False) for m in _STRUCT_RE_MN.finditer(text)]
+        if len(out) < 3:
+            # An English translation, or an instrument drafted without зүйл headings. The
+            # fallback only wins if it actually finds MORE — a short Mongolian instrument with
+            # two real articles must not be thrown away for a Latin regex that matches nothing.
+            alt = [(m.start(), m.end(), m.group(2) or m.group(1), bool(m.group(1)))
+                   for m in SECTION_RE.finditer(text)]
+            if len(alt) > len(out):
+                out = alt
+    elif economy in (Economy.SG, Economy.MY, Economy.IN):
+        # India is here too: the Indian Code prints "3. Definitions.—(1) …", the same numbered
+        # margin form as SG/MY, and its statutes are English so nothing else needs to change.
         # SG/MY DON'T font-mark section headings — their numbered "N.—(1)" margin form is the
         # signal. This branch is checked BEFORE the HEADING_MARK one on purpose: a big consolidated
         # PDF (e.g. MY Income Tax Act 1967, 818 pp) can carry a stray bold run that puts a \x1e in
@@ -580,9 +625,9 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
 
     if not bounds:
         # whole-doc fallback: still emit one provision so nothing is silently dropped
-        snippet = text.replace(HEADING_MARK, "").strip()[:MAX_SNIPPET]
+        snippet = PAGE_MARK_RE.sub("", text.replace(HEADING_MARK, "")).strip()[:MAX_SNIPPET]
         if snippet:
-            loc = _location_ref(ocr, 0, total, "(document)")
+            loc = _location_ref(ocr, 0, total, "(document)", text)
             provisions.append(_mk(doc, "(document)", snippet, (0, len(snippet)), loc, ocr, 0, law_name))
         return provisions
 
@@ -600,7 +645,10 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
     for i, (bstart, bend, raw_label, marked) in enumerate(bounds):
         start = bend if (not _numbered(raw_label, marked) and not marked) else heads[i]
         end = heads[i + 1] if i + 1 < len(bounds) else len(text)
-        body = text[start:end].replace(HEADING_MARK, "").strip()
+        # Sentinels are stripped from the SNIPPET only; they stay in `text` so char_span and
+        # the page count keep indexing the same string. `confidence.snippet_grounding`
+        # normalises both sides, so a provision spanning a page break still verifies exactly.
+        body = PAGE_MARK_RE.sub("", text[start:end].replace(HEADING_MARK, "")).strip()
         if len(body) < 20:
             # a Part/Division/Schedule heading stub, or a page running-header/footer
             # ("Privacy Act 1988 2", "2020 Ed.") — no substantive provision text.
@@ -628,7 +676,7 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
         # subsection, or the whole section). The label stays at section granularity; mapping.py
         # narrows it to "Section 26(2)" per-mapping once the grader identifies the operative
         # subsection, falling back to the bare section (this norm) when it spans the whole thing.
-        loc = _location_ref(ocr, start, total, norm)
+        loc = _location_ref(ocr, start, total, norm, text)
         provisions.append(_mk(doc, norm, snippet, (start, start + len(snippet)), loc, ocr, i, law_name))
     return provisions
 

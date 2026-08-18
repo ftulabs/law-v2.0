@@ -502,11 +502,22 @@ def discover_from_samples(economy: Economy, pillar: int | None = None) -> list[D
 
 
 # ─────────────────────────── live mode (config-driven adapters) ───────────────────────────
-def load_sources() -> list[dict]:
+def _sources_yaml() -> dict:
     f = ROOT / "data" / "sources.yaml"
     if not f.exists():
-        return []
-    return (yaml.safe_load(f.read_text(encoding="utf-8")) or {}).get("sources", [])
+        return {}
+    return yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+
+
+def load_sources() -> list[dict]:
+    return _sources_yaml().get("sources", [])
+
+
+def load_regulators(economy: str) -> list[dict]:
+    """Regulator DOMAINS for an economy — the sites that publish the non-statutory instruments
+    (codes of practice, standards, guidelines, licences) the answer key relies on. Portal-level
+    configuration only; see the `regulators:` block in data/sources.yaml."""
+    return (_sources_yaml().get("regulators") or {}).get(economy.upper(), [])
 
 
 def _headers() -> dict:
@@ -641,6 +652,45 @@ def _search_au_api(client, src: dict, query: str, economy: Economy, indicators, 
 _au_compilation_cache: dict[str, tuple[str | None, str | None, bool]] = {}
 
 
+_au_volumes_cache: dict[str, list[str]] = {}
+
+
+def _au_compilation_pdf_urls(title_id: str) -> list[str]:
+    """Every PDF part of a title's latest authorised compilation, in volume order.
+
+    Large Acts are published in MULTIPLE VOLUMES (the Telecommunications (Interception and
+    Access) Act 1979 is two: 429 + 377 pages). For those, the single-file URL
+    `/{id}/{date}/{date}/text/original/pdf` returns **404** — the volume must be appended:
+    `…/text/original/pdf/{volumeNumber}`. Verified live 2026-08-01.
+
+    That 404 used to be silent: the fetch failed, the pipeline fell back to the SPA landing
+    page, and the Act contributed ONE junk provision instead of its ~800. It hit exactly the
+    biggest Acts, which is where the retention and government-access provisions live.
+    """
+    if title_id in _au_volumes_cache:
+        return _au_volumes_cache[title_id]
+    urls: list[str] = []
+    try:
+        import httpx
+        r = httpx.get("https://api.prod.legislation.gov.au/v1/documents",
+                      params={"$filter": f"titleId eq '{title_id}' and format eq 'Pdf'",
+                              "$orderby": "start desc", "$top": "20"},
+                      headers={"Accept": "application/json"}, timeout=30)
+        items = r.json().get("value", [])
+        items = [it for it in items if it.get("isAuthorised")] or items
+        if items:
+            latest_start = (items[0].get("start") or "")[:10]
+            parts = [it for it in items if (it.get("start") or "")[:10] == latest_start]
+            vols = sorted({int(it.get("volumeNumber") or 0) for it in parts})
+            base = (f"https://www.legislation.gov.au/{title_id}/{latest_start}/{latest_start}"
+                    f"/text/original/pdf")
+            urls = [base] if vols == [0] else [f"{base}/{v}" for v in vols if v > 0]
+    except Exception:  # noqa: BLE001 — best-effort; caller falls back to the landing page
+        urls = []
+    _au_volumes_cache[title_id] = urls
+    return urls
+
+
 def _au_latest_compilation(title_id: str) -> tuple[str | None, str | None, bool]:
     """(pdf_url, start_date, never_amended) for a title's latest AUTHORISED compilation, from
     the OData /v1/documents feed. Verified against the live page: the feed's 'start' date is the
@@ -681,8 +731,13 @@ def _au_pdf_download_url(title_id: str) -> str | None:
     JS SPA (the /latest/text page renders only a collapsed outline), but the Download button
     points at a static asset: /{id}/{date}/{date}/text/original/pdf, where {date} is the
     latest compilation's start date from the OData /v1/documents feed. Returns None if the
-    API is unreachable so the caller falls back to the page (then the JS-shell guard)."""
-    return _au_latest_compilation(title_id)[0]
+    API is unreachable so the caller falls back to the page (then the JS-shell guard).
+
+    Multi-volume compilations need a per-volume URL; this returns the FIRST volume so a
+    single-body caller still gets real law text instead of a 404. Callers that can handle
+    several bodies should use `_au_compilation_pdf_urls` and read every volume."""
+    urls = _au_compilation_pdf_urls(title_id)
+    return urls[0] if urls else _au_latest_compilation(title_id)[0]
 
 
 # register id anywhere in the path (…/Details/C2011A00022, …/C2011A00022/latest); the letter
@@ -862,12 +917,12 @@ def _load_my_catalogue(client, src: dict, log) -> list[tuple[str, str, str]]:
     if cached is not None:
         return cached
     out: list[tuple[str, str, str, str]] = []
+    referer = src.get("referer", _MY_PORTAL + "principal.php?type=updated&lang=BI")
     try:
-        r = client.post(url, data={"draw": "1", "start": "0", "length": "3000"},
-                        headers={"X-Requested-With": "XMLHttpRequest",
-                                 "Referer": src.get("referer", _MY_PORTAL + "principal.php?type=updated&lang=BI")})
-        r.raise_for_status()
-        records = r.json().get("records", [])
+        # The portal now AES-GCM-wraps this response (key published in its own page); the
+        # helper handles both the encrypted and the legacy plain form.
+        from .portal_crypto import fetch_catalogue
+        records = fetch_catalogue(client, url, referer, length=3000, log=log)
     except Exception as e:  # noqa: BLE001
         log(f"[discover] MY catalogue fetch failed ({type(e).__name__})")
         records = []
@@ -1140,8 +1195,19 @@ def doc_from_file(economy: Economy, path: str) -> DiscoveredDoc:
     )
 
 
+SAMPLE_ECONOMIES = {"SG", "AU", "MY"}     # the Round-1 bundle; Round-2 economies are live-only
+
+
 def discover(economy: Economy, pillar: int | None = None, use_samples: bool = True) -> list[DiscoveredDoc]:
     if use_samples:
+        if economy.value not in SAMPLE_ECONOMIES:
+            # No bundled corpus exists for the Round-2 economies. Returning [] here would look
+            # exactly like "this country has no such laws" — the same silent-empty failure mode
+            # the whole multilingual expansion had to be hardened against. Say so instead.
+            raise ValueError(
+                f"No offline sample corpus is bundled for {economy.value}. "
+                f"Sample mode covers {', '.join(sorted(SAMPLE_ECONOMIES))}; "
+                f"run {economy.value} with --live (the scored path) instead.")
         return discover_from_samples(economy, pillar)
     # Live mode is the SCORED path: retrieve from live portals only. Do NOT fall back to
     # the bundled sample corpus — the rubric forbids pre-downloaded files. An empty result

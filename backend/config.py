@@ -168,9 +168,19 @@ class Settings(BaseSettings):
     # ~75% embed saving, but full-pipeline A/B showed it changes a handful of final rows
     # (shortlist cut-line shifts) — default OFF; enable for fast non-submission runs only.
     dense_concept_gate: bool = False
-    hybrid_alpha: float = 0.5                  # final = alpha*bm25 + (1-alpha)*dense
+    # final = alpha*bm25 + (1-alpha)*dense. 0.65 was MEASURED, not guessed: on the 382-law
+    # evaluation corpus scored against the RDTII Round-1 Database, alpha 0.65 retrieves every
+    # provision the panel cited (18/18) where 0.50 gets 17/18, and both ends of the range are
+    # clearly worse (pure dense 16/18, pure BM25 16/18). See tools/sweep_retrieval.py.
+    hybrid_alpha: float = 0.65
     cross_encoder: str = "auto"                # auto | on | off — cross-encoder rerank
     cross_encoder_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    # ms-marco is English-ONLY. Scoring a Chinese or Mongolian provision with it does not
+    # return a weak signal, it returns noise — and that noise is fused into the final ranking
+    # with the same weight as BM25 and the embeddings. For a non-Latin economy we load this
+    # multilingual reranker instead, and if it is unavailable we run with NO cross-encoder:
+    # two good signals beat three when the third is arbitrary.
+    cross_encoder_model_multilingual: str = "BAAI/bge-reranker-v2-m3"
     rrf_k: int = 60                            # Reciprocal-Rank-Fusion constant
 
     # Zone-2 coverage: when a run has <= grade_all_max_provisions provisions, EVERY provision
@@ -185,18 +195,41 @@ class Settings(BaseSettings):
     # small recall-safe shortlist captures them — grading 30% of 1200 provisions (the old
     # default) was ~1400 LLM calls for no recall gain. Shortlist = clamp(corpus*fraction,
     # retrieve_top_k floor, retrieve_max_top_k cap); the cap bounds latency + cost.
-    retrieve_top_k: int = 20                    # floor — always grade at least this many/indicator
+    # Shortlist size per indicator. RE-DERIVED FROM MEASUREMENT (see docs/retrieval-redesign.md):
+    # on a 382-law corpus (36k provisions) scored against the judges' own Database, provision
+    # recall is 0.833 at the old cap of 40, 0.944 at 150 and 1.000 at 300 — and FLAT from 300
+    # to 1200, so 300 is the knee, not an arbitrary ceiling. Cost does not grow with the corpus:
+    # the cap binds, so a 500k-provision national corpus still grades 300/indicator.
+    retrieve_top_k: int = 40                    # floor — always grade at least this many/indicator
     retrieve_fraction: float = 0.05             # scale gently with corpus size
-    retrieve_max_top_k: int = 40                # GLOBAL top-k/indicator (latency + cost ceiling)
-    # Per-law guarantee: also include each discovered law's top-N provisions for the indicator,
-    # so a short but on-point Act (e.g. My Health Records s77 "records outside Australia") is
-    # graded even when a verbose Act (Privacy Act, 485 provisions) would otherwise crowd the
-    # global top-k. Divide-by-law → retrieve each → merge. 0 disables (pure global top-k).
-    retrieve_per_law_k: int = 3
+    # 450 (was 300) — RE-MEASURED 2026-08-19 against the panel's own evidence, per piece of
+    # evidence rather than per indicator. The knee is sharp and sits exactly here: K=330/360/
+    # 400/425 recover nothing over 300, K=450 recovers two more cited provisions, and 475/500
+    # add nothing further. Indicator-level recall improves with it (law 22/23 -> 23/23,
+    # provision 17/19 -> 18/19), and grading a 300-candidate sample of everything K=450 ADDS
+    # over K=300 produced ZERO accepted mappings, so the extra budget costs money and not
+    # precision. Every cleverer mechanism tried was dominated — see docs/retrieval-depth-proposal.md.
+    retrieve_max_top_k: int = 450               # GLOBAL top-k/indicator (latency + cost ceiling)
+    # Per-law reservation: give each law its own top-N slots before the global budget is spent.
+    # MEASURED OFF (see docs/retrieval-redesign.md). Two independent problems:
+    #   • at k=3 the reservation pass alone wants one slot per law, which on a multi-hundred-law
+    #     corpus exceeds the whole budget — the shortlist degenerates into "one provision from
+    #     each of the top-k laws", maximum breadth and zero depth, and provision recall falls;
+    #   • the reservation ranks provisions WITHIN each law (BM25 is renormalised per law), so a
+    #     mediocre provision from an off-topic Act outranks a strong one from the right Act.
+    # End-to-end on the shipped code: per_law_k=0 -> 17/18 cited provisions retrieved, per_law_k=1
+    # -> 16/18, with worse shortlist purity at 1 (density 0.133 vs 0.191 on AU). The guarantee
+    # only pays if it is re-implemented against GLOBAL scores; until then, off.
+    retrieve_per_law_k: int = 0
     # Semantic-recall floor: also pull the strongest pure bi-encoder (dense) matches into the
     # shortlist even when the cross-encoder demoted them — guards concept matches phrased in
     # unexpected words. Dense scores are mapped to [0,1]; ~0.55 is "clearly on-topic".
     dense_recall_floor: float = 0.55
+    # How many such extra matches to admit. Was hardcoded to max(2, k//3). MEASURED INERT at
+    # the current shortlist size: at k>=150 it changed provision recall by 0.000 while adding
+    # ~10% more LLM calls — the budget already reaches deeper than the guarantee does. Default
+    # 0; raise it if retrieve_max_top_k is ever lowered, where the guarantee earns its cost.
+    dense_recall_extra: int = 0
     # Concurrent LLM grading calls. deepseek throughput plateaus ~12; 16 = headroom without
     # the regression seen at 24+. Tune via MAPPING_CONCURRENCY.
     mapping_concurrency: int = 16

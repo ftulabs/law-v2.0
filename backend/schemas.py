@@ -15,21 +15,35 @@ from pydantic import BaseModel, Field
 
 # ─────────────────────────── enums ───────────────────────────
 class Economy(str, Enum):
-    SG = "SG"   # Singapore
-    AU = "AU"   # Australia
-    MY = "MY"   # Malaysia
+    SG = "SG"   # Singapore      — Round 1 (mandatory)
+    AU = "AU"   # Australia      — Round 1 (mandatory)
+    MY = "MY"   # Malaysia       — Round 1 (mandatory)
+    CN = "CN"   # China          — Round 2
+    IN = "IN"   # India          — Round 2
+    MN = "MN"   # Mongolia       — Round 2
 
 
 # Official UN member-state names required by the submission template
 # (https://www.unescap.org/about/member-states). The CSV must use these, not codes.
-ECONOMY_UN_NAME = {"SG": "Singapore", "AU": "Australia", "MY": "Malaysia"}
+ECONOMY_UN_NAME = {"SG": "Singapore", "AU": "Australia", "MY": "Malaysia",
+                   "CN": "China", "IN": "India", "MN": "Mongolia"}
 
 # value the user may type → Economy. Includes codes, UN names and common variants.
+# NOTE "in"/"cn"/"mn" are 2-letter keys matched EXACTLY; the substring fallback in
+# resolve_economy() ignores aliases of 3 chars or fewer, so they cannot swallow a longer
+# input ("india" must not resolve via the "in" key).
 _ECONOMY_ALIASES = {
     "sg": Economy.SG, "singapore": Economy.SG, "sgp": Economy.SG,
     "au": Economy.AU, "australia": Economy.AU, "aus": Economy.AU, "commonwealth of australia": Economy.AU,
     "my": Economy.MY, "malaysia": Economy.MY, "mys": Economy.MY,
+    "cn": Economy.CN, "china": Economy.CN, "chn": Economy.CN,
+    "prc": Economy.CN, "people's republic of china": Economy.CN, "peoples republic of china": Economy.CN,
+    "in": Economy.IN, "india": Economy.IN, "ind": Economy.IN, "bharat": Economy.IN,
+    "republic of india": Economy.IN,
+    "mn": Economy.MN, "mongolia": Economy.MN, "mng": Economy.MN,
 }
+
+_SUPPORTED = ", ".join(ECONOMY_UN_NAME.values())
 
 
 def resolve_economy(value: str) -> Economy:
@@ -39,18 +53,25 @@ def resolve_economy(value: str) -> Economy:
     import difflib
     key = " ".join((value or "").strip().lower().split())
     if not key:
-        raise ValueError("No economy given. Supported: Singapore, Australia, Malaysia.")
+        raise ValueError(f"No economy given. Supported: {_SUPPORTED}.")
     if key in _ECONOMY_ALIASES:
         return _ECONOMY_ALIASES[key]
-    # fuzzy: nearest alias within an edit-distance ratio (catches typos like 'singapor')
-    near = difflib.get_close_matches(key, _ECONOMY_ALIASES.keys(), n=1, cutoff=0.7)
+    # Containment BEFORE fuzzy. An exact contained name is far stronger evidence than an
+    # edit-distance neighbour, and with the Round-2 economies added the reverse order started
+    # resolving "Republic of Singapore" to INDIA: difflib scores it 0.70+ against
+    # "republic of india" (the shared "republic of " prefix dominates) and returned before the
+    # substring pass could see "singapore" sitting inside the input.
+    for name in sorted(_ECONOMY_ALIASES, key=len, reverse=True):
+        if len(name) > 3 and (name in key or key in name):
+            return _ECONOMY_ALIASES[name]
+    # Fuzzy last, and only on a CLOSE match. At the old 0.7 cutoff "indonesia" scores 0.71
+    # against "india" and resolved silently to the wrong economy — bad on its own, and worse
+    # because Indonesia is itself an ESCAP economy we may add. Real typos still clear 0.8
+    # comfortably ("austrlia" 0.94, "Mongolla" 0.88, "malaysa" 0.93).
+    near = difflib.get_close_matches(key, _ECONOMY_ALIASES.keys(), n=1, cutoff=0.8)
     if near:
         return _ECONOMY_ALIASES[near[0]]
-    # last resort: substring against full names ('rep of singapore' → Singapore)
-    for name, econ in _ECONOMY_ALIASES.items():
-        if len(name) > 3 and (name in key or key in name):
-            return econ
-    raise ValueError(f"Unknown economy '{value}'. Supported: Singapore, Australia, Malaysia.")
+    raise ValueError(f"Unknown economy '{value}'. Supported: {_SUPPORTED}.")
 
 
 class DiscoveryTag(str, Enum):

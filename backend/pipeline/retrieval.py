@@ -19,14 +19,45 @@ from dataclasses import dataclass
 
 from ..config import settings
 from ..rdtii import get_indicator
+from ..rdtii.query_terms_i18n import native_terms
 from ..schemas import Provision
 
-_TOKEN = re.compile(r"[a-z0-9]+")
+# Scripts written WITHOUT inter-word spaces: CJK, kana, Thai, Lao, Khmer, Myanmar. A run of
+# these is one undivided "word" to any whitespace/ASCII tokeniser, which is why BM25 scored a
+# flat zero on every Chinese provision — not a low score, zero, because [a-z0-9]+ matched
+# nothing at all in 不得向境外提供. Runs like that are indexed as overlapping CHARACTER BIGRAMS
+# (the classic dependency-free CJK IR approach, as in Lucene's CJKAnalyzer): 个人信息 →
+# 个人, 人信, 信息. It needs no segmenter model, and for BM25 it performs on par with word
+# segmentation on Chinese while degrading gracefully on Thai/Lao.
+_NOSPACE = (r"\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff"     # kana + Han
+            r"\u0e00-\u0e7f\u0e80-\u0eff\u1780-\u17ff\u1000-\u109f")    # Thai, Lao, Khmer, Myanmar
+# Every other letter-bearing script: Latin-1/extended, Greek, Cyrillic, Armenian, Hebrew,
+# Arabic, Devanagari through Sinhala, Georgian. These ARE spaced, so they tokenise as words.
+_OTHER_LETTERS = (r"\u00c0-\u024f\u0370-\u03ff\u0400-\u052f\u0530-\u058f"
+                  r"\u0590-\u05ff\u0600-\u06ff\u0900-\u0dff\u10a0-\u10ff")
+# Branch order is load-bearing: the ASCII branch is kept EXACTLY as it was so that Latin-script
+# corpora tokenise bit-identically to Round 1 and the measured retrieval parameters still hold
+# (see CLAUDE.md §7 — these were swept, not chosen). Only non-ASCII text takes a new path.
+_TOKEN = re.compile(f"[{_NOSPACE}]+"                 # no-space scripts → bigrams below
+                    r"|[a-z0-9]+"                    # ASCII: unchanged from Round 1
+                    f"|[{_OTHER_LETTERS}]+")         # Cyrillic, Devanagari, … → words
+_NOSPACE_RE = re.compile(f"[{_NOSPACE}]")
 _RETRIEVAL_SNIPPET_LEN = 2048   # chars fed to embedding model (MiniLM ~512 tokens ≈ 2k chars)
 
 
 def _tok(text: str) -> list[str]:
-    return _TOKEN.findall(text.lower())
+    """Lexical tokens for BM25, script-aware.
+
+    Latin/Cyrillic/Devanagari runs become words; a run in a no-space script becomes its
+    character bigrams (and the bare character when the run is a single glyph).
+    """
+    out: list[str] = []
+    for w in _TOKEN.findall(text.lower()):
+        if _NOSPACE_RE.match(w):
+            out.extend([w[i:i + 2] for i in range(len(w) - 1)] or [w])
+        else:
+            out.append(w)
+    return out
 
 
 @dataclass
@@ -243,12 +274,12 @@ def _dense_scores(dense_query: str, provisions: list[Provision], must_embed: set
 
 
 def _cross_scores(query_text: str, provisions: list[Provision], combined: list[float],
-                  top_k: int) -> list[float] | None:
+                  top_k: int, economy: str | None = None) -> list[float] | None:
     """Cross-encoder relevance (0..1) for the hybrid shortlist; None if the model/setting
     is off. Only the top ~3·top_k hybrid candidates are scored (the rest can't win), so
     the rerank stays cheap. Non-shortlisted provisions keep score 0."""
     from . import ranking
-    ce = ranking._cross_encoder()
+    ce = ranking._cross_encoder(economy)
     if ce is None:
         return None
     import math
@@ -265,12 +296,12 @@ def _cross_scores(query_text: str, provisions: list[Provision], combined: list[f
     return scores
 
 
-def _phrase_bonus(ind, provisions: list[Provision]) -> list[float]:
+def _phrase_bonus(ind, provisions: list[Provision], native: list[str] | None = None) -> list[float]:
     """Bonus for multi-word query terms appearing literally in the provision text.
     Multiple phrase hits accumulate (capped at 0.30) so a provision matching several of
     the indicator's own phrases ranks clearly above one with just one incidental match."""
     bonuses = [0.0] * len(provisions)
-    phrases = [qt.lower() for qt in (ind.query_terms or []) if len(qt.split()) >= 2]
+    phrases = _phrases(ind, native)
     if not phrases:
         return bonuses
     for i, p in enumerate(provisions):
@@ -278,6 +309,31 @@ def _phrase_bonus(ind, provisions: list[Provision]) -> list[float]:
         count = sum(1 for ph in phrases if ph in text_lower)
         bonuses[i] = min(0.30, count * 0.10)
     return bonuses
+
+
+def _economy_of(provisions: list[Provision]) -> str | None:
+    """The economy a provision set belongs to (a run is always single-economy)."""
+    for p in provisions:
+        code = getattr(p.economy, "value", p.economy)
+        if code:
+            return str(code)
+    return None
+
+
+def _is_phrase(term: str) -> bool:
+    """Is this query term specific enough to earn a literal-match bonus?
+
+    Two words in a spaced script, or three characters in a no-space one — 境内存储 carries at
+    least as much signal as "local storage" does, but `len(term.split()) >= 2` scores it zero
+    because Chinese has no spaces to count.
+    """
+    if len(term.split()) >= 2:
+        return True
+    return bool(_NOSPACE_RE.search(term)) and len(term) >= 3
+
+
+def _phrases(ind, native: list[str] | None = None) -> list[str]:
+    return [t.lower() for t in list(ind.query_terms or []) + list(native or []) if _is_phrase(t)]
 
 
 def _sibling_penalty(ind, provisions: list[Provision]) -> list[float]:
@@ -289,15 +345,17 @@ def _sibling_penalty(ind, provisions: list[Provision]) -> list[float]:
     the expensive LLM grading call is spent elsewhere.
     """
     from ..rdtii import siblings as _get_siblings
+    from ..rdtii.query_terms_i18n import native_terms
     sibs = _get_siblings(ind.indicator_id)
     if not sibs:
         return [0.0] * len(provisions)
 
-    target_phrases = [qt.lower() for qt in (ind.query_terms or []) if len(qt.split()) >= 2]
+    econ = _economy_of(provisions)
+    target_phrases = _phrases(ind, native_terms(ind.indicator_id, econ))
     penalties = [0.0] * len(provisions)
 
     for sib in sibs:
-        sib_phrases = [qt.lower() for qt in (sib.query_terms or []) if len(qt.split()) >= 2]
+        sib_phrases = _phrases(sib, native_terms(sib.indicator_id, econ))
         if not sib_phrases:
             continue
         for i, p in enumerate(provisions):
@@ -326,8 +384,15 @@ def retrieve(indicator_id: str, provisions: list[Provision], top_k: int = 5) -> 
     # query_terms alone. The legal_test includes "Distinguish from X" notes whose key terms
     # (e.g. "consent", "ban", "cybersecurity") discriminate confusable indicator pairs at the
     # BM25 stage — before the expensive cross-encoder rerank.
+    # Native statutory vocabulary joins the LEXICAL query only. The dense stage is left in
+    # English on purpose: the embedding model is cross-lingual by construction, so an English
+    # question already reaches Chinese text, whereas mixing two scripts into one query vector
+    # blurs it. BM25 has no such ability — without native terms it scores a flat zero here.
+    econ = _economy_of(provisions)
+    native = native_terms(indicator_id, econ)
     bm25_query_text = (
-        f"{ind.title} {ind.description} {ind.legal_test} {' '.join(ind.query_terms)}"
+        f"{ind.title} {ind.description} {ind.legal_test} {' '.join(ind.query_terms)} "
+        f"{' '.join(native)}"
     )
     query = _tok(bm25_query_text)
     bm = list(bm25.get_scores(query))
@@ -347,7 +412,7 @@ def retrieve(indicator_id: str, provisions: list[Provision], top_k: int = 5) -> 
                 for i in range(len(provisions))]
 
     # Phrase-presence bonus: provisions matching multiple indicator phrases rank higher.
-    bonus = _phrase_bonus(ind, provisions)
+    bonus = _phrase_bonus(ind, provisions, native)
     combined = [combined[i] + bonus[i] for i in range(len(provisions))]
 
     # Sibling-aware penalty: push down provisions whose text is dominated by a sibling
@@ -360,7 +425,7 @@ def retrieve(indicator_id: str, provisions: list[Provision], top_k: int = 5) -> 
     # (which contains "Distinguish from X" notes) as the cross-encoder query so it can
     # discriminate between indicators with overlapping surface vocabulary.
     ce_query = f"{ind.title}. {ind.legal_test} Keywords: {' '.join(ind.query_terms)}"
-    cross = _cross_scores(ce_query, provisions, combined, top_k)
+    cross = _cross_scores(ce_query, provisions, combined, top_k, econ)
     if cross is not None:
         combined = [0.5 * combined[i] + 0.5 * cross[i] for i in range(len(provisions))]
 
@@ -372,9 +437,12 @@ def retrieve(indicator_id: str, provisions: list[Provision], top_k: int = 5) -> 
     # bi-encoder DOES capture it (highest dense score), so also admit the strongest pure-dense
     # matches the blended/reranked cut dropped. The shortlist feeds the LLM grader, whose job
     # is precision — better to over-include on recall than silently miss the right provision.
-    if dense is not None and len(provisions) > top_k:
+    # OFF by default since the shortlist cap rose to 300: measured against the judges' Database
+    # it then changes provision recall by 0.000 while adding ~10% more LLM calls, because the
+    # budget already reaches deeper than the guarantee. Controlled by DENSE_RECALL_EXTRA.
+    if dense is not None and len(provisions) > top_k and settings.dense_recall_extra > 0:
         seen = set(keep)
-        extra = max(2, top_k // 3)
+        extra = settings.dense_recall_extra
         for i in sorted(range(len(provisions)), key=lambda i: dense[i], reverse=True):
             if extra <= 0:
                 break

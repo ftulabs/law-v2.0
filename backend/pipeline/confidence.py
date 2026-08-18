@@ -17,6 +17,8 @@ A hard scope flag (SECTORAL_NOT_NATIONAL) caps the score so it can never auto-ac
 """
 from __future__ import annotations
 
+import re
+
 from ..config import settings
 from ..schemas import ConfidenceBreakdown, ReviewStatus
 
@@ -71,11 +73,22 @@ def topical_grounded(snippet: str, pillar: int | None) -> bool:
     return any(t in low for t in terms)
 
 
+# Extraction sentinels: the heading mark, and the self-describing page mark "\x0c<page>\x0c".
+_MARKS_RE = re.compile(r"\x1e|\x0c\d*\x0c?")
+
+
 def snippet_grounding(snippet: str, source_text: str) -> float:
     """Fraction of the snippet verifiably present in the source — guards against
-    fabricated quotes. 1.0 = exact substring; partial credit for token overlap."""
+    fabricated quotes. 1.0 = exact substring; partial credit for token overlap.
+
+    Both sides are stripped of the extraction sentinels (HEADING_MARK, PAGE_MARK) first. The
+    sentinels stay in the source text so char spans and page counts remain valid, but they are
+    removed from the snippet — without normalising here, a provision that straddles a page
+    break would fail the exact-substring test and silently score partial credit."""
     if not snippet or not source_text:
         return 0.0
+    snippet = _MARKS_RE.sub("", snippet)
+    source_text = _MARKS_RE.sub("", source_text)
     if snippet.strip()[:200] in source_text:
         return 1.0
     s_tokens = set(snippet.lower().split())

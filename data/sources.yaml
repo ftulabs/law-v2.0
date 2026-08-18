@@ -101,3 +101,147 @@ sources:
       Acts). Same record shape + adapter as the principal catalogue; matched by the same name-only
       fragments. Distinct act numbers (A1727 ≠ 709) keep amendment + principal as separate docs
       (no merge), and MY is excluded from the amendment-drop so the recent amendment survives.
+
+# ─────────────────────────────────────────────────────────────────────────────────────────
+# ROUND-2 ECONOMIES — China, India, Mongolia.
+#
+# The discovery QUERIES here are written in each portal's own language, because a web-search
+# lane can only find what the index holds: `site:flk.npc.gov.cn "cross-border data transfer"`
+# returns nothing, since no page on that portal contains that English string. They remain
+# OBLIGATION phrases, never law titles — 个人信息 境内存储 describes the rule a localisation
+# law imposes, exactly as "records must not be held outside" does for AU. No law name is
+# hardcoded as the answer to an (economy, pillar).
+#
+# ⚠ ALL THREE ARE UNVERIFIED against the live sites. The websearch lane is portal-agnostic so
+#   it runs, but the MY experience says how this usually ends: Google barely indexed
+#   lom.agc.gov.my and we had to write an adapter against the portal's own JSON catalogue.
+#   Expect the same for flk.npc.gov.cn (JS-rendered, likely geo-throttled) and legalinfo.mn.
+#   Treat these entries as the lane that proves the pipeline runs end-to-end, not as finished
+#   Zone 1 coverage — see docs/round2-expansion.md.
+
+  - economy: CN
+    name: National Laws and Regulations Database (NPC)
+    base_url: https://flk.npc.gov.cn
+    adapter: websearch
+    site: flk.npc.gov.cn
+    verified: false
+    queries:
+      - 个人信息 境内存储
+      - 向境外提供个人信息
+      - 数据出境安全评估
+      - 个人信息处理者 义务
+      - 关键信息基础设施 运营者
+      - 网络日志 留存 不少于
+      - 个人信息保护负责人
+      - 个人信息保护影响评估
+      - 网络安全 等级保护
+      - 依法要求提供 技术支持和协助
+    notes: >
+      The NPC database is the authoritative text of national laws. Chinese administrative
+      measures and departmental rules that carry much of the P6 answer key (the Cyberspace
+      Administration's data-export measures, sectoral interim measures) are NOT here — they sit
+      on gov.cn and cac.gov.cn, which is why the second CN lane below exists.
+
+  - economy: CN
+    name: State Council / Cyberspace Administration (administrative measures)
+    base_url: https://www.gov.cn
+    adapter: websearch
+    site: gov.cn
+    verified: false
+    queries:
+      - 数据出境安全评估办法
+      - 个人信息出境标准合同
+      - 应当在境内存储
+      - 服务器 设在境内
+      - 个人信息 保存期限
+    notes: >
+      Half the Round-2 China answer key is administrative measures and interim measures issued
+      by the State Council and the CAC, not NPC laws — the panel cites gov.cn and cac.gov.cn for
+      the ride-hailing, online-lending, credit-reporting and population-health measures.
+
+  - economy: IN
+    name: India Code (Central Acts)
+    base_url: https://www.indiacode.nic.in
+    adapter: websearch
+    site: indiacode.nic.in
+    verified: false
+    notes: >
+      Indian statutes are enacted and published in ENGLISH, so this lane needs no native query
+      pack — the generated English obligation phrases apply unchanged, and the numbered
+      drafting form ("43A. Compensation for failure to protect data.") parses on the same
+      SG/MY branch of the extractor. India is the cheapest of the three to add.
+
+  - economy: IN
+    name: MeitY (IT Rules and subordinate instruments)
+    base_url: https://www.meity.gov.in
+    adapter: websearch
+    site: meity.gov.in
+    pdf_only: true
+    per_query: 10
+    verified: false
+    notes: >
+      Much of India's P6/P7 evidence is subordinate legislation, not Acts: the IT (Reasonable
+      Security Practices) Rules 2011, the IT (Procedure and Safeguards for Interception) Rules
+      2009, and the DPDP Rules. Those are gazette PDFs on meity.gov.in, absent from India Code
+      — the same structural gap that MY's pdp.gov.my lane exists to close.
+
+  - economy: MN
+    name: Unified Legal Information System (legalinfo.mn)
+    base_url: https://legalinfo.mn
+    adapter: websearch
+    site: legalinfo.mn
+    verified: false
+    queries:
+      - хувь хүний мэдээлэл хамгаалах
+      - мэдээлэл дамжуулахыг хориглоно
+      - мэдээллийн аюулгүй байдал
+      - мэдээлэл хадгалах хугацаа
+      - эрсдэлийн үнэлгээ хийх
+      - кибер аюулгүй байдал
+      - мэдээлэл хариуцагч үүрэг
+      - нутаг дэвсгэрт байрлах сервер
+    notes: >
+      legalinfo.mn serves Mongolian text at /mn/detail?lawId=… and a partial English mirror at
+      /en/. Prefer the Mongolian original: the English mirror is incomplete and is a translation,
+      so a verbatim snippet taken from it would not be the authoritative text.
+
+# ─────────────────────────────────────────────────────────────────────────────────────────
+# REGULATOR SITES — where non-statutory instruments live.
+#
+# The judges' answer key cites Codes of Practice, technical standards, advisory guidelines,
+# licence conditions and a national strategy. None of those are on the statute portal, so an
+# Acts-only catalogue structurally cannot answer the indicators that rest on them (Malaysia's
+# sectoral Codes alone carry evidence for 10 indicator rows).
+#
+# What is listed here is a DOMAIN and its remit — the same portal-level fact as the entries
+# above, and the kind of thing the judges' own portal reference document records. No
+# instrument names and no document paths appear here: `backend/corpus/regulator.py` enumerates
+# each site from its own index (WordPress media API / sitemap / bounded crawl / site-scoped
+# search, strongest first). Adding a Finals economy means adding its regulators' domains.
+#
+#   remit: data_protection  -> the authority's whole output is in scope; take every document
+#   remit: sectoral         -> broad-remit body; require the P6/P7 subject vocabulary
+regulators:
+  SG:
+    - host: www.pdpc.gov.sg          # Personal Data Protection Commission
+      remit: data_protection
+      strategies: [sitemap, crawl, search]
+    - host: www.imda.gov.sg          # Info-communications Media Development Authority
+      remit: sectoral                # licences + telecom terms & conditions
+      # crawl is required here: the licence conditions and service terms live under
+      # /-/media/Imda/Files/... which the sitemap does not list.
+      strategies: [sitemap, crawl, search]
+      crawl_pages: 150
+  AU:
+    - host: www.oaic.gov.au          # Office of the Australian Information Commissioner
+      remit: data_protection
+      strategies: [sitemap, crawl, search]   # answers 403 to non-browser robots/sitemap fetches
+    - host: www.homeaffairs.gov.au   # cyber security strategy
+      remit: sectoral
+      strategies: [search, crawl]
+      crawl_pages: 80                # the strategy is an HTML page several levels down
+  MY:
+    - host: www.pdp.gov.my           # Jabatan Perlindungan Data Peribadi
+      base: https://www.pdp.gov.my/ppdpv1
+      remit: data_protection
+      strategies: [wp_media, crawl, search]
