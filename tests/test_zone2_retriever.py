@@ -59,13 +59,28 @@ def test_mapper_matches_hybrid_when_no_lightrag(monkeypatch):
     assert out
 
 
+class _FailingLLM:
+    """A grader whose every call fails — the 'we lost the LLM mid-run' condition."""
+    name = "failing"
+    model_version = "failing-0"
+
+    def complete_json(self, system, user):
+        raise RuntimeError("grader unavailable")
+
+
 def test_mapper_without_llm_produces_nothing(monkeypatch):
-    """No grader → no mappings, and no crash. Every grading call fails and is counted
-    as a failure rather than being silently read as 'not relevant', so a run that lost
-    its LLM comes back empty instead of quietly emitting a half-graded corpus."""
+    """A grader that always fails → no mappings, and no crash. Every grading call is counted
+    as a failure rather than being silently read as 'not relevant', so a run that lost its LLM
+    comes back empty instead of quietly emitting a half-graded corpus.
+
+    The failing grader is INJECTED rather than passing `llm=None`: `map_provisions` falls back
+    to the configured provider when given None (mapping.py: `llm = llm or get_llm_provider()`),
+    so the None form only asserted this when no working API key happened to be present — it
+    passed for years because the key in .env was dead, then started making real paid calls the
+    moment a valid key was installed."""
     provs = _sample_provisions()
     inds = get_indicators(7)
     monkeypatch.setattr(mapping, "_select_retriever", lambda *a, **k: None)
     out = mapping.map_provisions(run_id="t", provisions=provs, pillar=7, indicators=inds,
-                                 llm=None, top_k=3, log=lambda *_: None)
+                                 llm=_FailingLLM(), top_k=3, log=lambda *_: None)
     assert out == []

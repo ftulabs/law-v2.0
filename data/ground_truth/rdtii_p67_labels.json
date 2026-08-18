@@ -1,0 +1,1039 @@
+[
+ {
+  "economy": "SG",
+  "indicator_id": "P6-I1",
+  "pillar": 6,
+  "raw_score": 0.0,
+  "coverage": "Horizontal",
+  "kind": "absence",
+  "laws": [
+   "Personal Data Protection Act 2012",
+   "Personal Data Protection (Amendment) Act 2020"
+  ],
+  "sections": [],
+  "portal_urls": [
+   "https://sso.agc.gov.sg/Act/PDPA2012",
+   "https://sso.agc.gov.sg/Acts-Supp/40-2020/"
+  ],
+  "other_urls": [
+   "https://www.pdpc.gov.sg/Overview-of-PDPA/The-Legislation/Personal-Data-Protection-Act",
+   "https://www.pdpc.gov.sg/overview-of-pdpa/the-legislation/personal-data-protection-act/data-protection-obligations"
+  ],
+  "impact": "Singapore does not implement ban on data transfer and local processing requirement."
+ },
+ {
+  "economy": "SG",
+  "indicator_id": "P6-I2",
+  "pillar": 6,
+  "raw_score": 0.5,
+  "coverage": "Accounting records",
+  "kind": "provision",
+  "laws": [
+   "Companies Act 1967"
+  ],
+  "sections": [
+   "199",
+   "4"
+  ],
+  "portal_urls": [
+   "https://sso.agc.gov.sg/Act/CoA1967"
+  ],
+  "other_urls": [],
+  "impact": "According to Section 199, every company must retain accounting for a period of 5 years from the end of the financial year in which the transactions or operations to which those records relate are completed. This data shall be kept at the registered office of the company or other places in Singapore specified by the director. This provision is to ensure that the company will have sufficient data to enable them to properly audited and true financial statements. Specifically, accounting records under this Act refers to records in relation to a corporation, includes such working papers and other documents as are necessary to explain the methods and calculations by which accounts of the corporation are made up (Section 4)."
+ },
+ {
+  "economy": "SG",
+  "indicator_id": "P6-I3",
+  "pillar": 6,
+  "raw_score": 0.0,
+  "coverage": "Horizontal",
+  "kind": "absence",
+  "laws": [
+   "Personal Data Protection Act 2012",
+   "Personal Data Protection (Amendment) Act 2020"
+  ],
+  "sections": [],
+  "portal_urls": [
+   "https://sso.agc.gov.sg/Act/PDPA2012",
+   "https://sso.agc.gov.sg/Acts-Supp/40-2020/"
+  ],
+  "other_urls": [],
+  "impact": "Singapore does not implement infrastructure requirement."
+ },
+ {
+  "economy": "SG",
+  "indicator_id": "P6-I4",
+  "pillar": 6,
+  "raw_score": 1.0,
+  "coverage": "Horizontal",
+  "kind": "provision",
+  "laws": [
+   "Personal Data Protection Act 2012",
+   "Personal Data Protection (Amendment) Act 2020"
+  ],
+  "sections": [
+   "26"
+  ],
+  "portal_urls": [
+   "https://sso.agc.gov.sg/Act/PDPA2012",
+   "https://sso.agc.gov.sg/Acts-Supp/40-2020/"
+  ],
+  "other_urls": [
+   "https://www.pdpc.gov.sg/Overview-of-PDPA/The-Legislation/Personal-Data-Protection-Act"
+  ],
+  "impact": "According to Section 26, an organisation may only transfer personal data outside Singapore if it has taken appropriate steps to ensure that: - it will comply with the Personal Data Protection Act (PDPA) obligations in respect of the transferred personal data while it remains in its possession or under its control; and - the recipient outside of Singapore is bound by legally enforceable obligations to provide a standard of protection to the personal data transferred that is comparable to that under the PDPA. In this regard, “legally enforceable obligations” would include obligations imposed on the recipient: (i) under law (e.g. the recipient’s relevant national data privacy legislation); (ii) under any contract: (a) requiring the recipient to provide a standard of protection to the personal data transferred that is at least comparable to the protection under the PDPA; and (b) specifying the countries and territories to which the personal data may be transferred under the contract; (iii) under binding corporate rules (see below); or (iv) any other legally binding instrument. An organisation will be taken to have satisfied the second requirement if the individual consents to the transfer of the personal data to the recipient in that country."
+ },
+ {
+  "economy": "SG",
+  "indicator_id": "P7-I1",
+  "pillar": 7,
+  "raw_score": 0.0,
+  "coverage": "Horizontal",
+  "kind": "provision",
+  "laws": [
+   "Personal Data Protection Act 2012",
+   "Personal Data Protection (Amendment) Act 2020"
+  ],
+  "sections": [],
+  "portal_urls": [
+   "https://sso.agc.gov.sg/Act/PDPA2012",
+   "https://sso.agc.gov.sg/Acts-Supp/40-2020/"
+  ],
+  "other_urls": [
+   "https://www.pdpc.gov.sg/Overview-of-PDPA/The-Legislation/Personal-Data-Protection-Act",
+   "https://www.dataguidance.com/jurisdiction/singapore"
+  ],
+  "impact": "The Personal Data Protection Act 2012 (PDPA) provides a baseline standard of protection for personal data in Singapore. It complements sector-specific legislative and regulatory frameworks such as the Banking Act and Insurance Act, Healthcare Services Act, Telecommunications Act, etc. The PDPA comprises various requirements governing the collection, use, disclosure and care of personal data in Singapore. Personal Data Protection Commission (PDPC) administers and enforces the PDPA. Moreover, the PDPA amendment in 2021 introduces a number of key reforms, including mandatory data breach notification requirements, amendments to the consent obligation, offences for egregious mishandling of personal data, prohibitions relating to the use of dictionary attacks and address-harvesting software, and the PDPC's power to accept voluntary undertakings as part of its enforcement regime."
+ },
+ {
+  "economy": "SG",
+  "indicator_id": "P7-I2",
+  "pillar": 7,
+  "raw_score": 0.0,
+  "coverage": "Horizontal",
+  "kind": "provision",
+  "laws": [
+   "Cybersecurity Act 2018"
+  ],
+  "sections": [],
+  "portal_urls": [
+   "https://sso.agc.gov.sg/Acts-Supp/9-2018/?ProvIds=Sc2-#Sc2-"
+  ],
+  "other_urls": [],
+  "impact": "Cybersecurity Act 2018 establishes a legal framework for the oversight and maintenance of national cybersecurity in Singapore. The key objectives of the Cybersecurity Act are to: (i) strengthen the protection of Critical Information Infrastructure against cyber-attacks; (ii) authorize the government to prevent and respond to cybersecurity threats and incidents; (iii); establish a framework for sharing cybersecurity information, and (iv) establish a licensing framework for cybersecurity service providers. Amendments to the Act were made in May 2024 to update the Act so that it keeps pace with the developments in the cyber threat landscape, as well as our evolving technological operating context. The key amendments: (i) updated existing provisions relating to cybersecurity of Critical Information Infrastructure, and (ii) expanded CSA’s oversight to cover new classes of regulated entities."
+ },
+ {
+  "economy": "SG",
+  "indicator_id": "P7-I3",
+  "pillar": 7,
+  "raw_score": 0.0,
+  "coverage": "Horizontal",
+  "kind": "provision",
+  "laws": [
+   "Personal Data Protection Act 2012",
+   "Personal Data Protection (Amendment) Act 2020"
+  ],
+  "sections": [
+   "25"
+  ],
+  "portal_urls": [
+   "https://sso.agc.gov.sg/Act/PDPA2012",
+   "https://sso.agc.gov.sg/Acts-Supp/40-2020/"
+  ],
+  "other_urls": [
+   "https://www.pdpc.gov.sg/Overview-of-PDPA/The-Legislation/Personal-Data-Protection-Act",
+   "https://www.pdpc.gov.sg/overview-of-pdpa/the-legislation/personal-data-protection-act/data-protection-obligations",
+   "https://www.pdpc.gov.sg/-/media/Files/PDPC/PDF-Files/Advisory-Guidelines/the-retention-limitation-obligation---ch-18-(270717).pdf"
+  ],
+  "impact": "Section 25 of the PDPA requires an organisation to cease retaining its documents containing personal data, or remove the means by which the personal data can be associated with particular individuals, as soon as it is reasonable to assume that the purpose for which that personal data was collected is no longer being served by retention of the personal data, and retention is no longer necessary for legal or business purposes. This obligation to cease the retention of personal data is referred to in these Guidelines as the Retention Limitation Obligation."
+ },
+ {
+  "economy": "SG",
+  "indicator_id": "P7-I3",
+  "pillar": 7,
+  "raw_score": 1.0,
+  "coverage": "Horizontal",
+  "kind": "provision",
+  "laws": [
+   "Telecommunications Act 1999",
+   "Licence to Provide Facilities-based Operations Granted by the Info-Communications Media Development Authority to Singapore Telecommunications Limited under Section 5 of the Telecommunications Act (Chapter 323)",
+   "Specific Terms and Conditions for IP Telephony Services"
+  ],
+  "sections": [],
+  "portal_urls": [
+   "https://sso.agc.gov.sg/Act/TA1999#pr3-"
+  ],
+  "other_urls": [
+   "https://www.imda.gov.sg/regulations-and-licences/licensing/list-of-telecommunication-and-postal-service-licensees/-/media/Imda/Files/Regulation-Licensing-and-Consultations/Licensing/Licensees/FBO/SingTelLtd.pdf",
+   "https://www.imda.gov.sg/~/media/imda/files/inner/pcdg/consultations/20040921_propoiptelephony/tcsforiptelephony240605.pdf"
+  ],
+  "impact": "The telecom licensee shall maintain the following data records for 12 calendar months, which shall be made available for inspection by authorised Singapore government agencies: assigned source IP address and date and time stamps; and assigned user ID/user name (e.g., subscriber records)."
+ },
+ {
+  "economy": "SG",
+  "indicator_id": "P7-I3",
+  "pillar": 7,
+  "raw_score": 1.0,
+  "coverage": "Accounting records",
+  "kind": "provision",
+  "laws": [
+   "Companies Act 1967"
+  ],
+  "sections": [
+   "199",
+   "4"
+  ],
+  "portal_urls": [
+   "https://sso.agc.gov.sg/Act/CoA1967"
+  ],
+  "other_urls": [],
+  "impact": "According to Section 199, every company must retain accounting for a period of 5 years from the end of the financial year in which the transactions or operations to which those records relate are completed. This data shall be kept at the registered office of the company or other places in Singapore specified by the director. This provision is to ensure that the company will have sufficient data to enable them to properly audited and true financial statements. Specifically, accounting records under this Act refers to records in relation to a corporation, includes such working papers and other documents as are necessary to explain the methods and calculations by which accounts of the corporation are made up (Section 4)."
+ },
+ {
+  "economy": "SG",
+  "indicator_id": "P7-I3",
+  "pillar": 7,
+  "raw_score": 1.0,
+  "coverage": "Income records",
+  "kind": "provision",
+  "laws": [
+   "Income Tax Act 1947"
+  ],
+  "sections": [
+   "67"
+  ],
+  "portal_urls": [
+   "https://sso.agc.gov.sg/Act/ITA1947"
+  ],
+  "other_urls": [],
+  "impact": "Section 67: Businesses are required to keep records and accounts for a period of 5 years from the Year of Assessment to which any income relates."
+ },
+ {
+  "economy": "SG",
+  "indicator_id": "P7-I3",
+  "pillar": 7,
+  "raw_score": 1.0,
+  "coverage": "Employment records",
+  "kind": "provision",
+  "laws": [
+   "Employment Act 1968"
+  ],
+  "sections": [
+   "95"
+  ],
+  "portal_urls": [
+   "https://sso.agc.gov.sg/Act/EmA1968"
+  ],
+  "other_urls": [],
+  "impact": "Section 95: (For current employees) Employers must keep detailed employment records for latest two years. (For ex-employees) Records must be kept for one year after the employee leaves employment."
+ },
+ {
+  "economy": "SG",
+  "indicator_id": "P7-I4",
+  "pillar": 7,
+  "raw_score": 1.0,
+  "coverage": "Horizontal",
+  "kind": "provision",
+  "laws": [
+   "Personal Data Protection Act 2012",
+   "Guide to Data Protection Impact Assessments",
+   "Advisory Guidelines on The PDPA for Children's Personal Data in The Digital Environment"
+  ],
+  "sections": [
+   "11(3)"
+  ],
+  "portal_urls": [
+   "https://sso.agc.gov.sg/Act/PDPA2012"
+  ],
+  "other_urls": [
+   "https://www.pdpc.gov.sg/-/media/Files/PDPC/PDF-Files/Other-Guides/DPIA/Guide-to-Data-Protection-Impact-Assessments-14-Sep-2021.pdf",
+   "https://www.pdpc.gov.sg/-/media/files/pdpc/pdf-files/advisory-guidelines/advisory-guidelines-on-the-pdpa-for-children"
+  ],
+  "impact": "Under Section 11(3), each organisation is required to appoint one or more data protection officers to be responsible to ensure the organisation’s compliance with the Personal Data Protection Act. Moreover, data protection impact assessment (“DPIA”) guides has been implemented. Organisations are also advised to conduct data protection impact assessments before releasing products or services that are likely to be accessed by children in order to meet their Accountability Obligation under the PDPA."
+ },
+ {
+  "economy": "SG",
+  "indicator_id": "P7-I5",
+  "pillar": 7,
+  "raw_score": 1.0,
+  "coverage": "Horizontal",
+  "kind": "provision",
+  "laws": [
+   "Criminal Procedure Code 2010"
+  ],
+  "sections": [
+   "39",
+   "40",
+   "20"
+  ],
+  "portal_urls": [
+   "https://sso.agc.gov.sg/Act/CPC2010"
+  ],
+  "other_urls": [
+   "https://tmt.bakermckenzie.com/-/media/minisites/tmt/files/2017_surveillance_law.pdf",
+   "https://www.gp-digital.org/world-map-of-encryption/"
+  ],
+  "impact": "Under the Criminal Procedure Code, (section 39 and 40) police officers have the power to access computers and the power to access decrypted information. Moreover, (section 20) empowers the police to order the \"production of any document or other thing\" for the purposes of criminal investigations. Any person who obstructs the lawful exercise by a police officer or an authorised person shall be guilty of an offence and shall be liable on conviction to a fine not exceeding $10,000 or to imprisonment for a term not exceeding 3 years or to both."
+ },
+ {
+  "economy": "AU",
+  "indicator_id": "P6-I1",
+  "pillar": 6,
+  "raw_score": 0.5,
+  "coverage": "Personal Health Data",
+  "kind": "provision",
+  "laws": [
+   "My Health Records Act 2012"
+  ],
+  "sections": [
+   "77"
+  ],
+  "portal_urls": [
+   "https://www.legislation.gov.au/C2012A00063"
+  ],
+  "other_urls": [
+   "https://www.ag.gov.au/rights-and-protections/consultations/apec-cross-border-privacy-rules-australias-participation"
+  ],
+  "impact": "The My Health Records Act 2012 (Section 77) mandates that such government medical records must not be held or processed outside national borders, ensuring data security and sovereignty. Exceptions apply only if the records do not include personal or identifying information related to healthcare recipients or participants in the system."
+ },
+ {
+  "economy": "AU",
+  "indicator_id": "P6-I2",
+  "pillar": 6,
+  "raw_score": 0.5,
+  "coverage": "Personal Health Data",
+  "kind": "provision",
+  "laws": [
+   "My Health Records Act 2012"
+  ],
+  "sections": [
+   "77"
+  ],
+  "portal_urls": [
+   "https://www.legislation.gov.au/C2012A00063"
+  ],
+  "other_urls": [
+   "https://www.ag.gov.au/rights-and-protections/consultations/apec-cross-border-privacy-rules-australias-participation"
+  ],
+  "impact": "The My Health Records Act 2012 (Section 77) mandates that such government medical records must be stored and processed within Australia, ensuring data security and sovereignty. Exceptions apply only if the records do not include personal or identifying information related to healthcare recipients or participants in the system."
+ },
+ {
+  "economy": "AU",
+  "indicator_id": "P6-I3",
+  "pillar": 6,
+  "raw_score": 0.0,
+  "coverage": "Horizontal",
+  "kind": "absence",
+  "laws": [
+   "Privacy Act 1988"
+  ],
+  "sections": [],
+  "portal_urls": [
+   "https://www.legislation.gov.au/C2004A03712"
+  ],
+  "other_urls": [],
+  "impact": "No infrastructure requirements were found."
+ },
+ {
+  "economy": "AU",
+  "indicator_id": "P6-I4",
+  "pillar": 6,
+  "raw_score": 1.0,
+  "coverage": "Horizontal",
+  "kind": "provision",
+  "laws": [
+   "Privacy Act 1988"
+  ],
+  "sections": [
+   "APP 8"
+  ],
+  "portal_urls": [
+   "https://www.legislation.gov.au/C2004A03712"
+  ],
+  "other_urls": [],
+  "impact": "Under Australian Privacy Principle 8 (APP 8) of the Privacy Act 1988, cross-border disclosure of personal information is allowed in certain conditions, including when the recipient country has similar privacy protections to Australia, when the individual gives consent, or when required by law. Different rules apply for government data, including restrictions to stay within Australia."
+ },
+ {
+  "economy": "AU",
+  "indicator_id": "P7-I1",
+  "pillar": 7,
+  "raw_score": 0.0,
+  "coverage": "Horizontal",
+  "kind": "provision",
+  "laws": [
+   "Privacy Act 1988"
+  ],
+  "sections": [],
+  "portal_urls": [
+   "https://www.legislation.gov.au/C2004A03712"
+  ],
+  "other_urls": [
+   "https://www.oaic.gov.au/privacy/notifiable-data-breaches"
+  ],
+  "impact": "The Privacy Act 1988 is the primary federal legislation that governs protection of personal information and applies horizontally. The Act includes thirteen Privacy Principles, which set out standards, rights and obligations for the handling, holding, use, accessing and correction of personal information (including sensitive information. The Privacy Act's amendment in 2018 introduced a mandatory notification scheme for entities in responding to data breaches. The Notifiable Data Breach Scheme (NDB scheme) introduced an obligation to notify individuals whose personal information is involved in a data breach that is likely to result in serious harm. The NDB scheme applies to all agencies and organisations with existing personal information security obligations under the Australian Privacy Act. The Privacy Act's amendment in 2023 increases the maximum penalties for serious or repeated privacy breaches and provides the Australian Information Commissioner with greater powers to resolve privacy breaches and quickly share information about data breaches."
+ },
+ {
+  "economy": "AU",
+  "indicator_id": "P7-I2",
+  "pillar": 7,
+  "raw_score": 0.5,
+  "coverage": "Horizontal",
+  "kind": "provision",
+  "laws": [
+   "Security of Critical Infrastructure Act 2018",
+   "Privacy Act 1988",
+   "Criminal Code Act 1995",
+   "2023-2030 Australian Cyber Security Strategy"
+  ],
+  "sections": [],
+  "portal_urls": [
+   "https://www.legislation.gov.au/C2018A00029/latest/versions",
+   "https://www.legislation.gov.au/C2004A03712/latest/versions",
+   "https://www.legislation.gov.au/C2004A04868/latest/versions"
+  ],
+  "other_urls": [
+   "https://www.homeaffairs.gov.au/about-us/our-portfolios/cyber-security/strategy/2023-2030-australian-cyber-security-strategy"
+  ],
+  "impact": "Australia's Cyber Security is guided through the 2023-2030 Australian Cyber Security Strategy, which includes a roadmap for new legislation and standards. Until the new legislation under the strategy is passed, Cybersecurity is controlled through a mixture of laws including the Security of Critical Infrastructure Act 2018, Privacy Act 1988 and the Criminal Code Act 1995. These laws contain cybersecurity-related provisions dispersed across sectoral and thematic statutes, addressing critical infrastructure protection, data security, and cybercrime respectively, but they do not constitute a single, coherent, and horizontally applicable cybersecurity-specific legal framework."
+ },
+ {
+  "economy": "AU",
+  "indicator_id": "P7-I3",
+  "pillar": 7,
+  "raw_score": 1.0,
+  "coverage": "Internet and mobile service providers",
+  "kind": "provision",
+  "laws": [
+   "Telecommunications (Interception and Access) Act 1979"
+  ],
+  "sections": [
+   "187C",
+   "187AA"
+  ],
+  "portal_urls": [
+   "https://www.legislation.gov.au/C2004A02124/latest/text"
+  ],
+  "other_urls": [],
+  "impact": "The Telecommunications (Interception and Access) Act 1979 requires a telecommunication service provider to keep specific telecommunications data relating to the services it offers for two years (187C). The dataset to be kept includes: the subscriber and the accounts of telecommunications devices, the source of a communication, the destination of a communication, the date, time and duration of a communication, the type of a communication, and the location of equipment or a line used (187AA). This retention scheme was inserted into the Act by the Telecommunications (Interception and Access) Amendment (Data Retention) Act 2015."
+ },
+ {
+  "economy": "AU",
+  "indicator_id": "P7-I4",
+  "pillar": 7,
+  "raw_score": 0.0,
+  "coverage": "Horizontal",
+  "kind": "provision",
+  "laws": [
+   "Privacy Impact Assessment 2020"
+  ],
+  "sections": [
+   "33D(1)",
+   "APP 1.2"
+  ],
+  "portal_urls": [],
+  "other_urls": [
+   "https://www.oaic.gov.au/privacy/guidance-and-advice/privacy-management-framework-enabling-compliance-and-encouraging-good-practice/#step-1-embed-a-culture-of-privacy-that-enables-compliance"
+  ],
+  "impact": "A Privacy Impact Assessment ('PIA') is contemplated by Australian privacy law but, apart from government agencies, is not mandated. However, arguably a PIA is, if not required, highly recommended to fulfil one's obligations under APP 1.2. The guidance and recommendations of the OAIC are that a PIA should be used for any new, changed/varied or altered process, method, or technology used that processes any personal information. In addition, the OAIC may, in writing, direct an agency to conduct a PIA, within a specified period if an agency proposes to engage in an activity or function involving the handling of personal information about individuals, and the OAIC considers that the activity or function might have a significant impact on the privacy of individual (Section 33D(1) of the Privacy Act)."
+ },
+ {
+  "economy": "AU",
+  "indicator_id": "P7-I5",
+  "pillar": 7,
+  "raw_score": 1.0,
+  "coverage": "Horizontal",
+  "kind": "provision",
+  "laws": [
+   "Data Availability and Transparency Act 2022"
+  ],
+  "sections": [
+   "101",
+   "45"
+  ],
+  "portal_urls": [
+   "https://www.legislation.gov.au/C2022A00011/latest/text"
+  ],
+  "other_urls": [
+   "https://www.datacommissioner.gov.au/law/dat-act"
+  ],
+  "impact": "On 1 April 2022, the Data Availability and Transparency Act 2022 commenced, creating a new scheme for sharing Commonwealth Government data. Under the Act, authorised Commonwealth bodies can provide controlled access to public sector data to accredited users, being accredited state and federal government entities and public Australian universities, for specific purposes in the public interest. Specifically, under Article 104, if the Commissioner reasonably believes that a person has information or a document relevant to an investigation under section 101, or to any other of the Commissioner’s regulatory functions set out in section 45, the Commissioner may, by written notice given to the person, require the person to give the information, or produce the document, to the Commissioner within the period specified in the notice."
+ },
+ {
+  "economy": "AU",
+  "indicator_id": "P7-I5",
+  "pillar": 7,
+  "raw_score": 1.0,
+  "coverage": "Telecommunications services",
+  "kind": "provision",
+  "laws": [
+   "Telecommunications (Interception and Access) Act 1979",
+   "Telecommunications and Other Legislation Amendment (Assistance and Access) Act 2018",
+   "Telecommunications Legislation Amendment (International Production Orders) Act 2021",
+   "Telecommunications Regulations 2021",
+   "Telecommunications Act 1997"
+  ],
+  "sections": [
+   "10",
+   "110",
+   "317ZH"
+  ],
+  "portal_urls": [
+   "https://www.legislation.gov.au/C2004A02124/",
+   "https://www.legislation.gov.au/Details/C2021C00496",
+   "https://www.legislation.gov.au/Details/C2021A00078",
+   "https://www.legislation.gov.au/Details/C2023C00106",
+   "https://www.legislation.gov.au/F2021L00289",
+   "https://www.legislation.gov.au/C2004A05145"
+  ],
+  "other_urls": [],
+  "impact": "The Telecommunications (Interception and Access) Act 1979 allows law enforcement to intercept user communications, even without a warrant in emergencies or for capability testing. It details various warrants like interception (Section 10) and stored communications (Section 110). The Telecommunications and Other Legislation Amendment (Assistance and Access) Act 2018 provides industry assistance powers, ensuring cooperation with executing these warrants. However, Section 317ZH states these powers are void if they'd require a warrant under other mentioned acts. The Telecommunications Legislation Amendment (International Production Orders) Act 2020 permits the government to retrieve encrypted data from foreign companies. The Telecommunications Regulations 2021 enables cooperation between telecommunications providers, financial institutions and state agencies to reduce cyber risks, including via personal information sharing. The Telecommunications Act 1997, as amended in 2018, provides for three types of requests or notices that the government and certain security and law enforcement agencies can issue to communications providers"
+ },
+ {
+  "economy": "AU",
+  "indicator_id": "P7-I5",
+  "pillar": 7,
+  "raw_score": 1.0,
+  "coverage": "Horizontal",
+  "kind": "provision",
+  "laws": [
+   "Australian Security Intelligence Organisation Act 1979",
+   "Surveillance Legislation Amendment (Identify and Disrupt) Act 2021",
+   "Data Availability and Transparency Act 2022"
+  ],
+  "sections": [
+   "25A",
+   "6"
+  ],
+  "portal_urls": [
+   "https://www.legislation.gov.au/C2004A02123",
+   "https://www.legislation.gov.au/Details/C2021A00098",
+   "https://www.legislation.gov.au/C2022A00011"
+  ],
+  "other_urls": [],
+  "impact": "The Australian Security Intelligence Act 1979 includes a computer access warrant (Section 25A) permitting the use of telecom facilities to access relevant data The Surveillance Legislation Amendment (Identify and Disrupt) Act extends the nation's surveillance capabilities, to disrupt data (Section 6), takeover data (Schedule 3) and monitor network activity (Schedule 2). The Data Availability and Transparency Bill allows governmental authorities to distribute personal data across its agencies."
+ },
+ {
+  "economy": "MY",
+  "indicator_id": "P6-I1",
+  "pillar": 6,
+  "raw_score": 0.0,
+  "coverage": "Horizontal",
+  "kind": "provision",
+  "laws": [
+   "Personal Data Protection Act (Act 709) 2010",
+   "Personal Data Protection (Amendment) Bill (Act A1727) 2024",
+   "Personal Data Protection Code of Practice For Banking Sector And Financial Institutions 2017"
+  ],
+  "sections": [
+   "6",
+   "9",
+   "129"
+  ],
+  "portal_urls": [
+   "https://www.pdp.gov.my/ppdpv1/en/akta/personal-data-protection-code-of-practice-for-banking-sector-and-financial-institutions/"
+  ],
+  "other_urls": [
+   "https://mohre.um.edu.my/img/files/Personal%20Data%20Protection%20(PDPA)%20Act%202010.pdf",
+   "https://f.datasrvr.com/fr1/224/81715/DR_21_BI.pdf"
+  ],
+  "impact": "The Personal Data Protection Act (Act 709) 2010 (PDPA) prohibits the transfer of personal data out of Malaysia unless such transfer is to a country, which has been specified and recorded in the Official Gazette by the Minister. Currently, no countries have been specified officially. Notwithstanding the prohibition on transfers of personal data out of the country, the PDPA sets out a number of exceptions to the prohibition, such as where the consent of the data subject has been obtained for such transfer and where the transfer is necessary for the performance of a contract between the parties. When in doubt as to whether the exemptions on data transfer apply, the prudent approach would be to obtain consent from the data subject in respect of such out of Malaysia transfer. In relation to outsourcing, a data user is not allowed to share data with third parties unless the consent of the individual has been obtained. The PDPA applies broadly across sectors to regulate the processing of personal data for commercial transactions. Any personal data processed in Malaysia must adhere to PDPA standards, including specific security and privacy principles. Section 6 requires that personal data should not be processed unless the data subject consents, or it is necessary for specific legal reasons. The Security Principle in Section 9 enforces practical steps to protect personal data from unauthorized or accidental access during processing, which aligns with local data storage requirements. Section 129 of the PDPA mentions restrictions on transferring personal data to places outside Malaysia unless the destination has data protection laws or the transfer meets specific conditions. The Personal Data Protection Code of Practice for the Banking and Financial Sector 2017 mandates that personal data be processed according to PDPA principles. Specific rules about data transfer abroad are mentioned in the document, limiting cross-border data transfers without compliance. Similar requirements for the Communications Sector are set out in the Code of Practice for Licensees Under the Communications and Multimedia Act 1998, especially for network and service providers. Both banking and communications sectors mention compliance with the Data Transfer Abroad clause, ensuring that any cross-border data transfer adheres to Malaysia’s data protection standards duscussed in other relevant subpillars."
+ },
+ {
+  "economy": "MY",
+  "indicator_id": "P6-I2",
+  "pillar": 6,
+  "raw_score": 0.0,
+  "coverage": "Horizontal",
+  "kind": "absence",
+  "laws": [
+   "Personal Data Protection Act (Act 709) 2010",
+   "Personal Data Protection (Amendment) Bill (Act A1727) 2024",
+   "Personal Data Protection Code of Practice For Banking Sector And Financial Institutions 2017"
+  ],
+  "sections": [],
+  "portal_urls": [
+   "https://www.pdp.gov.my/ppdpv1/en/akta/personal-data-protection-code-of-practice-for-banking-sector-and-financial-institutions/",
+   "https://www.pdp.gov.my/ppdpv1/en/akta/personal-data-protection-code-of-practice-for-banking-sector-and-financial-institutions/"
+  ],
+  "other_urls": [
+   "https://mohre.um.edu.my/img/files/Personal%20Data%20Protection%20(PDPA)%20Act%202010.pdf"
+  ],
+  "impact": "Malaysia currently does not have a strict data localization law that mandates all personal data to be stored exclusively within the country. However, the Personal Data Protection Act (Act 709) 2010 includes provisions that regulate cross-border data transfers, requiring that personal data can only be transferred out of Malaysia if the recipient country provides an adequate level of data protection. This means that while data can be stored and processed abroad, certain safeguards must be in place to protect personal data. For certain sectors, like banking and finance, there are sector-specific guidelines (e.g., the Banking and Financial Sector Code of Practice) that impose more stringent conditions on data transfers and suggest that local processing is preferable to ensure compliance with security and privacy standards. These requirements do not constitute a blanket local storage mandate but make local storage a practical solution for ensuring compliance with security obligations, especially for sensitive data."
+ },
+ {
+  "economy": "MY",
+  "indicator_id": "P6-I2",
+  "pillar": 6,
+  "raw_score": 0.0,
+  "coverage": "Financial service",
+  "kind": "provision",
+  "laws": [
+   "Personal Data Protection Code of Practice For Banking Sector And Financial Institutions 2017"
+  ],
+  "sections": [
+   "3.1.4"
+  ],
+  "portal_urls": [
+   "https://www.pdp.gov.my/ppdpv1/en/akta/personal-data-protection-code-of-practice-for-banking-sector-and-financial-institutions/"
+  ],
+  "other_urls": [],
+  "impact": "In the Personal Data Protection Code of Practice for the Banking and Financial Sector (2017), relevant local processing requirements are outlined underSection 3.1.1. Data users (banks and financial institutions) must process (e.g., to collect, use, modify, store and/or dispose of) personal data only with consent from the data subject, except in cases of legal necessity. Banks must take practical steps to secure personal data, which includes storing data locally in secure systems and preventing unauthorized access or loss (Security Principle Section 3.1.4)."
+ },
+ {
+  "economy": "MY",
+  "indicator_id": "P6-I2",
+  "pillar": 6,
+  "raw_score": 0.0,
+  "coverage": "Horizontal",
+  "kind": "provision",
+  "laws": [
+   "Personal Data Protection Act (Act 709) 2010",
+   "Personal Data Protection Code of Practice for Licensees Under the Communications and Multimedia (Act 1998) of 2017"
+  ],
+  "sections": [
+   "3.1",
+   "3.4"
+  ],
+  "portal_urls": [
+   "https://www.pdp.gov.my/ppdpv1/en/akta/personal-data-protection-code-of-practice-for-the-communications-sector/"
+  ],
+  "other_urls": [
+   "https://mohre.um.edu.my/img/files/Personal%20Data%20Protection%20(PDPA)%20Act%202010.pdf"
+  ],
+  "impact": "The Personal Data Protection Code of Practice for Licensees Under the Communications and Multimedia (Act 1998) provides rules for handling personal data in the communications sector: - Local Processing Requirements: • General Principle (Section 3.1): Personal data must be processed within Malaysia with proper consent from data subjects unless otherwise legally required. • Security Principle (Section 3.4): Communications licensees must ensure that secure systems are in place for storing and processing personal data, which includes local data storage and restricting unauthorized access."
+ },
+ {
+  "economy": "MY",
+  "indicator_id": "P6-I2",
+  "pillar": 6,
+  "raw_score": 0.5,
+  "coverage": "Service tax records",
+  "kind": "provision",
+  "laws": [
+   "Services Tax Act (Act 807) 2018"
+  ],
+  "sections": [
+   "24"
+  ],
+  "portal_urls": [],
+  "other_urls": [
+   "https://www.investmalaysia.gov.my/media/rsoj31eh/service-tax-act-2018.pdf",
+   "https://web.archive.org/web/20240905220824/https://phl.hasil.gov.my/pdf/pdfam/Act_53_20190101.pdf)"
+  ],
+  "impact": "Section 24 of the Service Tax Act 2018 (Act 807) sets out the obligations for recordkeeping by taxable persons. Every taxable person must keep complete, accurate, and up-to-date records of all transactions that affect or may affect their liability to service tax. This includes records of all taxable services provided or received (such as invoices, receipts, debit and credit notes), records of imported taxable services, and any other records as may be determined by the Director General. These records must be preserved for seven years from the most recent date to which they relate, must be kept in either the national language or English, and must be retained in Malaysia unless otherwise approved by the Director General under specific conditions. If records are maintained in an electronically readable format, they must be stored in a way that allows for ready access and conversion into writing. If records originally kept in manual form are later converted to electronic form, the original manual versions must also be preserved. Copies of records are admissible in legal proceedings to the same extent as the originals. This section also applies to any person, other than a taxable person, who acquires imported taxable services in the course of business. Failure to comply with any of these requirements is an offence and may result in a fine of up to RM50,000, imprisonment of up to three years, or both. However, these obligations do not apply to foreign registered persons. Note that this requirement was available under the repealed Goods and Services Tax Act 2014."
+ },
+ {
+  "economy": "MY",
+  "indicator_id": "P6-I2",
+  "pillar": 6,
+  "raw_score": 0.5,
+  "coverage": "Income tax records",
+  "kind": "provision",
+  "laws": [
+   "Income Tax Act (Act 53) 1967"
+  ],
+  "sections": [
+   "82"
+  ],
+  "portal_urls": [],
+  "other_urls": [
+   "https://www.hasil.gov.my/media/znonhmuj/20231101-income-tax-act-1967-act-53.pdf",
+   "https://www.hasil.gov.my/en/legislation/act/"
+  ],
+  "impact": "Section 82 imposes a legal duty on all businesses to maintain proper records and, where applicable, issue receipts. Every business must keep accurate and sufficient records for at least seven years from the end of the relevant income year to allow tax authorities to determine taxable income or losses. If gross takings exceed RM150,000 from goods or RM100,000 from services, the business must issue serially numbered printed receipts for each transaction and keep duplicates. Businesses that file late returns must also keep records for seven years from the filing date. If a sales recording machine is used, the receipt requirement may be waived, but only if the machine records all transactions accurately. The Director General may set or waive requirements for recordkeeping and receipts and may also request audited financial statements under the Companies Act 2016 if existing records are inadequate. Entries must be made within 60 days of each transaction. Records kept electronically must be readable, accessible, and convertible to written form; if manual records are later digitized, the originals must be preserved. Moreover, All records that relate to any business in Malaysia shall be kept and retained in Malaysia. This includes records of (a) books of account recording receipts and payments or income and expenditure; (b) invoices, vouchers, receipts and such other documents as in the opinion of the Director General are necessary to verify the entries in any books of account; and (c) any other records as may be specified by the Director General under subsection (3)."
+ },
+ {
+  "economy": "MY",
+  "indicator_id": "P6-I3",
+  "pillar": 6,
+  "raw_score": 0.0,
+  "coverage": "Horizontal",
+  "kind": "absence",
+  "laws": [
+   "Personal Data Protection Act (Act 709) 2010",
+   "Personal Data Protection Code of Practice for Licensees Under the Communications and Multimedia (Act 1998) of 2017"
+  ],
+  "sections": [],
+  "portal_urls": [
+   "https://www.pdp.gov.my/ppdpv1/en/akta/personal-data-protection-code-of-practice-for-the-communications-sector/",
+   "https://www.pdp.gov.my/ppdpv1/en/akta/personal-data-protection-code-of-practice-for-the-communications-sector/"
+  ],
+  "other_urls": [
+   "https://mohre.um.edu.my/img/files/Personal%20Data%20Protection%20(PDPA)%20Act%202010.pdf",
+   "https://www.lexology.com/library/detail.aspx?g=ee9444ef-e33e-4716-a920-17df5258267c",
+   "https://www.industrialmalaysia.com.my/article/malaysia-data-centre",
+   "https://www.dataguidance.com/notes/malaysia-data-protection-overview"
+  ],
+  "impact": "In Malaysia, there are no explicit, broad-based data localization requirements that mandate all personal data to be stored within the country or to have their own data center in Malaysia. However, specific regulations under certain sectors, like banking, finance, and telecommunications, impose strict conditions on cross-border data transfers, which effectively encourage local processing and can be interpreted as a form of data localization."
+ },
+ {
+  "economy": "MY",
+  "indicator_id": "P6-I4",
+  "pillar": 6,
+  "raw_score": 1.0,
+  "coverage": "Horizontal",
+  "kind": "provision",
+  "laws": [
+   "Personal Data Protection Act (Act 709) 2010",
+   "Personal Data Protection (Amendment) Bill (Act A1727) 2024"
+  ],
+  "sections": [
+   "129",
+   "6",
+   "9",
+   "3.1.5",
+   "4.11",
+   "1.1"
+  ],
+  "portal_urls": [
+   "https://www.pdp.gov.my/ppdpv1/akta/akta-pdppindaan-2024/"
+  ],
+  "other_urls": [
+   "https://mohre.um.edu.my/img/files/Personal%20Data%20Protection%20(PDPA)%20Act%202010.pdf",
+   "https://www.lexology.com/library/detail.aspx?g=ee9444ef-e33e-4716-a920-17df5258267c",
+   "https://www.lexology.com/library/detail.aspx?g=b4115b87-c73c-42ed-be24-c38a64109500",
+   "https://formiti.com/the-malaysia-personal-data-protection-act-2010-all-you-need-to-know-part-1/"
+  ],
+  "impact": "The Personal Data Protection Act (Act 709) 2010 (PDPA) does not permit a data user to transfer any personal data out of Malaysia. However, the Act offers a set of exceptions, permitting the transfer of data abroad under certain conditions. Section 129 (Cross-border data transfers) prescribes that personal data shall be transferred to any location outside Malaysia if: - the data subject has given his explicit consent to the transfer; - the transfer is necessary for the performance of a contract between the data subject and the data user; - the transfer is necessary for the conclusion or performance of a contract between the data user and a third party that is either entered into at the request of the data subject or in his interest; - the transfer is in the exercise of or to defend a legal right; - the transfer mitigates adverse actions against the data subjects; - reasonable precautions and all due diligence to ensure compliance to conditions of the Act were taken; or - the transfer was necessary for the protection the data subject’s vital interests or for the public interest as determined by the Minister. Additionally, Section 6 – General Principle: Personal data shall not be processed unless the data subject consents to the processing, except in specific situations like fulfilling contractual obligations or complying with legal requirements. Section 9 – Security Principle: Data users must take practical steps to ensure personal data is protected against loss, misuse, modification, unauthorized access, or disclosure. This includes securing local processing and storage systems. The Personal Data Protection (Amendment) Bill 2024 (Act A1727) amendments to the PDPA introduce stricter controls on cross-border data transfers, requiring organizations to assess the recipient country’s data protection framework to ensure that adequate protections are in place before transferring data. This could further encourage local data storage as an easier compliance path. - In the Retention Principle (Section 3.1.5), Personal data should not be kept longer than necessary for the purpose it was collected. - In the Transfer of Personal Data Abroad, Section 4.11 prohibits the transfer of personal data abroad unless the recipient country ensures adequate protection under similar data protection laws or explicit consent from the data subject is obtained. - In the Conditions for Transfer in Schedule 1, Section 1.1(38): Any cross-border transfer must ensure compliance with the PDPA’s principles, particularly related to the security of data, and must have written agreements with third-party data processors abroad."
+ },
+ {
+  "economy": "MY",
+  "indicator_id": "P6-I4",
+  "pillar": 6,
+  "raw_score": 1.0,
+  "coverage": "Financial service",
+  "kind": "provision",
+  "laws": [
+   "Personal Data Protection Code of Practice For Banking Sector And Financial Institutions 2017"
+  ],
+  "sections": [
+   "1.1",
+   "4.10"
+  ],
+  "portal_urls": [
+   "https://www.pdp.gov.my/ppdpv1/en/akta/personal-data-protection-code-of-practice-for-banking-sector-and-financial-institutions/"
+  ],
+  "other_urls": [],
+  "impact": "In the Personal Data Protection Code of Practice for the Banking and Financial Sector (2017), the conditions for Transfer in Schedule 1 (Rights of Data Subjects), Section 1.1: Any cross-border transfer must ensure compliance with the PDPA’s principles, particularly related to the security of data, and must have written agreements with third-party data processors abroad. Transfer of Personal Data Abroad (Section 4.10) prohibits the transfer of personal data abroad unless the recipient country ensures adequate protection under similar data protection laws or explicit consent from the data subject is obtained. Section 4.10 (Transfer of Personal Data Abroad) provides that the Act prohibits the transfer of personal data outside of Malaysia unless the transfer is to a country with sufficient data protection laws, as specified by the Minister in a Government Gazette, which will be based on the Commissioner’s recommendation to the Minister."
+ },
+ {
+  "economy": "MY",
+  "indicator_id": "P6-I4",
+  "pillar": 6,
+  "raw_score": 1.0,
+  "coverage": "Horizontal",
+  "kind": "provision",
+  "laws": [
+   "Personal Data Protection Code of Practice for Licensees Under the Communications and Multimedia (Act 1998) of 2017"
+  ],
+  "sections": [
+   "4.7",
+   "3.2"
+  ],
+  "portal_urls": [
+   "https://www.pdp.gov.my/ppdpv1/en/akta/personal-data-protection-code-of-practice-for-the-communications-sector/"
+  ],
+  "other_urls": [],
+  "impact": "Personal Data Protection Code of Practice for Licensees Under the Communications and Multimedia (Act 1998) of 2017 - Transfer of Personal Data Abroad (Section 4.7): Licensees may not transfer personal data abroad unless the receiving country provides an adequate level of protection, or specific consent is obtained from the data subject. - Third-Party Service Providers (Section 3.2(ii)): If personal data is transferred to third parties outside Malaysia (e.g., for marketing or debt collection), the service provider must comply with the same standards as the local data user, ensuring equivalent data protection abroad"
+ },
+ {
+  "economy": "MY",
+  "indicator_id": "P7-I1",
+  "pillar": 7,
+  "raw_score": 0.0,
+  "coverage": "Horizontal",
+  "kind": "provision",
+  "laws": [
+   "Personal Data Protection Act (Act 709) 2010",
+   "Personal Data Protection (Amendment) Bill (Act A1727) 2024"
+  ],
+  "sections": [
+   "12b",
+   "5"
+  ],
+  "portal_urls": [],
+  "other_urls": [
+   "https://mohre.um.edu.my/img/files/Personal%20Data%20Protection%20(PDPA)%20Act%202010.pdf",
+   "https://f.datasrvr.com/fr1/224/81715/DR_21_BI.pdf",
+   "https://www.pwc.com/my/en/services/assurance/pdpa.html"
+  ],
+  "impact": "Malaysia has a comprehensive data protection framework established through the Personal Data Protection Act (Act 709) 2010, which applies to the processing of personal data in commercial transactions. The PDPA regulates how personal data can be collected, used, and disclosed, and it imposes obligations on data users (companies and organizations) to protect the personal data of individuals. Moreover, the Personal Data Protection (Amendment) Bill 2024 (Act A1727) amendments to the PDPA further enhance this framework by introducing mandatory data breach notifications, extending data processor obligations, and increasing penalties for non-compliance, aligning Malaysia’s privacy regulations more closely with international standards like the EU’s GDPR. Specifically, data Breach Notification (Section 12b) requires data controllers (including those in banking and communications sectors) to notify the Personal Data Protection Commissioner and affected data subjects in the event of a data breach, especially if the breach poses significant harm. Moreover, penalties (Amendment of Section 5) prescribes that the penalties for non-compliance with the Security Principle or data breach requirements have been increased to 1 million ringgit or imprisonment of up to three years, or both. In addition to the PDPA, sector-specific codes of practice also exist for industries like banking, finance, and communications, but these operate within the comprehensive legal framework provided by the PDPA."
+ },
+ {
+  "economy": "MY",
+  "indicator_id": "P7-I2",
+  "pillar": 7,
+  "raw_score": 0.0,
+  "coverage": "Horizontal",
+  "kind": "provision",
+  "laws": [
+   "Computer Crimes Act (Act 563) 1997",
+   "Cyber Security Act (Act 854) 2024"
+  ],
+  "sections": [
+   "15",
+   "27",
+   "36"
+  ],
+  "portal_urls": [],
+  "other_urls": [
+   "https://ccid.rmp.gov.my/Laws/Computer_Crime_Act_1997.pdf",
+   "https://lokekinggoh.com/layout2/wp-content/uploads/2024/06/Act-854.pdf"
+  ],
+  "impact": "Malaysia previous cybersecurity law was based on Computer Crimes Act (Act 563) 1997, it criminalizes various cybercrimes, such as unauthorized access to computers, modification of computer content, and other malicious cyber activities. However, it mainly addresses cyber offenses rather than a broader cybersecurity framework. The Cyber Security Act 2024 now provides a comprehensive framework to address national cybersecurity threats and regulate service providers. The new Cyber Security Act (Act 854) 2024 enhances Malaysia’s national cybersecurity efforts by: 1. Establishing a National Cyber Security Committee, responsible for overseeing cybersecurity policies and national coordination (Part III - Duties and Powers of Chief Executive). 2. Defining roles for critical information infrastructure entities and mandating them to comply with cybersecurity risk assessments, audits, and notifications of cybersecurity incidents. Sections 15-24 cover the responsibilities and duties of entities designated as national critical information infrastructure. 3. Regulating cybersecurity service providers through a licensing regime to ensure that those offering services like managed security operation center monitoring and penetration testing adhere to national standards. Sections 27-34 focus on the licensing of cybersecurity service providers. 4. Strengthening enforcement through powers of investigation, search, and seizure, allowing the government to respond effectively to cybersecurity threats (Sections 36-52), thus, enabling the enforcement of cybersecurity regulations and the management of cyber incidents. This new law positions Malaysia to better handle cyber risks and threats to its critical infrastructures."
+ },
+ {
+  "economy": "MY",
+  "indicator_id": "P7-I3",
+  "pillar": 7,
+  "raw_score": 1.0,
+  "coverage": "Horizontal",
+  "kind": "provision",
+  "laws": [
+   "Personal Data Protection Act (Act 709) 2010",
+   "Personal Data Protection (Amendment) Bill (Act A1727) 2024",
+   "Personal Data Protection Standard 2015"
+  ],
+  "sections": [],
+  "portal_urls": [],
+  "other_urls": [
+   "https://mohre.um.edu.my/img/files/Personal%20Data%20Protection%20(PDPA)%20Act%202010.pdf",
+   "https://f.datasrvr.com/fr1/224/81715/DR_21_BI.pdf",
+   "https://www.viatris.com/-/media/project/common/viatris/pdf/malaysia/malaysian-personal-data-protection-act-updated-2015.pdf"
+  ],
+  "impact": "The data retention requirements for personal data are generally governed by the Personal Data Protection Act (Act 709) 2010 (PDPA). The PDPA 2010 enforces the Retention Principle, which requires data to be kept only as long as necessary for the purpose for which it was collected. However, this principle allows individual sectors to set their own retention periods based on operational needs or other regulatory obligations. In addition to the retention principle under the PDPA, the 2015 Standards outline the main standards for data retention which apply to personal data which is processed either electronically or non-electronically. A brief overview of the measures prescribed by the 2015 Standards are as follows: 1) to ensure that all legislation relating to the processing and storing of personal data is complied with before disposing of personal data; 2) not retaining personal data for longer than is required unless there are other legislative requirements that require personal data to be kept for a longer period; 3) to prepare and maintain records on the disposal of personal data and to submit these records when directed by the Commissioner; 4) to dispose of any personal data collection forms used for commercial transactions within 14 days, unless the form has legislative value in connection with the commercial transaction; 5) to review and dispose of all personal data that is no longer needed in the database; 6) to have a personal data disposal schedule for a period of 24 months for any inactive personal data; and to obtain written consent from the higher management of the data user's organization if using removable media devices for the purposes of personal data storage."
+ },
+ {
+  "economy": "MY",
+  "indicator_id": "P7-I3",
+  "pillar": 7,
+  "raw_score": 1.0,
+  "coverage": "Communications Sector",
+  "kind": "provision",
+  "laws": [
+   "Personal Data Protection Code of Practice for Licensees Under the Communications and Multimedia (Act 1998) of 2017"
+  ],
+  "sections": [
+   "5.5",
+   "5.0"
+  ],
+  "portal_urls": [
+   "https://www.pdp.gov.my/ppdpv1/en/akta/personal-data-protection-code-of-practice-for-the-communications-sector/"
+  ],
+  "other_urls": [],
+  "impact": "The Code of Practice for Licensees Under the Communications and Multimedia (Act 1998) 2017 also highlights the retention principle, specifying that personal data should be kept only as long as necessary for its intended purpose (Section 5.5). After the purpose has been fulfilled, data must be securely destroyed or deleted (Section 5.0)."
+ },
+ {
+  "economy": "MY",
+  "indicator_id": "P7-I3",
+  "pillar": 7,
+  "raw_score": 0.0,
+  "coverage": "Financial service",
+  "kind": "provision",
+  "laws": [
+   "Personal Data Protection Code of Practice For Banking Sector And Financial Institutions 2017"
+  ],
+  "sections": [
+   "3.5",
+   "3.5.4",
+   "3",
+   "3.5.9"
+  ],
+  "portal_urls": [
+   "https://www.pdp.gov.my/ppdpv1/en/akta/personal-data-protection-code-of-practice-for-banking-sector-and-financial-institutions/"
+  ],
+  "other_urls": [],
+  "impact": "In the Personal Data Protection Code of Practice for the Banking and Financial Sector (2017), Section 3.5 prescribes retention principle. Personal data should not be kept longer than necessary for the purpose it was collected. The Act also provides that upon the purpose being fulfilled, Data Users are required to permanently destroy/delete the personal data. This requirement applies to both physical and electronic copies of documents containing personal data. According to the Bank DP Guide, personal data in the banking sector may be retained for a period of seven years from the date of closure or termination of accounts or facilities Section (Section 3.5.4 and 3.5.5). In certain circumstances, personal data may be retained beyond seven years if required by law or regulatory bodies, such as Bank Negara Malaysia. Upon the fulfillment of the purpose for which personal data was collected, the data must be permanently deleted or destroyed as per Section 3.5.9."
+ },
+ {
+  "economy": "MY",
+  "indicator_id": "P7-I3",
+  "pillar": 7,
+  "raw_score": 1.0,
+  "coverage": "Service tax records",
+  "kind": "provision",
+  "laws": [
+   "Services Tax Act (Act 807) 2018"
+  ],
+  "sections": [
+   "24"
+  ],
+  "portal_urls": [],
+  "other_urls": [
+   "https://www.investmalaysia.gov.my/media/rsoj31eh/service-tax-act-2018.pdf",
+   "https://web.archive.org/web/20240905220824/https://phl.hasil.gov.my/pdf/pdfam/Act_53_20190101.pdf)"
+  ],
+  "impact": "Section 24 of the Service Tax Act 2018 (Act 807) sets out the obligations for recordkeeping by taxable persons. Every taxable person must keep complete, accurate, and up-to-date records of all transactions that affect or may affect their liability to service tax. This includes records of all taxable services provided or received (such as invoices, receipts, debit and credit notes), records of imported taxable services, and any other records as may be determined by the Director General. These records must be preserved for seven years from the most recent date to which they relate, must be kept in either the national language or English, and must be retained in Malaysia unless otherwise approved by the Director General under specific conditions. If records are maintained in an electronically readable format, they must be stored in a way that allows for ready access and conversion into writing. If records originally kept in manual form are later converted to electronic form, the original manual versions must also be preserved. Copies of records are admissible in legal proceedings to the same extent as the originals. This section also applies to any person, other than a taxable person, who acquires imported taxable services in the course of business. Failure to comply with any of these requirements is an offence and may result in a fine of up to RM50,000, imprisonment of up to three years, or both. However, these obligations do not apply to foreign registered persons. Note that this requirement was available under the repealed Goods and Services Tax Act 2014."
+ },
+ {
+  "economy": "MY",
+  "indicator_id": "P7-I3",
+  "pillar": 7,
+  "raw_score": 1.0,
+  "coverage": "Income tax records",
+  "kind": "provision",
+  "laws": [
+   "Income Tax Act (Act 53) 1967"
+  ],
+  "sections": [
+   "82"
+  ],
+  "portal_urls": [],
+  "other_urls": [
+   "https://www.hasil.gov.my/media/znonhmuj/20231101-income-tax-act-1967-act-53.pdf",
+   "https://www.hasil.gov.my/en/legislation/act/"
+  ],
+  "impact": "Section 82 imposes a legal duty on all businesses to maintain proper records and, where applicable, issue receipts. Every business must keep accurate and sufficient records for at least seven years from the end of the relevant income year to allow tax authorities to determine taxable income or losses. If gross takings exceed RM150,000 from goods or RM100,000 from services, the business must issue serially numbered printed receipts for each transaction and keep duplicates. Businesses that file late returns must also keep records for seven years from the filing date. If a sales recording machine is used, the receipt requirement may be waived, but only if the machine records all transactions accurately. The Director General may set or waive requirements for recordkeeping and receipts and may also request audited financial statements under the Companies Act 2016 if existing records are inadequate. Entries must be made within 60 days of each transaction. Records kept electronically must be readable, accessible, and convertible to written form; if manual records are later digitized, the originals must be preserved. Moreover, All records that relate to any business in Malaysia shall be kept and retained in Malaysia. This includes records of (a) books of account recording receipts and payments or income and expenditure; (b) invoices, vouchers, receipts and such other documents as in the opinion of the Director General are necessary to verify the entries in any books of account; and (c) any other records as may be specified by the Director General under subsection (3)."
+ },
+ {
+  "economy": "MY",
+  "indicator_id": "P7-I4",
+  "pillar": 7,
+  "raw_score": 1.0,
+  "coverage": "Horizontal",
+  "kind": "provision",
+  "laws": [
+   "Personal Data Protection Act (Act 709) 2010",
+   "Personal Data Protection (Amendment) Bill (Act A1727) 2024"
+  ],
+  "sections": [
+   "12a"
+  ],
+  "portal_urls": [],
+  "other_urls": [
+   "https://mohre.um.edu.my/img/files/Personal%20Data%20Protection%20(PDPA)%20Act%202010.pdf",
+   "https://f.datasrvr.com/fr1/224/81715/DR_21_BI.pdf",
+   "https://www.globalprivacywatch.com/2024/08/malaysian-parliament-passes-the-personal-data-protection-amendment-bill-2024/",
+   "https://www.dataprotectionreport.com/2024/07/malaysia-introduces-watershed-amendments-to-personal-data-protection-act-2010/"
+  ],
+  "impact": "The Personal Data Protection (Amendment) Bill 2024 (Act A1727) amendments to the Personal Data Protection Act (Act 709) 2010 (PDPA) introduced new requirements, including the appointment of Data Protection Officers (DPOs) and the implementation of Data Protection Impact Assessments (DPIAs), marking significant changes compared to the original PDPA 2010. Section 12a (1) of the 2024 PDPA amendment mandates that a data controller must appoint one or more Data Protection Officers (DPOs). The DPO is accountable for ensuring compliance with the PDPA, which applies horizontally across all sectors. This is a significant change from the 2010 version, where no explicit requirement for a DPO was mandated. The 2024 amendments also introduced a requirement for DPIAs in specific cases where data processing activities pose a high risk to the rights and freedoms of individuals. This is especially relevant for large-scale processing of sensitive personal data or new technologies. Similar to the DPO requirement, the DPIA requirement applies horizontally across all sectors when high-risk processing is involved. Another significant change from the 2010 PDPA, as organizations are now required to assess and mitigate risks through formal DPIA procedures."
+ },
+ {
+  "economy": "MY",
+  "indicator_id": "P7-I5",
+  "pillar": 7,
+  "raw_score": 0.0,
+  "coverage": "Horizontal",
+  "kind": "provision",
+  "laws": [
+   "Personal Data Protection Act (Act 709) 2010",
+   "Personal Data Protection (Amendment) Bill (Act A1727) 2024"
+  ],
+  "sections": [
+   "45(2)(a)(i)",
+   "121",
+   "112",
+   "113",
+   "114"
+  ],
+  "portal_urls": [],
+  "other_urls": [
+   "https://mohre.um.edu.my/img/files/Personal%20Data%20Protection%20(PDPA)%20Act%202010.pdf",
+   "https://f.datasrvr.com/fr1/224/81715/DR_21_BI.pdf"
+  ],
+  "impact": "From the Personal Data Protection (Amendment) Bill 2024 (Act A1727) amendments, there is no explicit provision that allows the government to access personal data without a court order. The Personal Data Protection Act (Act 709) 2010 PDPA Section 45(2)(a)(i) exempts personal data from the consent requirement if it is processed for the prevention or detection of crime, or for the purposes of investigations. And Section 121 grants authorized officers the power to request the production of documents or data (including computerized data) to ensure compliance with the PDPA. An authorized officer shall have the powers of a police officer of whatever rank as provided for under the Criminal Procedure Code (Act 593) in relation to investigation, and such powers shall be in addition to and not in derogation of, the powers provided for under this Act (Section 112 Power of investigation). A Magistrate may issue a warrant for an officer to search premises and seize evidence related to an offense, with or without assistance and by force if needed (Section 113 Search and seizure with warrant). However, where delay could harm the investigation, an officer may search without a warrant using the same powers (Section 114 Search and seizure without warrant). These specific sectoral guidelines indicate that while court orders are generally required for accessing personal data, exceptions exist, particularly for criminal investigations and regulatory functions, where data can be accessed without consent or court intervention."
+ },
+ {
+  "economy": "MY",
+  "indicator_id": "P7-I5",
+  "pillar": 7,
+  "raw_score": 1.0,
+  "coverage": "Communications Sector",
+  "kind": "provision",
+  "laws": [
+   "Personal Data Protection Code of Practice for Licensees Under the Communications and Multimedia (Act 1998) of 2017"
+  ],
+  "sections": [
+   "7.4"
+  ],
+  "portal_urls": [
+   "https://www.pdp.gov.my/ppdpv1/en/akta/personal-data-protection-code-of-practice-for-the-communications-sector/"
+  ],
+  "other_urls": [],
+  "impact": "As part of the broader legal and regulatory framework, law enforcement agencies and investigative authorities can request access to personal data under certain circumstances, as outlined in related sector-specific guidelines and laws such as the Communications and Multimedia Act 1998 (Section 7.4) applies when personal data is processed for the apprehension or prosecution of offenders, or when required for the assessment or collection of any tax or duty."
+ },
+ {
+  "economy": "MY",
+  "indicator_id": "P7-I5",
+  "pillar": 7,
+  "raw_score": 1.0,
+  "coverage": "Financial service",
+  "kind": "provision",
+  "laws": [
+   "Personal Data Protection Code of Practice For Banking Sector And Financial Institutions 2017"
+  ],
+  "sections": [
+   "3.7.4"
+  ],
+  "portal_urls": [
+   "https://www.pdp.gov.my/ppdpv1/en/akta/personal-data-protection-code-of-practice-for-banking-sector-and-financial-institutions/"
+  ],
+  "other_urls": [],
+  "impact": "The Banking and Financial Sector guidelines (Section 3.7.4) includes provisions for processing data for tax assessment or legal obligations, allowing such access without prior notice to the individual."
+ },
+ {
+  "economy": "MY",
+  "indicator_id": "P7-I5",
+  "pillar": 7,
+  "raw_score": 1.0,
+  "coverage": "Horizontal",
+  "kind": "provision",
+  "laws": [
+   "Cyber Security Act (Act 854) 2024"
+  ],
+  "sections": [
+   "46",
+   "4",
+   "38",
+   "39",
+   "40"
+  ],
+  "portal_urls": [],
+  "other_urls": [
+   "https://lokekinggoh.com/layout2/wp-content/uploads/2024/06/Act-854.pdf"
+  ],
+  "impact": "Section 46 of the Cyber Security Act (Act 854) 2024 concerning access to computerized data allows an authorized officer conducting a search under this Act to be given access to computerized data stored in computers or otherwise.The authorized officer means any policy officer of whatever rank or any public officer authorized by the Minister in writing (Section 4). An authorized officer shall have the powers of a police officer of whatever rank as provided for under the Criminal Procedure Code (Act 593) in relation to investigation, and such powers shall be in addition to and not in derogation of, the powers provided for under this Act (Section 38 Power of investigation). A Magistrate may issue a warrant for an officer to search premises and seize evidence related to an offense, with or without assistance and by force if needed (Section 39 Search and seizure with warrant). However, where delay could harm the investigation, an officer may search without a warrant using the same powers (Section 40 Search and seizure without warrant)."
+ },
+ {
+  "economy": "MY",
+  "indicator_id": "P7-I5",
+  "pillar": 7,
+  "raw_score": 1.0,
+  "coverage": "Horizontal",
+  "kind": "provision",
+  "laws": [
+   "Security Offences (Special Measures) Act (Act 747) 2012"
+  ],
+  "sections": [
+   "6(3)",
+   "6(7)"
+  ],
+  "portal_urls": [],
+  "other_urls": [
+   "https://cyrilla.org/api/files/1568729125117t97ha9lu92p.pdf"
+  ],
+  "impact": "Under Section 6(3) of the Security Offenses (Special Measures) Act (Act 747) 2012 (Power to intercept communication), a police officer with the rank of superintendent of police or above may intercept communications without the authorization of the public prosecutor in urgent and sudden cases where immediate action is required leaving no moment of deliberation. Specifically, “communication” means a communication received or transmitted by post or a telegraphic, telephonic or other communication received or transmitted by electricity, magnetism or other means; “communications service provider” means a person who provides services for the transmission or reception of communications (Section 6(7))."
+ },
+ {
+  "economy": "MY",
+  "indicator_id": "P7-I5",
+  "pillar": 7,
+  "raw_score": 1.0,
+  "coverage": "Horizontal",
+  "kind": "provision",
+  "laws": [
+   "Criminal Procedure Code (Act 593) 2018"
+  ],
+  "sections": [
+   "116B",
+   "116C"
+  ],
+  "portal_urls": [],
+  "other_urls": [
+   "https://cyrilla.org/api/files/1568727997327dm3cpb84eaw.pdf",
+   "https://www.dataguidance.com/notes/malaysia-third-country-assessment",
+   "https://clfr.globalnetworkinitiative.org/country/malaysia/"
+  ],
+  "impact": "The Criminal Procedure Code (Act 593) 2018 Section 116B (Access to computerized data) of the Criminal Procedure Code provides that a police officer conducting a search under the Code must be given access to computerised data whether stored in a computer or otherwise. For the purpose of this section, 'access' includes being provided with the necessary password, encryption code, decryption code, software, or hardware and any other means required to enable comprehension of the computerised data. It is not clear whether a court order is needed to access the information. Additionally, Section 116C (Interception of communication) provides that the public prosecutor has the authority to authorize police officer to intercept, detain and open postal articles. This also includes intercept messages or conversations transmitted by any communication, and install devices on premises for intercepting communications. The Court shall take cognizance of any authorization by the Public Prosecutor under this section."
+ }
+]
