@@ -19,6 +19,15 @@
       "seconds_per_page": 0.01,
       "chars": 55,
       "cer": 0.9556
+    },
+    "paddle": {
+      "seconds": 584.56,
+      "first_call_seconds": 561.89,
+      "pages": 1,
+      "seconds_per_page": 584.56,
+      "chars": 992,
+      "mean_confidence": 0.991,
+      "cer": 0.0
     }
   }
 }

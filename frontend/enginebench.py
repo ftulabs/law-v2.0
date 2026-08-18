@@ -207,7 +207,15 @@ def _ocr_facts(name: str, bench: dict, installed: bool) -> tuple[str, str]:
 
     spp = row.get("seconds_per_page")
     if spp is not None:
-        facts.append(("Speed", f"{spp:g} s / page" if spp >= 0.1 else "instant", ""))
+        if spp < 0.1:
+            speed, tone = "instant", ""
+        elif spp < 90:
+            speed, tone = f"{spp:.0f} s / page", ""
+        else:
+            # Minutes, because "584.56 s / page" reads as a precision nobody needs and hides
+            # how big the number is. Flagged, because at this rate a 100-page act is a day.
+            speed, tone = f"{spp / 60:.0f} min / page", "warn"
+        facts.append(("Speed", speed, tone))
     facts.append(("Cost", "free", "good"))
     facts.append(("Documents", "stay on this machine", "good"))
 
@@ -288,9 +296,10 @@ def _ocr_bench(current: str, scope: str, note: str = "") -> None:
     st.markdown(
         '<div class="ebnote"><div><b>RapidOCR and MarkItDown ship with the app</b> — between '
         'them they cover a scanned page and a text PDF, so nothing needs installing for a '
-        'normal run. PaddleOCR is a ~1 GB extra kept out of the default install because on '
-        'this sample it was no more accurate than RapidOCR and far slower; it earns its place '
-        'on non-Latin script, not here. Tesseract needs a system binary and Azure needs a key, '
+        'normal run. PaddleOCR is a ~1 GB extra, and the measurement is why it stays optional: '
+        'on this page it was no more accurate than RapidOCR and about 140× slower on CPU, '
+        'which is a day’s work for a hundred-page Act. It is the reader for non-Latin '
+        'script, but not at that speed. Tesseract needs a system binary and Azure needs a key, '
         'so neither can be bundled.<br><br>' + stamp + '</div></div>',
         unsafe_allow_html=True)
 
