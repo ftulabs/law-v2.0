@@ -1,0 +1,24 @@
+{
+  "sample": "data/samples/SG/mas_notice_655.pdf",
+  "measured_on": "2026-08-19",
+  "machine": "Windows AMD64, Python 3.12.10",
+  "engines": {
+    "rapidocr": {
+      "seconds": 4.07,
+      "first_call_seconds": 7.27,
+      "pages": 1,
+      "seconds_per_page": 4.07,
+      "chars": 981,
+      "mean_confidence": 0.986,
+      "cer": 0.0111
+    },
+    "markitdown": {
+      "seconds": 0.01,
+      "first_call_seconds": 0.02,
+      "pages": 1,
+      "seconds_per_page": 0.01,
+      "chars": 55,
+      "cer": 0.9556
+    }
+  }
+}

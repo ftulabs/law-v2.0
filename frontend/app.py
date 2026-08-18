@@ -480,6 +480,15 @@ _EVIDENCE_CSS = """
   .mxkey b{font-family:var(--mono);color:var(--ink-soft);font-weight:600;}
 """
 
+_RUNBAR_CSS = """
+  .rbttl{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.07em;
+    color:var(--ink-faint);margin-bottom:.3rem;}
+  .rbsum{font-size:.95rem;font-weight:600;color:var(--ink);line-height:1.4;}
+  .rbsum span{display:block;font-family:var(--mono);font-size:.72rem;font-weight:400;
+    color:var(--ink-faint);margin-top:.15rem;overflow-wrap:anywhere;}
+  .rbsum.big{font-size:1.15rem;}
+"""
+
 _PILLAR_CARD_CSS = """
   .pcard{border:1px solid var(--rule);border-radius:14px;background:var(--panel);
     padding:1.1rem 1.2rem .9rem;box-shadow:var(--shadow);position:relative;overflow:hidden;
@@ -748,6 +757,30 @@ _SIGNAL_LABEL = {"retrieval_score": "search match", "legal_match": "legal fit",
                  "snippet_grounding": "quote grounding", "scope_alignment": "scope fit"}
 
 
+def _ocr_language_note(economy_code, ocr_name: str) -> str:
+    """What the pipeline will ACTUALLY load for this country.
+
+    The engine alone does not determine the result — the per-script recognition model does,
+    so a card that named only the engine would claim a choice the run may not honour.
+    """
+    try:
+        from backend.providers.ocr_languages import is_validated, ocr_code, profile_for
+        code = economy_code.value if hasattr(economy_code, "value") else str(economy_code)
+        prof, model = profile_for(code), ocr_code(ocr_name, code)
+        if model:
+            msg = (f"For {ECON_NAME.get(code, code)} this reads <b>{prof.script}</b> using the "
+                   f"<code>{model}</code> recognition model.")
+            if not is_validated(code):
+                msg += " Accuracy for that script is <b>not yet validated</b> by our tests."
+            return msg
+        best = prof.preferred[0] if prof.preferred else "another engine"
+        return (f"This engine has <b>no model</b> for {prof.script}, which "
+                f"{ECON_NAME.get(code, code)} is written in. Recommended: <b>{best}</b>.")
+    except Exception:  # noqa: BLE001 — an advisory line must never break the screen
+        return ""
+
+
+
 def evidence_panel_html(cell_key: str | None, mappings) -> str:
     """The evidence for one matrix cell, rendered beside the matrix.
 
@@ -875,177 +908,67 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ── sidebar: simple flow first, advanced settings hidden ───────────────────
-with st.sidebar:
-    st.markdown('### Run an analysis')
+# ── run settings ───────────────────────────────────────────────────────────
+# There is no sidebar. Every control a researcher touches lives on the main screen, where
+# it can be as large and as self-explanatory as it needs to be; this block only READS what
+# those controls left in the session. A widget here as well as there would be two widgets
+# writing one choice, which is exactly how the theme toggle used to drift out of step.
+_ECON_CODES = [e.value for e in Economy]
+if st.session_state.get("economy") not in _ECON_CODES:
+    st.session_state["economy"] = _ECON_CODES[0]
+economy = st.session_state["economy"]
 
-    # Step 1 — country
-    st.markdown('<div class="kicker" style="margin:.4rem 0 .1rem">1. Choose a country</div>',
-                unsafe_allow_html=True)
-    # One source of truth shared with the globe/map picker in the main pane. The selectbox
-    # deliberately has NO widget key: Streamlit forbids writing to a key after its widget is
-    # instantiated, and the globe (rendered later in the script) needs to set this.
-    _ECON_CODES = [e.value for e in Economy]
-    if st.session_state.get("economy") not in _ECON_CODES:
-        st.session_state["economy"] = _ECON_CODES[0]
-    economy = st.selectbox("Country", _ECON_CODES, format_func=lambda v: ECON_NAME.get(v, v),
-                           index=_ECON_CODES.index(st.session_state["economy"]),
-                           label_visibility="collapsed")
-    st.session_state["economy"] = economy
+if st.session_state.get("pillar") not in (6, 7):
+    st.session_state["pillar"] = 6
+pillar = st.session_state["pillar"]
+pillars = [pillar]
 
-    # Step 2 — pillar (RDTII's term), with a plain-language explanation
-    st.markdown('<div class="kicker" style="margin:.7rem 0 .1rem">2. Choose a pillar (topic)</div>',
-                unsafe_allow_html=True)
-    _PILLAR_OPT = {
-        6: "Pillar 6 — Cross-border data rules (can data leave the country?)",
-        7: "Pillar 7 — Data protection & cybersecurity (privacy, DPO, retention, gov access)",
-    }
-    # Shared with the big pillar cards in the main pane (same pattern as the economy/globe):
-    # no widget key, so the cards can write session_state after this widget is instantiated.
-    if st.session_state.get("pillar") not in (6, 7):
-        st.session_state["pillar"] = 6
-    pillar = st.radio("Pillar", [6, 7], format_func=lambda p: _PILLAR_OPT[p],
-                      index=[6, 7].index(st.session_state["pillar"]),
-                      label_visibility="collapsed",
-                      help="Pick one pillar per run. Pillar 6 covers cross-border data flows and "
-                           "localisation; Pillar 7 covers domestic data-protection and cybersecurity.")
-    st.session_state["pillar"] = pillar
-    pillars = [pillar]
+ocr_choice = st.session_state.setdefault("ocr_provider", settings.ocr_provider)
+if ocr_choice not in reg.OCR_PROVIDERS:
+    ocr_choice = st.session_state["ocr_provider"] = settings.ocr_provider
+_llm_default = (settings.llm_provider if settings.llm_provider in reg.LLM_PROVIDERS
+                else reg.LLM_PROVIDERS[0])
+llm_choice = st.session_state.setdefault("llm_provider", _llm_default)
+if llm_choice not in reg.LLM_PROVIDERS:
+    llm_choice = st.session_state["llm_provider"] = _llm_default
+llm_model = st.session_state.get("llm_model")
+llm_key = st.session_state.get("llm_key")
 
-    # Step 3 — run
-    st.markdown('<div class="kicker" style="margin:.7rem 0 .3rem">3. Run</div>', unsafe_allow_html=True)
-    run_clicked = st.button("Run analysis", type="primary", width="stretch")
-    st.markdown('<div class="prov-note">Uses smart defaults — a live search of the official '
-                'government portals. No setup needed.</div>', unsafe_allow_html=True)
+use_samples = st.session_state.get("use_samples", False)
+fresh_run = st.session_state.get("fresh_run", False)
+scoring_on = st.session_state.get("scoring_on", settings.scoring_enabled)
+top_k = 5   # grade-all ignores top_k on small corpora; large crawls scale it internally
 
-    # ── advanced settings (hidden by default; smart defaults handle everything) ──
-    with st.expander("Advanced settings", expanded=False):
-        # Data source
-        st.markdown('<div class="kicker">Where to look</div>', unsafe_allow_html=True)
-        _LIVE = "Live search of official portals (recommended)"
-        _SAMPLE = "Bundled offline examples (fast, no internet)"
-        run_mode = st.radio("Data source", [_LIVE, _SAMPLE], index=0, label_visibility="collapsed",
-                            help="Live search crawls the official government portals (the scored path). "
-                                 "The offline examples are a fast, reproducible fallback when a portal is down.")
-        use_samples = run_mode == _SAMPLE
-        fresh_run = st.checkbox("Ignore the saved result and search again", value=False,
-                                help="Identical inputs normally return the saved result instantly. "
-                                     "Tick this to force a fresh live search.")
-        top_k = 5  # grade-all ignores top_k on small corpora; large crawls scale it internally
+# The Run button sets a flag and reruns rather than running inline: the controls must have
+# been drawn (and their values committed to the session) before the pipeline reads them.
+run_clicked = st.session_state.pop("run_requested", False)
 
-        st.markdown('<hr class="hr-thin">', unsafe_allow_html=True)
-        st.markdown('<div class="kicker">Engines</div>', unsafe_allow_html=True)
-        # The engines are now chosen on the main screen, where each one can state what it is
-        # for and what it costs. This stays as a read-out so the sidebar never disagrees with
-        # the bench — two widgets writing the same choice is how they drift apart.
-        ocr_choice = st.session_state.setdefault("ocr_provider", settings.ocr_provider)
-        if ocr_choice not in reg.OCR_PROVIDERS:
-            ocr_choice = st.session_state["ocr_provider"] = settings.ocr_provider
-        _llm_default = (settings.llm_provider if settings.llm_provider in reg.LLM_PROVIDERS
-                        else reg.LLM_PROVIDERS[0])
-        llm_choice = st.session_state.setdefault("llm_provider", _llm_default)
-        if llm_choice not in reg.LLM_PROVIDERS:
-            llm_choice = st.session_state["llm_provider"] = _llm_default
+# scoped to the signed-in account, so one researcher never sees another's history
+prev = db.list_runs(user_id=USER.user_id, limit=200)
 
-        _oa, _la = reg.ocr_availability(ocr_choice), reg.llm_availability(llm_choice)
-        st.markdown(
-            f'<div class="prov-note {"ready" if _oa.ready else ""}">Reads documents with '
-            f'<b>{reg.ocr_label(ocr_choice)}</b> — {"ready" if _oa.ready else _oa.note}</div>'
-            f'<div class="prov-note {"ready" if _la.ready else ""}">Judges the law with '
-            f'<b>{reg.LLM_LABELS.get(llm_choice, llm_choice)}</b> — '
-            f'{"ready" if _la.ready else _la.note}</div>'
-            '<div class="prov-note">Change either on the <b>Engines</b> screen, where every '
-            'option says what it is for.</div>', unsafe_allow_html=True)
 
-        # What the pipeline will ACTUALLY load for the selected country: the engine alone does
-        # not determine the result, the per-script recognition model does. Without this the
-        # panel claims a choice the run may not honour.
-        try:
-            from backend.providers.ocr_languages import is_validated, ocr_code, profile_for
-            _eco_code = economy.value if hasattr(economy, "value") else str(economy)
-            _prof, _code = profile_for(_eco_code), ocr_code(ocr_choice, _eco_code)
-            if _code:
-                _lang_msg = f"Will read <b>{_prof.script}</b> using the <code>{_code}</code> model."
-                if not is_validated(_eco_code):
-                    _lang_msg += " Accuracy for this script is <b>not yet validated</b>."
-            else:
-                _best = _prof.preferred[0] if _prof.preferred else "none"
-                _lang_msg = (f"This engine has <b>no model</b> for {_prof.script}. "
-                             f"Recommended: <b>{_best}</b>.")
-            st.markdown(f'<div class="prov-note">{_lang_msg}</div>', unsafe_allow_html=True)
-        except Exception:  # noqa: BLE001 — an advisory line must never break the sidebar
-            pass
+def _run_label(rid: str) -> str:
+    if rid == "—":
+        return "—"
+    r = next((x for x in prev if x["run_id"] == rid), None)
+    if not r:
+        return rid
+    econ = ECON_NAME.get(r["economy"], r["economy"] or "?")
+    when = (r["started_at"] or "")[:16].replace("T", " ")
+    return f"{econ} · {when}"
 
-        llm_model, llm_key = None, None
-        if llm_choice == "openrouter":
-            llm_key = _secret("OPENROUTER_API_KEY", settings.openrouter_api_key)
-            _models = reg.OPENROUTER_MODELS
-            _idx = _models.index(settings.openrouter_model) if settings.openrouter_model in _models else 0
-            llm_model = st.selectbox("Model", _models, index=_idx,
-                                     help="Paid models only — DeepSeek V4 Flash (default) is fast and about "
-                                          "$0.07 for a full country run. A model that rate-limits fails over "
-                                          "to the next paid one.")
-            if not llm_key:
-                llm_key = st.text_input("OpenRouter API key", type="password",
-                                        placeholder="set OPENROUTER_API_KEY in Secrets, or paste here") or None
-        elif llm_choice == "local":
-            base_url = st.text_input("Base URL", value=settings.local_llm_base_url, key="local_url_in",
-                                     help="OpenAI-compatible /v1 — Ollama: http://<lab-host>:11434/v1")
-            settings.local_llm_base_url = base_url.strip()
-            llm_model = st.text_input("Model name", value=settings.local_llm_model, key="local_model_in",
-                                      help="a model your server serves, e.g. llama3.1, qwen2.5:14b")
-            llm_key = st.text_input("API key (optional)", type="password", key="local_key_in",
-                                    placeholder="leave blank for Ollama") or None
-        elif llm_choice != "mock":
-            _default_model = settings.anthropic_model if llm_choice == "anthropic" else settings.openai_model
-            llm_model = st.text_input("Model name", value=_default_model, key="llm_model_in")
-            llm_key = st.text_input("API key", type="password", key="llm_key_in",
-                                    placeholder="paste to enable live calls") or None
-        _la = reg.llm_availability(llm_choice, api_key=llm_key or None)
-        if llm_choice != "mock":
-            st.markdown(f'<div class="prov-note {"ready" if _la.ready else ""}">'
-                        f'{"✓ ready — live calls enabled" if _la.ready else "⚙ " + _la.note}</div>',
-                        unsafe_allow_html=True)
-        if (ocr_choice != "mock" and not _oa.ready) or (llm_choice != "mock" and not _la.ready):
-            st.markdown('<div class="prov-note">Unavailable engines fall back automatically — '
-                        'the run never breaks.</div>', unsafe_allow_html=True)
 
-        st.markdown('<hr class="hr-thin">', unsafe_allow_html=True)
-        st.markdown('<div class="kicker">Restrictiveness scoring (optional)</div>', unsafe_allow_html=True)
-        scoring_on = st.toggle("Rate each law's restrictiveness (0 / 0.5 / 1)", value=settings.scoring_enabled,
-                               help="Adds an RDTII restrictiveness score to each mapped law. One extra AI call "
-                                    "per result — off by default keeps the run lean. Never written to the "
-                                    "submission file.")
-
-    st.markdown('<hr class="hr-thin">', unsafe_allow_html=True)
-    st.markdown('<div class="kicker">Your past analyses</div>', unsafe_allow_html=True)
-    # scoped to the signed-in account, so one researcher never sees another's history
-    prev = db.list_runs(user_id=USER.user_id, limit=200)
-
-    def _run_label(rid: str) -> str:
-        if rid == "—":
-            return "—"
-        r = next((x for x in prev if x["run_id"] == rid), None)
-        if not r:
-            return rid
-        econ = ECON_NAME.get(r["economy"], r["economy"] or "?")
-        when = (r["started_at"] or "")[:16].replace("T", " ")
-        return f"{econ} · {when}"
-
-    chosen_prev = st.selectbox("Open a past analysis", ["—"] + [r["run_id"] for r in prev],
-                               format_func=_run_label, label_visibility="collapsed")
+def past_run_picker(key: str, label: str = "Open a past analysis") -> None:
+    """One control, usable from either screen; selecting a run opens it immediately."""
     if not prev:
-        st.caption("No analyses yet — run one above and it will be saved here.")
+        st.caption("No past analyses yet — the ones you run are saved here.")
+        return
+    chosen = st.selectbox(label, ["—"] + [r["run_id"] for r in prev],
+                          format_func=_run_label, key=key, label_visibility="collapsed")
+    if chosen and chosen != "—" and chosen != st.session_state.get("run_id"):
+        st.session_state["run_id"] = chosen
+        st.rerun()
 
-# defaults when the Advanced expander was never opened this run
-ocr_choice = locals().get("ocr_choice", settings.ocr_provider)
-llm_choice = locals().get("llm_choice", settings.llm_provider)
-llm_model = locals().get("llm_model", None)
-llm_key = locals().get("llm_key", None)
-use_samples = locals().get("use_samples", False)
-fresh_run = locals().get("fresh_run", False)
-top_k = locals().get("top_k", 5)
-scoring_on = locals().get("scoring_on", settings.scoring_enabled)
 
 # ── run / load state ─────────────────────────────────────────────────────
 if run_clicked and pillars:
@@ -1121,9 +1044,6 @@ if run_clicked and pillars:
     track_box.empty()
     stream_box.empty()
     st.session_state["run_id"] = result.meta.run_id
-elif chosen_prev and chosen_prev != "—":
-    st.session_state["run_id"] = chosen_prev
-
 run_id = st.session_state.get("run_id")
 if not run_id:
     st.markdown(
@@ -1194,7 +1114,56 @@ if not run_id:
                 '<span class="muted">— or leave the defaults, they are already sensible'
                 '</span></div>', unsafe_allow_html=True)
     enginebench.render(st.session_state.get("ocr_provider", settings.ocr_provider),
-                       st.session_state.get("llm_provider", settings.llm_provider))
+                       st.session_state.get("llm_provider", settings.llm_provider),
+                       scope="home", ocr_note=_ocr_language_note(economy, ocr_choice))
+
+    # ── run ────────────────────────────────────────────────────────────────
+    # The last thing on the page, after the three choices, because that is the order the
+    # work happens in. Everything here has a working default, so a first-time user can
+    # ignore all of it and press the button.
+    st.markdown('<div class="kicker" style="margin:1.8rem 0 .5rem">Run the analysis '
+                '<span class="muted">— this takes a few minutes on a live search</span>'
+                '</div>', unsafe_allow_html=True)
+    theme.inject_style(_RUNBAR_CSS)
+    _rc = st.columns([1.15, 1, 1], gap="medium")
+    with _rc[0]:
+        st.markdown('<div class="rbttl">Where to look</div>', unsafe_allow_html=True)
+        _LIVE = "Live search of the official portals"
+        _SAMPLE = "Bundled offline examples (fast, no internet)"
+        _mode = st.radio("Where to look", [_LIVE, _SAMPLE],
+                         index=1 if st.session_state.get("use_samples") else 0,
+                         label_visibility="collapsed",
+                         help="The live search crawls the government portals — this is the "
+                              "scored path. The offline examples are a reproducible fallback "
+                              "for when a portal is down.")
+        st.session_state["use_samples"] = _mode == _SAMPLE
+    with _rc[1]:
+        st.markdown('<div class="rbttl">Options</div>', unsafe_allow_html=True)
+        st.session_state["fresh_run"] = st.checkbox(
+            "Search again, ignore the saved result", value=st.session_state.get("fresh_run", False),
+            help="Identical inputs normally return the saved result instantly.")
+        st.session_state["scoring_on"] = st.checkbox(
+            "Also rate how restrictive each law is",
+            value=st.session_state.get("scoring_on", settings.scoring_enabled),
+            help="Adds an RDTII restrictiveness score (0 / 0.5 / 1) per law. One extra AI call "
+                 "each. Never written to the submission file.")
+    with _rc[2]:
+        st.markdown(f'<div class="rbttl">Ready</div>'
+                    f'<div class="rbsum">{ECON_NAME.get(economy, economy)} · Pillar {pillar}<br>'
+                    f'<span>{enginebench.short_name("ocr", ocr_choice)} · '
+                    f'{enginebench.short_name("llm", llm_choice)}'
+                    f'{" · " + llm_model if llm_model else ""}</span></div>',
+                    unsafe_allow_html=True)
+        if st.button("Run analysis", type="primary", width="stretch", key="run_home"):
+            st.session_state["run_requested"] = True
+            st.rerun()
+
+    if prev:
+        st.markdown('<div class="kicker" style="margin:1.6rem 0 .4rem">Or reopen a past '
+                    'analysis</div>', unsafe_allow_html=True)
+        _pc = st.columns([1, 2])
+        with _pc[0]:
+            past_run_picker("prev_home")
 
     site_footer()
     st.stop()
@@ -1259,6 +1228,22 @@ if _ocr_panel:
 _scorecard = scorecard_html(mappings)
 if _scorecard:
     st.markdown(_scorecard, unsafe_allow_html=True)
+
+# The run header carries what the sidebar used to: which run this is, and the way out of it.
+theme.inject_style(_RUNBAR_CSS)
+_hb = st.columns([2.2, 1.4, 1], gap="medium")
+with _hb[0]:
+    _when = (meta.started_at or "")[:16].replace("T", " ") if meta else ""
+    st.markdown(f'<div class="rbsum big">{ECON_NAME.get(meta.economy.value, "—") if meta else "—"}'
+                f' · Pillar {", ".join(str(p) for p in sorted({m.pillar for m in mappings}))}'
+                f'<br><span>{_when} · {len(mappings)} results · run {run_id}</span></div>',
+                unsafe_allow_html=True)
+with _hb[1]:
+    past_run_picker("prev_results", "Open another analysis")
+with _hb[2]:
+    if st.button("New analysis", width="stretch", key="new_run"):
+        st.session_state.pop("run_id", None)
+        st.rerun()
 
 tab_ev, tab_review, tab_audit, tab_export, tab_eng = st.tabs(
     ["Results", f"Needs review · {len(workflow.queue(run_id))}", "Details", "Download", "Engines"]
@@ -1448,7 +1433,8 @@ with tab_eng:
                 'this analysis keeps the engines it was made with, so the two stay comparable '
                 'side by side in your history.</div>', unsafe_allow_html=True)
     enginebench.render(st.session_state.get("ocr_provider", settings.ocr_provider),
-                       st.session_state.get("llm_provider", settings.llm_provider))
+                       st.session_state.get("llm_provider", settings.llm_provider),
+                       scope="tab")
 
 # every screen ends with the site footer, not mid-content
 site_footer()
