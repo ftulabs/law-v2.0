@@ -273,6 +273,53 @@ def _dense_scores(dense_query: str, provisions: list[Provision], must_embed: set
     return scores
 
 
+# ── cross-encoder score cache (disk) ─────────────────────────────────────────
+_CE_DISK: dict[str, dict[str, float]] = {}      # model name -> {key: score}
+
+
+def _ce_cache_path(model_name: str):
+    slug = re.sub(r"[^a-z0-9]+", "-", (model_name or "ce").lower()).strip("-")
+    return settings.cache_path / f"_ce_{slug}.npz"
+
+
+def _load_ce_cache(model_name: str) -> dict[str, float]:
+    if model_name in _CE_DISK:
+        return _CE_DISK[model_name]
+    out: dict[str, float] = {}
+    if settings.cross_encoder_cache_enabled:
+        p = _ce_cache_path(model_name)
+        if p.exists():
+            try:
+                import numpy as np
+                d = np.load(p, allow_pickle=False)
+                out = {str(k): float(v) for k, v in zip(d["keys"], d["scores"])}
+            except Exception:
+                out = {}                        # unreadable/corrupt -> rescore, never crash
+    _CE_DISK[model_name] = out
+    return out
+
+
+def _save_ce_cache(model_name: str, fresh: dict[str, float]) -> None:
+    if not fresh or not settings.cross_encoder_cache_enabled:
+        return
+    try:
+        import os
+
+        import numpy as np
+        cache = _load_ce_cache(model_name)
+        cache.update(fresh)
+        keys = list(cache.keys())
+        p = _ce_cache_path(model_name)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = p.with_name(p.name + ".tmp")
+        with open(tmp, "wb") as fh:
+            np.savez(fh, keys=np.asarray(keys),
+                     scores=np.asarray([cache[k] for k in keys], dtype="float32"))
+        os.replace(tmp, p)
+    except Exception:
+        pass                                    # caching is best-effort
+
+
 def _cross_scores(query_text: str, provisions: list[Provision], combined: list[float],
                   top_k: int, economy: str | None = None) -> list[float] | None:
     """Cross-encoder relevance (0..1) for the hybrid shortlist; None if the model/setting
@@ -283,16 +330,38 @@ def _cross_scores(query_text: str, provisions: list[Provision], combined: list[f
     if ce is None:
         return None
     import math
-    n = min(len(provisions), max(top_k * 3, 8))
+    n = min(len(provisions), max(top_k * settings.cross_encoder_pool_mult, 8))
     shortlist = sorted(range(len(provisions)), key=lambda i: combined[i], reverse=True)[:n]
-    pairs = [(query_text, provisions[i].verbatim_snippet[:512]) for i in shortlist]
-    try:
-        raw = ce.predict(pairs)
-    except Exception:
-        return None
+
+    # Memoise on (model, query, provision text). The cross-encoder is by far the slowest
+    # component — 21 pairs/s on this CPU against 45 embeddings/s — and it was the ONLY layer
+    # without a cache, so every re-run and every experiment re-scored pairs whose inputs had
+    # not changed. Under precompute that is the difference between an afternoon and a minute:
+    # a re-split or a shortlist-size sweep reuses every pair, and a rebuilt law only pays for
+    # its own provisions. Scores are deterministic for fixed inputs, so this changes nothing
+    # but the clock.
+    model_name = ranking._ce_model_for(economy)
+    disk = _load_ce_cache(model_name)
+    qk = hashlib.sha1(query_text.encode("utf-8")).hexdigest()[:12]
+    texts = [provisions[i].verbatim_snippet[:512] for i in shortlist]
+    keys = [f"{qk}:{hashlib.sha1(t.encode('utf-8')).hexdigest()[:20]}" for t in texts]
+    todo = [j for j, k in enumerate(keys) if k not in disk]
+    if todo:
+        try:
+            raw = ce.predict([(query_text, texts[j]) for j in todo],
+                             batch_size=settings.cross_encoder_batch_size,
+                             show_progress_bar=False)
+        except Exception:
+            return None
+        fresh = {}
+        for j, sc in zip(todo, raw):
+            v = 1.0 / (1.0 + math.exp(-float(sc)))      # sigmoid -> 0..1
+            disk[keys[j]] = v
+            fresh[keys[j]] = v
+        _save_ce_cache(model_name, fresh)
     scores = [0.0] * len(provisions)
-    for i, s in zip(shortlist, raw):
-        scores[i] = 1.0 / (1.0 + math.exp(-float(s)))   # sigmoid → 0..1
+    for i, k in zip(shortlist, keys):
+        scores[i] = disk[k]
     return scores
 
 

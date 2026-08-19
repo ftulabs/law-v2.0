@@ -182,6 +182,29 @@ class Settings(BaseSettings):
     # two good signals beat three when the third is arbitrary.
     cross_encoder_model_multilingual: str = "BAAI/bge-reranker-v2-m3"
     rrf_k: int = 60                            # Reciprocal-Rank-Fusion constant
+    # Cross-encoder cost controls. It is the slowest stage by an order of magnitude — 21
+    # pairs/s on this CPU against ~45 embeddings/s — so these decide whether a precompute pass
+    # takes an afternoon or a week.
+    #   pool_mult  how many candidates get cross-encoded, as a multiple of the shortlist size.
+    #              MEASURED both ways, and left at 3:
+    #                • WIDENING is actively harmful. Scoring 400 / 1,350 / 4,000 / 12,000 / ALL
+    #                  provisions changed statute recall by NOTHING (33/47 at every size) while
+    #                  the median rank of a correct target fell from 241 to 477 — a bigger pool
+    #                  mostly lifts noise above the answer. Cross-encoding the whole corpus
+    #                  would have cost ~33 h to rank WORSE.
+    #                • NARROWING to 1 scored identically end-to-end (law 23/23, provision
+    #                  18/19) for a third of the work — but in the shipped configuration the
+    #                  whole cross-encoder stage is only ~29 min for all three economies, so
+    #                  that saves ~20 min of an ~8 h precompute. Not worth giving up the
+    #                  headroom to promote a candidate from outside the top-K on economies we
+    #                  have not measured. Revisit if a Finals corpus makes the stage expensive.
+    #   batch_size 64 measured 1.22x faster than the library default of 32 on real provisions
+    #              (pairs are ~300 tokens, so the default leaves the CPU underfed).
+    #   cache      scores are deterministic in (model, query, provision text), and this was the
+    #              only layer without a cache, so every experiment re-scored unchanged pairs.
+    cross_encoder_pool_mult: int = 3
+    cross_encoder_batch_size: int = 64
+    cross_encoder_cache_enabled: bool = True
 
     # Zone-2 coverage: when a run has <= grade_all_max_provisions provisions, EVERY provision
     # is graded against EVERY indicator (no top-k cap) so nothing relevant is missed — the
