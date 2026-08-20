@@ -311,3 +311,42 @@ the paper does not.**
    need their own hostnames.
 6. **Budget sign-off** — Apple $99/yr, Play $25, EV cert ~$200–400/yr, experiment LLM spend
    (~$50–200 for the full sweep), hosting.
+
+---
+
+## 10. Amendment (2026-08-20) — this package is built by a pipeline, not by hand
+
+The deliverables above are unchanged. What changes is **where the code lives**: rather than
+writing one-off scripts for VeriTrade's paper, each stage is built in a new standalone repo
+(working name **Ledger**) with VeriTrade as its **first tenant**, coupled through a single
+`project.yaml` manifest at this repo's root.
+
+Design spec: **`docs/PIPELINE_SPEC.md`** (mirrored here for durability; its home is
+`ftulabs/research_pipeline`, which this session could not push to).
+
+**Why it costs no schedule.** The work is the same work; only its address changes. Each Ledger
+stage is built in the sprint where this plan already required its output:
+
+| Sprint | This plan needs | Ledger gains |
+|---|---|---|
+| S0 | Bench schema, gold extraction | Manifest + `RunRecord` + provenance stamp |
+| S1 | The ablation sweep | Generalised runner + metrics with seed variance |
+| S2 | Tables, figures, the PDF | Figure/paper stages + `verify` + claims registry |
+| ★ | Submission, HF push, website | Release + web stages |
+| S3–S4 | The apps (§5) | Product stage — schema-driven API/UI/Tauri scaffolding |
+
+**The invariant it enforces.** This codebase's anti-hallucination rule — law text and citations
+are *carried from extraction, never generated*, then grounded against source text — is applied
+one level up: every number in the paper is carried from a recorded run, and `ledger verify`
+fails CI on any value in the PDF without a backing record. No agent authors a claim.
+
+**What this changes in §3–§5 above:**
+- `bench/` becomes a tenant task module referenced by the manifest, not a standalone harness.
+- `paper/` gets generated-asset discipline: no hand-typed numbers, `\input{}` only.
+- `apps/` is scaffolded from the Pydantic schemas in `backend/schemas.py` rather than
+  hand-written — with the honest caveat that the confidence traffic-light, evidence detail and
+  review queue remain bespoke (roughly 70% generated, 30% hand-built).
+
+**Unchanged:** the paper is still the only hard deadline, the ICLR submission is still
+RDTII-Bench (Ledger is internal tooling, not the contribution), and if a stage slips, VeriTrade
+does that step inline and Ledger harvests it afterwards.
