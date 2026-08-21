@@ -214,7 +214,7 @@ Details that matter more than the table:
 
 ## Architecture Overview
 
-**Full system design with diagrams: [`docs/architecture.md`](docs/architecture.md)** — read that
+**Full system design with diagrams: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)** — read that
 if you are going to change the code.
 
 ```mermaid
