@@ -18,15 +18,41 @@ class Economy(str, Enum):
     SG = "SG"   # Singapore      — Round 1 (mandatory)
     AU = "AU"   # Australia      — Round 1 (mandatory)
     MY = "MY"   # Malaysia       — Round 1 (mandatory)
-    CN = "CN"   # China          — Round 2
-    IN = "IN"   # India          — Round 2
-    MN = "MN"   # Mongolia       — Round 2
+    CN = "CN"   # China          — live-test nine
+    IN = "IN"   # India          — live-test nine
+    MN = "MN"   # Mongolia       — live-test nine
+    TH = "TH"   # Thailand       — live-test nine
+    VN = "VN"   # Viet Nam       — live-test nine
+    ID = "ID"   # Indonesia      — live-test nine
+    KZ = "KZ"   # Kazakhstan     — live-test nine
+    LA = "LA"   # Lao PDR        — live-test nine
+    RU = "RU"   # Russian Fed.   — live-test nine
 
+
+# The sealed live test on 15 October draws from exactly these nine, named in the final-round
+# instructions: "the nine economies whose 2025 RDTII database you hold — Thailand, Viet Nam,
+# Indonesia, China, India, Kazakhstan, Lao PDR, Mongolia, the Russian Federation … You do not
+# submit a list of jurisdictions to be tested from. Be ready for any of the nine."
+#
+# So an economy being DECLARABLE and an economy being READY are different claims, and the
+# README asks us to state which is which per economy. Declaring it here buys resolvability,
+# a language profile and an OCR path; it does not buy a verified portal or a measured run.
+# `backend/providers/engine_profile.py` reports the difference rather than papering over it.
+LIVE_TEST_NINE = ("TH", "VN", "ID", "CN", "IN", "KZ", "LA", "MN", "RU")
+
+# Round-1 economies. Not in the live-test nine — the panel holds no 2025 database for them —
+# but they are our deepest corpora and stay in the submission workbook.
+ROUND1_ECONOMIES = ("SG", "AU", "MY")
 
 # Official UN member-state names required by the submission template
 # (https://www.unescap.org/about/member-states). The CSV must use these, not codes.
+# Spelling is load-bearing and the instructions call two of them out by name: "Viet Nam"
+# (two words, no circumflex) and "Lao People's Democratic Republic", never "Laos".
 ECONOMY_UN_NAME = {"SG": "Singapore", "AU": "Australia", "MY": "Malaysia",
-                   "CN": "China", "IN": "India", "MN": "Mongolia"}
+                   "CN": "China", "IN": "India", "MN": "Mongolia",
+                   "TH": "Thailand", "VN": "Viet Nam", "ID": "Indonesia",
+                   "KZ": "Kazakhstan", "LA": "Lao People's Democratic Republic",
+                   "RU": "Russian Federation"}
 
 # value the user may type → Economy. Includes codes, UN names and common variants.
 # NOTE "in"/"cn"/"mn" are 2-letter keys matched EXACTLY; the substring fallback in
@@ -41,6 +67,21 @@ _ECONOMY_ALIASES = {
     "in": Economy.IN, "india": Economy.IN, "ind": Economy.IN, "bharat": Economy.IN,
     "republic of india": Economy.IN,
     "mn": Economy.MN, "mongolia": Economy.MN, "mng": Economy.MN,
+    "th": Economy.TH, "thailand": Economy.TH, "tha": Economy.TH,
+    "kingdom of thailand": Economy.TH, "siam": Economy.TH,
+    "vn": Economy.VN, "viet nam": Economy.VN, "vietnam": Economy.VN, "vnm": Economy.VN,
+    "socialist republic of viet nam": Economy.VN,
+    "id": Economy.ID, "indonesia": Economy.ID, "idn": Economy.ID,
+    "republic of indonesia": Economy.ID,
+    "kz": Economy.KZ, "kazakhstan": Economy.KZ, "kaz": Economy.KZ,
+    "republic of kazakhstan": Economy.KZ,
+    # "Lao PDR" is how the panel writes it; the UN name is longer. Both must land here, and
+    # so must "laos", which is what a user will actually type.
+    "la": Economy.LA, "lao": Economy.LA, "laos": Economy.LA, "lao pdr": Economy.LA,
+    "lao people's democratic republic": Economy.LA,
+    "lao peoples democratic republic": Economy.LA, "lao pdr.": Economy.LA,
+    "ru": Economy.RU, "russia": Economy.RU, "rus": Economy.RU,
+    "russian federation": Economy.RU, "the russian federation": Economy.RU,
 }
 
 _SUPPORTED = ", ".join(ECONOMY_UN_NAME.values())
@@ -193,6 +234,11 @@ class EvidenceMapping(BaseModel):
     discovery_tag: DiscoveryTag
     coverage: Optional[str] = None              # "Horizontal" | "Sectoral" (template field)
     notes: Optional[str] = None                 # OCR/scope/bilingual flags
+    # The ORIGINAL language of the document, never the language we translated into. Left None
+    # to mean "use the economy's authoritative statute language"; set explicitly only where a
+    # document departs from it, which bilingual portals genuinely do — Malaysia's AGC serves
+    # Malay and English editions of the same Act, and Kazakhstan serves Kazakh and Russian.
+    language_of_source: Optional[str] = None
     review_status: ReviewStatus
 
     # ── Zone 3 (optional scoring layer) — RDTII Raw Score for THIS measure ──
@@ -256,10 +302,19 @@ class RunResult(BaseModel):
     mappings: list[EvidenceMapping] = Field(default_factory=list)
 
 
-# OFFICIAL submission columns — EXACT name + order of OUTPUT_TEMPLATE_31MAY.xlsx
+# OFFICIAL submission columns — EXACT name + order of OUTPUT_TEMPLATE_FINAL_ROUND.xlsx
 # ("Output Data" sheet). Instructions: "Do not rename columns. Column names and order
-# must match this template exactly. Judges validate programmatically." Do NOT add,
+# must match this template exactly. The secretariat validates against them." Do NOT add,
 # rename, or reorder. Extra fields (pillar, coverage, OCR/CER, etc.) live in the JSON.
+#
+# The final round changed exactly one thing, and the Instructions sheet says so in as many
+# words: "The thirteen Round 1 columns are unchanged, in the same order. Your exporter should
+# still work." — plus a fourteenth, Language of Source, which drives criterion C1c.
+#
+# There is a FIFTEENTH column in the workbook, "Pillar (auto — do not edit)". We do not write
+# it and must not: rows 9 onward already carry a formula deriving it from the Indicator ID,
+# and the Coverage Matrix sheet reads that formula's output. Writing a literal there would
+# overwrite the formula and silently empty the coverage counts.
 SUBMISSION_COLUMNS = [
     "Economy",
     "Law Name",
@@ -274,6 +329,7 @@ SUBMISSION_COLUMNS = [
     "Source URL",
     "Confidence",
     "Notes",
+    "Language of Source",
 ]
 
 # Statuses that belong in a submission (exclude rejected/quarantined by default)

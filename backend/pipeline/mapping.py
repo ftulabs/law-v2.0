@@ -90,6 +90,17 @@ SYSTEM = (
     "citation copied VERBATIM from the snippet (e.g. '(2)' or '(3)(a)'). If it spans the whole "
     "section, several non-contiguous subsections, or the snippet has no subsection numbering, set "
     "subsection to null — never invent a subsection number the snippet doesn't literally show.\n"
+    "8. LANGUAGE \n"
+    "The snippet is the AUTHORITATIVE statute text and may NOT be in English; its language "
+    "is given in <SNIPPET_LANGUAGE>. Read and reason over it AS WRITTEN. Do not translate it "
+    "back to us, do not restate it, and never rewrite it into English: the verbatim text is "
+    "what gets cited, and a translation would make the citation false. Your OUTPUT is a "
+    "different matter — operative_rule and rationale must be written in ENGLISH whatever the "
+    "snippet language, because the submission is English. `subsection` is the exception: copy "
+    "it character-for-character from the snippet, keeping its own numbering and punctuation "
+    "(Chinese drafting uses the full-width forms, not (1)(2)). A provision is judged on what "
+    "it ENACTS, never on the language it is in — do not lower legal_match because the text is "
+    "not English, and do not raise it because a word happens to resemble an English one.\n"
     "CONSERVATIVE DEFAULT: judge only the snippet; if you are unsure the rule truly meets the "
     "test, set satisfies_target=false (a precise MISS beats a wrong OVER-ASSIGN).\n"
     "rationale <=300 chars, EXACT format: 'This [section] [prohibits/requires/permits/"
@@ -98,6 +109,21 @@ SYSTEM = (
     "relevant:bool, legal_match:0..1, scope_alignment:0..1, scope_flag:str|null, "
     "subsection:str|null, rationale:str}\n\n"
     "WORKED EXAMPLES (real RDTII items with verified answers — TARGET :: SNIPPET → JSON):\n"
+    # 0 — China, Personal Information Protection Law art.40 → 6.2 local storage. Placed FIRST,
+    # and left in the original Chinese on purpose: it DEMONSTRATES the language rule (reason in
+    # Chinese, answer in English) instead of only stating it. The answer is the panel's own —
+    # the RDTII Round-2 Database scores PIPL art.40 under 6.2.
+    "P6-I2 :: '关键信息基础设施运营者和处理个人信息达到国家网信部门规定数量的个人信息处理者，"
+    "应当将在中华人民共和国境内收集和产生的个人信息存储在境内。确需向境外提供的，应当通过国家"
+    "网信部门组织的安全评估。' → {\"operative_rule\":\"Requires critical-information-"
+    "infrastructure operators and large-scale personal information processors to store "
+    "domestically collected personal information inside China, with export permitted only "
+    "after a state security assessment\",\"satisfies_target\":true,\"better_sibling\":"
+    "null,\"relevant\":true,\"legal_match\":1.0,\"scope_alignment\":1.0,"
+    "\"scope_flag\":null,\"subsection\":null,\"rationale\":\"This Article requires "
+    "personal information collected in China to be stored within the territory. Maps to P6-I2 "
+    "because the operative rule fixes the STORAGE location in-country; the export route it "
+    "leaves open is separately a P6-I4 conditional flow.\"}\n"
     # 1 — Armenia, Law on Protection of Personal Data 2015, Art.27 → 6.4 (NOT a ban)
     "P6-I4 :: 'Personal data may be transferred to other country by the data subject's consent... "
     "may be transferred to other state without the permission of the authorised body, where the "
@@ -225,6 +251,12 @@ def _siblings_block(ind) -> str:
     return "\n".join(lines)
 
 
+def _snippet_language(prov: Provision) -> str:
+    """The language the LLM should expect, named the way a person would say it."""
+    from ..providers.ocr_languages import profile_for
+    return profile_for(getattr(prov.economy, "value", prov.economy)).language
+
+
 def _user_prompt(ind, prov: Provision) -> str:
     return (
         f"<TARGET_INDICATOR>{ind.indicator_id} — {ind.title}</TARGET_INDICATOR>\n"
@@ -234,8 +266,9 @@ def _user_prompt(ind, prov: Provision) -> str:
         f"<QUERY_TERMS>{' | '.join(ind.query_terms)}</QUERY_TERMS>\n"
         f"<SIBLINGS>\n{_siblings_block(ind)}\n</SIBLINGS>\n"
         f"<LAW>{prov.law_name} — {prov.article_section}</LAW>\n"
+        f"<SNIPPET_LANGUAGE>{_snippet_language(prov)}</SNIPPET_LANGUAGE>\n"
         f"<SNIPPET>{prov.verbatim_snippet}</SNIPPET>\n"
-        "Follow steps (1)-(8). Decide independently whether THIS provision satisfies the "
+        "Follow steps (1)-(9). Decide independently whether THIS provision satisfies the "
         "TARGET; only reject for a better sibling if the target is a genuine mislabel. "
         "Return the JSON object only."
     )
@@ -256,6 +289,13 @@ def _build_notes(prov: Provision, scope_flag: str | None, topical_ok: bool = Tru
         else:
             parts.append(f"OCR-extracted via {prov.ocr.provider}"
                          + (f" (mean conf {mc:.2f})" if mc is not None else "") + "; verify wording vs source.")
+    # A non-English Verbatim Snippet is deliberate — it is the authoritative statute text, and
+    # translating it would make the citation false. Say so in the row, so a reviewer reading the
+    # CSV knows the foreign text is the answer and not an extraction failure.
+    lang = _snippet_language(prov)
+    if lang != "English":
+        parts.append(f"Verbatim snippet is the authoritative {lang} text (not translated); "
+                     f"the rationale is in English.")
     # MY snippets come from the official English PDF; the Malay sibling is authoritative
     url = prov.source_url or ""
     if prov.economy.value == "MY" and url.lower().endswith("e.pdf"):

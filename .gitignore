@@ -35,19 +35,41 @@ frontend/static/
 # submission build artifacts (zips generated for the JotForm upload)
 FTU-VeriTrade_*.zip
 
-# separate AI4Econ paper project (kept out of the hackathon repo)
-docs/paper/
 
-# personal working docs — internal notes, not deliverables
-docs/precompute-corpus.md
-docs/video-script.md
 
-# organiser-provided reference PDFs (not our authored work)
-docs/presentation/Pitching Rules.pdf
 
 # UI/UX Pro Max skill — vendored tooling, reinstall with:
 #   npx ui-ux-pro-max-cli@latest init --ai claude
 .claude/skills/
 
-# internal planning deck (not a submission deliverable)
+# ─────────────────────────────────────────────────────────────────────────────
+# INTERNAL WORKBENCH — never committed.
+#
+# The final round is marked partly on the repository a reviewer clones: the
+# README is read first, and C4a asks a stranger to deploy from it in under 30
+# minutes. Anything that is not part of that story lives here instead — internal
+# status notes, the pitch deck, design experiments, and the organisers' own PDFs
+# (their material, not our authored work). Nothing here is deleted; it is simply
+# not part of the deliverable.
+_workbench/
+
+# Multi-session coordination state (tools/session_claim.py). Runtime bookkeeping
+# between concurrent Claude Code sessions, meaningless to anyone cloning the repo.
+.sessions/
+
+# Superseded by _workbench/ but kept so an older checkout stays clean
+docs/precompute-corpus.md
+docs/video-script.md
 docs/roadmap-final-round.html
+docs/paper/
+
+# Panel-issued finalist material. Not our authored work, and the orientation pack is
+# issued to finalists rather than published, so it is not ours to make public in a repo
+# the rules require to be public. The DERIVED artefacts are committed and are what the
+# pipeline actually reads — data/rdtii/indicator_reference.json (built by
+# tools/build_indicator_reference.py from the framework PDFs) and
+# data/ground_truth/rdtii_reference_p67.csv (built from the two Databases). Drop these
+# three lines to include the sources if the organisers confirm they may be redistributed.
+Finalist Orientation/
+RDTII 2.1 framework documentations/
+Khảo sát các quốc gia cho vòng 2.xlsx

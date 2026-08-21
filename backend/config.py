@@ -80,6 +80,19 @@ class Settings(BaseSettings):
     tesseract_cmd: str = ""
     poppler_path: str = ""
 
+    # Vision-model OCR — the fallback for scripts no local recognition model covers
+    # (Mongolian and Kazakh Cyrillic, Vietnamese tone marks, Lao). OpenAI chat-completions
+    # shape, so the same code reaches a hosted router or a local open-weights server: point
+    # vlm_ocr_base_url at http://localhost:11434/v1 with an Ollama-served Qwen2.5-VL and the
+    # pipeline uses no proprietary API at all, which is what the Section 3 declaration claims.
+    vlm_ocr_base_url: str = "https://openrouter.ai/api/v1"
+    vlm_ocr_api_key: str = ""
+    vlm_ocr_model: str = "qwen/qwen2.5-vl-72b-instruct"
+    # Off by default: it bills per page and returns no confidence to grade, so it must be an
+    # explicit choice. `vlm_ocr_auto_fallback` lets it rescue ONLY the case where the
+    # alternative is a hard failure — no installed engine has a model for the script.
+    vlm_ocr_auto_fallback: bool = True
+
     # confidence routing
     conf_auto_accept: float = 0.85
     conf_review_floor: float = 0.60
@@ -181,6 +194,13 @@ class Settings(BaseSettings):
     # multilingual reranker instead, and if it is unavailable we run with NO cross-encoder:
     # two good signals beat three when the third is arbitrary.
     cross_encoder_model_multilingual: str = "BAAI/bge-reranker-v2-m3"
+    # …and it is OFF by default, because it is 25x slower and that is not a trade, it is a wall.
+    # Measured on this machine: ms-marco-MiniLM-L-6-v2 scores 245 pairs/s, bge-reranker-v2-m3
+    # scores 9.9 (568M parameters against 22M). The first full China run spent 40,462 seconds —
+    # eleven hours — inside retrieval for 268 provisions, where Singapore spent 100 seconds for
+    # 3,218. The live test allows sixty minutes total. So a non-Latin economy runs on BM25 +
+    # dense embeddings unless someone turns this on deliberately, with a GPU or time to spare.
+    cross_encoder_multilingual_enabled: bool = False
     rrf_k: int = 60                            # Reciprocal-Rank-Fusion constant
     # Cross-encoder cost controls. It is the slowest stage by an order of magnitude — 21
     # pairs/s on this CPU against ~45 embeddings/s — so these decide whether a precompute pass

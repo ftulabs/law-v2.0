@@ -28,6 +28,10 @@ from dataclasses import dataclass
 
 # Engine identifiers used elsewhere in the provider layer.
 RAPIDOCR, PADDLE, TESSERACT, AZURE, GOOGLE = "rapidocr", "paddle", "tesseract", "azure", "google"
+#: Vision-model OCR. Unlike every engine above it has NO per-script dictionary, so it is
+#: never disqualified by script — which is exactly why it is the last-resort fallback for
+#: Mongolian, Kazakh, Vietnamese and Lao. See ocr_vlm.py for what it costs to use it.
+VLM = "vlm"
 
 
 @dataclass(frozen=True)
@@ -73,6 +77,10 @@ class LangProfile:
     legacy_encoding_risk: bool = False
     #: Word segmenter to use when `spaces_between_words` is False.
     segmenter: str | None = None
+    #: Language the AUTHORITATIVE statute text is written in, named the way a person would say
+    #: it. Fed to the grading LLM: a model told "the snippet is in Mongolian" behaves markedly
+    #: better than one left to infer it from the bytes.
+    language: str = "English"
 
 
 # Latin-script default. Round 1 economies all land here, which is why the missing language
@@ -89,38 +97,70 @@ PROFILES: dict[str, LangProfile] = {
     "SG": _LATIN,
     "AU": _LATIN,
     "MY": _LATIN,          # Bahasa Malaysia is Latin script; the AGC portal is bilingual.
-    "ID": _LATIN,
 
     # ── Finals candidates ─────────────────────────────────────────────────────────────────
+    "ID": LangProfile(
+        # Was mapped to the Latin default, which is right about the SCRIPT and wrong about
+        # everything the script does not decide. `_LATIN.language` is "English", so the
+        # Language of Source column — the new column that drives criterion C1c — would have
+        # reported every Indonesian statute as English. Bahasa Indonesia is plain ASCII, so
+        # no tokeniser or OCR error would ever have surfaced the mistake.
+        script="Latin", rapidocr="latin", paddle="en", tesseract="ind+eng", azure="id",
+        preferred=(RAPIDOCR, PADDLE, TESSERACT, AZURE, VLM), validated=True,
+        note=("Lowest script risk of the nine: Bahasa Indonesia is written in unaccented ASCII "
+              "Latin, so the Round-1 extraction path applies unchanged. The obstacle here is "
+              "ACCESS, not reading — peraturan.bpk.go.id disallows our crawler in robots.txt, "
+              "and we comply. Discovery for Indonesia must go through a permitted host."),
+        unicode_ranges=((0x0020, 0x024F),),
+
+        language="Indonesian",
+    ),
     "TH": LangProfile(
         script="Thai", rapidocr="th", paddle="th", tesseract="tha+eng", azure="th",
-        preferred=(RAPIDOCR, PADDLE, AZURE, TESSERACT), validated=False,
+        preferred=(RAPIDOCR, PADDLE, AZURE, TESSERACT, VLM), validated=False,
         note=("Dedicated th_PP-OCRv5_mobile_rec exists (Apache-2.0). Vendor reports 82.68% but "
               "that is LINE-level exact match on a private set, not CER — do not quote it as CER. "
               "On ThaiOCRBench full-page OCR Tesseract scores 0.614, level with GPT-4o, so it is a "
               "reasonable fallback. No published Thai document CER exists for any engine."),
         unicode_ranges=((0x0E00, 0x0E7F),), spaces_between_words=False,
         stacking_marks=True, segmenter="pythainlp",
+    
+        language="Thai",
     ),
     "CN": LangProfile(
         script="Han (Simplified)", rapidocr="ch", paddle="ch", tesseract="chi_sim", azure="zh-Hans",
-        preferred=(RAPIDOCR, PADDLE, AZURE, TESSERACT), validated=False,
+        preferred=(RAPIDOCR, PADDLE, AZURE, TESSERACT, VLM), validated=False,
         note=("Best-served non-Latin script. PP-OCRv5 is the mature path; PP-OCRv6 is ~5x faster "
               "on CPU via OpenVINO. No independent CER measurement obtained."),
         unicode_ranges=((0x4E00, 0x9FFF), (0x3000, 0x303F)), spaces_between_words=False,
         segmenter="jieba",
+    
+        language="Chinese (Simplified)",
     ),
     "RU": LangProfile(
-        script="Cyrillic", rapidocr="eslav", paddle="eslav", tesseract="rus", azure="ru",
-        preferred=(RAPIDOCR, PADDLE, AZURE, TESSERACT), validated=False,
-        note=("Use eslav (East Slavic) ahead of the generic cyrillic model. Tesseract rus is weak "
+        # paddle="ru", NOT "eslav": PaddleOCR 3.x renamed its language keys, and the old names
+        # raise ValueError("No models are available for the language 'eslav'") — which the
+        # factory caught and turned into "no engine can read Cyrillic". The engine was there
+        # the whole time; we were asking for it by a name that no longer exists.
+        script="Cyrillic", rapidocr="eslav", paddle="ru", tesseract="rus", azure="ru",
+        preferred=(RAPIDOCR, PADDLE, AZURE, TESSERACT, VLM), validated=False,
+        note=("paddle lang 'ru' loads eslav_PP-OCRv5_mobile_rec (East Slavic). Verified against "
+              "its shipped 517-character dictionary: full Russian coverage. Tesseract rus is weak "
               "out of the box (CER 21.6% on historical Russian print) — keep it last."),
         unicode_ranges=((0x0400, 0x04FF),),
+    
+        language="Russian",
     ),
     "MN": LangProfile(
-        script="Cyrillic (Mongolian)", rapidocr="cyrillic", paddle="cyrillic", tesseract="mon",
-        azure="mn", preferred=(RAPIDOCR, PADDLE, AZURE, TESSERACT), validated=False,
-        note=("Cyrillic Khalkha only. PIN PaddleOCR >= v5: the v3/v4 cyrillic dictionary lacks Ө/Ү "
+        # paddle=None is now MEASURED, not inherited caution. PaddleOCR 3.x has no "cyrillic"
+        # key at all; the nearest is "ru" -> eslav_PP-OCRv5_mobile_rec, and reading that model's
+        # own character dictionary (517 entries) shows Ө Ү ө ү are all absent. Mongolian
+        # would come back missing four of its letters, in fluent-looking text, with no error.
+        script="Cyrillic (Mongolian)", rapidocr="cyrillic", paddle=None, tesseract="mon",
+        azure="mn", preferred=(RAPIDOCR, AZURE, TESSERACT, VLM), validated=False,
+        note=("Cyrillic Khalkha only. PaddleOCR is DISQUALIFIED by measurement: the East-Slavic "
+              "dictionary it would load contains no Ө/Ү/ө/ү. Same defect historically: "
+              "the v3/v4 cyrillic dictionary lacks Ө/Ү "
               "entirely. Tesseract's mon training text contains legacy mis-encodings (Ukrainian "
               "є/ї substituted for ө/ү). On vertical Mongol Bichig: no engine reads it, and "
               "Tesseract's `mon` model will silently emit CYRILLIC when fed it (verified: "
@@ -130,16 +170,40 @@ PROFILES: dict[str, LangProfile] = {
               "dual-script mandate binds administrative record-keeping rather than statutes. "
               "Keep the U+1800-18AF check as a guard, not as an expected case."),
         unicode_ranges=((0x0400, 0x04FF),),
+    
+        language="Mongolian",
+    ),
+    "KZ": LangProfile(
+        # Kazakhstan was ABSENT from this table until the live-test nine were declared, so
+        # profile_for("KZ") returned the Latin default: is_latin_script() said True, the English
+        # cross-encoder was applied to Cyrillic, and OCR would have loaded a Latin dictionary.
+        # Every one of those is silent. A missing key is the most expensive kind of entry here.
+        script="Cyrillic (Kazakh)", rapidocr="cyrillic", paddle=None, tesseract="kaz",
+        azure="kk", preferred=(RAPIDOCR, AZURE, TESSERACT, VLM), validated=False,
+        note=("Worst Cyrillic coverage of the nine. Measured against eslav_PP-OCRv5_mobile_rec's "
+              "own dictionary, SIXTEEN of the 42 Kazakh letters are missing (Ә Ғ Қ Ң Ө Ұ Ү Һ "
+              "and their lower case; only І/і are present), so PaddleOCR is disqualified by "
+              "measurement rather than by caution. Second hazard, unique to Kazakhstan: the "
+              "2017-2025 Latin-alphabet transition means adil.gov.kz carries statutes in BOTH "
+              "Cyrillic and Latin orthography, and Russian is co-official — so script detection "
+              "must run per document, never per economy."),
+        unicode_ranges=((0x0400, 0x04FF), (0x0020, 0x024F)),
+
+        language="Kazakh",
     ),
     "VN": LangProfile(
         # Deliberately NOT paddle: its latin dictionary cannot emit Vietnamese tone marks.
         script="Latin (Vietnamese)", rapidocr=None, paddle=None, tesseract="vie", azure="vi",
-        preferred=(AZURE, TESSERACT), validated=True,
-        note=("PaddleOCR/RapidOCR latin models are DISQUALIFIED here: 45 precomposed tone-marked "
-              "letters are absent from the output dictionary, so diacritics are lost by "
-              "construction. Measured on VieBookRead: Azure 0.04 CER, Tesseract vie 0.12, "
+        preferred=(AZURE, TESSERACT, VLM), validated=True,
+        note=("PaddleOCR/RapidOCR latin models are DISQUALIFIED here, and it is now measured: "
+              "latin_PP-OCRv5_mobile_rec's 836-character dictionary DOES carry đ ă ơ ư but "
+              "NOT one of the precomposed tone forms (ế ộ ữ ạ ằ …), so diacritics are lost by "
+              "construction. Note paddle lang 'vi' CONSTRUCTS without error and quietly loads "
+              "that same latin model — a config that looks like it works and does not. Measured on VieBookRead: Azure 0.04 CER, Tesseract vie 0.12, "
               "EasyOCR 0.25."),
         unicode_ranges=((0x0020, 0x024F), (0x1EA0, 0x1EF9)), stacking_marks=True,
+    
+        language="Vietnamese",
     ),
     "IN": LangProfile(
         # indiacode.nic.in publishes Central Acts in ENGLISH as the authoritative text, so the
@@ -177,7 +241,7 @@ PROFILES: dict[str, LangProfile] = {
     ),
     "LA": LangProfile(
         script="Lao", rapidocr=None, paddle=None, tesseract="lao", azure=None,
-        preferred=(TESSERACT, GOOGLE), validated=False,
+        preferred=(TESSERACT, GOOGLE, VLM), validated=False,
         note=("WEAKEST COVERAGE OF ANY TARGET ECONOMY. No Lao model in PaddleOCR, RapidOCR, "
               "EasyOCR or docTR. Azure Document Intelligence cannot read Lao. Tesseract's lao "
               "traineddata is the only offline option and has NO published accuracy of any kind. "
@@ -192,6 +256,8 @@ PROFILES: dict[str, LangProfile] = {
               "heading from one of the two ingestion paths. Match both forms."),
         unicode_ranges=((0x0E80, 0x0EFF),), spaces_between_words=False,
         stacking_marks=True, legacy_encoding_risk=True, segmenter="laonlp",
+    
+        language="Lao",
     ),
 }
 
@@ -217,6 +283,31 @@ def best_engine(economy: str | None, available: set[str] | None = None) -> str |
         if available is None or eng in available:
             return eng
     return None
+
+
+def is_latin_script(economy: str | None) -> bool:
+    """True when this economy's statutes are written in Latin script.
+
+    Used well outside OCR: the cross-encoder reranker, the mock grader's keyword logic and
+    the LLM prompt all behave differently once the provision text is not Latin. India counts
+    as Latin — its statutes are enacted and published in English; the Devanagari note in its
+    profile is about Hindi gazette editions, not the authoritative text.
+    """
+    return profile_for(economy).script.startswith("Latin")
+
+
+def is_english_text(economy: str | None) -> bool:
+    """True when the AUTHORITATIVE statute text is in English.
+
+    Script and language answer different questions, and conflating them was a real defect.
+    `is_latin_script` is the right test for TOKENISATION — Vietnamese and Indonesian are Latin
+    and do tokenise as words. It is the wrong test for the CROSS-ENCODER, which is an English
+    model: ms-marco-MiniLM scoring Vietnamese is the same category of noise as ms-marco
+    scoring Chinese, and it is fused into the ranking at the same weight as BM25. Before this
+    split, Viet Nam and Indonesia — two of the nine — took the English reranker purely because
+    their alphabet has the same letters.
+    """
+    return profile_for(economy).language == "English"
 
 
 def needs_segmentation(economy: str | None) -> str | None:

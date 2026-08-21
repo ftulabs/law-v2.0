@@ -12,6 +12,7 @@ import csv
 from pathlib import Path
 
 from ..config import settings
+from ..rdtii import codes, instrument
 from ..schemas import ECONOMY_UN_NAME, SUBMISSION_COLUMNS, SUBMITTABLE_STATUSES, EvidenceMapping
 
 
@@ -30,7 +31,9 @@ def _row(m: EvidenceMapping) -> dict[str, str]:
         "Law Name": m.law_name,
         "Law Number / Ref": m.law_number or "",
         "Last Amended": m.last_amended or "",
-        "Indicator ID": m.indicator_id,
+        # `6.4`, not our internal `P6-I4` — the template rejects the latter by name. Written
+        # as a string so 12.10 cannot collapse to 12.1. See rdtii/codes.py.
+        "Indicator ID": codes.to_rdtii_code(m.indicator_id),
         "Article / Section": m.article_section,
         "Discovery Tag": "N/A" if placeholder else m.discovery_tag.value,
         "Location Reference": m.location_ref or "",
@@ -38,8 +41,32 @@ def _row(m: EvidenceMapping) -> dict[str, str]:
         "Mapping Rationale": m.mapping_rationale or "",
         "Source URL": m.source_url,
         "Confidence": "N/A" if placeholder else f"{m.confidence_score:.2f}",
-        "Notes": m.notes or "",
+        "Notes": _notes(m),
+        "Language of Source": m.language_of_source or _language_of(m.economy.value),
     }
+
+
+def _language_of(economy: str) -> str:
+    """The authoritative statute language for an economy — the same registry the OCR and
+    reranker decisions read, so the reported language cannot disagree with the language the
+    pipeline actually assumed while processing the document."""
+    from ..providers.ocr_languages import profile_for
+    return profile_for(economy).language
+
+
+def _notes(m: EvidenceMapping) -> str:
+    """The row's own notes, plus an instrument warning when one applies.
+
+    A draft, a repealed instrument or an amending act scores zero however well it reads, and
+    all three retrieve and grade like the real thing. We do not silently drop the row — the
+    finding is usually correct and only the citation is wrong — but the reviewer has to be
+    told, in the row itself, because that is the only place they will be looking.
+    """
+    parts = [m.notes] if m.notes else []
+    warn = instrument.note_for(instrument.classify(m.law_name))
+    if warn and warn not in (m.notes or ""):
+        parts.append(warn)
+    return "  ".join(parts)
 
 
 def export_csv(mappings: list[EvidenceMapping], run_id: str, out_dir: Path | None = None,

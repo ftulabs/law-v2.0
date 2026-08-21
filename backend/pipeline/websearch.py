@@ -22,9 +22,12 @@ OFFICIAL_PORTAL: dict[str, str] = {
     "SG": "sso.agc.gov.sg",
     "AU": "legislation.gov.au",
     "MY": "lom.agc.gov.my",
-    # Final-round economies — add the domain, discovery generalises automatically:
+    # Round-2 economies:
+    "CN": "flk.npc.gov.cn",      # National Laws and Regulations Database (NPC) — the official one
+    "IN": "indiacode.nic.in",    # India Code — official repository of Central Acts
+    "MN": "legalinfo.mn",        # Unified Legal Information System of Mongolia
+    # Later finals — add the domain, discovery generalises automatically:
     "TH": "law.go.th",
-    "IN": "indiacode.nic.in",
     "ID": "peraturan.go.id",
 }
 

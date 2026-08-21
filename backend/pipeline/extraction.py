@@ -71,7 +71,13 @@ _STRUCT_RE_AU = re.compile(
 # (第四十条) far more often than Arabic (第40条); chapters use 章 and are the structural divider.
 # Line-anchored, because 第X条 also appears mid-sentence as a cross-reference ("依照本法第四十条
 # 的规定"), which is exactly the trap the Latin patterns above guard against.
-_STRUCT_RE_CN = re.compile(r"(?m)^[ 	　]*(第[一二三四五六七八九十百千零〇两0-9]{1,8}[条章节])")
+# Spaces are permitted BETWEEN the characters because PDF text extraction routinely inserts
+# them into CJK runs: the Hainan Informatisation Regulations extract as "第 一 条", and the
+# unspaced pattern found 3 headings in a 56-article statute — a 95% loss that nothing reports.
+# The separator class is [ \t　] and deliberately NOT \s: \s matches a newline, which would
+# let a "heading" straddle two lines and swallow unrelated text.
+_STRUCT_RE_CN = re.compile(
+    r"(?m)^[ \t　]*(第[ \t　]*(?:[一二三四五六七八九十百千零〇两0-9][ \t　]*){1,8}[条章节])")
 # Mongolian statutes head each article "<n> дүгээр зүйл." (ordinal suffix varies with vowel
 # harmony: дүгээр/дугаар, and дэх/дахь for some drafting). The 14.1 / 20.1.5 forms below it are
 # CLAUSES inside the article — splitting on those would shatter one article into a dozen
@@ -544,7 +550,10 @@ def _boundaries(text: str, economy=None) -> list[tuple]:
     if economy == Economy.CN:
         # Han-script statutes carry none of the Latin markers, and the font-marked path is
         # meaningless here — 第X条 IS the heading, marked or not.
-        out = [(m.start(), m.end(), m.group(1), False) for m in _STRUCT_RE_CN.finditer(text)]
+        # The label is de-spaced so the citation reads 第一条, not the "第 一 条" the PDF layer
+        # produced — the snippet keeps the source text untouched, only the label is tidied.
+        out = [(m.start(), m.end(), re.sub(r"[ \t　]+", "", m.group(1)), False)
+               for m in _STRUCT_RE_CN.finditer(text)]
     elif economy == Economy.MN:
         out = [(m.start(), m.end(), m.group(1), False) for m in _STRUCT_RE_MN.finditer(text)]
         if len(out) < 3:

@@ -34,7 +34,11 @@ def _html_to_text(html: str) -> str:
 # JavaScript, so a static fetch returns only the app shell (site chrome, no law text).
 # legislation.gov.au (Angular: `ng-version`) is the Round-1 case.
 _SPA_MARKERS = ("ng-version=", "<app-root", "data-reactroot", "__next_data__",
-                "window.__nuxt", 'id="__nuxt"')
+                "window.__nuxt", 'id="__nuxt"',
+                # Vite build, which is what China's flk.npc.gov.cn ships: the whole page is
+                # <div id="app"></div> plus one module bundle, and de-chroming it yielded the
+                # 9-character site title, which then became a "provision" citing nothing.
+                'src="/assets/index-', '<div id="app"></div>')
 
 
 def is_js_app_shell(html: str, text: str | None = None) -> bool:
@@ -45,9 +49,12 @@ def is_js_app_shell(html: str, text: str | None = None) -> bool:
     head = html[:400_000].lower()
     if not any(m in head for m in _SPA_MARKERS):
         return False
-    from .extraction import SECTION_RE
+    from .extraction import SECTION_RE, _STRUCT_RE_CN, _STRUCT_RE_MN
     body = text if text is not None else _html_to_text(html)
-    return SECTION_RE.search(body) is None
+    # "Has legal structure" has to be asked in every drafting convention we support. SECTION_RE
+    # is Latin-only, so a genuinely server-rendered Chinese or Mongolian statute matches none of
+    # it — and would be thrown away as an empty shell, losing the whole document.
+    return not any(rx.search(body) for rx in (SECTION_RE, _STRUCT_RE_CN, _STRUCT_RE_MN))
 
 
 def _page_count(path: str) -> int:
@@ -258,6 +265,35 @@ def get_document_text(doc: DiscoveredDoc, ocr_provider: OCRProvider | None = Non
     return text, metrics
 
 
+def _word_to_text(path: str, metrics: OCRMetrics) -> str:
+    """Text of a WORD document, via MarkItDown then python-docx.
+
+    Returning "" on failure is the point: the previous behaviour read the file as plain text,
+    and since .docx is a ZIP container the pipeline happily produced a provision whose
+    verbatim snippet began "PK docProps/app.xml". Empty text yields no provisions, which is
+    a visible absence rather than a citation of binary noise.
+    """
+    try:
+        from markitdown import MarkItDown
+        text = (MarkItDown().convert(path).text_content or "").strip()
+        if text:
+            metrics.provider = "markitdown"
+            return markdown_to_plain(text)
+    except Exception:
+        pass
+    try:
+        import docx                                  # python-docx
+        paragraphs = [p.text for p in docx.Document(path).paragraphs]
+        text = "\n".join(paragraphs).strip()
+        if text:
+            metrics.provider = "python-docx"
+            return text
+    except Exception:
+        pass
+    metrics.notes = "word_unreadable"
+    return ""
+
+
 def _extract_document_text(doc: DiscoveredDoc, ocr_provider: OCRProvider | None = None) -> tuple[str, OCRMetrics]:
     metrics = OCRMetrics()
     path = doc.local_path
@@ -272,6 +308,10 @@ def _extract_document_text(doc: DiscoveredDoc, ocr_provider: OCRProvider | None 
             metrics.notes = "js_app_shell"
             return "", metrics
         return text, metrics
+
+    if path and path.lower().endswith((".docx", ".doc")):
+        text = _word_to_text(path, metrics)
+        return to_canonical(text), metrics
 
     if fmt == DocFormat.TEXT or (path and path.endswith(".txt")):
         text = Path(path).read_text(encoding="utf-8", errors="ignore") if path and Path(path).exists() else (doc.raw_text or "")

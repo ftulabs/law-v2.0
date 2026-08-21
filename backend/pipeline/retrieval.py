@@ -31,16 +31,29 @@ from ..schemas import Provision
 # segmentation on Chinese while degrading gracefully on Thai/Lao.
 _NOSPACE = (r"\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff"     # kana + Han
             r"\u0e00-\u0e7f\u0e80-\u0eff\u1780-\u17ff\u1000-\u109f")    # Thai, Lao, Khmer, Myanmar
-# Every other letter-bearing script: Latin-1/extended, Greek, Cyrillic, Armenian, Hebrew,
-# Arabic, Devanagari through Sinhala, Georgian. These ARE spaced, so they tokenise as words.
-_OTHER_LETTERS = (r"\u00c0-\u024f\u0370-\u03ff\u0400-\u052f\u0530-\u058f"
+# Accented Latin. This MUST sit in the SAME character class as a-z, not in a class of its own,
+# because Latin scripts interleave the two inside a single word. Vietnamese is the case that
+# matters — one of the nine live-test economies — where "dữ liệu được chuyển" tokenised as
+# ['d','li','u','đư','c','chuy','n']: every diacritic split the word, leaving one-letter
+# fragments so common they match any document at all. Unlike the Chinese failure (a flat zero,
+# obvious the moment anyone looked) this one returns plausible NON-ZERO scores computed from
+# noise, so no log, no metric and no exception reports anything wrong. The same shredding hit
+# Portuguese (Timor-Leste: "Artigo 1.º", "proteção") and every other accented Latin language.
+#   U+00C0–U+024F  Latin-1 Supplement + Extended-A/B  (é ç ă đ ơ ư)
+#   U+1E00–U+1EFF  Latin Extended Additional          (ế ộ ữ — the 45 Vietnamese tone forms)
+_LATIN_EXT = r"\u00c0-\u024f\u1e00-\u1eff"
+# Every other letter-bearing script: Greek, Cyrillic, Armenian, Hebrew, Arabic, Devanagari
+# through Sinhala, Georgian. These ARE spaced, so they tokenise as words.
+_OTHER_LETTERS = (r"\u0370-\u03ff\u0400-\u052f\u0530-\u058f"
                   r"\u0590-\u05ff\u0600-\u06ff\u0900-\u0dff\u10a0-\u10ff")
-# Branch order is load-bearing: the ASCII branch is kept EXACTLY as it was so that Latin-script
-# corpora tokenise bit-identically to Round 1 and the measured retrieval parameters still hold
-# (see CLAUDE.md §7 — these were swept, not chosen). Only non-ASCII text takes a new path.
-_TOKEN = re.compile(f"[{_NOSPACE}]+"                 # no-space scripts → bigrams below
-                    r"|[a-z0-9]+"                    # ASCII: unchanged from Round 1
-                    f"|[{_OTHER_LETTERS}]+")         # Cyrillic, Devanagari, … → words
+# Branch order is load-bearing, and so is the ASCII branch's CONTENT: pure-ASCII text must
+# tokenise bit-identically to Round 1 or the measured retrieval parameters stop holding (see
+# CLAUDE.md §7 — they were swept, not chosen). Widening that branch with _LATIN_EXT is safe
+# precisely BECAUSE those code points cannot occur in ASCII text, so the Round-1 corpora take
+# byte-for-byte the same path. test_ascii_tokenisation_is_unchanged_from_round1 pins it.
+_TOKEN = re.compile(f"[{_NOSPACE}]+"                  # no-space scripts → bigrams below
+                    f"|[a-z0-9{_LATIN_EXT}]+"         # ASCII + accented Latin, as ONE word
+                    f"|[{_OTHER_LETTERS}]+")          # Cyrillic, Devanagari, … → words
 _NOSPACE_RE = re.compile(f"[{_NOSPACE}]")
 _RETRIEVAL_SNIPPET_LEN = 2048   # chars fed to embedding model (MiniLM ~512 tokens ≈ 2k chars)
 

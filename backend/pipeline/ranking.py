@@ -22,27 +22,54 @@ from dataclasses import dataclass
 
 from ..config import settings
 from ..rdtii import get_indicator
+from ..rdtii.query_terms_i18n import native_terms
 from ..schemas import Provision
 from . import retrieval
 from ..providers.llm_factory import SECTORAL_MARKERS
 
-_CE = None
-_CE_FAILED = False
+_CE: dict[str, object] = {}          # model name → loaded CrossEncoder
+_CE_FAILED: set[str] = set()         # model names that could not be loaded
 
 
-def _cross_encoder():
-    """Lazy cross-encoder; None if disabled/unavailable (→ fusion uses the other signals)."""
-    global _CE, _CE_FAILED
-    if (settings.cross_encoder or "auto").lower() == "off" or _CE_FAILED:
-        return _CE
-    if _CE is not None:
-        return _CE
+def _ce_model_for(economy: str | None) -> str | None:
+    """The reranker for this economy's LANGUAGE, or None to run without one.
+
+    Keyed on language, not script. The shipped cross-encoder is English-only, and it is no
+    less out of its depth on Vietnamese or Indonesian — both Latin-script — than on Chinese.
+    Its score is fused into the ranking at the same weight as BM25, so an off-language
+    reranker actively degrades the result rather than merely failing to help.
+    """
+    from ..providers.ocr_languages import is_english_text
+    if is_english_text(economy):
+        return settings.cross_encoder_model
+    if not settings.cross_encoder_multilingual_enabled:
+        return None            # see settings.cross_encoder_multilingual_enabled — 25x slower
+    return settings.cross_encoder_model_multilingual
+
+
+def _cross_encoder(economy: str | None = None):
+    """Lazy cross-encoder for this economy's script; None if disabled or unavailable.
+
+    A non-Latin economy gets the multilingual reranker or nothing at all — it never silently
+    falls back to the English model, because an English cross-encoder on Chinese text scores
+    worse than having no reranker in the fusion.
+    """
+    if (settings.cross_encoder or "auto").lower() == "off":
+        return None
+    name = _ce_model_for(economy)
+    if name is None:
+        return None
+    if name in _CE:
+        return _CE[name]
+    if name in _CE_FAILED:
+        return None
     try:
         from sentence_transformers import CrossEncoder
-        _CE = CrossEncoder(settings.cross_encoder_model)
+        _CE[name] = CrossEncoder(name)
     except Exception:
-        _CE_FAILED = True
-    return _CE
+        _CE_FAILED.add(name)
+        return None
+    return _CE[name]
 
 
 @dataclass
@@ -69,19 +96,25 @@ def rank_documents(indicator_id: str, provisions: list[Provision]) -> list[DocRa
     ind = get_indicator(indicator_id)
     if ind is None or not provisions:
         return []
+    # Zone 1 ranks laws by the same lexical+dense fusion as Zone 2, so it needs the same
+    # native vocabulary: without it every Chinese law scores 0 on the keyword signal and the
+    # whole ranking rests on the embeddings alone.
+    econ = retrieval._economy_of(provisions)
+    native = native_terms(indicator_id, econ)
     query = f"{ind.title}. {ind.legal_test} {' '.join(ind.query_terms)}"
+    lexical_query = f"{query} {' '.join(native)}"
 
     # ── per-provision lexical (BM25) + semantic (bi-encoder) ──
     corpus = [retrieval._tok(p.verbatim_snippet + " " + p.article_section) for p in provisions]
     bm25 = retrieval._build_bm25(corpus)
-    kw = list(bm25.get_scores(retrieval._tok(query)))
+    kw = list(bm25.get_scores(retrieval._tok(lexical_query)))
     kwmax = max(kw) if kw and max(kw) > 0 else 1.0
     kw = [s / kwmax for s in kw]
     sem = retrieval._dense_scores(query, provisions) or [0.0] * len(provisions)
 
     # ── phrase-presence bonus per provision ──
-    phrases = [qt for qt in (ind.query_terms or []) if len(qt.split()) >= 2]
-    phrase_bonus = [0.15 if any(ph.lower() in p.verbatim_snippet.lower() for ph in phrases) else 0.0
+    phrases = retrieval._phrases(ind, native)
+    phrase_bonus = [0.15 if any(ph in p.verbatim_snippet.lower() for ph in phrases) else 0.0
                     for p in provisions]
 
     # ── aggregate to the law: keep its single best-matching provision (the evidence) ──
@@ -95,7 +128,7 @@ def rank_documents(indicator_id: str, provisions: list[Provision]) -> list[DocRa
 
     # ── cross-encoder precision rerank on each law's best provision ──
     doc_cross: dict[str, float] = {}
-    ce = _cross_encoder()
+    ce = _cross_encoder(econ)
     if ce is not None:
         keys = list(best.keys())
         pairs = [(query, provisions[best[d][0]].verbatim_snippet[:512]) for d in keys]

@@ -120,11 +120,34 @@ sources:
 #   Zone 1 coverage — see docs/round2-expansion.md.
 
   - economy: CN
+    name: State Council / Cyberspace Administration (administrative measures)
+    base_url: https://www.gov.cn
+    adapter: websearch
+    site: gov.cn
+    verified: true             # measured: PIPL 74 provisions, data-export measures 19-20 each
+    queries:
+      - 数据出境安全评估办法
+      - 个人信息出境标准合同
+      - 应当在境内存储
+      - 服务器 设在境内
+      - 个人信息 保存期限
+    notes: >
+      THE PRIMARY CHINA LANE — listed first because it is the one that actually yields statute
+      text. cac.gov.cn publishes the national laws as ordinary server-rendered pages, so an
+      obligation-phrase search reaches them and they extract cleanly: 中华人民共和国个人信息保护法
+      (PIPL) 74 provisions, 数据出境安全评估办法 20, 个人信息出境认证办法 19, and the 2017
+      个人信息和重要数据出境安全评估办法 18 — whose Article 2 is verbatim the P6-I2 local-storage
+      rule. Half the panel's own China citations point here rather than at the NPC database.
+      Caveat: the site also carries 答记者问 press Q&A pages about those measures. They fetch
+      and split into a single block, so they are visible as noise rather than mistaken for law
+      — the grader rejects them, but a tier filter would spend fewer LLM calls.
+
+  - economy: CN
     name: National Laws and Regulations Database (NPC)
     base_url: https://flk.npc.gov.cn
     adapter: websearch
     site: flk.npc.gov.cn
-    verified: false
+    verified: partial          # discovery works; its document BODIES cannot be downloaded
     queries:
       - 个人信息 境内存储
       - 向境外提供个人信息
@@ -137,27 +160,16 @@ sources:
       - 网络安全 等级保护
       - 依法要求提供 技术支持和协助
     notes: >
-      The NPC database is the authoritative text of national laws. Chinese administrative
-      measures and departmental rules that carry much of the P6 answer key (the Cyberspace
-      Administration's data-export measures, sectoral interim measures) are NOT here — they sit
-      on gov.cn and cac.gov.cn, which is why the second CN lane below exists.
-
-  - economy: CN
-    name: State Council / Cyberspace Administration (administrative measures)
-    base_url: https://www.gov.cn
-    adapter: websearch
-    site: gov.cn
-    verified: false
-    queries:
-      - 数据出境安全评估办法
-      - 个人信息出境标准合同
-      - 应当在境内存储
-      - 服务器 设在境内
-      - 个人信息 保存期限
-    notes: >
-      Half the Round-2 China answer key is administrative measures and interim measures issued
-      by the State Council and the CAC, not NPC laws — the panel cites gov.cn and cac.gov.cn for
-      the ride-hailing, online-lending, credit-reporting and population-health measures.
+      DISCOVERY-ONLY, and listed SECOND on purpose. Search does reach the right national laws
+      here — a query for an obligation phrase returns /detail?id=<bbbs>&title=..., and that
+      title parameter decodes to the real Act name (PIPL). The bodies are the problem. The page
+      is a Vite SPA; its API (/law-search/search/flfgDetails?bbbs=<id>) returns title, tier
+      (flxz), promulgation and effect dates and an object-store path, but that path resolves
+      through a signed OFD reader whose file host is an INTERNAL address, and the API's own
+      permission block returns "download": 0. That is the operator stating the documents are
+      not to be downloaded, so we do not engineer around it. What IS reachable are the
+      provincial regulations mirrored on wb.flk.npc.gov.cn (/dfxfg/ PDF and WORD), which
+      extract correctly but are the wrong TIER for RDTII's national indicators.
 
   - economy: IN
     name: India Code (Central Acts)
@@ -165,6 +177,12 @@ sources:
     adapter: websearch
     site: indiacode.nic.in
     verified: false
+    reachable: "2026-08-21: HTTP 200 but only 249 chars of text in the body — JS shell"
+    note: >-
+      Answers, and answers with nothing: the statute list is rendered client-side, so a plain
+      fetch returns an application shell. This is the Australia failure mode again (an Angular
+      SPA whose full text is JS-gated), and it is why "portal returns 200" is not the same
+      claim as "portal is usable". Needs the browser lane or the site's own JSON endpoint.
     notes: >
       Indian statutes are enacted and published in ENGLISH, so this lane needs no native query
       pack — the generated English obligation phrases apply unchanged, and the numbered
@@ -191,6 +209,18 @@ sources:
     adapter: websearch
     site: legalinfo.mn
     verified: false
+    reachable: "2026-08-21: HTTP 200, server-rendered HTML, UTF-8, 12.4k Cyrillic characters
+      on a law detail page, ZERO pdf links, ZERO U+1800-18AF"
+    document_format: html
+    ocr_required: false
+    note: >-
+      MEASURED, because "Mongolia has no OCR engine" was being read as "Mongolia cannot be
+      processed" and the two are unrelated. legalinfo.mn serves statute text as HTML in the
+      response body — not a JS shell, not a PDF wrapper — so OCR is NOT on the critical path
+      for Mongolia at all. Vertical Mongol Bichig (U+1800-18AF), which no engine reads, did
+      not appear at all. OCR only becomes load-bearing if a scanned amendment is published as
+      an image, and for that case the vision fallback now exists rather than a dead end —
+      which is the difference between an admitted gap and an unhandled one.
     queries:
       - хувь хүний мэдээлэл хамгаалах
       - мэдээлэл дамжуулахыг хориглоно
@@ -221,6 +251,105 @@ sources:
 #
 #   remit: data_protection  -> the authority's whole output is in scope; take every document
 #   remit: sectoral         -> broad-remit body; require the P6/P7 subject vocabulary
+  # ── the remaining six of the live-test nine ────────────────────────────────────────
+  # Added so that "be ready for any of the nine" is a claim the code can start acting on.
+  # ALL marked verified: false — a portal is verified only once a build has produced provisions
+  # from it, and none of these has. tools/probe_portals.py reports which way each one fails.
+  - economy: TH
+    name: Office of the Council of State (Thai law library)
+    base_url: https://www.krisdika.go.th
+    adapter: websearch
+    verified: false
+    reachable: "2026-08-21: TLS fixed (self-signed cert, see fetch._TLS_RELAXED_HOSTS); handshake now succeeds but /, /th/ and /web/guest/law all 404 — the document path is still unknown"
+    note: >-
+      Thai statutes are published as PDF, frequently scanned. The English translations on the
+      same site are unofficial, so the AUTHORITATIVE text is Thai — which is what the Verbatim
+      Snippet column has to carry, and what Language of Source has to say.
+  - economy: TH
+    name: Royal Thai Government Gazette
+    base_url: https://ratchakitcha.soc.go.th
+    adapter: websearch
+    verified: false
+    reachable: "2026-08-21: 403 to BOTH plain urllib and the browser lane — genuinely WAF-blocked, unlike vbpl.vn and bpk.go.id which the browser lane cleared"
+    note: The gazette of record; scanned PDFs dominate, so this is the OCR-heavy lane.
+  - economy: VN
+    name: National Legal Normative Document Database (Ministry of Justice)
+    base_url: https://vbpl.vn
+    adapter: websearch
+    verified: false
+    reachable: "2026-08-21: plain urllib 403 (WAF); browser lane HTTP 200 — reachable through scrapling, which is the default fetcher"
+    note: >-
+      Viet Nam publishes consolidated text as HTML and .doc. The .doc lane already works
+      (ocr._word_to_text), which matters because Vietnamese OCR is the weakest link — no local
+      recognition model carries the precomposed tone forms.
+  - economy: ID
+    name: Database Peraturan JDIH BPK
+    base_url: https://peraturan.bpk.go.id
+    adapter: websearch
+    verified: false
+    robots_read: "2026-08-21"
+    reachable: "2026-08-21: plain urllib 403 (WAF); browser lane HTTP 200 — reachable through scrapling, which is the default fetcher"
+    note: >-
+      READ THE ROBOTS FILE BEFORE CHANGING THIS. It disallows nine NAMED agents — ClaudeBot,
+      GPTBot, CCBot, Bytespider, Amazonbot, Applebot-Extended, Google-Extended,
+      meta-externalagent, CloudflareBrowserRenderingCrawler — and grants the wildcard group
+      "Allow: /" with "Content-Signal: search=yes, ai-train=no, use=reference".
+      We had this host recorded as simply disallowed. That was too broad: the block names
+      Anthropic's WEB CRAWLER, which is not this pipeline. VeriTrade fetches as
+      VeriTrade-Research/0.2 (config.crawl_user_agent) and falls in the wildcard group, whose
+      signals it satisfies exactly — it references and cites provisions with their source URL,
+      and it trains no model on them. So the host is permitted to US and forbidden to a
+      general-purpose AI crawler, and the difference is the user agent we send. Two rules
+      follow and neither is optional: never fetch this host with an agent identifying as one of
+      the named crawlers, and never use its text for training.
+  - economy: ID
+    name: JDIH Nasional (aggregator)
+    base_url: https://jdihn.go.id
+    adapter: websearch
+    verified: false
+    reachable: "2026-08-21: no response in 20s — host did not resolve; may be the wrong name"
+    note: >-
+      Kept as the second Indonesian lane, but unproven: it did not answer at all. Since the BPK
+      host turns out to be permitted to us, this is a redundancy rather than the primary route.
+  - economy: KZ
+    name: Adilet — Legal Information System of Kazakhstan
+    base_url: https://adilet.zan.kz
+    adapter: websearch
+    verified: false
+    reachable: "2026-08-21: HTTP 200, 13.9k chars of server-rendered text, 18s"
+    robots_read: "2026-08-21"
+    note: >-
+      Reachable and NOT a JS shell — the only one of the six that answered plain HTTP first try.
+      robots.txt disallows the listing and search paths (/kaz|rus|eng/search/, /list/docs/,
+      /archive/, /origins/), so discovery must NOT enumerate through them; individual document
+      URLs are permitted. Serves Kazakh AND Russian editions of the same act under /kaz/ and
+      /rus/, and the Latin-alphabet transition means Kazakh itself appears in two orthographies.
+      Script detection must therefore run per document, never per economy.
+  - economy: LA
+    name: Lao Official Gazette
+    base_url: https://laoofficialgazette.gov.la
+    adapter: websearch
+    verified: false
+    reachable: "2026-08-21: URLError — host does not resolve; the Lao gazette URL still needs finding"
+    note: >-
+      Weakest coverage of the nine on every axis: scanned PDFs, no maintained Lao OCR model,
+      and legacy Lao fonts that map letters into upper-ASCII so even a text layer can be
+      mojibake. script_validity() is the only defence and it is advisory.
+  - economy: RU
+    name: Official Internet Portal of Legal Information
+    base_url: http://publication.pravo.gov.ru
+    adapter: websearch
+    verified: false
+    reachable: "2026-08-21: HTTP 200, 10.4k chars, 0.8s, no geo-block observed"
+    robots_read: "2026-08-21"
+    sitemap: http://publication.pravo.gov.ru/sitemap.xml
+    note: >-
+      Answered immediately, no geo-block. But robots.txt disallows /Search AND /File, and /File
+      is where the document bodies live — so the obvious route is the forbidden one. It offers a
+      sitemap instead, which is both permitted and a better discovery surface than search.
+      Build the RU lane on the sitemap. paddle lang "ru" reads the script (verified against the
+      model dictionary), so OCR is not the risk here; the access route is.
+
 regulators:
   SG:
     - host: www.pdpc.gov.sg          # Personal Data Protection Commission

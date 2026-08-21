@@ -86,8 +86,15 @@ def _fmt_for(content_type: str, url: str) -> tuple[DocFormat, str]:
         return DocFormat.PDF_TEXT, "pdf"        # extraction auto-detects scanned → OCR
     if "html" in ct or low.endswith((".html", ".htm")) or (ct == "" and "<" in low):
         return DocFormat.HTML, "html"
-    if "html" in ct:
-        return DocFormat.HTML, "html"
+    # China's National Laws database serves a large share of its statutes as WORD, not PDF,
+    # and returns them as application/octet-stream — so the content type says nothing and only
+    # the URL does. Without this they fell through to TEXT and were read as raw bytes: a .docx
+    # is a ZIP, so the "text" began "PK docProps/app.xml" and split into one junk provision.
+    # Kept on DocFormat.TEXT (routed by extension in ocr._extract_document_text) rather than
+    # adding an enum member, because DocFormat values are written into exports.
+    if low.endswith((".docx", ".doc")) or "wordprocessingml" in ct or "msword" in ct:
+        return DocFormat.TEXT, ("docx" if low.endswith(".docx") or "wordprocessingml" in ct
+                                else "doc")
     return DocFormat.TEXT, "txt"
 
 
@@ -128,7 +135,13 @@ def fetch_to_cache(url: str, log: Callable[[str], None] = print) -> FetchResult 
                               prior.get("content_type", ""), True)
             res = _maybe_resolve_embedded_pdf(url, res, idx, log)
             return _maybe_render_spa(url, res, idx, log)
-    for engine in _engine_order():
+    engines = _engine_order()
+    if _tls_relaxed(parsed.netloc):
+        # Scrapling verifies TLS through curl and cannot be told not to, so on a host with a
+        # known-expired certificate it burns three retries (~10s per document) before failing
+        # every time. Go straight to the engine that can actually complete the request.
+        engines = [e for e in engines if e != "scrapling"] or ["httpx"]
+    for engine in engines:
         res = (_scrapling_fetch(url, idx, log) if engine == "scrapling"
                else _httpx_fetch(url, idx, log))
         if res:
@@ -195,6 +208,35 @@ def _maybe_render_spa(url: str, res: "FetchResult", idx: dict, log) -> "FetchRes
     return res
 
 
+# Official portals whose TLS certificate is expired or misconfigured on their side.
+#
+# `wb.flk.npc.gov.cn` is the static document host of China's National Laws and Regulations
+# Database — every statute PDF and DOCX the search index points at lives there — and its
+# certificate has expired. Verifying it costs the entire economy: the fetch fails, discovery
+# still reports the documents, and the run produces "No provision found" for all of China.
+#
+# Relaxing verification is a deliberate, NARROW trade. It is defensible only because all four
+# of these hold, and it must not be widened without them:
+#   1. the documents are public statutes — nothing confidential is requested;
+#   2. no credential, cookie or token is ever sent to these hosts;
+#   3. the fetched bytes are content-hashed (SHA-256) and stored, so a substituted body is
+#      detectable after the fact rather than trusted blindly;
+#   4. the alternative is not "more secure", it is "this country cannot be processed".
+# It is an explicit host allowlist, never a global `verify=False`, and every use is logged.
+#
+# krisdika.go.th is the second entry, added 2026-08-21 for the same reason and under the same
+# four conditions. It is the Office of the Council of State — Thailand's own law library, and
+# the primary source for a live-test economy — and it serves a SELF-SIGNED certificate. Both
+# the plain client and the browser lane refuse it (curl error 60), so with verification on,
+# Thailand has no primary portal at all rather than a degraded one.
+_TLS_RELAXED_HOSTS = {"wb.flk.npc.gov.cn", "krisdika.go.th"}
+
+
+def _tls_relaxed(host: str) -> bool:
+    host = (host or "").lower().split(":")[0]
+    return any(host == h or host.endswith("." + h) for h in _TLS_RELAXED_HOSTS)
+
+
 def _httpx_fetch(url: str, idx: dict, log) -> FetchResult | None:
     """Fetch via httpx with conditional GET (ETag/Last-Modified → 304 reuse) and a byte cap."""
     try:
@@ -213,9 +255,12 @@ def _httpx_fetch(url: str, idx: dict, log) -> FetchResult | None:
                 cond["If-Modified-Since"] = prior["last_modified"]
 
     _polite_wait(host)
+    verify = not _tls_relaxed(host)
+    if not verify:
+        log(f"[fetch] TLS verification relaxed for {host} (see fetch._TLS_RELAXED_HOSTS)")
     try:
         with httpx.Client(timeout=settings.crawl_timeout_seconds, headers=_headers(cond),
-                          follow_redirects=True) as client:
+                          follow_redirects=True, verify=verify) as client:
             with client.stream("GET", url) as resp:
                 if resp.status_code == 304 and prior:        # unchanged → reuse cache
                     cached_path = settings.cache_path / prior["file"]
