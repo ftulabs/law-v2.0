@@ -4,7 +4,8 @@ Discovery (Zone 1a) yields URLs; this module downloads the actual law text/PDF s
 extraction has something to read. It is the piece that closes the live-crawl loop.
 
 Design goals — be a good citizen AND be cheap to re-run:
-  • polite        — one User-Agent, a per-host delay between requests
+  • polite        — robots.txt is CHECKED (pipeline/robots.py), one User-Agent, and a
+                    per-host delay that yields to a larger Crawl-delay the host asks for
   • incremental   — conditional GET (ETag / Last-Modified); a 304 reuses the cache
   • content-addressed — files are named by SHA-256, so identical bodies dedupe for free
   • bounded       — a hard byte cap refuses to pull a 500 MB consolidated PDF
@@ -25,6 +26,7 @@ from urllib.parse import urlparse
 
 from ..config import settings
 from ..schemas import DocFormat
+from . import robots
 
 _INDEX_NAME = "_index.json"
 _last_request: dict[str, float] = {}   # host → monotonic timestamp of last hit (politeness)
@@ -57,8 +59,14 @@ def _save_index(idx: dict) -> None:
     _index_file().write_text(json.dumps(idx, indent=2, sort_keys=True), encoding="utf-8")
 
 
-def _polite_wait(host: str) -> None:
+def _polite_wait(host: str, url: str | None = None) -> None:
+    """Space requests to one host. A `Crawl-delay` the host itself asks for WINS over our
+    default whenever it is larger — our setting is a floor on politeness, not a ceiling."""
     delay = settings.crawl_delay_seconds
+    if url and settings.crawl_respect_robots:
+        asked = robots.for_url(url).delay_for()
+        if asked and asked > delay:
+            delay = asked
     last = _last_request.get(host)
     if last is not None:
         elapsed = time.monotonic() - last
@@ -124,6 +132,16 @@ def fetch_to_cache(url: str, log: Callable[[str], None] = print) -> FetchResult 
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):
         return None
+
+    # robots.txt, BEFORE the cache check as well as before the network. A rule that appears
+    # after we already cached a body still governs whether we may use it, and on 15 October
+    # five tools read the same government sites within the same hour — the politeness claim
+    # in the README has to be true of the code, not of our intentions.
+    ok, why = robots.allowed(url)
+    if not ok:
+        log(f"[fetch] SKIPPED by robots.txt: {url} ({why})")
+        return None
+
     idx = _load_index()
     # TTL: a recently-fetched body is reused without any network round-trip
     prior = idx.get(url)
@@ -254,7 +272,7 @@ def _httpx_fetch(url: str, idx: dict, log) -> FetchResult | None:
             if prior.get("last_modified"):
                 cond["If-Modified-Since"] = prior["last_modified"]
 
-    _polite_wait(host)
+    _polite_wait(host, url)
     verify = not _tls_relaxed(host)
     if not verify:
         log(f"[fetch] TLS verification relaxed for {host} (see fetch._TLS_RELAXED_HOSTS)")
@@ -328,7 +346,7 @@ def _scrapling_fetch(url: str, idx: dict, log) -> FetchResult | None:
         return None
     if not scrapling_fetch.available():
         return None
-    _polite_wait(urlparse(url).netloc)
+    _polite_wait(urlparse(url).netloc, url)
     res = scrapling_fetch.fetch(url, log=log)
     if not res:
         return None

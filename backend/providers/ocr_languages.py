@@ -109,8 +109,10 @@ PROFILES: dict[str, LangProfile] = {
         preferred=(RAPIDOCR, PADDLE, TESSERACT, AZURE, VLM), validated=True,
         note=("Lowest script risk of the nine: Bahasa Indonesia is written in unaccented ASCII "
               "Latin, so the Round-1 extraction path applies unchanged. The obstacle here is "
-              "ACCESS, not reading — peraturan.bpk.go.id disallows our crawler in robots.txt, "
-              "and we comply. Discovery for Indonesia must go through a permitted host."),
+              "ACCESS, not reading — peraturan.bpk.go.id sits behind a WAF that 403s a plain "
+              "client (the browser lane clears it). It does NOT disallow us: its robots.txt "
+              "blocks nine named AI crawlers and grants the wildcard group, which is where "
+              "VeriTrade-Research/0.2 falls. See data/sources.yaml and pipeline/robots.py."),
         unicode_ranges=((0x0020, 0x024F),),
 
         language="Indonesian",

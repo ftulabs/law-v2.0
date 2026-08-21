@@ -96,6 +96,22 @@ def blocker(code: str, portals: list[dict], lvl: str) -> str:
     return reasons[0][:70]
 
 
+def _primary(portals: list[dict]) -> str:
+    """The portal a reader should think of as THE source for this economy.
+
+    Not simply the first in the file: an economy can list a regulator's site alongside the
+    statute book, and Malaysia lists the data-protection department first. A dedicated
+    adapter (an API or the portal's own catalogue) is the strongest signal that a host is the
+    primary law source, since nobody writes one for a secondary site.
+    """
+    if not portals:
+        return "—"
+    ranked = sorted(portals, key=lambda p: (p.get("adapter", "websearch") == "websearch",
+                                            not p.get("verified")))
+    host = ranked[0]["base_url"].replace("https://", "").replace("http://", "").rstrip("/")
+    return f"{host} (+{len(portals) - 1})" if len(portals) > 1 else host
+
+
 def rows() -> list[dict]:
     src = _sources()
     order = list(LIVE_TEST_NINE) + [c for c in ROUND1_ECONOMIES]
@@ -111,8 +127,7 @@ def rows() -> list[dict]:
             "nine": code in LIVE_TEST_NINE,
             "language": prof.language_of_source,
             "lane": prof.lane,
-            "portal": portals[0]["base_url"].replace("https://", "").replace("http://", "")
-                      if portals else "—",
+            "portal": _primary(portals),
             "portals": len(portals),
             "ocr": "—" if isinstance(engine, UnavailableOCR) else engine.name,
             "reranker": prof.reranker.value or "off",
