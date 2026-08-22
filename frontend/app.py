@@ -1016,7 +1016,10 @@ if run_clicked and pillars:
                 Economy(economy), pillars, use_samples=use_samples, top_k=top_k, log=log,
                 ocr_provider=ocr_choice, llm_provider=llm_choice,
                 llm_model=llm_model or None, llm_api_key=llm_key or None,
-                scoring_enabled=scoring_on, use_result_cache=not fresh_run)
+                scoring_enabled=scoring_on, use_result_cache=not fresh_run,
+                # The live test's second pass: the same documents, a different engine, and no
+                # portal contacted. `must be 0` in the organisers' own comparison table.
+                reuse_documents=st.session_state.get("lt_reuse"))
         except Exception as e:  # noqa: BLE001 — surfaced in the main thread below
             outcome["error"] = e
 
@@ -1075,6 +1078,7 @@ if run_clicked and pillars:
     # A live-test run belongs to an engine slot, not to the results screen. File it and go
     # back to the checklist — leaving the operator in the ordinary results view mid-hour is
     # how a step gets skipped.
+    st.session_state.pop("lt_reuse", None)
     _slot = st.session_state.pop("lt_pending", None)
     if _slot:
         livetest.capture(st.session_state["livetest"], _slot, result,

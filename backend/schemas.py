@@ -295,6 +295,13 @@ class RunMeta(BaseModel):
     finished_at: Optional[str] = None
     processing_time_seconds: float = 0.0
     docs_discovered: int = 0
+    # How many bodies this pass pulled over the network. The live-test template requires a
+    # second pass to report ZERO here, so it is measured rather than inferred from
+    # docs_discovered — a cache hit is a discovery but not a fetch.
+    docs_fetched: int = 0
+    # The exact documents this pass worked on, so a second pass can be handed the same set
+    # instead of crawling again and hoping the portal answers identically.
+    documents: list[DiscoveredDoc] = Field(default_factory=list)
     provisions_extracted: int = 0
     mappings_produced: int = 0
     ocr_provider: str = "mock"

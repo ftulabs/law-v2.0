@@ -69,16 +69,31 @@ def _notes(m: EvidenceMapping) -> str:
     return "  ".join(parts)
 
 
+def csv_text(mappings: list[EvidenceMapping], submission_only: bool = True) -> str:
+    """The submission CSV as a string, for a caller that has nowhere to put a file.
+
+    The browser is one such caller: during the live test the operator downloads the evidence
+    from the interface, and routing that through a path on the server's disk would hand them
+    whatever the server happened to write last rather than the run in front of them.
+    """
+    import io                                                          # noqa: PLC0415
+
+    rows = [m for m in mappings
+            if (not submission_only or m.review_status.value in SUBMITTABLE_STATUSES)]
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=SUBMISSION_COLUMNS, quoting=csv.QUOTE_ALL,
+                            lineterminator="\r\n")
+    writer.writeheader()
+    for m in rows:
+        writer.writerow(_row(m))
+    return buf.getvalue()
+
+
 def export_csv(mappings: list[EvidenceMapping], run_id: str, out_dir: Path | None = None,
                submission_only: bool = True, out_stem: str | None = None) -> Path:
     out_dir = out_dir or settings.output_path
-    rows = [m for m in mappings if (not submission_only or m.review_status.value in SUBMITTABLE_STATUSES)]
     path = Path(out_dir) / f"{out_stem or ('veritrade_' + run_id)}.csv"
-    with path.open("w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=SUBMISSION_COLUMNS, quoting=csv.QUOTE_ALL)
-        writer.writeheader()
-        for m in rows:
-            writer.writerow(_row(m))
+    path.write_text(csv_text(mappings, submission_only), encoding="utf-8-sig", newline="")
     return path
 
 

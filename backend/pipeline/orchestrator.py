@@ -192,7 +192,17 @@ def run_pipeline(
     pdf_path: str | None = None,
     scoring_enabled: bool | None = None,
     use_result_cache: bool = True,
+    reuse_documents: list | None = None,
 ) -> RunResult:
+    """Run the pipeline end to end.
+
+    `reuse_documents` is the second pass. Given the document list from an earlier run it skips
+    discovery and fetching entirely and re-reads those exact bodies from the cache, which is
+    what the live-test template means by "documents fetched during this pass: must be 0". It is
+    also the only way an engine comparison is honest: two live crawls minutes apart can differ
+    in what the portal served, so without it a difference between engines could just as easily
+    be a difference in the weather.
+    """
     run_id = "run-" + uuid.uuid4().hex[:8]
     t0 = time.perf_counter()
     started = _now()
@@ -226,7 +236,18 @@ def run_pipeline(
     # discover across all requested pillars (union) — or use a single provided file
     _t = time.perf_counter()
     seen, docs = set(), []
-    if pdf_path:
+    if reuse_documents is not None:
+        docs = list(reuse_documents)
+        missing = [d for d in docs if not d.local_path]
+        log(f"[discovery] second pass — reusing {len(docs)} documents from the first, "
+            f"no portal was contacted")
+        if missing:
+            # Say it rather than silently reading fewer documents than the first pass did:
+            # a second pass over a smaller set is not a comparison.
+            log(f"[discovery] {len(missing)} of them have no cached body and will be skipped: "
+                + ", ".join(d.title[:40] for d in missing[:3]))
+            docs = [d for d in docs if d.local_path]
+    elif pdf_path:
         log(f"[discovery] single file (crawler bypassed): {pdf_path}")
         docs = [discovery.doc_from_file(economy, pdf_path)]
     else:
@@ -241,10 +262,10 @@ def run_pipeline(
 
     # Zone 1b — fetch bodies for live-discovered docs (sample/file docs already have a path)
     _t = time.perf_counter()
-    if not use_samples and not pdf_path:
+    fetched = 0
+    if not use_samples and not pdf_path and reuse_documents is None:
         from .fetch import fetch_to_cache
         from .discovery import _resolve_pdf_url
-        fetched = 0
         kept, by_content = [], {}   # sha256 -> doc already kept
         for d in docs:
             if d.local_path:
@@ -426,6 +447,8 @@ def run_pipeline(
         finished_at=_now(),
         processing_time_seconds=elapsed,
         docs_discovered=len(docs),
+        docs_fetched=fetched,
+        documents=docs,
         provisions_extracted=len(provisions),
         mappings_produced=len(mappings),
         ocr_provider=ocr.name,

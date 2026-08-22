@@ -49,6 +49,17 @@ class Settings(BaseSettings):
     # by ~0.05, so the ranking gap between second and fourth is inside the noise and only the
     # first place is a firm result.
     openrouter_model: str = "mistralai/mistral-small-3.2-24b-instruct"
+
+    # ── the two declared engines (C4b, re-tested live as C5b) ─────────────────────────
+    # Declared in Section 5 of the 30 September submission and frozen from that moment. They
+    # live here rather than only in the README so the live-test screen, the run record and the
+    # documentation cannot disagree about what was declared — and so a reviewer can see the
+    # declaration in the configuration the tool actually reads.
+    # At least one must be OPEN WEIGHT; engine B is, and is self-hostable on a single GPU.
+    declared_engine_a_provider: str = "openrouter"
+    declared_engine_a_model: str = "openai/gpt-4o-mini"                 # commercial, hosted
+    declared_engine_b_provider: str = "openrouter"
+    declared_engine_b_model: str = "mistralai/mistral-small-3.2-24b-instruct"   # open weights
     # Cap completion tokens. Two constraints pull in opposite directions:
     #   • a cap keeps OpenRouter's per-request credit pre-authorisation small — with NO cap,
     #     16-way concurrent calls can 402 (pre-auth exceeds balance) even on a funded key;

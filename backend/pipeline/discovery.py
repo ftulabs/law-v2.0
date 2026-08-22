@@ -1189,8 +1189,27 @@ def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | N
                 # language. AU and MY index English titles and are happy with the generated
                 # queries; legalinfo.mn indexes Mongolian ones and answered every English
                 # query with zero — not an error, just an empty run for the whole economy.
-                for q in (_source_queries(src, pillar) or queries):
-                    for d in searcher(client, src, q, economy, indicators, log=print):
+                # ROUND-ROBIN across queries, not first-query-wins. The budget used to be
+                # checked after each query and broken out of, which is fine when a query
+                # returns a handful — AU and MY do — and silently fatal when one returns a
+                # lot. India Code answered 'personal data protection' with 46 sections, the
+                # cap tripped on the first query, and the run NEVER searched for retention,
+                # government access or cybersecurity. Its pillar-7 output was 17 sections of
+                # one Act. Every query now gets its top hits before any query gets its tail.
+                terms = _source_queries(src, pillar) or queries
+                buckets: list[list[DiscoveredDoc]] = []
+                for q in terms:
+                    try:
+                        buckets.append(list(searcher(client, src, q, economy, indicators,
+                                                     log=print)))
+                    except Exception as exc:            # noqa: BLE001 — one dead query is not fatal
+                        print(f"[discovery] {src.get('name', '?')} failed on {q!r}: "
+                              f"{type(exc).__name__}: {exc}")
+                for rank in range(max((len(b) for b in buckets), default=0)):
+                    for bucket in buckets:
+                        if rank >= len(bucket):
+                            continue
+                        d = bucket[rank]
                         prev = by_url.get(d.source_url)
                         if prev is None or d.relevance_score > prev.relevance_score:
                             by_url[d.source_url] = d
