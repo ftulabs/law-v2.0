@@ -12,62 +12,46 @@ Regulatory Analysis, 2026 — **Final round**.
 
 ## Technical memo
 
-**Problem.** RDTII 2.1 asks, for an economy and a regulatory pillar, *which provisions of which
-laws satisfy which indicators, and where exactly are they*. Doing it by hand means reading a
-national statute book in its own language and citing to the paragraph. The scored constraint is
-that nobody tells the tool where to look: **no seed URLs, no hardcoded law names.**
-`data/sources.yaml` names *portals*, never statutes.
+**The question.** *Given an economy and a regulatory pillar, which provisions of which laws
+satisfy which RDTII indicators — and where exactly are they?* By hand that means reading a
+national statute book in its own language and citing to the paragraph.
 
-**System.** Two zones over one audit store. **Zone 1** discovers laws on the official portal —
-by its JSON API, its own catalogue, its sitemap, or site-scoped search — checks robots.txt,
-then fetches into a content-addressed cache. **Zone 2** decides text-layer versus scanned,
-routes to OCR with a measured CER, splits into verbatim article chunks, retrieves candidates
-with BM25 + multilingual dense embeddings, and has an LLM grade each provision against the
-indicator's legal test *with all sibling indicators in view*. Every stage persists to SQLite,
-so any export is reconstructable.
-
-```
-  economy + pillar
-        │
-        ▼   ZONE 1 · discovery
-   portal catalogue / API / sitemap / site-scoped search   ── no seed URLs
-        │  robots.txt checked before the network AND before the cache
-        ▼
-   cache/  ── content-addressed by SHA-256 ── the fetch/read seam
-        │        (everything above touches the network; nothing below does)
-        ▼   ZONE 2 · read
-   text layer → pdfplumber/MarkItDown  │  scanned → RapidOCR/Paddle/VLM (CER measured)
-   split into article chunks, verbatim, per-economy boundaries
-        │
-        ▼   ZONE 2 · map
-   BM25 + dense + optional rerank  →  LLM grades provision × indicator
-   confidence = 4 signals  →  ≥0.85 accept · 0.60–0.85 review · <0.60 quarantine
-        │
-        ▼
-   14-column CSV · JSON trace · SQLite audit log
+```mermaid
+flowchart LR
+    A["economy<br/>+ pillar"] --> B["find the laws"] --> C["download"]
+    C --> D[("cache")] --> E["read the text"] --> F["split into<br/>articles"]
+    F --> G["match to<br/>indicators"] --> H["score<br/>confidence"] --> I["CSV"]
+    H -. "low score" .-> J["human review"] -.-> I
+    style D fill:#eef,stroke:#88a
 ```
 
-**Engines are chosen per economy, with a reason and an evidence grade.** The registry states
-what an engine family supports; the factory resolves against what is *installed* and substitutes
-rather than running a recogniser whose dictionary cannot spell the script — a failure that
-produces fluent text with letters missing and raises nothing. `measured` / `documented` /
-`assumed` is recorded per choice, so a preference nobody can justify is one we do not ship.
-`python -m backend.providers.engine_profile` prints it.
+Three things in that line are the whole design.
 
-**Language is not script.** Script decides tokenisation; *language* decides whether the English
-cross-encoder runs at all. Viet Nam and Indonesia write in Latin letters and still need the
-non-English lane, because an off-language reranker is fused into the ranking at the same weight
-as BM25 and makes the result worse rather than merely failing to help.
+| | |
+| :--- | :--- |
+| **"find the laws"** | takes only the economy and the pillar. No seed URL, no law name. |
+| **cache** | everything left of it uses the network; nothing right of it does. So a second run costs nothing and fetches nothing. |
+| **"match to indicators"** | the model sees the indicator's legal test *and every sibling indicator*, so it must choose, not merely agree. |
 
-**Accuracy is auditable, not asserted.** The Verbatim Snippet column *is* the statute's own
-text: carried unchanged from extraction to CSV, never summarised, never translated — the
-grading prompt is English and requires English *output* while passing the snippet through
-untouched, because a translated citation is a false citation. Snippets are substring-verified
-against the stored source text. Confidence is a transparent weighted blend stored on every row.
+**Every engine choice carries a reason.** Each economy resolves to a named OCR engine,
+reranker and model, each tagged `measured` / `documented` / `assumed`, so a preference nobody
+can justify is one we do not ship. `python -m backend.providers.engine_profile` prints it. The
+registry says what an engine *supports*; the factory checks what is *installed* and substitutes
+rather than running a recogniser whose dictionary cannot spell the script — which yields fluent
+text with letters missing and raises nothing.
 
-**Cost.** OCR, embedding and retrieval run locally at $0. Only the grading LLM and the optional
-search API cost money: **~$0.012 per document** on the current default, **$0.00** with the
-open-weights swap. See [Measured Cost](#measured-cost).
+**Language and script are different questions.** Script decides how text is tokenised; language
+decides whether the English reranker runs at all. Viet Nam and Indonesia use Latin letters and
+still need the non-English lane.
+
+**The quote is never rewritten.** The Verbatim Snippet column *is* the statute's own text —
+carried unchanged from extraction to CSV, and substring-verified against the stored source. The
+grading prompt is English and demands English *output*, but passes the snippet through
+untouched: a translated citation is a false citation.
+
+**Cost.** OCR, embedding and retrieval run locally at $0. Only the grading model and the
+optional search API cost anything — **~$0.012 per document**, or **$0.00** on the open-weights
+swap. See [Measured Cost](#measured-cost).
 
 ---
 
