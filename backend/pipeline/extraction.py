@@ -97,6 +97,12 @@ _STRUCT_RE_MN = re.compile(
     r"(?im)^[ 	]*("
     r"(?:\d{1,3}|(?:[А-ЯӨҮЁа-яөүё]+[ 	]+){0,1}[А-ЯӨҮЁа-яөүё]+)"
     r"[ 	]*(?:д[үу]г[эа]{0,2}р|дэх|дахь)[ 	]+з[үу]йл)(?![а-яөүё])")
+# Mongolian SUBORDINATE legislation numbers its clauses "1.1.", "2.3." at the head of a
+# line, with no зүйл anywhere. Two digits at most on each side: "1.1." is a clause,
+# "2016.05.12" is a date and "125-131" a cross-reference, and both start lines in these
+# documents. The trailing dot is required for the same reason.
+_CLAUSE_RE_MN = re.compile(r"(?m)^[ 	]*(\d{1,2}\.\d{1,2})\.[ 	]+(?=[^\d])")
+
 _APP_HEADING_RE = re.compile(
     r"^\s*(?:\d{1,3}[A-Za-z]{0,2}\s+)?Australian Privacy Principle\s+(\d+[A-Za-z]?)\b", re.I)
 _DOTTED_TOC_RE = re.compile(r"(?m)^.*\.{4,}.*$")        # a table-of-contents dotted-leader line
@@ -574,11 +580,27 @@ def _boundaries(text: str, economy=None) -> list[tuple]:
     elif economy == Economy.MN:
         out = [(m.start(), m.end(), m.group(1), False) for m in _STRUCT_RE_MN.finditer(text)]
         if len(out) < 3:
-            # An English translation, or an instrument drafted without зүйл headings. The
-            # fallback only wins if it actually finds MORE — a short Mongolian instrument with
-            # two real articles must not be thrown away for a Latin regex that matches nothing.
-            alt = [(m.start(), m.end(), m.group(2) or m.group(1), bool(m.group(1)))
-                   for m in SECTION_RE.finditer(text)]
+            # No зүйл headings. Two things it can be, and they need different patterns.
+            #
+            # SUBORDINATE LEGISLATION. Only a Mongolian LAW numbers its articles "N дүгээр
+            # зүйл". A журам, дүрэм or заавар — the rules, charters and instructions a ministry
+            # makes under one — heads its chapters "Нэг.", "Хоёр." and numbers every clause
+            # "1.1.", "2.3.". They are a large part of legalinfo.mn and the panel's own key
+            # cites one for Mongolia's 6.3, so treating them as unstructured is not a corner
+            # case. Without this each collapsed into a SINGLE provision: a pillar-6 run
+            # returned 17 documents and 49 provisions, of which 32 were one Act and the other
+            # sixteen documents contributed one apiece.
+            #
+            # This pattern is only ever reached when the зүйл pattern found nothing, and that
+            # guard is load-bearing: inside a LAW, "14.1" is a sub-clause of article 14, and
+            # splitting on it would shatter every article into fragments and destroy the
+            # surrounding context the grader reads.
+            alt = [(m.start(), m.end(), m.group(1), False)
+                   for m in _CLAUSE_RE_MN.finditer(text)]
+            if len(alt) < 3:
+                # An English translation ("Article 1."), or something with no numbering at all.
+                alt = [(m.start(), m.end(), m.group(2) or m.group(1), bool(m.group(1)))
+                       for m in SECTION_RE.finditer(text)]
             if len(alt) > len(out):
                 out = alt
     elif economy in (Economy.SG, Economy.MY, Economy.IN):

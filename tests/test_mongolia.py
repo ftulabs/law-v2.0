@@ -113,3 +113,46 @@ def test_the_source_url_is_the_page_a_reviewer_can_open_not_the_post_export():
     assert doc.source_url == "https://legalinfo.mn/mn/detail?lawId=16390288615991"
     assert "downloadFile" not in doc.source_url
     assert doc.law_name == "Хувь хүний мэдээлэл хамгаалах тухай"
+
+
+# ── subordinate legislation is numbered differently from a law ────────────────────────
+JURAM = """Гааль, татварын ерөнхий газрын даргын 2016 оны А/41 дугаар тушаалын хавсралт
+БАРААГ ХИЛИЙН ЧАНАДАД БОЛОВСРУУЛАХ ГОРИМ ХЭРЭГЖҮҮЛЭХ ЖУРАМ
+Нэг. Нийтлэг үндэслэл
+1.1. Энэ журмаар горим хэрэгжүүлэхтэй холбогдсон харилцааг зохицуулна.
+1.2. Горим сонгох, бичиг баримт бүрдүүлэхтэй холбогдсон харилцааг энэ журмаар зохицуулна.
+1.3. Горимд байршуулсан барааг өөр зориулалтаар ашиглахыг хориглоно.
+Хоёр. Горимд байршуулах бараа
+2.1. Горимд гаалийн тухай хуульд заасан бараа хамаарна.
+2.2. Энэ журмын 2.1-д заасан бараа нь хязгаарлалтад хамаарахгүй.
+"""
+
+
+def test_a_ministerial_rule_is_split_by_its_clause_numbers():
+    """Only a LAW numbers its articles "N дүгээр зүйл". A журам — the rules a ministry makes
+    under one — heads chapters "Нэг." and numbers clauses "1.1.", "2.1.". Without this every
+    one of them collapsed into a single provision: a pillar-6 run returned 17 documents and 49
+    provisions, of which 32 were one Act and sixteen documents contributed one apiece."""
+    assert len(_boundaries(JURAM, Economy.MN)) >= 5
+
+
+def test_clause_numbers_inside_a_LAW_are_not_boundaries():
+    """The guard that makes the above safe. Inside an Act, "14.1" is a sub-clause of article
+    14; splitting on it would shatter every article and destroy the context the grader reads.
+    The clause pattern is only reached when no зүйл heading was found at all."""
+    law = ("14 дүгээр зүйл. Мэдээллийг гадаад улс дахь этгээдэд дамжуулах\n"
+           "14.1. Хууль болон олон улсын гэрээнд зааснаас бусад тохиолдолд хориглоно.\n"
+           "14.2. Мэдээллийн эзэн зөвшөөрөл өгсөн бол дамжуулж болно.\n"
+           "15 дугаар зүйл. Мэдээлэл хамгаалах\n"
+           "15.1. Мэдээлэл хариуцагч хамгаалалтын арга хэмжээ авна.\n"
+           "16 дугаар зүйл. Хяналт\n16.1. Хяналтыг эрх бүхий байгууллага хэрэгжүүлнэ.\n")
+    labels = [b[2] for b in _boundaries(law, Economy.MN)]
+    assert labels == ["14 дүгээр зүйл", "15 дугаар зүйл", "16 дугаар зүйл"]
+
+
+def test_a_date_or_a_range_at_the_head_of_a_line_is_not_a_clause():
+    """"2016.05.12" and "125-131" both start lines in these documents."""
+    from backend.pipeline.extraction import _CLAUSE_RE_MN
+    assert not _CLAUSE_RE_MN.search("2016.05.12 өдрийн тушаал")
+    assert not _CLAUSE_RE_MN.search("125-131 дүгээр зүйл")
+    assert _CLAUSE_RE_MN.search("1.1. Энэ журмаар зохицуулна")

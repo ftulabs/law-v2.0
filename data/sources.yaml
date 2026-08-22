@@ -257,27 +257,42 @@ sources:
       Mongolian title, which is the only place a title is available without running JavaScript.
     document_format: html      # the ".doc" export is Word-flavoured HTML, not a binary
     ocr_required: false        # measured — there is no image layer anywhere on this route
+    # Counts are the number of TITLES in data/catalogues/MN_titles.json each term matches,
+    # measured — not guessed. Anything in the hundreds is a term that will bury the statute
+    # under its own implementing paperwork even with MN_MAX_PER_QUERY.
     queries_p6:
-      - хүний хувийн мэдээлэл
-      - мэдээлэл хамгаалах
-      - хилийн чанад
-      - мэдээлэл дамжуулах
+      - хүний хувийн мэдээлэл      # 2 — the Personal Data Protection Law and its amendment
+      - мэдээлэл хамгаалах         # 3
+      - нийтийн мэдээлэл           # 2 — Transparency of Public Information (the key's 6.3)
+    # `мэдээллийн аюулгүй` (information security) is a PILLAR-7 concept and is listed only
+    # there. In the pillar-6 set it pulled in a drug-safety information report and a civil
+    # aviation confidentiality rule — 200-word approving resolutions that are neither about
+    # cross-border data nor, in any useful sense, about data at all.
     queries_p7:
-      - хүний хувийн мэдээлэл
-      - мэдээлэл хамгаалах
-      - кибер аюулгүй
-      - мэдээллийн аюулгүй
-      - нийтийн мэдээлэл
-      - цахим гарын
-      - төрийн нууц
-      - харилцаа холбооны тухай
-      - банкны тухай
+      - хүний хувийн мэдээлэл      # 2
+      - мэдээлэл хамгаалах         # 3
+      - кибер аюулгүй              # 6 — Кибер аюулгүй байдлын тухай (the key's 7.2)
+      - мэдээллийн аюулгүй         # 15
+      - нийтийн мэдээлэл           # 2
+      - цахим гарын                # 10 — Electronic Signature Law
+      - төрийн нууц                # 37 — State Secrets (7.5)
+      - архивын                    # 77 — Law on Archives (retention, 7.3)
+      - харилцаа холбооны тухай    # 53 — Communications Law (the key's 7.3, sectoral)
+      - банкны тухай               # 193 — Banking Law (the key's 7.5); the broadest term here
     note: >-
       Discovery is the sitemap; titles come from data/catalogues/MN_titles.json, built once by
       tools/build_mn_catalogue.py because legalinfo.mn's listing pages render their rows in the
       browser and no server-rendered index carries a title. That file is a TABLE OF CONTENTS —
       id, title, byte size — with no provision text, no indicator and no mapping; bodies are
       fetched live on every run. Same arrangement Malaysia already uses.
+      REMOVED, and the reason is worth keeping: `хилийн чанад` was in the pillar-6 set as
+      "abroad". It matches 21 titles and every one of them is a customs regulation about
+      processing GOODS abroad — "Барааг хилийн чанадад боловсруулах журам". A pillar-6 run
+      returned seventeen documents of which twelve were those. The word `хилийн` does not
+      appear even once in Mongolia's Personal Data Protection Law; its article 14 says
+      `гадаад улс дахь` ("in a foreign state"). A term chosen from a dictionary rather than
+      from the statute, and it cost the run its whole document set.
+
       Queries are Mongolian STEMS, not inflected forms: the language is agglutinative and each
       WORD of a query is matched as a substring of the title, so the stem "мэдээлэл" reaches
       "мэдээллийн" while the inflected "мэдээллийг" would reach nothing. Word-by-word rather
