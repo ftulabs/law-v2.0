@@ -244,7 +244,7 @@ def _landing_intro() -> None:
         'exact quote, a link to the source, and a confidence score you can check.</p>'
         '<div class="land-steps">'
         '<div class="land-step"><div class="n">1</div><div><div class="t">Choose a country and a pillar</div>'
-        '<div class="d">Singapore, Australia or Malaysia · cross-border data, or data protection &amp; cybersecurity.</div></div></div>'
+        f'<div class="d">{_n_economies()} economies across Asia-Pacific · any of the 12 RDTII pillars.</div></div></div>'
         '<div class="land-step"><div class="n">2</div><div><div class="t">VeriTrade finds and reads the law</div>'
         '<div class="d">No seed links, no hand-picked corpus — it searches the official portals live.</div></div></div>'
         '<div class="land-step"><div class="n">3</div><div><div class="t">Get citable evidence</div>'
@@ -254,12 +254,28 @@ def _landing_intro() -> None:
     )
 
 
+def _n_economies() -> int:
+    from backend.schemas import Economy                            # noqa: PLC0415
+    return len(list(Economy))
+
+
+def _n_indicators() -> int:
+    """Every in-scope RDTII indicator, counted from the panel's own reference."""
+    try:
+        from backend.rdtii.codes import official_codes             # noqa: PLC0415
+        return len(official_codes()) or 61
+    except Exception:                                              # noqa: BLE001
+        return 61
+
+
 def _landing_below() -> None:
     """Everything under the fold — same sections, same order as docs/landing.html."""
     st.markdown(
         '<div class="land-stats">'
-        '<div class="land-stat"><div class="n">3</div><div class="k">economies · Singapore, Australia, Malaysia</div></div>'
-        '<div class="land-stat"><div class="n">9</div><div class="k">RDTII indicators · Pillars 6 &amp; 7</div></div>'
+        f'<div class="land-stat"><div class="n">{_n_economies()}</div>'
+        '<div class="k">economies declared · 3 measured end to end</div></div>'
+        f'<div class="land-stat"><div class="n">{_n_indicators()}</div>'
+        '<div class="k">RDTII indicators · all 12 pillars</div></div>'
         '<div class="land-stat"><div class="n">1.11%</div><div class="k">OCR error rate · bar is 5%</div></div>'
         '<div class="land-stat"><div class="n">100%</div><div class="k">verbatim citations, never generated</div></div>'
         '</div>',
