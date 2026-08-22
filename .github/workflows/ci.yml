@@ -1,8 +1,8 @@
 name: VeriTrade CI
 
-# Installs the full stack (incl. Microsoft MarkItDown, the default OCR/extraction
-# engine) and smoke-tests the end-to-end pipeline so judges get a one-command,
-# reproducible environment.
+# Installs the full stack, runs the test suite, and smoke-tests the end-to-end pipeline,
+# so a reviewer gets a one-command reproducible environment. The default OCR engine is
+# RapidOCR (real raster OCR, pip-only); MarkItDown reads text layers only.
 
 on:
   push:
@@ -39,24 +39,40 @@ jobs:
       - name: Byte-compile all modules
         run: python -m compileall -q backend frontend
 
-      - name: Smoke-test pipeline (mock LLM, MarkItDown OCR) and validate CSV template
+      # The suite is what a reviewer runs first ("pytest tests/" is in the README), so CI has to
+      # run it too. It did not, which is how a schema change reached main four times with the
+      # smoke test red: the tests knew, and nothing asked them.
+      - name: Run the test suite
+        run: pytest tests/ -q
+
+      - name: Smoke-test pipeline (mock LLM, offline samples) and validate the CSV template
         run: |
           python -m backend.cli run-pipeline --economy SG --pillar 6 --pillar 7 --use-samples
           python - <<'PY'
-          import csv, glob
-          f = sorted(f for f in glob.glob("outputs/*.csv") if "_scored" not in f)[-1]
+          import csv, glob, json, os
+          # Import the column list rather than repeating it. A second copy of the schema is a
+          # copy that drifts: this step held the Round-1 thirteen and failed every build for a
+          # day after Language of Source was added, reporting a "header mismatch" for a header
+          # that was correct. tests/test_final_round.py is what pins the names themselves
+          # against the final-round template.
+          from backend.schemas import SUBMISSION_COLUMNS
+          # Newest by MTIME, not by name. On a clean runner outputs/ holds one file so the
+          # difference never shows, which is exactly why it survived: reproducing this step
+          # locally picked up a stale CSV from a previous run and reported a header mismatch
+          # that did not exist.
+          cands = [f for f in glob.glob("outputs/*.csv") if "_scored" not in f]
+          f = max(cands, key=os.path.getmtime)
           rows = list(csv.reader(open(f, encoding="utf-8-sig")))
-          official = ["Economy","Law Name","Law Number / Ref","Last Amended","Indicator ID",
-                      "Article / Section","Discovery Tag","Location Reference","Verbatim Snippet",
-                      "Mapping Rationale","Source URL","Confidence","Notes"]
-          assert rows[0] == official, f"CSV header mismatch: {rows[0]}"
+          assert rows[0] == SUBMISSION_COLUMNS, (
+              f"CSV header does not match backend.schemas.SUBMISSION_COLUMNS\n"
+              f"  exported: {rows[0]}\n  expected: {SUBMISSION_COLUMNS}")
           assert len(rows) > 1, "no data rows produced"
-          # MarkItDown must have extracted the bundled scanned MAS PDF
-          import json
-          j = sorted(glob.glob("outputs/*.json"))[-1]
+          j = max(glob.glob("outputs/*.json"), key=os.path.getmtime)
           data = json.load(open(j, encoding="utf-8"))
           used = {m["ocr_quality"]["provider"] for m in data["mappings"] if m["ocr_quality"]["used"]}
-          print("OCR providers used:", used, "| rows:", len(rows)-1)
+          langs = {r[SUBMISSION_COLUMNS.index("Language of Source")] for r in rows[1:]}
+          print(f"columns: {len(rows[0])} | rows: {len(rows)-1} | OCR: {used or 'none'} "
+                f"| Language of Source: {sorted(langs)}")
           print("CSV header OK ✓")
           PY
 
