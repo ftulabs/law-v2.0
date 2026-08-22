@@ -172,12 +172,22 @@ sources:
       extract correctly but are the wrong TIER for RDTII's national indicators.
 
   - economy: IN
-    name: India Code (Central Acts)
-    base_url: https://www.indiacode.nic.in
-    adapter: websearch
-    site: indiacode.nic.in
-    verified: false
-    reachable: "2026-08-21: HTTP 200 but only 249 chars of text in the body — JS shell"
+    name: India Code (Central Acts) — DSpace REST API
+    base_url: https://indiacode.gov.in
+    adapter: in_dspace
+    site: indiacode.gov.in
+    verified: true
+    reachable: >-
+      2026-08-22: /server/api answers 200 JSON (DSpace 7). 130,580 items; sections are
+      separate items carrying their own operative text, section number, parent Act and an
+      in-force flag. The HTML front end 502s on /, /browse and /sitemap.xml — the API is the
+      way in, not a fallback.
+    note: >-
+      CORRECTION. We recorded www.indiacode.nic.in as "a JS shell". It is not: it serves a
+      SITE MIGRATION notice (meta refresh to indiacode.gov.in) and its backend is gone, which
+      is why every other path there returns 504. The portal moved; we misread the symptom.
+      This is now the cleanest source of the nine — no PDF, no OCR, no HTML scraping and no
+      article-splitting heuristic, because the publisher ships sections as separate records.
     note: >-
       Answers, and answers with nothing: the statute list is rendered client-side, so a plain
       fetch returns an application shell. This is the Australia failure mode again (an Angular
@@ -189,6 +199,15 @@ sources:
       drafting form ("43A. Compensation for failure to protect data.") parses on the same
       SG/MY branch of the extractor. India is the cheapest of the three to add.
 
+  - economy: IN
+    name: India Code (legacy host, migrated away)
+    base_url: https://www.indiacode.nic.in
+    adapter: websearch
+    verified: false
+    reachable: "2026-08-22: root 200 with a migration notice; every other path 504 — dead"
+    note: >-
+      Kept as a documented redirect, not a lane. Delete only if the new host proves stable
+      for a while; a reader who finds the old URL elsewhere should land on this explanation.
   - economy: IN
     name: MeitY (IT Rules and subordinate instruments)
     base_url: https://www.meity.gov.in

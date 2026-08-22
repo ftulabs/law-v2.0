@@ -1123,7 +1123,11 @@ def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | N
     if api_sources:
         import httpx
         with httpx.Client(timeout=settings.crawl_timeout_seconds, headers=_headers(), follow_redirects=True) as client:
-            _ADAPTERS = {"au_api": _search_au_api, "my_catalogue": _search_my_catalogue}
+            # in_dspace lives in its own module (adapter_india.py) so this file keeps one
+            # dispatch line rather than a fourth portal's worth of API handling.
+            from .adapter_india import _search_in_dspace
+            _ADAPTERS = {"au_api": _search_au_api, "my_catalogue": _search_my_catalogue,
+                         "in_dspace": _search_in_dspace}
             for src in api_sources:
                 searcher = _ADAPTERS.get(src.get("adapter"), _search_one)
                 for q in queries:

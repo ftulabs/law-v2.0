@@ -338,6 +338,25 @@ def _store(url, data: bytes, content_type: str, idx: dict, etag, last_mod, log,
     return FetchResult(str(path), fmt, sha, content_type, False)
 
 
+def seed_cache(url: str, data: bytes, content_type: str = "text/html",
+               log: Callable[[str], None] = print) -> FetchResult | None:
+    """Put a body we already hold into the cache, as if it had been fetched.
+
+    Some portals hand the document text back with the SEARCH RESULT rather than at a URL —
+    India Code's DSpace API returns each section's operative text inline, and its HTML front
+    end currently answers 502, so re-requesting the citable URL would fail while the text sits
+    in memory. Seeding keeps every downstream stage identical: extraction, hashing, the audit
+    trail and the second-pass "fetched nothing" proof all work on a cache entry and do not care
+    how it got there.
+
+    It is deliberately NOT a way to inject arbitrary content. The caller must already have the
+    bytes from the portal, and they are content-hashed like any other body, so an audit can
+    still tell what was stored and when.
+    """
+    idx = _load_index()
+    return _store(url, data, content_type, idx, None, None, log, engine="api")
+
+
 def _scrapling_fetch(url: str, idx: dict, log) -> FetchResult | None:
     """Fetch through Scrapling (real-browser TLS impersonation; stealth browser when
     CRAWL_BROWSER=true) and store the body like any other. Primary fetcher by default;

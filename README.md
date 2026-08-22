@@ -222,7 +222,7 @@ Only *measured* is a claim about quality.
 | Viet Nam | yes | Vietnamese | vbpl.vn | reachable | no discovery adapter yet |
 | Indonesia | yes | Indonesian | peraturan.bpk.go.id (+1) | reachable | no discovery adapter yet |
 | China | yes | Chinese | gov.cn (+1) | **extracted** | not yet scored against the 2025 database |
-| India | yes | English | indiacode.nic.in (+1) | declared | portal is a JS shell |
+| India | yes | English | indiacode.gov.in (+2) | reachable | adapter written; not yet run end to end |
 | Kazakhstan | yes | Kazakh | adilet.zan.kz | reachable | robots closes the listing paths |
 | Lao PDR | yes | Lao | laoofficialgazette.gov.la | declared | host does not resolve |
 | Mongolia | yes | Mongolian | legalinfo.mn | reachable | no discovery adapter yet |
