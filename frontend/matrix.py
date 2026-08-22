@@ -17,6 +17,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import re
+
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -98,6 +100,10 @@ def build_rows(mappings, is_no_evidence, host) -> list[dict]:
         cell = {
             "s": "n" if no_ev else band(m.confidence_score),
             "t": "none" if no_ev else (m.article_section or "—"),
+            # The short form is computed HERE, not in the component: it has to parse Han
+            # numerals, and a citation converter that nothing can unit-test is how §21
+            # became §201.
+            "r": short_ref("none" if no_ev else (m.article_section or "—")),
             "band": "no provision found" if no_ev else f"confidence {m.confidence_score:.2f}",
         }
         # Where one law maps to the same indicator twice, keep the stronger reading —
@@ -120,6 +126,68 @@ def indicator_columns(pillars) -> list[dict]:
          "title": i.title, "short": SHORT.get(i.indicator_id, i.title)}
         for i in get_indicators() if i.pillar in pillars
     ]
+
+
+_HAN_DIGIT = {"零": 0, "〇": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4,
+              "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+_HAN_UNIT = {"十": 10, "百": 100, "千": 1000}
+_CN_ARTICLE = re.compile(r"^第\s*([零〇一二三四五六七八九十百千两\d\s]+)\s*[条章节]")
+_MN_ARTICLE = re.compile(r"^(\d{1,3})\s*(?:д[үу]г[эа]{0,2}р|дэх|дахь)", re.I)
+_LATIN_SEC = re.compile(r"^(?:section|sec\.?|s)\s*", re.I)
+_LATIN_ART = re.compile(r"^(?:article|art\.?)\s*", re.I)
+
+
+def han_number(text: str) -> int | None:
+    """Read a Chinese numeral. 二十一 → 21, 一百零八 → 108, 四十 → 40.
+
+    Positional by multiplier, not by digit. Treating the characters as a digit string turns
+    article 21 into 201 — which is a real article of some other law, so the mistake reads as
+    a plausible citation rather than as a rendering fault.
+    """
+    text = re.sub(r"\s+", "", text or "")
+    if not text:
+        return None
+    if text.isdigit():
+        return int(text)
+    total = section = digit = 0
+    for ch in text:
+        if ch in _HAN_DIGIT:
+            digit = _HAN_DIGIT[ch]
+        elif ch in _HAN_UNIT:
+            section += (digit or 1) * _HAN_UNIT[ch]
+            digit = 0
+        else:
+            return None
+    return (total + section + digit) or None
+
+
+def short_ref(text: str) -> str:
+    """The citation as it appears in a 52px matrix cell.
+
+    Every jurisdiction is reduced to the same shape, §N, because the column is read
+    vertically and a mix of "§199", "第二十一条" and "14 дүгээр зүйл" cannot be compared at a
+    glance. Numerals are converted, never truncated: "第二十" is not a shorter way of writing
+    article 21, it is article 20.
+    """
+    t = (text or "").strip()
+    if not t or t == "—":
+        return "·"
+    if t == "(document)":
+        return "doc"
+    if t == "none":
+        return "none"
+    m = _CN_ARTICLE.match(t)
+    if m:
+        n = han_number(m.group(1))
+        if n:
+            return f"§{n}"
+    m = _MN_ARTICLE.match(t)
+    if m:
+        return f"§{int(m.group(1))}"
+    out = _LATIN_ART.sub("Art ", _LATIN_SEC.sub("§", t))
+    out = re.sub(r"[–—-]\s*\d+.*$", "+", out)
+    out = re.sub(r"\(.*$", "", out).strip()
+    return out[:6] if len(out) > 6 else out
 
 
 def coverage_matrix(rows: list[dict], indicators: list[dict],

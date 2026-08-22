@@ -78,6 +78,12 @@ _STRUCT_RE_AU = re.compile(
 # let a "heading" straddle two lines and swallow unrelated text.
 _STRUCT_RE_CN = re.compile(
     r"(?m)^[ \t　]*(第[ \t　]*(?:[一二三四五六七八九十百千零〇两0-9][ \t　]*){1,8}[条章节])")
+# The ARTICLE pattern — 条 only. Used for provision boundaries, where a chapter heading is
+# not a provision. `_STRUCT_RE_CN` above keeps 章 and 节 because ocr.py uses it to ask a
+# different question: does this document look structured at all?
+_ARTICLE_RE_CN = re.compile(
+    r"(?m)^[ 	　]*(第[ 	　]*(?:[一二三四五六七八九十百千零〇两 0-9][ 	　]*){1,8}条)")
+
 # Mongolian statutes head each article "<n> дүгээр зүйл." (ordinal suffix varies with vowel
 # harmony: дүгээр/дугаар, and дэх/дахь for some drafting). The 14.1 / 20.1.5 forms below it are
 # CLAUSES inside the article — splitting on those would shatter one article into a dozen
@@ -102,6 +108,60 @@ _STRUCT_RE_MN = re.compile(
 # "2016.05.12" is a date and "125-131" a cross-reference, and both start lines in these
 # documents. The trailing dot is required for the same reason.
 _CLAUSE_RE_MN = re.compile(r"(?m)^[ 	]*(\d{1,2}\.\d{1,2})\.[ 	]+(?=[^\d])")
+
+# Trailing site furniture, for the LAST provision only. Every other provision ends where the
+# next one begins; the last one runs to the end of the text, so whatever the page puts after
+# the law lands inside it — in the Verbatim Snippet column, which is supposed to be the
+# statute's own words. PIPL article 74 came out as "this Law takes effect on 1 November 2021"
+# followed by a close button, a WeChat link, a back-to-top link and a CMS build stamp.
+# `ocr._html_to_text` removes what it can identify structurally; this catches the rest, which
+# arrives as bare links with no class on them.
+_CMS_LINE = re.compile(
+    r"publishdate|produced\s+by|版权所有|ICP备|公网安备|承办|技术支持|主办单位", re.I)
+#: A line that ends a sentence is content. Chinese and Japanese full stops are included,
+#: because the Latin "." never ends a Han-script sentence.
+_SENTENCE_END = re.compile(r"[.。．!?！？;；:：]\s*$")
+
+
+#: Characters that carry a syllable or a word on their own — Han, kana, Thai, Lao, Khmer,
+#: Myanmar. Twenty characters of these is a complete legal sentence; twenty characters of
+#: Latin is "Privacy Act 1988 2".
+_DENSE_SCRIPT = re.compile(r"[぀-ヿ㐀-䶿一-鿿฀-໿"
+                           r"ក-៿က-႟]")
+
+
+def _min_provision_chars(body: str) -> int:
+    """How short a provision may be before it is treated as a heading stub.
+
+    A single threshold was a Latin assumption. PIPL article 74 reads
+    「本法自2021年11月1日起施行。」 — seventeen characters, a complete and operative provision —
+    and the twenty-character floor deleted it. Meanwhile twenty Latin characters really is a
+    running header. The floor now depends on which script the body is written in.
+    """
+    sample = body[:120]
+    dense = len(_DENSE_SCRIPT.findall(sample))
+    return 8 if dense >= max(len(sample) * 0.3, 4) else 20
+
+
+def _trim_trailing_furniture(body: str) -> str:
+    """Drop trailing lines that are site chrome rather than law.
+
+    Conservative by construction: it stops at the first line from the bottom that reads like
+    prose, so it can only ever eat the tail. A line is furniture when it carries no sentence
+    terminator and is short enough not to be a clause, or when it is a CMS stamp.
+    """
+    lines = body.rstrip().split("\n")
+    while lines:
+        last = lines[-1].strip()
+        if not last:
+            lines.pop()
+            continue
+        if _CMS_LINE.search(last) or (len(last) <= 40 and not _SENTENCE_END.search(last)):
+            lines.pop()
+            continue
+        break
+    return "\n".join(lines).strip()
+
 
 _APP_HEADING_RE = re.compile(
     r"^\s*(?:\d{1,3}[A-Za-z]{0,2}\s+)?Australian Privacy Principle\s+(\d+[A-Za-z]?)\b", re.I)
@@ -515,6 +575,34 @@ def _recover_law_name(text: str) -> str | None:
     return best
 
 
+#: A title a search engine cut short. Both the ASCII and the typographic ellipsis, with or
+#: without the space some engines insert before it.
+_TRUNCATED_TITLE = re.compile(r"(?:\.{3}|\u2026)\s*$")
+
+
+#: Trailing site branding a CMS appends to every <title>: "…_中央网络安全和信息化委员会办公室",
+#: "… - Singapore Statutes Online". Removed from a RECOVERED name only — a name the portal
+#: gave us directly is left exactly as the portal wrote it.
+_TITLE_SUFFIX = re.compile(r"\s*[_|｜]\s*[^_|｜]{4,60}$|\s+[-–—]\s+[^-–—]{4,60}$")
+
+
+def _recover_truncated(title: str, text: str) -> str | None:
+    """The full form of a title a search engine cut off, taken from the document itself.
+
+    Deliberately narrow: it accepts only a line that begins with the surviving prefix and runs
+    longer. Nothing else in the document can satisfy that, so unlike a "find the best-looking
+    heading" rule it cannot substitute an unrelated line for the law's name.
+    """
+    prefix = _TRUNCATED_TITLE.sub("", title).strip()
+    if len(prefix) < 8:
+        return None                       # too little left to identify anything with
+    for line in (text or "")[:6000].splitlines()[:60]:
+        line = line.strip()
+        if len(line) > len(prefix) and line.startswith(prefix):
+            return _TITLE_SUFFIX.sub("", line).strip() or None
+    return None
+
+
 def _law_name(doc: DiscoveredDoc, raw_text: str = "") -> str:
     """Law name for a provision. Prefer the discovery title, but recover the name from the
     document's own header when the title is a generic portal label (MY's "Malaysia Federal
@@ -527,6 +615,14 @@ def _law_name(doc: DiscoveredDoc, raw_text: str = "") -> str:
     from .discovery import _clean_title, _is_generic_title
     title = doc.title.strip()
     cleaned = _clean_title(title)
+    if _TRUNCATED_TITLE.search(title):
+        # A web-search result title, cut off by the engine. The document's own header has the
+        # whole name, and the part that gets cut is the END — which is exactly where a
+        # jurisdiction puts the words that decide whether the instrument counts:
+        # （征求意见稿） (consultation draft), (Amendment), Repeal Act.
+        recovered = _recover_truncated(title, raw_text) or _recover_law_name(raw_text)
+        if recovered and len(recovered) > len(cleaned):
+            return recovered
     if _is_generic_title(title) or not _LAW_TYPE_RE.search(cleaned):
         recovered = _recover_law_name(raw_text)
         if recovered:
@@ -575,8 +671,22 @@ def _boundaries(text: str, economy=None) -> list[tuple]:
         # meaningless here — 第X条 IS the heading, marked or not.
         # The label is de-spaced so the citation reads 第一条, not the "第 一 条" the PDF layer
         # produced — the snippet keeps the source text untouched, only the label is tidied.
+        #
+        # 条 ONLY. 章 (chapter) and 节 (section) are structural dividers carrying a title and
+        # no rule, and treating them as provisions did two visible kinds of damage: the first
+        # eleven "provisions" of the Personal Information Protection Law were its TABLE OF
+        # CONTENTS — "第一章　总　则", nine characters, no operative text — and every chapter
+        # heading in the body became a second one. They also survived the minimum-length
+        # filter below, because that threshold was written for Latin text and twenty
+        # characters of Han script is a full sentence.
         out = [(m.start(), m.end(), re.sub(r"[ \t　]+", "", m.group(1)), False)
-               for m in _STRUCT_RE_CN.finditer(text)]
+               for m in _ARTICLE_RE_CN.finditer(text)]
+        if len(out) < 2:
+            # An instrument with no 条 at all — an administrative notice or a decision, which
+            # is numbered 一、二、 or not at all. Falling back to the structural pattern beats
+            # returning the whole document as one block.
+            out = [(m.start(), m.end(), re.sub(r"[ \t　]+", "", m.group(1)), False)
+                   for m in _STRUCT_RE_CN.finditer(text)]
     elif economy == Economy.MN:
         out = [(m.start(), m.end(), m.group(1), False) for m in _STRUCT_RE_MN.finditer(text)]
         if len(out) < 3:
@@ -672,6 +782,25 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
     provisions: list[Provision] = []
 
     if not bounds:
+        # Nothing in this document is numbered. Two very different situations.
+        #
+        # A one-paragraph decree or a short notice IS a provision, and the whole-doc fallback
+        # is right for it — dropping it would lose real law.
+        #
+        # A press release or an expert commentary is not. cac.gov.cn publishes 答记者问 and
+        # 解读 pages beside each measure, in the same template and with the measure's exact
+        # vocabulary; they have no articles to cite, so they arrive here, become one
+        # "(document)" provision, and go on to be graded and to occupy a row in the coverage
+        # matrix labelled with no article at all. Being unstructured is not enough to reject a
+        # document and being commentary is not enough either — a guidance note can be
+        # unnumbered and still be the instrument. BOTH together is the signal.
+        from ..rdtii import instrument                                  # noqa: PLC0415
+
+        if instrument.classify(law_name) is instrument.Status.COMMENTARY:
+            log = getattr(doc, "_log", None)
+            if callable(log):
+                log(f"[extract] skipped (commentary, no articles): {law_name[:70]}")
+            return provisions
         # whole-doc fallback: still emit one provision so nothing is silently dropped
         snippet = PAGE_MARK_RE.sub("", text.replace(HEADING_MARK, "")).strip()[:MAX_SNIPPET]
         if snippet:
@@ -697,7 +826,9 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
         # the page count keep indexing the same string. `confidence.snippet_grounding`
         # normalises both sides, so a provision spanning a page break still verifies exactly.
         body = PAGE_MARK_RE.sub("", text[start:end].replace(HEADING_MARK, "")).strip()
-        if len(body) < 20:
+        if i == len(bounds) - 1:
+            body = _trim_trailing_furniture(body)
+        if len(body) < _min_provision_chars(body):
             # a Part/Division/Schedule heading stub, or a page running-header/footer
             # ("Privacy Act 1988 2", "2020 Ed.") — no substantive provision text.
             continue

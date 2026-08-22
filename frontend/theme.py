@@ -241,7 +241,16 @@ def inject_css() -> None:
           }}
           h1,h2,h3,h4,h5 {{ font-family:{HEAD_STACK}; }}
           .stApp {{ background:var(--paper); color:var(--ink); }}
-          .block-container {{ padding-top:1.2rem; max-width:1240px; }}
+          /* A fixed 1240px was a reading-comfort number, and it is the wrong one for this
+             app: the working surface is a coverage matrix beside an evidence panel, not an
+             article. On a 1920px screen it left ~340px of empty margin on each side while the
+             matrix wrapped its own cells. Prose blocks cap their own measure (see .pnote,
+             .vt-foot .about), so widening the shell does not lengthen a line of text. */
+          .block-container {{ padding-top:1.2rem; padding-left:2.2rem; padding-right:2.2rem;
+            max-width:min(1720px, 96vw); }}
+          @media (max-width:900px) {{
+            .block-container {{ padding-left:1rem; padding-right:1rem; max-width:100%; }}
+          }}
           [data-testid="stHeader"] {{ background:transparent; }}
           h1,h2,h3,h4 {{ color:var(--ink); letter-spacing:-.015em; }}
           a {{ color:var(--accent); text-decoration:none; }}

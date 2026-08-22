@@ -26,11 +26,36 @@ from ..providers.ocr_base import OCRProvider
 from ..schemas import DiscoveredDoc, DocFormat, OCRMetrics
 
 
+#: Class and id fragments that mark site chrome. The semantic tags below cover a page written
+#: after about 2015; government portals frequently are not. cac.gov.cn closes every page with
+#: a <div class="footer"> carrying the ministry name, an ICP registration number, a WeChat
+#: link and 返回顶部 — and because that div is not a <footer>, all of it survived and was
+#: absorbed by the LAST provision, whose body runs to the end of the text. PIPL article 74
+#: ("this Law takes effect on 1 November 2021") came out with 200 characters of copyright
+#: notice attached to it, in the Verbatim Snippet column.
+_CHROME = ("footer", "copyright", "beian", "navbar", "nav-", "menu", "breadcrumb", "sidebar",
+           "side-bar", "share", "related", "totop", "back-to-top", "banner", "search-box")
+
+
 def _html_to_text(html: str) -> str:
     from bs4 import BeautifulSoup
     soup = BeautifulSoup(html, "lxml")
-    for tag in soup(["script", "style", "nav", "header", "footer"]):
+    for tag in soup(["script", "style", "nav", "header", "footer", "aside", "noscript"]):
         tag.decompose()
+
+    # Then the same thing by class and id. The size guard matters: a portal that calls its
+    # main content div "page-menu" would otherwise lose the entire document, and a rule that
+    # can delete the law is worse than a footer that survives. Anything holding more than a
+    # fifth of the page is treated as content whatever it calls itself.
+    whole = max(len(soup.get_text(strip=True)), 1)
+    for tag in soup.find_all(attrs={"class": True}) + soup.find_all(attrs={"id": True}):
+        if tag.decomposed:
+            continue
+        ident = " ".join(tag.get("class") or []) + " " + (tag.get("id") or "")
+        if not any(word in ident.lower() for word in _CHROME):
+            continue
+        if len(tag.get_text(strip=True)) < whole * 0.2:
+            tag.decompose()
     return soup.get_text("\n", strip=True)
 
 

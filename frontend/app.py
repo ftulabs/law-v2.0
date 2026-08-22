@@ -157,7 +157,9 @@ st.markdown(
               max-width:420px; display:block; {LOGO_FX} }}
       .wordmark {{ font-size:2rem; font-weight:700; letter-spacing:-.02em; margin:0; }}
       .wordmark .mark {{ color:var(--accent); }}
-      .block-container {{padding-top: 1.2rem; max-width: 1240px;}}
+      /* The page width lives in frontend/theme.py and ONLY there. This duplicate was
+         injected later, so it won, and widening the shell in theme.py did nothing —
+         the same two-places-one-value drift the theme docstring warns about. */
       [data-testid="stHeader"] {{background: transparent;}}
 
       h1,h2,h3,h4 {{font-family:'Inter',sans-serif; color:var(--ink); letter-spacing:-.015em; font-weight:600;}}
@@ -872,6 +874,40 @@ def evidence_panel_html(cell_key: str | None, mappings) -> str:
         f'</div>')
 
 
+def _money(v) -> str:
+    """A missing price reports as "unpriced", never as $0.00 — zero is a claim, and we only
+    make it where a price is actually on file (see backend/metering.py)."""
+    return "unpriced" if v is None else f"${v:.4f}"
+
+
+def _meter_table(cost: dict) -> str:
+    """This run's cost by component, in the same shape the README carries.
+
+    Rebuilt from the run's own counters rather than copied, so the number on screen and the
+    number in the submission cannot disagree.
+    """
+    rows = ["| Component | Engine | Units | Cost |", "| :--- | :--- | :--- | ---: |"]
+    for r in cost.get("ocr", []):
+        rows.append(f"| OCR | {r['provider']} | {r['pages']} pages | {_money(r['cost_usd'])} |")
+    emb = cost.get("embedding") or {}
+    if emb.get("sentences"):
+        rows.append(f"| Embedding | local | {emb['sentences']} sentences | $0.0000 |")
+    for r in cost.get("llm", []):
+        tokens = r["prompt_tokens"] + r["completion_tokens"]
+        rows.append(f"| Mapping | {r['model']} | {r['calls']} calls, {tokens:,} tokens | "
+                    f"{_money(r['cost_usd'])} |")
+    for r in cost.get("search", []):
+        rows.append(f"| Crawling | {r['engine']} | {r['queries']} queries | "
+                    f"{_money(r['cost_usd'])} |")
+    fetch = cost.get("fetch") or {}
+    if fetch.get("requests"):
+        rows.append(f"| Crawling | fetch | {fetch['requests']} requests, "
+                    f"{fetch['bytes'] // 1000} KB | $0.0000 |")
+    rows.append(f"| **Total** | | **{cost.get('wall_seconds', 0):.0f}s** | "
+                f"**${cost.get('total_usd', 0):.4f}** |")
+    return "\n".join(rows)
+
+
 def indicator_glossary_html(pillar: int) -> str:
     """'What we're looking for' — the legal test for every indicator in the chosen pillar,
     so a researcher can read this WHILE a run is in progress instead of only after. Useful,
@@ -1426,40 +1462,3 @@ with tab_eng:
 
 # every screen ends with the site footer, not mid-content
 site_footer()
-
-
-
-def _money(v) -> str:
-    """A missing price reports as "unpriced", never as $0.00 — zero is a claim, and we only
-    make it where a price is actually on file (see backend/metering.py)."""
-    return "unpriced" if v is None else f"${v:.4f}"
-
-
-def _meter_table(cost: dict) -> str:
-    """This run's cost by component, in the same shape the README carries.
-
-    Rebuilt from the run's own counters rather than copied, so the number on screen and the
-    number in the submission cannot disagree.
-    """
-    rows = ["| Component | Engine | Units | Cost |", "| :--- | :--- | :--- | ---: |"]
-    for r in cost.get("ocr", []):
-        rows.append(f"| OCR | {r['provider']} | {r['pages']} pages | {_money(r['cost_usd'])} |")
-    emb = cost.get("embedding") or {}
-    if emb.get("sentences"):
-        rows.append(f"| Embedding | local | {emb['sentences']} sentences | $0.0000 |")
-    for r in cost.get("llm", []):
-        tokens = r["prompt_tokens"] + r["completion_tokens"]
-        rows.append(f"| Mapping | {r['model']} | {r['calls']} calls, {tokens:,} tokens | "
-                    f"{_money(r['cost_usd'])} |")
-    for r in cost.get("search", []):
-        rows.append(f"| Crawling | {r['engine']} | {r['queries']} queries | "
-                    f"{_money(r['cost_usd'])} |")
-    fetch = cost.get("fetch") or {}
-    if fetch.get("requests"):
-        rows.append(f"| Crawling | fetch | {fetch['requests']} requests, "
-                    f"{fetch['bytes'] // 1000} KB | $0.0000 |")
-    rows.append(f"| **Total** | | **{cost.get('wall_seconds', 0):.0f}s** | "
-                f"**${cost.get('total_usd', 0):.4f}** |")
-    return "\n".join(rows)
-
-

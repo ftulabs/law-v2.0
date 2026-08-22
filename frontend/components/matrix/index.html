@@ -32,6 +32,7 @@
   .cell:not(:disabled):hover{background:var(--paper-2)}
   .cell:focus-visible{outline:3px solid var(--ring);outline-offset:-3px}
   .chip{display:grid;place-items:center;min-width:36px;padding:0 4px;height:28px;
+    white-space:nowrap;overflow:hidden;
     border-radius:8px;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;
     font-weight:600;letter-spacing:-.02em;border:1px solid transparent}
   /* Colour is never the only signal: every filled chip also carries its section number,
@@ -100,17 +101,12 @@ window.addEventListener("message", function(e){
   build(); fitHeight();
 });
 
-/* A cell is 58px wide, so the chip carries a short locator and the panel beside the
-   matrix carries the full citation: "s199(1)" -> "§199", "s39-40" -> "§39+". Truncating
-   mid-token ("§199(1") reads as a rendering bug, so the subsection is dropped instead. */
-function shortRef(t){
-  if (!t) return "·";
-  var s = String(t).trim()
-    .replace(/^(section|sec\.?|s)\s*/i, "§")
-    .replace(/^(article|art\.?)\s*/i, "Art ")
-    .replace(/[–—-]\s*\d+.*$/, "+")
-    .replace(/\(.*$/, "");
-  return s.length > 6 ? s.slice(0, 6) : s;
+/* A cell is 52px wide, so the chip carries a short locator and the panel beside the matrix
+   carries the full citation. The short form arrives ALREADY COMPUTED, as `cell.r`, from
+   frontend/matrix.py — see short_ref() there. It used to be worked out here, which meant a
+   Han-numeral parser lived in a file no test could reach, and it read 第二十一条 as §201. */
+function shortRef(cell){
+  return (cell && cell.r) || "\u00b7";
 }
 function esc(s){
   return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){
@@ -141,7 +137,7 @@ function build(){
       btn.className = "cell";
       if (cell){
         btn.innerHTML = '<span class="chip ' + cell.s + '">' +
-          esc(cell.s === "n" ? "none" : shortRef(cell.t)) + '</span>';
+          esc(shortRef(cell)) + '</span>';
         btn.setAttribute("aria-pressed", String(row.law + "|" + ind.id === selected));
         btn.setAttribute("aria-label", esc(row.law) + ", indicator " + ind.id + ", " +
           (cell.s === "n" ? "no provision found" : cell.t + ", " + cell.band));

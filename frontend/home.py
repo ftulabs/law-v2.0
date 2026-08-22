@@ -152,7 +152,8 @@ def render(*, economy: str, pillar: int, ocr_label: str, llm_label: str,
     out: dict = {}
     left, right = st.columns([1.25, 1], gap="large")
     with left:
-        out["economy"] = geo.country_picker(selected=economy, key="geo_home", height=380)
+        # The shell is 1720px wide now, and a 380px globe in a 950px column looked stranded.
+        out["economy"] = geo.country_picker(selected=economy, key="geo_home", height=470)
     with right:
         _economy_head(out.get("economy") or economy)
         out["pillar"] = _pillar_grid(pillar)

@@ -118,3 +118,45 @@ def test_the_start_screen_offers_the_live_test_before_any_run_exists():
     not be reached at all."""
     assert "live" in home.MODES
     assert set(home.MODES) == {"run", "live", "engines", "cover"}
+
+
+# ── the citation in a 52px cell ──────────────────────────────────────────────────────
+@pytest.mark.parametrize("citation,expected", [
+    ("第一条", "§1"),
+    ("第十二条", "§12"),          # 十二 is 12, not 102
+    ("第二十一条", "§21"),         # 二十一 is 2×10+1, not the digits 2,10,1
+    ("第四十条", "§40"),
+    ("第七十四条", "§74"),
+    ("第一百零八条", "§108"),
+    ("14 дүгээр зүйл", "§14"),
+    ("Section 199(1)", "§199"),
+    ("s39-40", "§39+"),
+    ("(document)", "doc"),
+])
+def test_a_citation_is_converted_for_the_cell_never_truncated(citation, expected):
+    """The matrix column is read vertically, so every jurisdiction reduces to §N.
+
+    Han numerals are positional by MULTIPLIER. The first version of this lived in the
+    component's JavaScript, shifted instead of adding, and rendered 第二十一条 as §201 — which
+    is a real article of some other law, so it reads as a plausible citation rather than as a
+    rendering fault. It now lives in Python precisely so this test can exist.
+    """
+    from frontend.matrix import short_ref
+
+    assert short_ref(citation) == expected
+
+
+def test_a_han_numeral_that_is_not_a_numeral_returns_nothing():
+    from frontend.matrix import han_number
+
+    assert han_number("abc") is None
+    assert han_number("") is None
+    assert han_number("40") == 40
+
+
+def test_the_component_no_longer_parses_citations_itself():
+    """It renders the precomputed label. A parser in a file no test can reach is how the
+    §201 bug survived."""
+    html = (COMPONENT.parent / "matrix" / "index.html").read_text(encoding="utf-8")
+    assert "hanNumber" not in html
+    assert "cell.r" in html
