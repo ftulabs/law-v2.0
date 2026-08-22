@@ -18,3 +18,4 @@ The panel's own material — the RDTII databases, the output templates, the fram
 documentation — is deliberately **not** committed; see the note at the foot of `.gitignore`. The
 artefacts derived from it are, and they are what the pipeline reads:
 `data/rdtii/indicator_reference.json` and `data/ground_truth/rdtii_reference_p67.csv`.
+- [coverage-and-blockers.md](coverage-and-blockers.md) — what runs today, what blocks the rest, and the query vocabulary counted per economy and pillar
