@@ -1,122 +1,123 @@
 # VeriTrade — AI Tool for Digital Trade Regulatory Analysis
 
-UN Global Hackathon on AI for Digital Trade Regulatory Analysis
-Team: **FTU (Foreign Trade University, Viet Nam)** · Round: **Final**
-Last updated: 2026-08-21
+Autonomous discovery and article-level mapping of digital-trade law across twelve Asia-Pacific
+economies. Submission for the UN ESCAP / KMITL Global Hackathon on AI for Digital Trade
+Regulatory Analysis, 2026 — **Final round**.
 
-> Sections follow the order of the organisers' final-round README template, so a reviewer
-> holding that template can read the two side by side.
-
----
-
-## What This Tool Does
-
-Automates the two RDTII 2.1 tasks end to end, with no manual steps.
-
-**Task 1 — Automated Evidence Discovery.** Given an economy and a pillar, VeriTrade crawls
-official government legal portals live, fetches the relevant legislation — including scanned
-and image-only PDFs — and extracts clean, article-level text. **No seed URLs and no hardcoded
-law names:** `data/sources.yaml` names *portals*, never statutes.
-
-**Task 2 — Intelligent Mapping and Categorisation.** Each provision is mapped to a specific
-RDTII indicator with an exact article citation, a verbatim snippet, a mapping rationale, a
-confidence score, and a Discovery Tag — **per provision, not per law** (see
-[Discovery Tag](#discovery-tag-is-decided-per-provision)).
-
-- **Mandatory pillars:** 6 (Cross-border data policies) and 7 (Domestic data protection and privacy).
-- **Also in scope:** all twelve RDTII 2.1 pillars. All **61 regulatory indicators** carry their
-  scoring criteria and weights in `data/rdtii/indicator_reference.json`; the 14 non-regulatory
-  indicators are recorded as out of scope, because the framework says an automated retrieval
-  method is not required for them.
-- **Economies covered:** Singapore, Australia, Malaysia, China, India, Mongolia, Thailand,
-  Viet Nam, Indonesia, Kazakhstan, Lao PDR, Russian Federation.
-- **Ready for the live test:** see [Supported Economies and Portals](#supported-economies-and-portals),
-  which states per economy how far the tool has actually been run — not how far it could go.
+- **Hosted instance:** https://veritrade.ftu.fyi — full interface, keys in platform secrets, no setup
+- **Source:** https://github.com/ftulabs/law-v2.0
+- **Team:** FTU (Foreign Trade University, Viet Nam) · minhtc@ftu.edu.vn
 
 ---
 
-## Hosted Instance (for reviewers — no setup, no API keys)
+## Technical memo
 
-**https://veritrade.ftu.fyi** — the full interface, live, with keys held in platform secrets
-and never in this repository. Pick a country and topic, press **Run analysis**, download the
-submission CSV. It runs the code at the declared release tag. If it is briefly unreachable,
-retry after a minute or use the Quick Start below.
+**Problem.** RDTII 2.1 asks, for an economy and a regulatory pillar, *which provisions of which
+laws satisfy which indicators, and where exactly are they*. Doing it by hand means reading a
+national statute book in its own language and citing to the paragraph. The scored constraint is
+that nobody tells the tool where to look: **no seed URLs, no hardcoded law names.**
+`data/sources.yaml` names *portals*, never statutes.
+
+**System.** Two zones over one audit store. **Zone 1** discovers laws on the official portal —
+by its JSON API, its own catalogue, its sitemap, or site-scoped search — checks robots.txt,
+then fetches into a content-addressed cache. **Zone 2** decides text-layer versus scanned,
+routes to OCR with a measured CER, splits into verbatim article chunks, retrieves candidates
+with BM25 + multilingual dense embeddings, and has an LLM grade each provision against the
+indicator's legal test *with all sibling indicators in view*. Every stage persists to SQLite,
+so any export is reconstructable.
+
+```
+  economy + pillar
+        │
+        ▼   ZONE 1 · discovery
+   portal catalogue / API / sitemap / site-scoped search   ── no seed URLs
+        │  robots.txt checked before the network AND before the cache
+        ▼
+   cache/  ── content-addressed by SHA-256 ── the fetch/read seam
+        │        (everything above touches the network; nothing below does)
+        ▼   ZONE 2 · read
+   text layer → pdfplumber/MarkItDown  │  scanned → RapidOCR/Paddle/VLM (CER measured)
+   split into article chunks, verbatim, per-economy boundaries
+        │
+        ▼   ZONE 2 · map
+   BM25 + dense + optional rerank  →  LLM grades provision × indicator
+   confidence = 4 signals  →  ≥0.85 accept · 0.60–0.85 review · <0.60 quarantine
+        │
+        ▼
+   14-column CSV · JSON trace · SQLite audit log
+```
+
+**Engines are chosen per economy, with a reason and an evidence grade.** The registry states
+what an engine family supports; the factory resolves against what is *installed* and substitutes
+rather than running a recogniser whose dictionary cannot spell the script — a failure that
+produces fluent text with letters missing and raises nothing. `measured` / `documented` /
+`assumed` is recorded per choice, so a preference nobody can justify is one we do not ship.
+`python -m backend.providers.engine_profile` prints it.
+
+**Language is not script.** Script decides tokenisation; *language* decides whether the English
+cross-encoder runs at all. Viet Nam and Indonesia write in Latin letters and still need the
+non-English lane, because an off-language reranker is fused into the ranking at the same weight
+as BM25 and makes the result worse rather than merely failing to help.
+
+**Accuracy is auditable, not asserted.** The Verbatim Snippet column *is* the statute's own
+text: carried unchanged from extraction to CSV, never summarised, never translated — the
+grading prompt is English and requires English *output* while passing the snippet through
+untouched, because a translated citation is a false citation. Snippets are substring-verified
+against the stored source text. Confidence is a transparent weighted blend stored on every row.
+
+**Cost.** OCR, embedding and retrieval run locally at $0. Only the grading LLM and the optional
+search API cost money: **~$0.012 per document** on the current default, **$0.00** with the
+open-weights swap. See [Measured Cost](#measured-cost).
 
 ---
 
 ## Quick Start
 
 **Target: a working system on a clean machine in under 30 minutes, from this section alone.**
-Steps 1–4 take about five minutes plus download time; step 5 is the run itself.
-
-### 1. Clone
 
 ```bash
-git clone https://github.com/ftulabs/law-v2.0.git
-cd law-v2.0
+git clone https://github.com/ftulabs/law-v2.0.git && cd law-v2.0
+
+python -m venv venv && source venv/bin/activate     # Windows: venv\Scripts\activate
+pip install -r requirements.txt                     # Python 3.10–3.12; ~2 GB, several minutes
+
+cp .env.example .env                                # runs with NO key at all — see below
+streamlit run frontend/app.py                       # → http://localhost:8501
 ```
 
-### 2. Environment
+**Verify.** In the interface pick **Singapore**, topic **Cross-border data policies**, press
+**Run analysis**. Expected on the bundled sample: a populated coverage matrix in **under 2
+minutes**, written to `outputs/`. A live run takes **6–9 minutes** per economy-pillar, most of
+it embedding on CPU.
 
-```bash
-# Python 3.10 – 3.12
-python -m venv venv
-source venv/bin/activate          # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
+**Everything else happens in the interface** — starting a run, reviewing, correcting, switching
+engines, exporting. You should not need the command line again. `AUTH_ENABLED=false` skips the
+sign-in screen for a demo.
 
-First install pulls PyTorch and two small sentence-transformer models (~2 GB, several
-minutes). No system binaries are needed: OCR is pip-only.
-
-### 3. Configure
-
-```bash
-cp .env.example .env
-```
-
-**The tool runs with no key at all** — offline sample corpus, deterministic mock grader, $0 —
-so you can reach step 5 before deciding anything. For real mapping, set one provider:
+**Keys are optional.** With none set, the tool runs the offline sample corpus through a
+deterministic mock grader at $0, which is enough to reach the verify step. For real mapping:
 
 ```env
-LLM_PROVIDER=openrouter                        # or anthropic · openai · gemini · local · mock
+LLM_PROVIDER=openrouter        # or anthropic · openai · gemini · local · mock
 OPENROUTER_API_KEY=sk-or-...
-OPENROUTER_MODEL=deepseek/deepseek-v4-flash
-OCR_PROVIDER=rapidocr                          # or paddle · tesseract · azure · vlm · mock
-SERPER_API_KEY=...                             # optional; discovery falls back to free search
+OCR_PROVIDER=rapidocr          # or paddle · tesseract · azure · vlm · mock
+SERPER_API_KEY=...             # optional; discovery falls back to free search
 ```
 
-`.env` is gitignored and no key is committed.
+`.env` is gitignored; no key is committed. The first run is slow while the sentence-transformer
+model loads, then cached. A `402` from OpenRouter means the key has no balance — set
+`LLM_PROVIDER=mock` to confirm the rest of the pipeline works.
 
-### 4. Start the interface
-
-```bash
-streamlit run frontend/app.py
-```
-
-Then open **http://localhost:8501**. **Everything else happens in the interface** — starting a
-run, reviewing, correcting, switching engines, exporting. You should not need the command line
-again after this step. To skip the sign-in screen for a demo, set `AUTH_ENABLED=false` in `.env`.
-
-### 5. Verify
-
-In the interface choose **Singapore**, topic **Cross-border data policies**, press
-**Run analysis**.
-
-Expected on the offline sample: a populated coverage matrix in **under 2 minutes**, exported to
-`outputs/`. Expected on a live run (`--live`, or the **Live portals** switch): roughly **6–9
-minutes** for one economy and one pillar, most of it embedding on CPU.
-
-If the first run is slow and prints nothing for a minute, that is the sentence-transformer
-model loading; it is cached afterwards. If you see `402` from OpenRouter, the key has no
-balance — switch `LLM_PROVIDER=mock` to confirm the rest of the pipeline works.
-
-The equivalent from the command line, if you prefer it:
+<details>
+<summary>Command line, if you prefer it</summary>
 
 ```bash
-python main.py --economy Singapore --pillar 6            # offline sample, no key, no network
-python main.py --economy Singapore --pillar 6 --live     # live crawl
+python main.py --economy Singapore --pillar 6                  # offline sample, no key, no network
+python main.py --economy Singapore --pillar 6 --live           # live crawl
+python main.py --economy Singapore --pillar 6 --live --fresh   # ignore caches, re-crawl
 python batch_run.py --economies Singapore Australia Malaysia --pillar 6 7 --live
 ```
+</details>
 
 ---
 
@@ -126,59 +127,63 @@ Criteria **C3a** and **C3b** are marked on the interface by someone who did not 
 
 | What a reviewer needs to do | Where it is |
 | :--- | :--- |
-| Start a run and watch progress in plain words | Sidebar → *Country* → *Topic* → **Run analysis**. Progress shows as five named stages, not a log. |
-| Open the audit view: a result beside the source text it came from | Tab **Details** → *Pick a result to inspect*. Shows the indicator's legal test, the verbatim quote, the surrounding source text, then the confidence breakdown. |
-| Follow a row to its official source at the cited article | Tab **Results** → click any matrix cell → **Source URL** in the evidence panel. |
-| Accept, reject or correct a row | Tab **Needs review** (the count in the tab label is the queue length). |
-| Switch the AI engine | Tab **Engines** — on the main screen, not in a drawer. Each card states purpose, readiness, cost, and where the document goes. No file edited, no command typed. |
-| Export to the RDTII schema | Tab **Download** → **Submission CSV** / **Evidence JSON** / **Scored CSV**. |
+| Start a run and watch progress in plain words | Sidebar → *Country* → *Topic* → **Run analysis**. Five named stages, not a log |
+| Open the audit view: a result beside the source text | Tab **Details** → *Pick a result to inspect* — legal test, verbatim quote, surrounding source, then confidence |
+| Follow a row to its official source at the cited article | Tab **Results** → click a matrix cell → **Source URL** |
+| Accept, reject or correct a row | Tab **Needs review** (the tab label carries the queue count) |
+| Switch the AI engine | Tab **Engines**, on the main screen. No file edited, no command typed |
+| Export to the RDTII schema | Tab **Download** → Submission CSV · Evidence JSON · Scored CSV |
 
-**Walkthrough recording:** *to be recorded before 30 September and submitted with the Word document.*
+**Walkthrough recording:** *to be recorded before 30 September, submitted with the Word document.*
 
 ---
 
 ## Your Two Declared Engines
 
-Required by **C4b** (No Vendor Lock-in) and tested live as **C5b**. Both engines are declared in
-Section 5 of the Word submission on 30 September and **cannot change afterwards**.
+Required by **C4b** (No Vendor Lock-in), tested again live as **C5b**. Declared in Section 5 of
+the Word submission on 30 September and **cannot change afterwards**.
 
 |  | Engine A — commercial hosted | Engine B — open weights |
 | :--- | :--- | :--- |
-| Provider and model | *pending bake-off — see below* | *pending bake-off — see below* |
-| Config value | `LLM_PROVIDER=openrouter` `LLM_MODEL=…` | `LLM_PROVIDER=local` `LLM_MODEL=…` |
+| Provider and model | *pending bake-off* | *pending bake-off* |
+| Config value | `LLM_PROVIDER=openrouter` | `LLM_PROVIDER=local` |
 
-> **Honest status.** The declaration is frozen on 30 September and cannot be revised, so we are
-> not naming two engines before measuring them. The bake-off runs each candidate over
+> The declaration freezes on 30 September and cannot be revised, so we are not naming two
+> engines before measuring them. The bake-off scores each candidate against
 > `data/ground_truth/rdtii_reference_p67.csv` — 180 rows from the panel's own 2025 databases
-> across six economies — and the two winners are declared. Candidates under test: DeepSeek and
-> Gemini Flash on the hosted side; Qwen3 and gpt-oss-20b on the open-weights side.
+> across six economies.
 
-The abstraction lives in `backend/providers/llm_factory.py`. Adding a provider means
-implementing one class with `complete_json(system, user)` and registering it in that factory.
+**Switching:** interface → tab **Engines** → select. A steward watches this on 15 October; a
+switch needing code or config scores zero.
 
-```env
-LLM_PROVIDER=openrouter    # any model id in OPENROUTER_MODEL
-LLM_PROVIDER=anthropic     # ANTHROPIC_API_KEY + ANTHROPIC_MODEL
-LLM_PROVIDER=openai        # OPENAI_API_KEY + OPENAI_MODEL
-LLM_PROVIDER=gemini        # GEMINI_API_KEY
-LLM_PROVIDER=local         # Ollama / vLLM / LM Studio — LOCAL_LLM_BASE_URL, no key
-LLM_PROVIDER=mock          # deterministic offline grader, $0
-```
+**Re-running without fetching:** leave *Fresh crawl* off (the default). Downloaded documents
+live in `cache/`, named by content hash, indexed in `cache/_index.json`. The second pass fetches
+nothing and its document list is empty. Delete the directory to force a cold run.
 
-### Switching between them
+Adding a provider means one class with `complete_json(system, user)` registered in
+`backend/providers/llm_factory.py` → [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
-**In the interface:** tab **Engines** → the engine card → select. No file is edited and no
-command is typed; a steward watches this happen on 15 October.
+---
 
-### Re-running without fetching
+## Swapping the OCR Engine
 
-A second pass reads documents already downloaded and fetches nothing new — its document list
-is empty.
+Set `OCR_PROVIDER` in `.env`, or pick it in the **Engines** tab. No code changes.
 
-**In the interface:** sidebar → *Advanced settings* → leave **Fresh crawl** off (the default).
-Downloaded documents are cached in **`cache/`**, named by the SHA-256 of their content, indexed
-by URL in `cache/_index.json`. Delete that directory to force a genuine cold run. On the command
-line, `--fresh` is the opposite: it ignores the cache and re-crawls.
+| Engine | Config value | Proprietary? | Notes |
+| :--- | :--- | :--- | :--- |
+| RapidOCR | `rapidocr` | no | Default. ONNX, pip-only. **CER 1.11 %** measured on the bundled scan |
+| PaddleOCR | `paddle` | no | PP-OCRv5 per-script models — the Thai and East-Slavic recognisers |
+| Tesseract | `tesseract` | no | Needs a system binary; the only offline option for Lao |
+| Vision model | `vlm` | optional | Reads any script. Point at a local Ollama for open weights |
+| Azure Document Intelligence | `azure` | **yes** | Strongest on noisy gazette scans; needs endpoint + key |
+| Mock | `mock` | no | Offline sidecar, $0 |
+
+**The core pipeline runs with no proprietary API.** Azure is the only proprietary option and is
+never a default; the vision engine satisfies the same declaration when pointed at a locally
+served open-weights model.
+
+→ per-language evidence, and why Paddle is disqualified for Vietnamese, Mongolian and Kazakh:
+[docs/OCR_LANGUAGE_EVIDENCE.md](docs/OCR_LANGUAGE_EVIDENCE.md)
 
 ---
 
@@ -189,197 +194,94 @@ and on 15 October five tools read the same government sites within the same hour
 
 | Setting | Value | Where it is set |
 | :--- | :--- | :--- |
-| Max requests per second per host | 0.5 (a 2-second gap) | [`backend/config.py:124`](backend/config.py#L124) `crawl_delay_seconds` |
-| Parallel requests per host | 1 | [`backend/pipeline/fetch.py:62`](backend/pipeline/fetch.py#L62) `_polite_wait` |
-| robots.txt respected | yes | [`backend/pipeline/robots.py`](backend/pipeline/robots.py), enforced at [`fetch.py:140`](backend/pipeline/fetch.py#L140) |
+| Max requests per second per host | 0.5 (a 2-second gap) | [`config.py:124`](backend/config.py#L124) `crawl_delay_seconds` |
+| Parallel requests per host | 1 | [`fetch.py:62`](backend/pipeline/fetch.py#L62) `_polite_wait` |
+| robots.txt respected | yes | [`robots.py`](backend/pipeline/robots.py), enforced at [`fetch.py:140`](backend/pipeline/fetch.py#L140) |
 
-Details that matter more than the table:
+A host's own `Crawl-delay` wins when larger than ours; an unreadable robots.txt denies; a
+skipped document is logged by URL and reason, never silently dropped.
 
-- **The most specific user-agent group wins**, per RFC 9309, and the longest matching path rule
-  wins within it. This is not pedantry: `peraturan.bpk.go.id` disallows nine *named* AI
-  crawlers while granting the wildcard group, and VeriTrade identifies as
-  `VeriTrade-Research/0.2`. Reading that file crudely either loses Indonesia or breaks a promise.
-- **A host's own `Crawl-delay` wins when it is larger than ours.** Our setting is a floor on
-  politeness, not a ceiling.
-- **robots.txt is checked before the cache is read**, not only before the network, so a rule
-  published after we fetched a body still governs whether we may use it.
-- **An unreadable robots.txt denies.** A 4xx means the file is absent, which is permission; a
-  5xx or a network failure is not.
-- A skipped document is **logged by URL and reason**, never silently dropped.
-- Two hosts sit on a narrow TLS-verification allowlist because their certificates are
-  self-signed or expired ([`fetch.py:250`](backend/pipeline/fetch.py#L250)). The conditions
-  under which that is acceptable are written above the allowlist.
-
----
-
-## Architecture Overview
-
-**Full system design with diagrams: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)** — read that
-if you are going to change the code.
-
-```mermaid
-flowchart LR
-    IN["economy + pillar"] --> DISC["discover<br/><i>portal catalogue / API / search</i>"]
-    DISC --> ROB{"robots.txt"}
-    ROB -->|allowed| FET["fetch"]
-    ROB -->|no| SKIP["logged, skipped"]
-    FET --> CACHE[("cache/<br/>SHA-256 addressed")]
-    CACHE --> READ["text layer or OCR<br/><i>CER measured</i>"]
-    READ --> SPLIT["split into articles<br/><i>verbatim</i>"]
-    SPLIT --> RET["retrieve<br/>BM25 + dense + rerank"]
-    RET --> MAP["LLM maps provision → indicator"]
-    MAP --> CONF["confidence · 4 signals"]
-    CONF --> OUT["CSV · JSON · SQLite"]
-    CONF -.->|"< 0.85"| REV["review queue"] -.-> OUT
-```
-
-The boundary between **fetching** and **reading** is explicit and is what makes the second pass
-free: everything left of `cache/` touches the network, everything right of it does not.
-
-Corpora at or below 80 provisions are graded **exhaustively** — every provision against every
-indicator — so retrieval is a signal rather than a gate. This is why imperfect non-English
-ranking does not cost recall.
-
-### Key modules
-
-| Module | File | Description |
-| :--- | :--- | :--- |
-| Portal Crawler | `backend/pipeline/discovery.py`, `robots.py`, `fetch.py`, `scrapling_fetch.py` | Navigates portals, retrieves source URLs, robots enforcement, caching |
-| Document Processor | `backend/pipeline/ocr.py`, `extraction.py`, `backend/providers/ocr_*.py` | Download, OCR, structural parsing into verbatim articles |
-| Retrieval | `backend/pipeline/retrieval.py`, `ranking.py` | Script-aware tokenisation, BM25 + dense, reranking |
-| Mapper | `backend/pipeline/mapping.py`, `confidence.py` | Provision → RDTII indicator, 4-signal confidence |
-| Indicators | `backend/rdtii/` | Legal tests, all-12-pillar reference, scoring, codes, baseline tags |
-| Engine registry | `backend/providers/engine_profile.py`, `llm_factory.py`, `ocr_factory.py` | Which engine per economy, and the evidence for it |
-| Interface | `frontend/app.py`, `matrix.py`, `runview.py`, `enginebench.py` | Run control, audit view, review, export |
-| Output Writer | `backend/export/csv_export.py`, `json_export.py` | Writes the RDTII schema |
-| Orchestrator | `backend/pipeline/orchestrator.py` | End-to-end run + SQLite audit trail |
-
----
-
-## Swapping the OCR Engine
-
-Change `OCR_PROVIDER` in `.env`, or pick it in the **Engines** tab. No code changes.
-
-| Engine | Config value | Proprietary? | Notes |
-| :--- | :--- | :--- | :--- |
-| RapidOCR | `rapidocr` | no | Default. ONNX, pip-only, no system binary. **CER 1.11 %** measured on the bundled scanned notice |
-| PaddleOCR | `paddle` | no | PP-OCRv5 per-script models. The Thai and East-Slavic recognisers live here |
-| Tesseract | `tesseract` | no | Needs a system binary. The only offline option for Lao |
-| Vision model | `vlm` | **optional** | Reads any script. Point `VLM_OCR_BASE_URL` at a local Ollama for open weights, or at a router for a hosted model |
-| Azure Document Intelligence | `azure` | **yes** | Strongest on noisy gazette scans; needs endpoint + key |
-| Mock | `mock` | no | Offline sidecar, $0 |
-
-**The core pipeline runs with no proprietary API.** Azure is the only proprietary OCR option and
-is never a default. The vision engine satisfies the same declaration when pointed at a locally
-served open-weights model.
-
-**Engines are chosen per economy, with a reason and an evidence grade** —
-`python -m backend.providers.engine_profile` prints it. The registry states what an engine
-family supports; the factory resolves against what is actually installed, and substitutes
-rather than running a recogniser whose dictionary cannot spell the script. Measured
-disqualifications behind those choices:
-
-- PaddleOCR's East-Slavic dictionary (517 characters) contains no **Ө Ү ө ү** — Mongolian loses
-  four letters, Kazakh sixteen.
-- Its Latin dictionary (836 characters) carries **đ ă ơ ư** but none of the 45 precomposed
-  Vietnamese tone forms, and `lang="vi"` loads that very model *without raising*.
-- The English cross-encoder ranks the correct Chinese provision **last of five**, so a
-  non-Latin economy never falls back to it.
+→ per-portal robots findings, and why user-agent matching has to be exact:
+[docs/CRAWLING.md](docs/CRAWLING.md)
 
 ---
 
 ## Supported Economies and Portals
 
-Generated from the registries the pipeline reads, so it cannot claim a capability the code does
-not have: `python tools/readiness.py`.
+Generated from the registries the pipeline reads — `python tools/readiness.py` — so it cannot
+claim a capability the code does not have.
 
-**declared** = resolves, language profile, OCR engine · **reachable** = a portal answered us ·
+**declared** = resolves, language profile, OCR engine · **reachable** = a portal answered ·
 **extracted** = provisions produced · **measured** = scored against the panel's 2025 database.
 Only *measured* is a claim about quality.
 
-| Economy | Live-test nine | Language of source | Portal | Lane | OCR | Reranker | Run end to end? | Next blocker |
-| :--- | :---: | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| Thailand | yes | Thai | www.krisdika.go.th (+1) | non_english | paddle | off | **declared** | TLS fixed; document path still unknown (404 on every path tried) |
-| Viet Nam | yes | Vietnamese | vbpl.vn | non_english | vlm | off | **reachable** | no discovery adapter has produced provisions yet |
-| Indonesia | yes | Indonesian | peraturan.bpk.go.id (+1) | non_english | rapidocr | off | **reachable** | no discovery adapter has produced provisions yet |
-| China | yes | Chinese (Simplified) | www.gov.cn (+1) | non_english | rapidocr | off | **extracted** | no scored run against the 2025 database yet |
-| India | yes | English | www.indiacode.nic.in (+1) | english | rapidocr | ms-marco | **declared** | portal is a JS shell — 200 with no statute text in the body |
-| Kazakhstan | yes | Kazakh | adilet.zan.kz | non_english | vlm | off | **reachable** | no discovery adapter; robots closes the listing paths |
-| Lao PDR | yes | Lao | laoofficialgazette.gov.la | non_english | vlm | off | **declared** | host does not resolve — the portal URL itself is wrong |
-| Mongolia | yes | Mongolian | legalinfo.mn | non_english | vlm | off | **reachable** | no discovery adapter has produced provisions yet |
-| Russian Federation | yes | Russian | publication.pravo.gov.ru | non_english | paddle | off | **reachable** | robots disallows `/File`; build the lane on the sitemap |
-| Singapore | — | English | sso.agc.gov.sg | english | rapidocr | ms-marco | **measured** | — |
-| Australia | — | English | www.legislation.gov.au (+1) | english | rapidocr | ms-marco | **measured** | — |
-| Malaysia | — | English | lom.agc.gov.my (+2) | english | rapidocr | ms-marco | **measured** | — |
+| Economy | Live-test nine | Language | Portal | Run end to end? | Next blocker |
+| :--- | :---: | :--- | :--- | :--- | :--- |
+| Thailand | yes | Thai | krisdika.go.th (+1) | declared | TLS fixed; document path unknown |
+| Viet Nam | yes | Vietnamese | vbpl.vn | reachable | no discovery adapter yet |
+| Indonesia | yes | Indonesian | peraturan.bpk.go.id (+1) | reachable | no discovery adapter yet |
+| China | yes | Chinese | gov.cn (+1) | **extracted** | not yet scored against the 2025 database |
+| India | yes | English | indiacode.nic.in (+1) | declared | portal is a JS shell |
+| Kazakhstan | yes | Kazakh | adilet.zan.kz | reachable | robots closes the listing paths |
+| Lao PDR | yes | Lao | laoofficialgazette.gov.la | declared | host does not resolve |
+| Mongolia | yes | Mongolian | legalinfo.mn | reachable | no discovery adapter yet |
+| Russian Federation | yes | Russian | publication.pravo.gov.ru | reachable | robots disallows `/File`; use the sitemap |
+| Singapore | — | English | sso.agc.gov.sg | **measured** | — |
+| Australia | — | English | legislation.gov.au (+1) | **measured** | — |
+| Malaysia | — | English | lom.agc.gov.my (+2) | **measured** | — |
 
 **Of the nine live-test economies today: 0 measured, 1 extracted, 5 reachable, 3 declared.**
 Singapore, Australia and Malaysia are our deepest corpora but are *not* among the nine — the
 panel holds no 2025 database for them.
 
-Mongolia's statutes are served as **HTML**, not scanned PDF (measured: 12.4k Cyrillic characters
-in the response body, zero PDF links, zero vertical Mongol Bichig), so OCR is not on its
-critical path. The vision engine exists for the case where a scanned amendment appears anyway.
+Mongolia's statutes are served as HTML, not scanned PDF (measured: 12.4k Cyrillic characters in
+the response body, zero PDF links), so OCR is not on its critical path.
 
 ---
 
 ## Output Format
 
-Columns are in this exact order — the same thirteen as Round 1, plus **Language of Source**.
-Do not rename or reorder; the secretariat validates programmatically.
-Source of truth: `backend/schemas.py` → `SUBMISSION_COLUMNS`.
+Fourteen columns, this exact order: the thirteen from Round 1 unchanged, plus **Language of
+Source**. Source of truth is `SUBMISSION_COLUMNS` in `backend/schemas.py`.
 
-| # | Column | Required | Description |
+| # | Column | Req. | Notes |
 | :--- | :--- | :--- | :--- |
-| 1 | Economy | Required | Official UN country name ("Viet Nam", "Lao People's Democratic Republic") |
-| 2 | Law Name | Required | Full official statute name and year |
-| 3 | Law Number / Ref | Optional | e.g. `Act 709`, `B.E. 2562` |
-| 4 | Last Amended | Optional | Month + year when verified; `Original` when the portal shows none |
-| 5 | Indicator ID | Required | **RDTII 2.1 code as text: `6.1`, `7.3`, `12.9`. Never `P6-I1`.** |
-| 6 | Article / Section | Required | Exact article and paragraph, e.g. `s. 26(1)`, `Art. 26(2)` |
-| 7 | Discovery Tag | Required | NEW = not in the 2025 baseline we hold; KNOWN = it was |
-| 8 | Location Reference | Optional | PDF page number, or HTML anchor / section path |
-| 9 | Verbatim Snippet | Required | Exact quoted text — no editing, no paraphrase, no translation |
-| 10 | Mapping Rationale | Optional | ≤ 300 characters, naming the legal mechanism |
-| 11 | Source URL | Required | Direct URL on the official government portal |
-| 12 | Confidence | Optional | 0.00–1.00 |
-| 13 | Notes | Optional | OCR issues, bilingual sources, cross-references, instrument warnings |
-| 14 | Language of Source | Required | The document's original language, not the language we read it in |
+| 1 | Economy | ✓ | Official UN name — "Viet Nam", "Lao People's Democratic Republic" |
+| 2 | Law Name | ✓ | Full official name and year |
+| 3 | Law Number / Ref | | `Act 709`, `B.E. 2562` |
+| 4 | Last Amended | | Month + year when verified; `Original` when the portal shows none |
+| 5 | Indicator ID | ✓ | **RDTII 2.1 code as text: `6.1`, `7.3`, `12.9`. Never `P6-I1`** |
+| 6 | Article / Section | ✓ | `s. 26(1)`, `Art. 26(2)` — the section, not just the act |
+| 7 | Discovery Tag | ✓ | NEW / KNOWN, decided **per provision** |
+| 8 | Location Reference | | PDF page, or HTML anchor |
+| 9 | Verbatim Snippet | ✓ | Exact text — no editing, paraphrase or translation |
+| 10 | Mapping Rationale | | ≤ 300 chars, naming the legal mechanism |
+| 11 | Source URL | ✓ | Direct URL on the official portal |
+| 12 | Confidence | | 0.00–1.00 |
+| 13 | Notes | | OCR issues, bilingual sources, instrument warnings |
+| 14 | Language of Source | ✓ | The document's original language, not the one we read it in |
 
-**Indicator IDs are written as text.** Entered as a number, `12.10` collapses to `12.1` and
-`4.01` to `4.1`, and those are different indicators. `backend/rdtii/codes.py` converts and then
-checks the result against the 61 in-scope codes.
+Three rules that cost rows if broken:
 
-**Column 15, "Pillar (auto — do not edit)", is deliberately not written.** The workbook already
-carries a formula there deriving it from the Indicator ID, and the Coverage Matrix reads that
-formula's output. Writing a literal would overwrite it and silently empty every coverage count.
+- **IDs are text.** Entered as a number, `12.10` collapses to `12.1` and `4.01` to `4.1` — four
+  different indicators. `backend/rdtii/codes.py` converts and checks against the 61 in-scope codes.
+- **Column 15, "Pillar (auto)", is deliberately not written.** The workbook holds a formula
+  there and the Coverage Matrix reads it; a literal would silently empty every coverage count.
+- **Discovery Tag is per provision, not per law.** If the panel cites PDPA s.26 and we
+  independently surface s.11(3), a law-level match would report our own find as something we
+  were handed. `backend/rdtii/baseline.py` matches law *and* article, reducing `第四十条`,
+  `14 дүгээр зүйл`, `s. 26(1)` and `APP 8` to a common numeric spine.
 
-Indicators with no evidence get an explicit **"No provision found"** row — never left blank —
-with `N/A` in Confidence and Discovery Tag.
-
-### Discovery Tag is decided per provision
-
-The template defines NEW per *provision*: "your tool found it and it is not in the 2025 baseline
-you hold". Matching only the law name gives away our own credit — if the panel cites PDPA s.26
-and our tool independently surfaces PDPA s.11(3), a law-level match reports the second one as
-something we were handed.
-
-`backend/rdtii/baseline.py` matches the law **and** the article, reducing both sides to a numeric
-spine so `第四十条`, `14 дүгээр зүйл`, `s. 26(1)` and `APP 8` all compare. Where the baseline names
-the law but no article, the honest answer is unknowable, so we report KNOWN and say so in Notes —
-overstating our own discovery is the one error a judge can check against the database they wrote.
-
-### JSON (`outputs/<economy>_P<pillar>_<timestamp>.json`)
-
-Every CSV field plus `ocr_quality.cer`, `pdf_is_scanned`, `retrieval_log`, the confidence
-breakdown, `raw_context_before/after`, `model_version`, and processing time.
+Indicators with no evidence get an explicit **"No provision found"** row, never a blank. The
+JSON adds `ocr_quality.cer`, `pdf_is_scanned`, `retrieval_log`, the confidence breakdown,
+surrounding source context, and `model_version`.
 
 ---
 
 ## Measured Cost
 
-**Measured 2026-07-12** · benchmark: one ~50-page Act, ~64 grading calls ·
-`deepseek/deepseek-v4-flash` at $0.09 / $0.18 per 1M input / output tokens (OpenRouter,
-verified) · Serper at $1.00 per 1,000 queries.
+**Measured 2026-07-12** · one ~50-page Act, ~64 grading calls · `deepseek/deepseek-v4-flash` at
+$0.09 / $0.18 per 1M input / output tokens (OpenRouter, verified) · Serper at $1.00 / 1k queries.
 
 | Component | Engine used | Measured cost |
 | :--- | :--- | :--- |
@@ -387,23 +289,19 @@ verified) · Serper at $1.00 per 1,000 queries.
 | Embedding | MiniLM + BM25 (local) | $0.000 |
 | Mapping — Engine A | *pending declaration* | — |
 | Mapping — Engine B | *pending declaration* | — |
-| Mapping — current default | deepseek-v4-flash | **$0.012 / document** (~$0.0002 × 64 calls) |
-| Crawling | Serper (optional) | **$0.19** per full 3-economy run; free tier covers it |
+| Mapping — current default | deepseek-v4-flash | **$0.012 / document** |
+| Crawling | Serper (optional) | **$0.19** per 3-economy run; the free tier covers it |
 | **Total, current stack** | | **~$0.012 / document** + crawling |
 | **Total, open-weights swap** | Ollama + RapidOCR + free search | **$0.00 / document** |
 
-**Wall-clock:** 6–9 minutes per economy-pillar on a live run, CPU only, most of it embedding.
+**Wall-clock:** 6–9 minutes per economy-pillar on a live run, CPU only.
 
-> **Honest status — this table is not yet produced automatically.** The template requires cost
-> "recorded per run and per engine during the live hour … without manual arithmetic". LLM token
-> counts come back in every API response and OCR/embedding are local and free, so every unit is
-> measurable; what does not yet exist is the meter that threads through the pipeline and sums
-> them per run. It is built before 30 September, and the figures above are re-measured with the
-> declared engines at that point. Reproduce the current numbers with:
->
-> ```bash
-> python tools/cost_logger.py --pdf data/samples/AU/privacy_act.pdf --economy Australia --pillar 6
-> ```
+> **Not yet automatic.** The template requires cost recorded per run and per engine "without
+> manual arithmetic". Every unit is measurable — token counts come back in each API response,
+> OCR and embedding are local and free — but the meter that threads through the pipeline and
+> sums them per run does not exist yet. It is built before 30 September, and the figures
+> re-measured with the declared engines. Reproduce the current numbers:
+> `python tools/cost_logger.py --pdf data/samples/AU/privacy_act.pdf --economy Australia --pillar 6`
 
 ---
 
@@ -412,31 +310,63 @@ verified) · Serper at $1.00 per 1,000 queries.
 A tool that flags what it could not read is better built than one that presents everything with
 equal confidence.
 
-- **Six of the nine live-test economies have no discovery adapter yet.** Their portals answer,
-  and OCR and language handling are in place, but nothing knows how to *enumerate* what laws
-  exist on them. `websearch` is a fallback, not a plan — Malaysia proved it can return zero
-  Acts in silence.
-- **Confidence is relative, not a calibrated probability.** Below **0.85** a human should look;
-  below **0.60** the row is quarantined and excluded from the submission by default.
-- **Confidence is not comparable across language lanes.** Its `retrieval_score` component is on
-  a different scale in each: the English lane's cross-encoder pulls the number down (measured:
-  0.303 against 0.514) while the non-English lane has no cross-encoder. Two equally good rows
-  from two economies therefore carry different confidence, and the fix — ranking within the
-  shortlist instead of the raw score — is not yet applied because it moves every existing row.
-- **The multilingual reranker is off by default.** It is 568M parameters against 23M and runs
-  an order of magnitude slower; enabled, it turned one China pillar into an 11-hour run. Turning
-  it off *raises* retrieval scores and changed 0 of 20 shortlist rows in the measurement above.
-  Enable with `CROSS_ENCODER_MULTILINGUAL_ENABLED=true` if you have a GPU.
+- **Six of the nine live-test economies have no discovery adapter.** Their portals answer and
+  their language handling is in place, but nothing yet enumerates what laws exist on them.
+- **Confidence is relative, not a calibrated probability.** Below 0.85 a human should look;
+  below 0.60 the row is quarantined and excluded from the submission by default.
+- **Confidence is not comparable across language lanes.** Its retrieval component sits on a
+  different scale in each (measured: 0.303 with the cross-encoder against 0.514 without), so two
+  equally good rows from two economies carry different numbers. The fix — ranking within the
+  shortlist rather than the raw score — is not applied because it moves every existing row.
+- **The multilingual reranker is off by default.** 568M parameters against 23M, an order of
+  magnitude slower; enabled, it turned one China pillar into an 11-hour run. Turning it off
+  *raises* retrieval scores and changed 0 of 20 shortlist rows.
+  Set `CROSS_ENCODER_MULTILINGUAL_ENABLED=true` if you have a GPU.
 - **OCR accuracy is validated only for Latin script** (CER 1.11 %). No document-level CER exists
-  for Thai, Lao, Mongolian or Kazakh from any engine, ours included; `validated=False` in
-  `ocr_languages.py` marks every such case rather than quoting a vendor number as if it were CER.
+  for Thai, Lao, Mongolian or Kazakh from any engine, ours included.
 - **The vision OCR engine can hallucinate.** Classical OCR degrades into visible noise; a vision
   model degrades into a fluent sentence that was never in the document. It is the last engine
-  tried, runs at temperature 0, is instructed to write `[illegible]` rather than guess, and
-  returns no confidence — we report `None` instead of inventing one.
+  tried, runs at temperature 0, writes `[illegible]` rather than guessing, and returns no
+  confidence — we report `None` rather than inventing one.
 - **The offline mock grader is lexical** and can confuse 6.1 with 6.4, or 7.1 with 7.2. Use a
   real LLM for anything submitted.
 - **Live crawling depends on portal availability**; the bundled sample corpus is the fallback.
+
+---
+
+## Docs
+
+| Doc | What it covers |
+| :--- | :--- |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | **System design.** Part I orients a new contributor with diagrams; Part II is the reference — schemas, formulas, and why the confidence weights are what they are |
+| [docs/CRAWLING.md](docs/CRAWLING.md) | **Politeness and robots.txt** — per-portal findings, and why user-agent matching has to be exact |
+| [docs/OCR_LANGUAGE_EVIDENCE.md](docs/OCR_LANGUAGE_EVIDENCE.md) | Per-language OCR evidence: what was measured, what is only documented, what is a gap |
+| [docs/retrieval-redesign.md](docs/retrieval-redesign.md) | How the retrieval parameters were swept, and two counter-intuitive results not to re-litigate |
+| [docs/round2-expansion.md](docs/round2-expansion.md) | Multilingual expansion — tokenisation, article boundaries, the grading prompt for non-English text |
+| [docs/AUTH_AND_DATABASE.md](docs/AUTH_AND_DATABASE.md) | Accounts, sessions, and the one env var that moves storage to cloud Postgres |
+| [docs/NOTES_FOR_JUDGES.md](docs/NOTES_FOR_JUDGES.md) | Decisions a reviewer may want the reasoning for |
+| [docs/precompute-corpus.md](docs/precompute-corpus.md) | The precomputed corpus layers (L0–L3), currently paused |
+
+---
+
+## Repo layout
+
+```
+backend/
+  pipeline/     discovery · robots · fetch · ocr · extraction · retrieval · mapping · orchestrator
+  providers/    LLM and OCR factories, per-economy engine profile, language registry
+  rdtii/        indicator legal tests · 12-pillar reference · scoring · codes · baseline tags
+  export/       the 14-column CSV and the JSON trace
+  eval/         labels from the panel's database, retrieval metrics, sweepable ranker
+frontend/       Streamlit interface — matrix · run view · engine bench
+data/
+  sources.yaml  portals, never laws
+  samples/      offline corpus for a keyless run
+  rdtii/        indicator_reference.json — all 61 in-scope indicators
+  ground_truth/ rdtii_reference_p67.csv — 180 rows from the panel's own databases
+tools/          readiness · portal probe · retrieval sweep · reference builders
+tests/          452 tests
+```
 
 ---
 
@@ -446,45 +376,20 @@ equal confidence.
 pytest tests/
 ```
 
-**448 tests, all passing.** The ones worth knowing about:
-
-| Test file | What it tests |
-| :--- | :--- |
-| `test_output.py` | The exact CSV schema the secretariat validates |
-| `test_final_round.py` | The nine economies, `6.4` indicator codes, Language of Source, unscoreable instruments |
-| `test_robots.py` | robots.txt enforcement against the real files the live-test portals serve |
-| `test_baseline_tag.py` | Discovery Tag per provision, across four citation conventions |
-| `test_multilingual.py` | Script-aware tokenisation, article boundaries, reranker selection |
-| `test_scanned_ocr.py` | Real raster OCR, CER < 5 % on a bundled scan |
-| `test_mapper.py` | Indicator mapping against known answers |
-| `test_discovery.py` | Live discovery and in-force filtering |
-| `test_scrapling_fetch.py` | Browser fetch and WAF bypass |
-| `test_input.py` | Economy codes, UN names, typo tolerance |
-
----
+**452 tests.** The ones worth knowing: `test_output.py` (the exact CSV schema the secretariat
+validates) · `test_final_round.py` (the nine economies, `6.4` codes, Language of Source,
+unscoreable instruments) · `test_robots.py` (against the real files the live-test portals serve)
+· `test_baseline_tag.py` (Discovery Tag per provision) · `test_multilingual.py` (script-aware
+tokenisation and reranker selection) · `test_scanned_ocr.py` (CER < 5 % on a bundled scan).
 
 ## Reproducing Your Submitted Evidence
 
 ```bash
 python batch_run.py --economies Singapore Australia Malaysia --pillar 6 7 --live
+python evaluate.py --economy Singapore      # coverage against the panel's answer key
+python tools/readiness.py                   # the economies table above
+python -m backend.providers.engine_profile  # per-economy engine choices and their evidence
 ```
-
-Regenerates the rows in the submitted workbook so a reviewer can compare them against what we
-filed. Coverage against the panel's own answer key:
-
-```bash
-python evaluate.py --economy Singapore
-```
-
-Readiness table, engine profile, and portal reconnaissance:
-
-```bash
-python tools/readiness.py
-python -m backend.providers.engine_profile
-python tools/probe_portals.py --economy KZ
-```
-
----
 
 ## Team
 
@@ -493,20 +398,12 @@ python tools/probe_portals.py --economy KZ
 | Technical Lead | AI architecture, OCR, discovery and retrieval pipeline |
 | Substantive Lead | Legal and policy analysis, RDTII mapping, output QA |
 
-Foreign Trade University (FTU), Viet Nam · contact: minhtc@ftu.edu.vn
-
----
-
 ## Licence
 
-Released under the **Apache License 2.0**, as required. See [LICENSE](LICENSE).
+**Apache License 2.0**, as required — see [LICENSE](LICENSE).
 
-**Release tag:** *set at submission on 30 September — that tag is what runs on 15 October.
-Settings may change on the day; code may not.*
-
----
-
-## Acknowledgements
+**Release tag:** *set at submission on 30 September; that tag is what runs on 15 October.
+Settings may change on the day, code may not.*
 
 Built for the UN Global Hackathon on AI for Digital Trade Regulatory Analysis, organised by
 ESCAP and KMITL.

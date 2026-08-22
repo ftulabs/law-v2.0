@@ -1,6 +1,6 @@
 # OCR engine and language evidence
 
-Research date **14 Aug 2026**. This records *why* each default was chosen, and — more
+Research date **14 Aug 2026**, with measurements added **21 Aug 2026** (marked inline). This records *why* each default was chosen, and — more
 importantly — where no evidence exists. Every claim below is either a citable measurement or
 is explicitly marked unproven. The point of the file is that a judge (or a future maintainer)
 can tell the two apart.
@@ -23,7 +23,7 @@ Three cautions apply to almost every published number in this area:
 
 | | Thai | Lao | Chinese | Russian | Vietnamese | Mongolian (Cyr) | Mongolian (vert.) | Latin |
 |---|---|---|---|---|---|---|---|---|
-| RapidOCR / PaddleOCR v5 | ✅ `th` | ❌ | ✅ `ch` | ✅ `eslav` | 🟡 latin | 🟡 cyrillic | ❌ | ✅ |
+| RapidOCR / PaddleOCR v5 | ✅ `th` | ❌ | ✅ `ch` | ✅ `ru` | ❌ *(was 🟡)* | ❌ *(was 🟡)* | ❌ | ✅ |
 | Tesseract 5 | ✅ `tha` | ✅ `lao` | ✅ `chi_sim` | ✅ `rus` | ✅ `vie` | ✅ `mon` | ❌ | ✅ |
 | EasyOCR | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
 | docTR | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
@@ -39,6 +39,60 @@ Two traps worth naming:
 * **PP-OCRv6 (Jun 2026) does not help the hard scripts.** Its "50 languages in one model" is
   Chinese, Traditional Chinese, English, Japanese plus 46 *Latin-script* languages. No Thai,
   no Cyrillic, no Lao. It supplements PP-OCRv5's per-script models rather than replacing them.
+
+### Measured 21 Aug 2026 — against the models' own character dictionaries
+
+The two 🟡 cells above were downgraded to ❌ by reading the shipped recognition dictionaries
+rather than the vendor's language list. This is the cheapest possible measurement — the
+dictionary is a plain list inside `inference.yml` — and it is decisive, because **an engine can
+only emit characters that exist in its output dictionary.** A missing letter is not a low
+score, it is an impossibility, and it arrives as fluent text with no error anywhere.
+
+| Model | Dictionary size | Finding |
+| :--- | ---: | :--- |
+| `eslav_PP-OCRv5_mobile_rec` | 517 | **No Ө Ү ө ү.** Mongolian Cyrillic loses four letters |
+| `eslav_PP-OCRv5_mobile_rec` | 517 | **No Ә Ғ Қ Ң Ө Ұ Ү Һ** or their lower case — **sixteen of Kazakh's 42 letters are absent** (only І/і are present) |
+| `latin_PP-OCRv5_mobile_rec` | 836 | Carries đ ă ơ ư but **none of the 45 precomposed Vietnamese tone forms** (ế ộ ữ ạ ằ …) |
+
+Two consequences are now pinned by tests (`tests/test_final_round.py`):
+
+* `PROFILES["MN"].paddle` and `PROFILES["KZ"].paddle` are `None`. The disqualification is
+  measured, not inherited caution.
+* `PROFILES["VN"].paddle` is `None`, and this one is a trap rather than a gap: PaddleOCR
+  **accepts `lang="vi"` without raising** and quietly loads that same `latin` model. A
+  configuration that looks like it works, and does not.
+
+### The language keys changed under us
+
+The registry recorded `paddle="cyrillic"` and `paddle="eslav"`. PaddleOCR 3.x raises
+`ValueError: No models are available for the language 'eslav'` on both — those keys no longer
+exist. The factory caught the exception and reported *"no engine can read Cyrillic"*, while the
+engine sat installed the whole time under the key `ru`.
+
+**Russia was recoverable by fixing a string.** The lesson generalises: a registry that names
+another project's identifiers is a copy of that project's API at a moment in time, and it needs
+a test that actually constructs the engine. `test_paddle_language_keys_match_the_installed_paddleocr`
+is that test.
+
+Verified installed and working on this machine: `ru`, `vi`, `th`, `ka`, `en`, `ch`.
+Verified rejected: `cyrillic`, `eslav`, `east_slavic`, `latin`.
+
+### Cross-encoder, measured on the same day
+
+Not OCR, but the same class of question — does the model actually handle the script? Asked to
+rank five PIPL/CSL articles against the 6.2 legal test:
+
+| Model | Params | Throughput | Rank order | Correct article |
+| :--- | ---: | ---: | :--- | :--- |
+| `ms-marco-MiniLM-L-6-v2` | 23M | 72.7 pairs/s | `[2,3,1,4,0]` | **last of five** |
+| `BAAI/bge-reranker-v2-m3` | 568M | 4.2 pairs/s | `[0,3,1,4,2]` | first |
+
+So an English cross-encoder on Chinese is not merely uninformative, it is **inverted** — which
+is why a non-Latin economy never falls back to it. Two lighter multilingual alternatives were
+tried and neither runs here: `Alibaba-NLP/gte-multilingual-reranker-base` (306M) raises an
+IndexError inside its custom modelling code, and `jinaai/jina-reranker-v2-base-multilingual`
+(278M) needs a `transformers` API the pinned version no longer exports. bge-m3 is therefore not
+the best multilingual reranker available — it is the only one that runs.
 
 ## Accuracy on real documents
 
@@ -119,7 +173,7 @@ Two further hazards specific to Lao:
 Position taken: attempt Lao with Tesseract, mark every Lao mapping unvalidated, route it to
 human review, and state the limitation in the honesty section rather than claiming coverage.
 
-### Why no VLM OCR as default
+### Why no VLM OCR as default — and why it is now the last-resort fallback
 
 Every strong 2026 document VLM needs a GPU (measured CPU figures where they exist: olmOCR-2
 ~37 s/page, PaddleOCR-VL ~53 s/page), which alone breaks the CPU-only judging constraint. The
@@ -130,6 +184,31 @@ found that across scripts only 12.5% of predictions land in the correct script w
 are cross-script hallucination. A detect-then-recognise engine cannot invent a clause that
 is not in the image; a VLM can, and a fluent invented clause survives review where garbled
 characters do not.
+
+**Updated 21 Aug 2026.** All of the above still holds, and none of it was the whole picture. It
+argues against a VLM as the *default*; it does not answer what to do when no detect-then-recognise
+engine can read the script at all. Measured, that is four of the nine live-test economies:
+Mongolian and Kazakh Cyrillic (letters missing from the dictionary), Vietnamese (tone forms
+missing), and Lao (no maintained model anywhere).
+
+"No installed OCR engine can read this script" is an honest answer and a useless one for a
+sealed live test that names one economy of nine and gives an hour. So `providers/ocr_vlm.py`
+exists as the **last** engine tried — never a default, never preferred, reached only when the
+registry and the factory agree that nothing else can spell the script. The cautions above are
+translated into the code rather than left in this file:
+
+* temperature 0, and an instruction to transcribe rather than answer;
+* an explicit instruction to write `[illegible]` rather than guess, because an invented sentence
+  is far worse than an acknowledged gap when the text is quoted as a legal citation;
+* `confidence=None` per page — a VLM emits no per-character probability, and a fabricated 0.9
+  would flow into `ocr_quality.cer` and be read as measured;
+* a `max_pages` ceiling, because a 600-page compilation silently costing 600 model calls is the
+  kind of bill nobody notices until it has been paid;
+* OpenAI chat-completions shape, so pointing `VLM_OCR_BASE_URL` at a local Ollama serving
+  Qwen2.5-VL keeps the Section 3 "no proprietary API" declaration true.
+
+The GPU objection is unchanged and is why it stays off the default path. The hallucination
+objection is unchanged and is why every page it produces is marked.
 
 ## Known defects still open
 

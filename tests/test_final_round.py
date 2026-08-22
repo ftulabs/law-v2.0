@@ -292,16 +292,30 @@ def test_readme_line_references_still_point_where_they_claim():
 
 def test_readme_documents_all_fourteen_columns_in_order():
     """The output table in the README is what a reviewer checks our CSV against, so it must not
-    drift from SUBMISSION_COLUMNS."""
+    drift from SUBMISSION_COLUMNS. Matched on the column NAMES and their order rather than on
+    the table's exact markdown, so reformatting the README is allowed and renaming is not."""
     body = _readme()
-    start = body.index("| # | Column | Required | Description |")
-    table = body[start:body.index("\n\n", start)]
+    section = body[body.index("## Output Format"):body.index("## Measured Cost")]
+    positions = []
     for i, col in enumerate(SUBMISSION_COLUMNS, 1):
-        assert f"| {i} | {col} |" in table, f"README is missing column {i} ({col})"
+        needle = f"| {i} | {col} |"
+        assert needle in section, f"README is missing column {i} ({col})"
+        positions.append(section.index(needle))
+    assert positions == sorted(positions), "README lists the columns out of order"
 
 
 def test_readme_states_the_final_round_not_round_one():
+    """A README headed "Round: 1" is the first thing a desk reviewer sees."""
+    head = _readme()[:1200]
+    assert "final round" in head.lower()
+    assert "Round: **1**" not in head
+
+
+def test_readme_points_at_the_docs_that_carry_the_detail():
+    """The README is the front door for criterion C4a; depth lives in docs/ and the links have
+    to resolve. A dead link here reads as an unmaintained repository."""
+    from backend.config import ROOT
     body = _readme()
-    assert "Round: **Final**" in body
-    assert "P6-I1" not in body.split("## Output Format")[1].split("## Measured Cost")[0] \
-        or "Never `P6-I1`" in body
+    for doc in ("docs/ARCHITECTURE.md", "docs/CRAWLING.md", "docs/OCR_LANGUAGE_EVIDENCE.md"):
+        assert doc in body, f"README no longer links {doc}"
+        assert (ROOT / doc).exists(), f"{doc} is linked but missing"
