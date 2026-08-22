@@ -109,15 +109,26 @@ python batch_run.py --economies Singapore Australia Malaysia --pillar 6 7 --live
 
 Criteria **C3a** and **C3b** are marked on the interface by someone who did not build it.
 
+The start screen is four **screens** — Run · Live test · Engines · Coverage — and a completed
+run opens **tabs** beneath it. The split is deliberate: two of those four are needed when no
+run exists yet, and a tab inside the results cannot be reached before the first run.
+
 | What a reviewer needs to do | Where it is |
 | :--- | :--- |
-| Start a run and watch progress in plain words | Sidebar → *Country* → *Topic* → **Run analysis**. Five named stages, not a log |
+| Choose an economy, and see how far each one has been taken | Screen **Run** → the globe. Every economy is filled by its readiness — declared, reachable, extracted, measured — from `tools/readiness.py`. Drag to turn, arrow keys to move, or press a name |
+| Choose a topic | Screen **Run** → twelve pillar chips. 6 and 7 are marked as the measured pair; the other ten say so in their tooltip |
+| Start a run and watch progress in plain words | Screen **Run** → **Run analysis**. Five named stages, not a log |
+| See what the tool can actually do, per economy | Screen **Coverage** — the readiness table, generated, with the next blocker for each |
 | Open the audit view: a result beside the source text | Tab **Details** → *Pick a result to inspect* — legal test, verbatim quote, surrounding source, then confidence |
 | Follow a row to its official source at the cited article | Tab **Results** → click a matrix cell → **Source URL** |
 | Accept, reject or correct a row | Tab **Needs review** (the tab label carries the queue count) |
-| Switch the AI engine | Tab **Engines**, on the main screen. No file edited, no command typed |
+| Switch the AI engine | Screen **Engines**. No file edited, no command typed |
 | Export to the RDTII schema | Tab **Download** → Submission CSV · Evidence JSON · Scored CSV, with this run's measured cost above them |
-| Run the sealed live test on 15 October | Tab **Live test** — four steps (brief → run each engine → compare → hand in) producing the run record, the engine comparison and the short note |
+| Run the sealed live test on 15 October | Screen **Live test** — four steps (brief → run each engine → compare → hand in) producing the run record, the engine comparison and the short note. The run buttons run; nothing is typed that the code already measured |
+
+The globe needs no network of its own: the world outline ships beside the component
+(`frontend/components/geo/world.json`, 117 KB). An earlier version loaded three.js and map
+textures from a CDN, which on a machine behind a proxy left an empty box and no error.
 
 **Walkthrough recording:** *to be recorded before 30 September, submitted with the Word document.*
 
@@ -250,22 +261,38 @@ Only *measured* is a claim about quality.
 | India | yes | English | indiacode.gov.in (+2) | **extracted** | not yet scored across all 50 reference rows |
 | Kazakhstan | yes | Kazakh | adilet.zan.kz | reachable | robots closes the listing paths |
 | Lao PDR | yes | Lao | laoofficialgazette.gov.la | declared | host does not resolve |
-| Mongolia | yes | Mongolian | legalinfo.mn | reachable | no discovery adapter yet |
+| Mongolia | yes | Mongolian | legalinfo.mn | **extracted** | not yet scored against the 2025 database |
 | Russian Federation | yes | Russian | publication.pravo.gov.ru | reachable | robots disallows `/File`; use the sitemap |
 | Singapore | — | English | sso.agc.gov.sg | **measured** | — |
 | Australia | — | English | legislation.gov.au (+1) | **measured** | — |
 | Malaysia | — | English | lom.agc.gov.my (+2) | **measured** | — |
 
-**Of the nine live-test economies today: 0 measured, 2 extracted, 5 reachable, 2 declared.**
+**Of the nine live-test economies today: 0 measured, 3 extracted, 4 reachable, 2 declared.**
 Singapore, Australia and Malaysia are our deepest corpora but are *not* among the nine — the
 panel holds no 2025 database for them.
 
-**Correction, 2026-08-22.** An earlier version of this table said Mongolia's statutes arrive as
-HTML "so OCR is not on its critical path", on the strength of 12.4k Cyrillic characters in the
-response body. Those characters are the navigation menu, a sign-up form and an alphabet index —
-zero article headings. Counting a script without checking what it spells is the same mistake
-that had India recorded as a JS shell when it had simply moved. What *is* solved for Mongolia is
-discovery: `/sitemap.xml` enumerates 13,070 laws. Body retrieval is not.
+**Mongolia, and two corrections in a row.** This row has been wrong twice, in opposite
+directions, and both are worth keeping.
+
+First it said the statutes arrive as HTML "so OCR is not on its critical path", on the strength
+of 12.4k Cyrillic characters in the response body. Those characters are the navigation menu, a
+sign-up form and an alphabet index — zero article headings. Counting a script without checking
+what it spells is the same mistake that had India recorded as a JS shell when it had simply
+moved.
+
+Then it said the opposite: that discovery was solved and body retrieval was not. Also wrong,
+and falsifiable in one request. The detail page's own toolbar calls
+`downloadAnnexFile(this, '', lawId)`, which resolves to
+`POST /mn/downloadFile?file=&lawId=N&fDownload=1` and returns the whole instrument — labelled
+`.doc`, but the bytes are UTF-8 HTML, so **Mongolia needs no OCR at all**. Discovery is
+`/sitemap.xml` (36,833 `lawId`); titles come from `data/catalogues/MN_titles.json`, a table of
+contents built once by `tools/build_mn_catalogue.py` and holding no provision text.
+
+Measured, live, 2026-08-22: pillar 6 in 145 s for $0.09, mapping 6.4 to articles 14 and 8 of
+Хүний хувийн мэдээлэл хамгаалах тухай — the one pillar-6 indicator Mongolia scores on in the
+panel's key, with 6.1/6.2/6.3 correctly empty. Pillar 7 in 262 s for $0.21, with 7.1 and 7.4 on
+the same Act and 7.2 on Кибер аюулгүй байдлын тухай. Three of five land on the instrument the
+panel names; 7.3 and 7.5 find different ones.
 
 ---
 

@@ -72,6 +72,12 @@ MN_MAX_PROBE = 400
 #: distinguishes "no such instrument" from "a short one".
 _EMPTY_EXPORT = 7000
 
+#: How many instruments one query may contribute. Mongolia publishes the principal Act and
+#: every order, rule and list made under it in the same catalogue: "банкны тухай" matches 193
+#: titles, of which one is the Banking Law. Without a cap a single query would fetch two
+#: hundred documents and bury the statute among its own implementing paperwork.
+MN_MAX_PER_QUERY = 12
+
 _LAW_ID = re.compile(r"lawId=(\d+)")
 _FILENAME = re.compile(r'filename="([^"]*)"')
 _TAG = re.compile(r"<[^>]+>")
@@ -159,14 +165,26 @@ def load_catalogue() -> list[dict]:
 
 
 def _matches(title: str, query: str) -> bool:
-    """Substring match on the Mongolian title, accent- and case-folded.
+    """Every word of the query appears somewhere in the title, in any order.
 
-    Mongolian is agglutinative, so a query has to be a STEM to match a declined title form:
-    "хувь хүний мэдээлэл" matches "Хувь хүний мэдээлэл хамгаалах тухай хууль", but
-    "мэдээллийг" would not match "мэдээлэл". `tools/audit_native_terms.py` is the check for
-    that, and the query set in `data/sources.yaml` is written accordingly.
+    A whole-phrase substring test is what this started as, and the catalogue killed it twice
+    over on the single most important law in the country:
+
+      • **Word order.** The Personal Data Protection Law is "ХҮНИЙ ХУВИЙН МЭДЭЭЛЭЛ …", not
+        "ХУВЬ ХҮНИЙ …". A phrase written from the English name misses it entirely.
+      • **A missing space in the portal's own filename.** Its Content-Disposition reads
+        "ХҮНИЙ ХУВИЙН МЭДЭЭЛЭЛХАМГААЛАХ ТУХАЙ" — no space between МЭДЭЭЛЭЛ and ХАМГААЛАХ. A
+        phrase test fails on that; per-word substrings do not, because "хамгаалах" is still
+        inside "мэдээлэлхамгаалах".
+
+    Per-word substring also carries Mongolian's agglutination in the right direction: a query
+    STEM matches a declined title form ("мэдээлэл" inside "мэдээллийн"), while an inflected
+    query still will not match a bare stem. Write queries as stems and check them with
+    `tools/audit_native_terms.py --economy MN`.
     """
-    return query.strip().lower() in title.lower()
+    hay = title.lower()
+    words = [w for w in query.strip().lower().split() if w]
+    return bool(words) and all(w in hay for w in words)
 
 
 def _doc(law_id: str, title: str, economy: Economy, portal: str) -> DiscoveredDoc:
@@ -192,9 +210,17 @@ def _search_mn_legalinfo(client, src: dict, query: str, economy: Economy, indica
     hits: list[tuple[str, str]] = []
 
     if catalogue:
-        for rec in catalogue:
-            if _matches(rec.get("title", ""), query):
-                hits.append((str(rec["id"]), rec["title"]))
+        found = [(str(r["id"]), r["title"]) for r in catalogue
+                 if _matches(r.get("title", ""), query)]
+        # Shortest title first. Mongolian names a principal Act "<subject> тухай" and names
+        # everything made under it by its own instrument type with the subject in parentheses
+        # — "ЖУРАМ БАТЛАХ ТУХАЙ (Кибер аюулгүй байдлын зөвлөл)". So title length is a good
+        # proxy for tier, and it puts "БАНКНЫ ТУХАЙ" ahead of its 192 subordinate instruments.
+        found.sort(key=lambda t: (len(t[1]), t[1]))
+        if len(found) > MN_MAX_PER_QUERY:
+            log(f"[discovery] legalinfo.mn: {len(found)} titles match {query!r}; taking the "
+                f"{MN_MAX_PER_QUERY} shortest-titled (principal instruments first)")
+        hits.extend(found[:MN_MAX_PER_QUERY])
     else:
         log(f"[discovery] MN catalogue missing — probing the sitemap live, capped at "
             f"{MN_MAX_PROBE} instruments. Build it with tools/build_mn_catalogue.py.")

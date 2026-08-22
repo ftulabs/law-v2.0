@@ -247,8 +247,16 @@ def _is_acronym_blob(text: str) -> bool:
     if not tokens:
         return False
     def _wordlike(tok: str) -> bool:
-        letters = re.sub(r"[^A-Za-z]", "", tok)
-        return len(letters) >= 4 and bool(re.search(r"[aeiouAEIOU]", letters))
+        latin = re.sub(r"[^A-Za-z]", "", tok)
+        if latin:
+            return len(latin) >= 4 and bool(re.search(r"[aeiouAEIOU]", latin))
+        # Not Latin. The vowel test is a property of Latin orthography and says nothing
+        # about Cyrillic, Han or Thai — applied to them it rejects every token, which made
+        # EVERY Mongolian and Chinese title an "acronym blob" and therefore generic. A run
+        # of letters is the portable signal; no-space scripts get a lower bar because a
+        # whole Chinese statute name can be four characters.
+        letters = re.sub(r"[\W\d_]", "", tok)
+        return len(letters) >= 4 or bool(re.search(r"[㐀-鿿぀-ヿ฀-໿ក-៿]{2,}", tok))
     return not any(_wordlike(t) for t in tokens)
 
 
@@ -261,8 +269,16 @@ def _is_generic_title(title: str) -> bool:
         return True
     if _GENERIC_TITLE_RE.match(cleaned):
         return True
-    # no real word (≥4 consecutive letters) → a UUID / filename / number blob, not a name
-    if not re.search(r"[A-Za-z]{4,}", cleaned):
+    # no real word (≥4 consecutive letters) → a UUID / filename / number blob, not a name.
+    # `[^\W\d_]` rather than `[A-Za-z]`: the ASCII form called EVERY Mongolian, Chinese,
+    # Russian and Thai title generic, which sent them all down the URL-key path and — for a
+    # portal that identifies documents by query string — collapsed an entire economy's
+    # discovery into one group. Same family as the `[a-z0-9]+` tokeniser bug in Round 2:
+    # an ASCII character class applied to a corpus that is not ASCII, failing silently.
+    # No-space scripts get a lower bar because a whole Chinese statute name can be four
+    # characters and a meaningful fragment is two.
+    if not (re.search(r"[^\W\d_]{4,}", cleaned)
+            or re.search(r"[㐀-鿿぀-ヿ฀-໿ក-៿]{2,}", cleaned)):
         return True
     # all-acronym/code tokens ('GP CBPDT EN 1') slip past the ≥4-letter check (CBPDT) but
     # are not a real name → recover the title from the PDF's first page at extraction.
@@ -300,11 +316,23 @@ def _url_law_key(url: str) -> str:
     document distinct (akta_709 ≠ akta_855) while collapsing pure query-string variants of
     the same path. Years/'reprint' are stripped so 'akta709reprint2023' ≈ 'akta709'."""
     from urllib.parse import urlsplit
-    path = urlsplit(url).path.rsplit('/', 1)[-1] or urlsplit(url).path
+    parts = urlsplit(url)
+    path = parts.path.rsplit('/', 1)[-1] or parts.path
     stem = re.sub(r'\.(pdf|html?|docx?|txt)$', '', path, flags=re.I)
     stem = re.sub(r'[_\-.]+', ' ', stem)            # underscores would block \b boundaries
     stem = _CONSOL_RE.sub('', _YEAR_RE.sub('', stem))
-    return re.sub(r'[^a-z0-9]', '', stem.lower()) or url.lower()
+    key = re.sub(r'[^a-z0-9]', '', stem.lower())
+    # Some portals put the identity in the QUERY STRING, not the path:
+    # legalinfo.mn serves every instrument from /mn/detail?lawId=N, so the path stem is the
+    # word "detail" for all 36,833 of them. Without this, one group held the entire economy
+    # and eighteen of nineteen discovered laws were dropped — silently, since dedup is
+    # supposed to drop things. Query digits are appended, never substituted, so no existing
+    # key changes for a portal that identifies by path.
+    if parts.query:
+        ids = "".join(re.findall(r"\d{2,}", parts.query))
+        if ids:
+            key = f"{key}:{ids}"
+    return key or url.lower()
 
 
 def _dedup_key(d: DiscoveredDoc) -> str:
@@ -1157,7 +1185,11 @@ def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | N
                          "in_dspace": _search_in_dspace, "mn_legalinfo": _search_mn_legalinfo}
             for src in api_sources:
                 searcher = _ADAPTERS.get(src.get("adapter"), _search_one)
-                for q in queries:
+                # An adapter searches the portal's OWN index, so it needs the portal's own
+                # language. AU and MY index English titles and are happy with the generated
+                # queries; legalinfo.mn indexes Mongolian ones and answered every English
+                # query with zero — not an error, just an empty run for the whole economy.
+                for q in (_source_queries(src, pillar) or queries):
                     for d in searcher(client, src, q, economy, indicators, log=print):
                         prev = by_url.get(d.source_url)
                         if prev is None or d.relevance_score > prev.relevance_score:

@@ -257,3 +257,147 @@ Being explicit, because these are the parts that would embarrass a demo.
 4. Only then tune. The parameters in CLAUDE.md §7 were measured on an English corpus; whether
    `hybrid_alpha = 0.65` still holds when BM25 runs on bigrams is an open question, and
    `tools/sweep_retrieval.py` can answer it with data rather than argument.
+
+---
+
+# Addendum, 2026-08-22 — Mongolia reads, and China was searching for the wrong thing
+
+Four findings, and three of them began as something recorded wrongly in this repo. They are
+kept in that order because the pattern matters more than the fixes: none of the three raised an
+error, and all three produced a complete CSV that said "No provision found".
+
+## 1. Mongolia — the body was one POST away the whole time
+
+The `data/sources.yaml` entry has now been wrong twice, in opposite directions.
+
+**First** it said the text was there: "12.4k Cyrillic characters in the response body, so OCR
+is not on the critical path". Those characters are the navigation menu, a registration modal,
+the Cyrillic alphabet index and a list of industry sectors. `main-huuliin-content` and
+`law_content` are present in the markup but EMPTY — the body is injected client-side. Zero
+article headings. Counting Cyrillic is not the same as reading it, and it is the same mistake
+that had India recorded as "a JS shell" when the portal had simply moved.
+
+**Then** it said the text was not there at all: "no .doc or .docx downloads, unlike China; body
+retrieval is unsolved". Falsifiable in one request. The detail page's own toolbar has
+
+```html
+<a onclick="downloadAnnexFile(this, '', '4801')">Word</a>
+```
+
+and `assets/custom/legal/js/static.js` defines it as
+
+```js
+$.fileDownload(URL_APP + URL_LANG + '/downloadFile?file=' + path + '&lawId=' + lawId + '&fDownload=1',
+               {httpMethod: "POST"})
+```
+
+`POST /mn/downloadFile?file=&lawId=N&fDownload=1` returns the whole instrument. Two useful
+surprises in the response:
+
+* it is labelled `.doc` but the bytes begin `<html xm…` — Word-flavoured HTML in UTF-8. There
+  is nothing to OCR and no binary format to parse.
+* `Content-Disposition: filename="…"` carries the law's Mongolian title, which is the only
+  place a title exists without running JavaScript.
+
+Measured against the panel's own Round-2 answer key, which cites lawIds directly:
+
+| lawId | Instrument | Chars | Articles found |
+| :--- | :--- | ---: | ---: |
+| 16390288615991 | Law on Personal Data Protection | 34,196 | 32 |
+| 16390263044601 | Law on Transparency of Public Information | 61,900 | — |
+| 523 | Law on Communications | 55,972 | 33 |
+| 108 | Banking Law | 134,165 | 76 |
+| 16531350476261 | Law on Cyber Security (English text) | 30,931 | 25, via the Latin fallback |
+
+**The bug worth naming.** The first `export_text` flattened the document with a single
+`\s+ → " "` and returned 34,196 characters of perfectly good Mongolian, from which
+`_STRUCT_RE_MN` found **zero** articles — it is anchored to `^` to keep cross-references out,
+and a law arriving as one 34k-character line has exactly one line start. Extraction succeeds,
+mapping succeeds, export succeeds; every indicator reads "No provision found". Block elements
+are now restored as newlines before the tags are stripped, and `tests/test_mongolia.py` pins
+both the fix and the counter-example.
+
+**Discovery** is `/sitemap.xml`: 200, 5.5 MB, **36,833 distinct `lawId`** values (the earlier
+note said 13,070 — that was the `/mn/detail?lawId=` form only). Five of the six answer-key
+lawIds are in it; the sixth is the `/en/edtl/` English route, a separate id space.
+
+Titles need a catalogue because legalinfo.mn's listing pages build their rows in the browser —
+there is no server-rendered index to scrape a title from. `tools/build_mn_catalogue.py` walks
+the sitemap once at six concurrent requests and writes `data/catalogues/MN_titles.json`: id,
+title, byte size. **No provision text, no indicator, no mapping** — a table of contents, the
+same arrangement Malaysia already uses, and every body is fetched live at run time.
+
+Also fixed: `_STRUCT_RE_MN` matched only digit ordinals (`14 дүгээр зүйл`). The 1924 and 1940
+constitutions spell them out (`Хоёрдугаар зүйл`, `Гучингуравдугаар зүйл` = articles 2 and 33),
+and those are cited by operative laws. A trailing lookahead now rejects the genitive/dative
+`зүйлийн` / `зүйлд`, which is how a cross-reference reads and which does start a line in a
+preamble.
+
+legalinfo.mn serves no `robots.txt` (404 — which under RFC 9309 grants rather than merely
+failing to deny), so the catalogue build's pace is ours to choose. It is set low on purpose:
+this is a small national portal, the build runs once, and finishing sooner is worth less than
+not being a burden on it.
+
+## 2. China — a source's queries were pillar-blind
+
+`data/sources.yaml` let a source carry its own `queries:`, and they were used for every pillar.
+The CN set was written for pillar 6 — 数据出境安全评估, 应当在境内存储, 服务器 设在境内 — so a
+pillar-7 run searched for cross-border transfer, retrieved the pillar-6 corpus, and mapped
+**互联网域名管理办法** (a domain-name administration measure) to the cybersecurity indicator
+twelve times. 网络安全法 and 数据安全法 — the panel's own 7.1 and 7.2 answers — were never
+fetched at all. Nothing errored. The wrong corpus answered a different question, confidently.
+
+`discovery._source_queries()` now narrows a source's queries to the pillar being run, via
+`queries_p6:` / `queries_p7:` keys alongside the pillar-agnostic `queries:`.
+
+| | before | after |
+| :--- | :--- | :--- |
+| Rows | 21 | 51 |
+| Laws reached | domain-name measures | 网络安全法, 个人信息保护法, 数据安全法, 网络数据安全管理条例, 网络安全审查办法, 互联网信息服务管理办法 |
+| Indicators landing on a law the panel names | 0 of 5 | 4 of 5 |
+| Wall clock / cost | — | 244 s / $0.1377 |
+
+7.5 is the one still missing its named answers (反间谍法, 反恐怖主义法); the run does cite
+网络安全法 arts. 28 and 30, which are genuine government-access provisions, so the indicator is
+covered but not by the instruments the panel chose.
+
+## 3. An official portal publishes more than law
+
+cac.gov.cn carries the Cyberspace Administration's press Q&A (`《数据出境安全评估办法》答记者问`)
+and expert commentary (`《中华人民共和国数据安全法》解读`) on the same site, in the same
+template, using each measure's exact vocabulary. They retrieve at the top of the list and grade
+confidently — three did, at 0.74 to 0.93. The tell is the citation: a press release has no
+article to cite, so every one of them came out as `(document)`.
+
+`rdtii/instrument.py` gains a `COMMENTARY` status. Deliberately NOT included: *guidance*,
+*guideline*, *standard*, *specification*, *code of practice*. Those ARE the cited instrument in
+several of the panel's own answers — Singapore's PDPC advisory guidelines, China's GB/T 39335
+personal-information impact-assessment guide — and blocking them to catch a press release would
+cost real evidence.
+
+## 4. The other ten pillars now exist
+
+Fifty-two indicators had criteria and weights in `data/rdtii/indicator_reference.json` and no
+`legal_test`. At run time that is not "unsupported": it is a clean CSV of "No provision found"
+for every indicator, indistinguishable from an economy with no such law — and the final-round
+brief warns the sealed test may name "a pillar you have not worked on".
+
+All 61 in-scope indicators now carry a legal test and query terms
+(`backend/rdtii/indicators_wide.py`). Two deliberate separations:
+
+* **The measured nine stay apart.** `INDICATORS` still holds only pillars 6 and 7, and
+  `get_indicators(None)` still returns only those — `backend/eval/*` builds its corpus from
+  that call, and the retrieval parameters were swept against exactly that set. The honest
+  summary is: *the nine are measured, the fifty-two are declared*, and the UI says so per
+  pillar rather than presenting twelve equal buttons.
+* **The ID is the numeric code.** `P<pillar>-I<n>` cannot express this set: `4.01` and `4.1`
+  are different indicators that both collapse to `P4-I1`, and `12.4.1` has three components.
+
+Nine of the fifty-two are framed as an absence ("Lack of a copyright framework"). For those the
+evidence to find is the framework itself, and finding it means the economy scores 0 — the same
+inversion `scoring_rubric.py` documents for 7.1 and 7.2. `INVERTED` names them and each
+`legal_test` says so in words, so a grader cannot read finding the law as a null result.
+
+`--pillar` now accepts a pillar, a list (`6,7,9`) or `all12`. `all` still means 6 and 7: every
+script, doc and cached result in the repo assumes it, and widening the default would have
+multiplied the cost of every existing command by six.

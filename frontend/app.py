@@ -1194,9 +1194,12 @@ with _hb[2]:
         st.session_state.pop("run_id", None)
         st.rerun()
 
-tab_ev, tab_review, tab_audit, tab_export, tab_eng, tab_live = st.tabs(
+# No "Live test" tab here any more. It is a screen on the start surface now, because on the
+# day there is no completed run to open a tab from — and the tab's last line told the operator
+# to "run engine A from the sidebar", two redesigns after the sidebar was removed.
+tab_ev, tab_review, tab_audit, tab_export, tab_eng = st.tabs(
     ["Results", f"Needs review · {len(workflow.queue(run_id))}", "Details", "Download",
-     "Engines", "Live test"]
+     "Engines"]
 )
 
 # ── results ────────────────────────────────────────────────────────────────
@@ -1440,16 +1443,3 @@ def _meter_table(cost: dict) -> str:
     return "\n".join(rows)
 
 
-# ── live test (15 October) ─────────────────────────────────────────────────
-with tab_live:
-    st.markdown("#### The sealed hour")
-    st.caption("One economy, one pillar, two indicators — announced at the start and not "
-               "before. Run each declared engine once; the three files are generated from "
-               "what the runs measured.")
-    if "livetest" not in st.session_state:
-        st.session_state["livetest"] = livetest.new_state()
-    _req = livetest.render(st.session_state["livetest"], ECON_NAME)
-    if _req:
-        st.info(f"Run engine {_req['slot']} from the sidebar with "
-                f"{ECON_NAME.get(_req['code'], _req['code'])} · pillar {_req['pillar']}, "
-                f"then return here — the result is captured automatically.")

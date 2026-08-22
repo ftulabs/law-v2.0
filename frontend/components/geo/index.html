@@ -8,7 +8,7 @@
      country picker that silently disappears is worse than a dropdown.
 
      So: one canvas, no dependencies, and the world outline vendored beside this file
-     (world.json, 117 KB, built once by scratch/build_geo.py from world-atlas 110m). The globe
+     (world.json, 117 KB, built by tools/build_geo_outline.py from world-atlas 110m). The globe
      is drawn as an orthographic projection with the horizon clipped properly, which also
      suits the tool better than a photograph of Earth — this is an instrument, not a planet.
 
@@ -132,7 +132,14 @@ window.addEventListener("message", function(e){
   var a = e.data.args || {};
   ECON = a.economies || [];
   height = a.height || 340;
-  if (!booted) { selected = a.selected || null; booted = true; }
+  if (!booted) {
+    selected = a.selected || null;
+    booted = true;
+    /* Open facing whatever is already chosen. Without this the app opens on 100E and the
+       selected country can be behind the horizon, which reads as "not on the map". */
+    var c0 = (a.economies || []).find(function(x){ return x.iso === selected; });
+    if (c0){ yaw = c0.lon; pitch = Math.max(-55, Math.min(55, c0.lat)); }
+  }
   themeName = a.theme || "light";
   applyTokens(a.tokens || {});
   document.getElementById("stage").style.height = height + "px";
@@ -194,14 +201,28 @@ function renderLegend(){
   ECON.forEach(function(c){ seen[c.level] = true; });
   host.innerHTML = ORDER.filter(function(l){ return seen[l]; }).map(function(l){
     return '<span><i style="background:' + levelColour(l) + '"></i>' + LEVELS[l].label + '</span>';
-  }).join("") + '<span style="margin-left:auto">drag to spin · arrow keys move · Enter chooses</span>';
+  }).join("") + '<span style="margin-left:auto">drag to turn &middot; arrow keys move &middot; Enter chooses</span>';
 }
 
 function choose(iso){
   selected = iso;
   renderNames();
   setValue(iso);
-  draw();
+  turnTo(iso);
+}
+
+/* Turn the globe to face a country. Instant when the viewer asked for reduced motion — the
+   destination is what matters, the journey is the flourish. */
+function turnTo(iso){
+  var c = ECON.find(function(x){ return x.iso === iso; });
+  if (!c || mode !== "globe"){ draw(); return; }
+  var target = {yaw: c.lon, pitch: Math.max(-55, Math.min(55, c.lat))};
+  if (reduce){ yaw = target.yaw; pitch = target.pitch; draw(); return; }
+  /* Shortest way round, so picking Russia from Australia does not unwind three-quarters of
+     the planet the long way. */
+  var d = ((target.yaw - yaw + 540) % 360) - 180;
+  glide = {fromYaw: yaw, dYaw: d, fromPitch: pitch,
+           dPitch: target.pitch - pitch, t0: performance.now(), ms: 520};
 }
 
 /* ── the world outline, vendored so there is no network at render time ─────────────── */
@@ -215,10 +236,15 @@ fetch("world.json").then(function(r){ return r.json(); }).then(function(d){
 });
 
 /* ── projection ───────────────────────────────────────────────────────────────────── */
-var yaw = -95, pitch = -12, spin = true;
+/* Centred on 100 degrees east, and NOT auto-rotating. Every one of the twelve economies sits
+   in one hemisphere, so a globe that spins puts the entire subject off-screen half the time —
+   the first build defaulted to -95 and opened on the Atlantic with nothing selectable in view.
+   Motion is spent instead on the one place it carries meaning: choosing a country turns the
+   globe to it, which is the cause-and-effect an animation is supposed to express. */
+var yaw = 100, pitch = 14, spin = false;
+var glide = null;
 var cv = document.getElementById("cv"), ctx = cv.getContext("2d"), W = 600, H = 340, DPR = 1;
 var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-if (reduce) spin = false;
 
 function radius(){ return Math.min(W, H) * 0.42; }
 
@@ -423,7 +449,7 @@ function inside(poly, x, y){
 var drag = null, moved = 0;
 cv.addEventListener("pointerdown", function(e){
   cv.setPointerCapture(e.pointerId);
-  drag = {x:e.clientX, y:e.clientY}; moved = 0; spin = false;
+  drag = {x:e.clientX, y:e.clientY}; moved = 0; glide = null;
 });
 cv.addEventListener("pointermove", function(e){
   var r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
@@ -478,9 +504,7 @@ cv.addEventListener("keydown", function(e){
   function step(d){
     var n = list.length; if (!n) return;
     selected = list[(i < 0 ? 0 : i + d + n) % n];
-    var c = ECON.find(function(x){ return x.iso === selected; });
-    if (c && mode === "globe"){ yaw = c.lon; pitch = Math.max(-50, Math.min(50, c.lat)); }
-    spin = false; renderNames(); draw();
+    renderNames(); turnTo(selected);
   }
 });
 
@@ -490,11 +514,11 @@ function setMode(m){
   mode = m;
   document.getElementById("bGlobe").setAttribute("aria-pressed", m === "globe");
   document.getElementById("bFlat").setAttribute("aria-pressed", m === "flat");
-  if (m === "flat") spin = false;
+  glide = null;
   draw();
 }
 
-/* ── canvas sizing and the idle spin ──────────────────────────────────────────────── */
+/* ── canvas sizing, and the one animation ──────────────────────────────────────────── */
 function resize(){
   var stage = document.getElementById("stage");
   DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -505,13 +529,14 @@ function resize(){
 }
 addEventListener("resize", resize);
 
-var last = 0;
 (function loop(t){
   requestAnimationFrame(loop);
-  if (!spin || mode !== "globe") return;
-  if (t - last < 33) return;                 // ~30fps is plenty for a 2°/s drift
-  last = t;
-  yaw += 0.12;
+  if (!glide) return;
+  var k = Math.min(1, (t - glide.t0) / glide.ms);
+  var e = k < 0.5 ? 4*k*k*k : 1 - Math.pow(-2*k + 2, 3) / 2;   // ease-in-out cubic
+  yaw = glide.fromYaw + glide.dYaw * e;
+  pitch = glide.fromPitch + glide.dPitch * e;
+  if (k >= 1) glide = null;
   draw();
 })(0);
 

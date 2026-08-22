@@ -258,18 +258,19 @@ sources:
     document_format: html      # the ".doc" export is Word-flavoured HTML, not a binary
     ocr_required: false        # measured — there is no image layer anywhere on this route
     queries_p6:
-      - хувь хүний мэдээлэл
+      - хүний хувийн мэдээлэл
       - мэдээлэл хамгаалах
       - хилийн чанад
-      - мэдээллийн сан
+      - мэдээлэл дамжуулах
     queries_p7:
-      - хувь хүний мэдээлэл
+      - хүний хувийн мэдээлэл
+      - мэдээлэл хамгаалах
       - кибер аюулгүй
-      - мэдээллийн аюулгүй байдал
-      - нууцлал
-      - цахим гарын үсэг
-      - харилцаа холбоо
-      - улсын нууц
+      - мэдээллийн аюулгүй
+      - нийтийн мэдээлэл
+      - цахим гарын
+      - төрийн нууц
+      - харилцаа холбооны тухай
       - банкны тухай
     note: >-
       Discovery is the sitemap; titles come from data/catalogues/MN_titles.json, built once by
@@ -277,8 +278,13 @@ sources:
       browser and no server-rendered index carries a title. That file is a TABLE OF CONTENTS —
       id, title, byte size — with no provision text, no indicator and no mapping; bodies are
       fetched live on every run. Same arrangement Malaysia already uses.
-      Queries are Mongolian STEMS, not inflected forms: the language is agglutinative and the
-      title index is matched by substring, so "мэдээллийг" would not match "мэдээлэл".
+      Queries are Mongolian STEMS, not inflected forms: the language is agglutinative and each
+      WORD of a query is matched as a substring of the title, so the stem "мэдээлэл" reaches
+      "мэдээллийн" while the inflected "мэдээллийг" would reach nothing. Word-by-word rather
+      than whole-phrase for two measured reasons: the Personal Data Protection Law is titled
+      "ХҮНИЙ ХУВИЙН МЭДЭЭЛЭЛ …", not "ХУВЬ ХҮНИЙ …" (a phrase written from the English name
+      misses it), and the portal's own filename for it omits a space —
+      "МЭДЭЭЛЭЛХАМГААЛАХ" — which no phrase test survives.
       Check them with tools/audit_native_terms.py --economy MN.
   - economy: TH
     name: Office of the Council of State (Thai law library)

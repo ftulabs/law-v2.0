@@ -50,12 +50,16 @@ RUN_END_TO_END = {
     #     rows about domain-name administration and never fetched any of them.
     "CN": EXTRACTED,
     "IN": EXTRACTED,   # DPDP Act 2023 s.16 -> 6.4, live, matching the panel's answer key
-    # Discovery via /sitemap.xml (36,833 lawId) and bodies via the portal's own Word export.
-    # The Personal Data Protection Law fetches and splits into 32 articles when called
-    # directly — but that is a component check, not a pipeline run, and this table is the one
-    # place where the difference has to be kept. Raised only when the pipeline itself has
-    # produced provisions for Mongolia.
-    "MN": DECLARED,
+    # Discovery via /sitemap.xml (36,833 lawId), titles from data/catalogues/MN_titles.json,
+    # bodies via the portal's own Word export. Two live runs:
+    #   P6: 49 provisions / 145s / $0.0916 — 6.4 → Хүний хувийн мэдээлэл хамгаалах тухай
+    #       arts. 14 and 8 (0.97 / 0.93). That is the only pillar-6 indicator Mongolia scores
+    #       on in the panel's key, and 6.1/6.2/6.3 correctly came back empty.
+    #   P7: 39 rows / 262s / $0.2149 — 7.1 and 7.4 → the same Act, 7.2 → Кибер аюулгүй
+    #       байдлын тухай. Three of five land on the instrument the panel names; 7.3 and 7.5
+    #       find different instruments (the key cites the Communications Act and the Banking
+    #       Law).
+    "MN": EXTRACTED,
 }
 
 
