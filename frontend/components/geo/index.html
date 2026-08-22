@@ -1,29 +1,32 @@
 <!-- VeriTrade — the coverage globe.
 
-     Rewritten from the three.js version, and the reason is not aesthetic. That one pulled
-     three.js, OrbitControls, Leaflet and NASA earth textures from jsdelivr at RENDER time.
-     On a machine without outbound network — or behind a proxy that blocks a CDN, which is an
-     ordinary corporate setup and a plausible judging one — every one of those requests fails
-     inside the iframe, so Python sees no exception and the researcher sees an empty box. A
-     country picker that silently disappears is worse than a dropdown.
+     A textured 3D earth, with the twelve economies outlined on it in the colour of how far
+     each has actually been taken: declared → reachable → extracted → measured, the same
+     ladder tools/readiness.py generates for the README. So the picker also answers the first
+     question anyone asks about a tool like this, and the two answers cannot drift apart
+     because they come from one function.
 
-     So: one canvas, no dependencies, and the world outline vendored beside this file
-     (world.json, 117 KB, built by tools/build_geo_outline.py from world-atlas 110m). The globe
-     is drawn as an orthographic projection with the horizon clipped properly, which also
-     suits the tool better than a photograph of Earth — this is an instrument, not a planet.
+     TWO RENDERERS, and the second is not a downgrade for its own sake.
 
-     What it shows, and why it is not just a picker: each of the twelve economies is filled by
-     its READINESS — declared, reachable, extracted, measured — the same ladder tools/readiness.py
-     generates for the README. That is the one question a judge asks first ("which of these have
-     you actually run?"), and it is answerable here at a glance instead of in a table.
+       • three.js earth (esm.sh, jsdelivr textures) — the one you normally see. WebGL, real
+         topography, a cloud layer, and country outlines traced on the sphere from world.json.
+       • a plain-canvas orthographic globe — same data, same interactions, no dependencies.
 
-     Accessibility, per the chart guidance for geographic data ("location meaning cannot depend
-     on colour alone", "sortable region table plus geographic summary", keyboard drill-in):
-       • every economy carries a hatch pattern as well as a fill colour
-       • the name row underneath is a full keyboard/single-pointer route to the same choice,
-         so dragging is never the only way (WCAG 2.2 "dragging movements")
-       • arrow keys walk the economies when the canvas has focus, Enter selects
-       • each name button states its readiness in text
+     The fallback exists because a build with ONLY the CDN path fails invisibly: every request
+     dies inside the iframe, Python sees no exception, and the researcher gets an empty box
+     where the country picker should be. A blank control is worse than a plain one. So the
+     module gets six seconds and, failing that, the canvas takes the stage and says so. Either
+     way the world OUTLINE is local (world.json, 117 KB) — geometry never depends on a network.
+
+     Accessibility, per the chart guidance for geographic data ("location meaning cannot
+     depend on colour alone", "sortable region table plus geographic summary", keyboard
+     drill-in):
+       • every economy's readiness is written as a WORD on its chip, not only shown as a hue
+       • the chip row is a full keyboard and single-pointer route to the same choice, so
+         dragging is never the only way (WCAG 2.2 "dragging movements")
+       • arrow keys walk the economies when the globe has focus, Enter chooses
+       • the canvas renderer additionally hatches each fill, since it has no lighting with
+         which to separate one level from another
 -->
 <meta charset="utf-8">
 <style>
@@ -33,22 +36,28 @@
     font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif}
   #wrap{display:flex;flex-direction:column;gap:.55rem}
   .stage{position:relative;border:1px solid var(--rule,#e2e8f0);border-radius:14px;
-    background:var(--panel,#f8fafc);overflow:hidden}
-  canvas{display:block;width:100%;height:100%;cursor:grab;outline:none;touch-action:none}
-  canvas:active{cursor:grabbing}
-  canvas:focus-visible{outline:3px solid var(--accent,#2563eb);outline-offset:-3px}
+    background:radial-gradient(120% 120% at 50% 0%,
+      color-mix(in srgb,var(--accent,#2563eb) 7%, var(--panel,#f8fafc)) 0%,
+      var(--panel,#f8fafc) 62%);
+    overflow:hidden}
+  #globe{position:absolute;inset:0}
+  #globe canvas{display:block;width:100%;height:100%;cursor:grab;outline:none;touch-action:none}
+  #globe canvas:active{cursor:grabbing}
+  #globe canvas:focus-visible{outline:3px solid var(--accent,#2563eb);outline-offset:-3px}
 
-  .hud{position:absolute;inset:auto auto .6rem .7rem;display:flex;gap:.3rem;pointer-events:none}
+  .hud{position:absolute;inset:auto auto .6rem .7rem;display:flex;gap:.35rem;pointer-events:none}
   .hud .seg{display:flex;background:var(--paper,#fff);border:1px solid var(--rule,#e2e8f0);
     border-radius:9px;overflow:hidden;pointer-events:auto}
   .hud button{border:0;background:transparent;color:var(--ink-soft,#475569);
-    font:500 11.5px/1 Inter,sans-serif;padding:.42rem .6rem;cursor:pointer}
+    font:500 11.5px/1 Inter,sans-serif;padding:.42rem .62rem;cursor:pointer}
   .hud button[aria-pressed="true"]{background:var(--accent,#2563eb);color:#fff}
+  .mode{position:absolute;inset:auto .7rem .6rem auto;font:500 10.5px/1 Inter,sans-serif;
+    color:var(--ink-faint,#94a3b8);pointer-events:none;opacity:.85}
 
   .tip{position:absolute;pointer-events:none;padding:.34rem .5rem;border-radius:8px;
     background:var(--paper,#fff);border:1px solid var(--rule,#e2e8f0);
     font:500 11.5px/1.35 Inter,sans-serif;color:var(--ink,#0f172a);white-space:nowrap;
-    box-shadow:0 6px 18px rgba(15,23,42,.14);opacity:0;transition:opacity .12s}
+    box-shadow:0 6px 18px rgba(15,23,42,.14);opacity:0;transition:opacity .12s;z-index:3}
   .tip b{font-weight:650}
   .tip i{font-style:normal;color:var(--ink-faint,#94a3b8)}
 
@@ -58,8 +67,8 @@
     border-radius:999px;padding:.3rem .62rem;font:500 12px/1 Inter,sans-serif;cursor:pointer;
     min-height:32px}
   .names button:hover{border-color:var(--accent,#2563eb)}
-  .names button[aria-pressed="true"]{background:var(--accent,#2563eb);border-color:var(--accent,#2563eb);
-    color:#fff}
+  .names button[aria-pressed="true"]{background:var(--accent,#2563eb);
+    border-color:var(--accent,#2563eb);color:#fff}
   .names .dot{width:8px;height:8px;border-radius:50%;flex:none}
   .names .lvl{font-size:10.5px;opacity:.72;font-variant:all-small-caps;letter-spacing:.04em}
 
@@ -72,14 +81,14 @@
 
 <div id="wrap">
   <div class="stage" id="stage">
-    <canvas id="cv" tabindex="0" role="application"
-            aria-label="World map of the twelve economies VeriTrade covers. Use the left and right arrow keys to move between economies and Enter to choose one. The buttons underneath do the same thing."></canvas>
+    <div id="globe"></div>
     <div class="hud">
       <div class="seg" role="group" aria-label="View">
         <button id="bGlobe" aria-pressed="true">Globe</button>
         <button id="bFlat" aria-pressed="false">Flat</button>
       </div>
     </div>
+    <div class="mode" id="modeNote"></div>
     <div class="tip" id="tip" role="status"></div>
   </div>
   <div class="names" id="names"></div>
@@ -97,7 +106,7 @@ function send(type, data){
 function setValue(v){ send("streamlit:setComponentValue", {value:v, dataType:"json"}); }
 
 /* Measure the wrapper, not document.body.scrollHeight — on first paint the body can still
-   report 0 and that shipped a 2px iframe once, collapsing the component to a sliver. */
+   report 0, and that once shipped a 2px iframe that collapsed the component to a sliver. */
 function fitHeight(){
   var w = document.getElementById("wrap");
   var h = w ? Math.ceil(w.getBoundingClientRect().height) : 0;
@@ -113,12 +122,11 @@ if (typeof ResizeObserver !== "undefined") {
 addEventListener("load", fitHeight);
 setTimeout(fitHeight, 200); setTimeout(fitHeight, 900);
 
-/* ── state ────────────────────────────────────────────────────────────────────────── */
+/* ── shared state ─────────────────────────────────────────────────────────────────── */
 var ECON = [], selected = null, mode = "globe", booted = false, themeName = "light";
-var WORLD = null, hover = null, height = 340;
+var WORLD = null, hover = null, height = 380, renderer = null;
+var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-/* The readiness ladder, in order. Colour AND pattern, because the chart guidance for
-   geographic data is explicit that location meaning must not depend on colour alone. */
 var LEVELS = {
   measured:  {label:"measured",  rank:4, hatch:"solid"},
   extracted: {label:"extracted", rank:3, hatch:"dense"},
@@ -131,19 +139,14 @@ window.addEventListener("message", function(e){
   if (!e.data || e.data.type !== "streamlit:render") return;
   var a = e.data.args || {};
   ECON = a.economies || [];
-  height = a.height || 340;
-  if (!booted) {
-    selected = a.selected || null;
-    booted = true;
-    /* Open facing whatever is already chosen. Without this the app opens on 100E and the
-       selected country can be behind the horizon, which reads as "not on the map". */
-    var c0 = (a.economies || []).find(function(x){ return x.iso === selected; });
-    if (c0){ yaw = c0.lon; pitch = Math.max(-55, Math.min(55, c0.lat)); }
-  }
+  height = a.height || 380;
+  if (!booted) { selected = a.selected || null; booted = true; }
   themeName = a.theme || "light";
   applyTokens(a.tokens || {});
   document.getElementById("stage").style.height = height + "px";
-  renderNames(); renderLegend(); resize(); fitHeight();
+  renderNames(); renderLegend();
+  if (renderer) renderer.refresh();
+  fitHeight();
 });
 
 function applyTokens(t){ for (var k in t) document.documentElement.style.setProperty(k, t[k]); }
@@ -151,22 +154,7 @@ function cssv(n, fb){
   var v = getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   return v || fb;
 }
-function levelColour(lvl){
-  /* Readiness is a SEQUENCE, so it gets a single-hue ramp of the app's accent rather than
-     four unrelated colours — and never the confidence traffic-light, which is a different
-     axis entirely and would read as "this economy is wrong". */
-  var accent = cssv("--accent", "#2563eb");
-  if (lvl === "measured")  return accent;
-  if (lvl === "extracted") return mix(accent, cssv("--panel","#f1f5f9"), 0.42);
-  if (lvl === "reachable") return mix(accent, cssv("--panel","#f1f5f9"), 0.70);
-  return mix(accent, cssv("--panel","#f1f5f9"), 0.88);
-}
-function mix(a, b, t){
-  var A = hex(a), B = hex(b);
-  return "rgb(" + Math.round(A[0]+(B[0]-A[0])*t) + "," + Math.round(A[1]+(B[1]-A[1])*t)
-       + "," + Math.round(A[2]+(B[2]-A[2])*t) + ")";
-}
-function hex(c){
+function hexOf(c){
   c = (c||"").trim();
   if (c.charAt(0) === "#"){
     if (c.length === 4) c = "#" + c[1]+c[1] + c[2]+c[2] + c[3]+c[3];
@@ -175,8 +163,27 @@ function hex(c){
   var m = c.match(/(\d+)[,\s]+(\d+)[,\s]+(\d+)/);
   return m ? [+m[1], +m[2], +m[3]] : [37,99,235];
 }
+function mix(a, b, t){
+  var A = hexOf(a), B = hexOf(b);
+  return "rgb(" + Math.round(A[0]+(B[0]-A[0])*t) + "," + Math.round(A[1]+(B[1]-A[1])*t)
+       + "," + Math.round(A[2]+(B[2]-A[2])*t) + ")";
+}
+/* Readiness is a SEQUENCE, so it gets a single-hue ramp of the app's accent rather than four
+   unrelated colours — and never the confidence traffic-light, which is a different axis and
+   would read as "this economy is wrong". On the 3D globe the ramp runs toward WHITE rather
+   than toward the panel colour: it is drawn over a lit photographic sphere, where a pale-grey
+   step simply disappears. */
+function levelColour(lvl, onGlobe){
+  var accent = cssv("--accent", "#2563eb");
+  var floor = onGlobe ? "#ffffff" : cssv("--panel", "#f1f5f9");
+  if (lvl === "measured")  return accent;
+  if (lvl === "extracted") return mix(accent, floor, 0.36);
+  if (lvl === "reachable") return mix(accent, floor, 0.62);
+  return mix(accent, floor, 0.82);
+}
+function num(colour){ var c = hexOf(colour); return (c[0]<<16) | (c[1]<<8) | c[2]; }
 
-/* ── the name row: the keyboard and single-pointer route to the same choice ────────── */
+/* ── the chip row: the keyboard and single-pointer route to the same choice ────────── */
 function renderNames(){
   var host = document.getElementById("names");
   host.innerHTML = "";
@@ -201,316 +208,35 @@ function renderLegend(){
   ECON.forEach(function(c){ seen[c.level] = true; });
   host.innerHTML = ORDER.filter(function(l){ return seen[l]; }).map(function(l){
     return '<span><i style="background:' + levelColour(l) + '"></i>' + LEVELS[l].label + '</span>';
-  }).join("") + '<span style="margin-left:auto">drag to turn &middot; arrow keys move &middot; Enter chooses</span>';
+  }).join("")
+  + '<span style="margin-left:auto">drag to turn &middot; arrow keys move &middot; Enter chooses</span>';
 }
 
 function choose(iso){
   selected = iso;
   renderNames();
   setValue(iso);
-  turnTo(iso);
+  if (renderer) renderer.focus(iso);
 }
 
-/* Turn the globe to face a country. Instant when the viewer asked for reduced motion — the
-   destination is what matters, the journey is the flourish. */
-function turnTo(iso){
-  var c = ECON.find(function(x){ return x.iso === iso; });
-  if (!c || mode !== "globe"){ draw(); return; }
-  var target = {yaw: c.lon, pitch: Math.max(-55, Math.min(55, c.lat))};
-  if (reduce){ yaw = target.yaw; pitch = target.pitch; draw(); return; }
-  /* Shortest way round, so picking Russia from Australia does not unwind three-quarters of
-     the planet the long way. */
-  var d = ((target.yaw - yaw + 540) % 360) - 180;
-  glide = {fromYaw: yaw, dYaw: d, fromPitch: pitch,
-           dPitch: target.pitch - pitch, t0: performance.now(), ms: 520};
-}
-
-/* ── the world outline, vendored so there is no network at render time ─────────────── */
-fetch("world.json").then(function(r){ return r.json(); }).then(function(d){
-  WORLD = d; draw();
-}).catch(function(){
-  /* No outline is survivable — markers and the name row still work, and saying so beats a
-     blank stage that looks like a bug. */
-  WORLD = {land:[], economies:{}};
-  draw();
-});
-
-/* ── projection ───────────────────────────────────────────────────────────────────── */
-/* Centred on 100 degrees east, and NOT auto-rotating. Every one of the twelve economies sits
-   in one hemisphere, so a globe that spins puts the entire subject off-screen half the time —
-   the first build defaulted to -95 and opened on the Atlantic with nothing selectable in view.
-   Motion is spent instead on the one place it carries meaning: choosing a country turns the
-   globe to it, which is the cause-and-effect an animation is supposed to express. */
-var yaw = 100, pitch = 14, spin = false;
-var glide = null;
-var cv = document.getElementById("cv"), ctx = cv.getContext("2d"), W = 600, H = 340, DPR = 1;
-var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-function radius(){ return Math.min(W, H) * 0.42; }
-
-function project(lon, lat){
-  /* Orthographic. Returns [x, y, cosc] where cosc>0 means the point faces the viewer. */
-  var l = (lon - yaw) * Math.PI/180, p = lat * Math.PI/180, p0 = pitch * Math.PI/180;
-  var cp = Math.cos(p), sp = Math.sin(p), cl = Math.cos(l), sl = Math.sin(l);
-  var cosc = Math.sin(p0)*sp + Math.cos(p0)*cp*cl;
-  var R = radius();
-  return [W/2 + R * (cp*sl), H/2 - R * (Math.cos(p0)*sp - Math.sin(p0)*cp*cl), cosc];
-}
-function projectFlat(lon, lat){
-  var pad = 8, w = W - pad*2, h = Math.min(H - pad*2, w/2);
-  return [pad + (lon + 180)/360 * w, (H - h)/2 + (90 - lat)/180 * h, 1];
-}
-function pt(lon, lat){ return mode === "globe" ? project(lon, lat) : projectFlat(lon, lat); }
-
-/* Where a segment crosses the horizon, so a half-visible country has a clean edge instead of
-   a chord cutting across the disc. Bisection on the great circle is exact enough at 12 steps
-   and costs nothing at this point count. */
-function horizon(a, b){
-  var lo = 0, hi = 1;
-  for (var i = 0; i < 12; i++){
-    var m = (lo + hi) / 2;
-    var p = pt(a[0] + (b[0]-a[0])*m, a[1] + (b[1]-a[1])*m);
-    if (p[2] > 0) lo = m; else hi = m;
-  }
-  var t = (lo + hi) / 2;
-  return [a[0] + (b[0]-a[0])*t, a[1] + (b[1]-a[1])*t];
-}
-
-function tracePath(ring){
-  /* Emits the visible runs of a ring as separate sub-paths. A ring that wraps the antimeridian
-     in flat mode is split too, otherwise it draws a band right across the map. */
-  var runs = [], cur = [];
-  for (var i = 0; i < ring.length; i++){
-    var a = ring[i], p = pt(a[0], a[1]);
-    var vis = p[2] > 0;
-    if (mode === "flat" && i > 0 && Math.abs(ring[i][0] - ring[i-1][0]) > 180){
-      if (cur.length > 1) runs.push(cur);
-      cur = [];
-    }
-    if (vis){
-      if (!cur.length && i > 0){
-        var c = horizon(ring[i-1], a);
-        cur.push(pt(c[0], c[1]));
-      }
-      cur.push(p);
-    } else if (cur.length){
-      var c2 = horizon(a, ring[i-1]);
-      cur.push(pt(c2[0], c2[1]));
-      runs.push(cur); cur = [];
-    }
-  }
-  if (cur.length > 1) runs.push(cur);
-  return runs;
-}
-
-function fillRings(rings, fill, stroke, lw){
-  if (!rings) return;
-  for (var r = 0; r < rings.length; r++){
-    var runs = tracePath(rings[r]);
-    for (var k = 0; k < runs.length; k++){
-      var run = runs[k];
-      if (run.length < 2) continue;
-      ctx.beginPath();
-      ctx.moveTo(run[0][0], run[0][1]);
-      for (var i = 1; i < run.length; i++) ctx.lineTo(run[i][0], run[i][1]);
-      ctx.closePath();
-      if (fill){ ctx.fillStyle = fill; ctx.fill(); }
-      if (stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1; ctx.stroke(); }
-    }
-  }
-}
-
-/* Hatching carries the readiness level independently of hue. Built as a small tiled canvas so
-   it costs one pattern object per level rather than a path per line. */
-var HATCH = {};
-function hatch(kind, colour){
-  var key = kind + "|" + colour;
-  if (HATCH[key]) return HATCH[key];
-  var s = 6, c = document.createElement("canvas");
-  c.width = c.height = s;
-  var g = c.getContext("2d");
-  g.strokeStyle = g.fillStyle = colour;
-  g.lineWidth = 1;
-  if (kind === "dense"){ g.beginPath(); g.moveTo(-1,s); g.lineTo(s,-1); g.moveTo(-1,s*2); g.lineTo(s*2,-1); g.stroke(); }
-  else if (kind === "sparse"){ g.beginPath(); g.moveTo(-1,s); g.lineTo(s,-1); g.stroke(); }
-  else if (kind === "dots"){ g.beginPath(); g.arc(s/2, s/2, 1, 0, 7); g.fill(); }
-  else return (HATCH[key] = null);
-  return (HATCH[key] = ctx.createPattern(c, "repeat"));
-}
-
-function draw(){
-  if (!ctx) return;
-  var ink = cssv("--ink", "#0f172a"), rule = cssv("--rule", "#e2e8f0");
-  var sea = cssv("--panel", "#f8fafc");
-  /* The rest of the world is context, not data, so it sits close to the sea — but "close" is
-     not the same distance in both themes. A single mix factor left the dark globe almost
-     unreadable, land and ocean separated by a few points of luminance. */
-  var land = mix(cssv("--ink-faint", "#94a3b8"), sea, themeName === "dark" ? 0.34 : 0.55);
-  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  ctx.clearRect(0, 0, W, H);
-
-  if (mode === "globe"){
-    ctx.beginPath(); ctx.arc(W/2, H/2, radius(), 0, 7);
-    ctx.fillStyle = sea; ctx.fill();
-    ctx.strokeStyle = rule; ctx.lineWidth = 1; ctx.stroke();
-    ctx.save(); ctx.clip();
-    graticule(rule);
-  } else {
-    ctx.strokeStyle = rule; ctx.lineWidth = 1;
-    graticule(rule);
-  }
-
-  if (WORLD){
-    fillRings(WORLD.land, land, null, 0);
-    ECON.forEach(function(c){
-      var rings = (WORLD.economies || {})[c.iso];
-      if (!rings) return;
-      var col = levelColour(c.level);
-      var on = c.iso === selected, hot = c.iso === hover;
-      fillRings(rings, col, on ? cssv("--ink","#0f172a") : rule, on ? 2 : 1);
-      var h = hatch(LEVELS[c.level] ? LEVELS[c.level].hatch : "dots",
-                    themeName === "dark" ? "rgba(255,255,255,.30)" : "rgba(15,23,42,.22)");
-      if (h) fillRings(rings, h, null, 0);
-      if (hot && !on) fillRings(rings, null, cssv("--accent","#2563eb"), 2);
-    });
-  }
-  if (mode === "globe") ctx.restore();
-
-  /* Markers last, on top, so a city-state is never lost under a neighbour. Singapore has no
-     polygon in the 110m outline at all — it is 0.05 degrees across — so for that one economy
-     the marker IS the country, which is why markers are drawn for all twelve rather than only
-     where a polygon is missing. */
-  ECON.forEach(function(c){
-    var p = pt(c.lon, c.lat);
-    if (p[2] <= 0) return;
-    var on = c.iso === selected;
-    ctx.beginPath(); ctx.arc(p[0], p[1], on ? 5.5 : 3.4, 0, 7);
-    ctx.fillStyle = on ? cssv("--accent", "#2563eb") : levelColour(c.level);
-    ctx.fill();
-    ctx.strokeStyle = themeName === "dark" ? "rgba(0,0,0,.55)" : "#fff";
-    ctx.lineWidth = 1.6; ctx.stroke();
-    if (on){
-      ctx.font = "600 12px Inter, sans-serif";
-      ctx.fillStyle = ink;
-      ctx.textAlign = "center";
-      ctx.fillText(c.name, p[0], p[1] - 11);
-    }
-  });
-}
-
-function graticule(colour){
-  ctx.strokeStyle = colour; ctx.lineWidth = 0.6; ctx.globalAlpha = 0.65;
-  for (var lat = -60; lat <= 60; lat += 30) line(-180, lat, 180, lat);
-  for (var lon = -180; lon < 180; lon += 30) line(lon, -85, lon, 85);
-  ctx.globalAlpha = 1;
-  function line(l1, p1, l2, p2){
-    var n = 48, run = [];
-    for (var i = 0; i <= n; i++){
-      var t = i/n, p = pt(l1 + (l2-l1)*t, p1 + (p2-p1)*t);
-      if (p[2] > 0) run.push(p); else if (run.length){ stroke(run); run = []; }
-    }
-    if (run.length) stroke(run);
-  }
-  function stroke(run){
-    if (run.length < 2) return;
-    ctx.beginPath(); ctx.moveTo(run[0][0], run[0][1]);
-    for (var i = 1; i < run.length; i++) ctx.lineTo(run[i][0], run[i][1]);
-    ctx.stroke();
-  }
-}
-
-/* ── interaction ──────────────────────────────────────────────────────────────────── */
-function hitTest(mx, my){
-  var best = null, bestD = 26 * 26;
-  ECON.forEach(function(c){
-    var p = pt(c.lon, c.lat);
-    if (p[2] <= 0) return;
-    var d = (p[0]-mx)*(p[0]-mx) + (p[1]-my)*(p[1]-my);
-    if (d < bestD){ bestD = d; best = c; }
-  });
-  if (best) return best;
-  /* Then the polygons, so clicking the middle of Australia works as well as its marker. */
-  for (var i = 0; i < ECON.length; i++){
-    var rings = WORLD && (WORLD.economies||{})[ECON[i].iso];
-    if (!rings) continue;
-    for (var r = 0; r < rings.length; r++){
-      var runs = tracePath(rings[r]);
-      for (var k = 0; k < runs.length; k++) if (inside(runs[k], mx, my)) return ECON[i];
-    }
-  }
-  return null;
-}
-function inside(poly, x, y){
-  var hit = false;
-  for (var i = 0, j = poly.length - 1; i < poly.length; j = i++){
-    if (((poly[i][1] > y) !== (poly[j][1] > y)) &&
-        (x < (poly[j][0]-poly[i][0]) * (y-poly[i][1]) / (poly[j][1]-poly[i][1]) + poly[i][0]))
-      hit = !hit;
-  }
-  return hit;
-}
-
-var drag = null, moved = 0;
-cv.addEventListener("pointerdown", function(e){
-  cv.setPointerCapture(e.pointerId);
-  drag = {x:e.clientX, y:e.clientY}; moved = 0; glide = null;
-});
-cv.addEventListener("pointermove", function(e){
-  var r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
-  if (drag){
-    var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-    moved += Math.abs(dx) + Math.abs(dy);
-    if (mode === "globe"){
-      yaw += dx * 0.35;
-      pitch = Math.max(-80, Math.min(80, pitch - dy * 0.3));
-    }
-    drag = {x:e.clientX, y:e.clientY};
-    draw();
-    return;
-  }
-  var c = hitTest(mx, my);
-  var iso = c ? c.iso : null;
-  if (iso !== hover){ hover = iso; draw(); }
-  var tip = document.getElementById("tip");
-  if (c){
-    tip.innerHTML = "<b>" + c.name + "</b> &nbsp;<i>" +
-                    ((LEVELS[c.level]||{}).label || c.level) + "</i>";
-    tip.style.opacity = 1;
-    tip.style.left = Math.min(mx + 12, r.width - 170) + "px";
-    tip.style.top = Math.max(my - 34, 4) + "px";
-  } else tip.style.opacity = 0;
-});
-function endDrag(e){
-  if (!drag) return;
-  var r = cv.getBoundingClientRect();
-  if (moved < 5){
-    var c = hitTest(e.clientX - r.left, e.clientY - r.top);
-    if (c) choose(c.iso);
-  }
-  drag = null;
-}
-cv.addEventListener("pointerup", endDrag);
-cv.addEventListener("pointercancel", function(){ drag = null; });
-cv.addEventListener("pointerleave", function(){
-  hover = null; document.getElementById("tip").style.opacity = 0; draw();
-});
-
-/* Keyboard: the drag alternative WCAG 2.2 requires, and the way to reach an economy hidden on
-   the far side of the globe without spinning to it. */
-cv.addEventListener("keydown", function(e){
+function stepSelection(d){
   var list = ECON.map(function(c){ return c.iso; });
+  if (!list.length) return;
   var i = list.indexOf(selected);
-  if (e.key === "ArrowRight" || e.key === "ArrowDown"){ step(1); }
-  else if (e.key === "ArrowLeft" || e.key === "ArrowUp"){ step(-1); }
-  else if (e.key === "Enter" || e.key === " "){ if (selected) choose(selected); }
-  else return;
-  e.preventDefault();
-  function step(d){
-    var n = list.length; if (!n) return;
-    selected = list[(i < 0 ? 0 : i + d + n) % n];
-    renderNames(); turnTo(selected);
-  }
-});
+  selected = list[(i < 0 ? 0 : i + d + list.length) % list.length];
+  renderNames();
+  if (renderer) renderer.focus(selected);
+}
+
+function showTip(c, x, y, w){
+  var tip = document.getElementById("tip");
+  if (!c){ tip.style.opacity = 0; return; }
+  tip.innerHTML = "<b>" + c.name + "</b> &nbsp;<i>"
+                + ((LEVELS[c.level]||{}).label || c.level) + "</i>";
+  tip.style.opacity = 1;
+  tip.style.left = Math.min(x + 12, w - 170) + "px";
+  tip.style.top = Math.max(y - 34, 4) + "px";
+}
 
 document.getElementById("bGlobe").onclick = function(){ setMode("globe"); };
 document.getElementById("bFlat").onclick = function(){ setMode("flat"); };
@@ -518,31 +244,513 @@ function setMode(m){
   mode = m;
   document.getElementById("bGlobe").setAttribute("aria-pressed", m === "globe");
   document.getElementById("bFlat").setAttribute("aria-pressed", m === "flat");
-  glide = null;
-  draw();
+  if (renderer) renderer.setMode(m);
 }
 
-/* ── canvas sizing, and the one animation ──────────────────────────────────────────── */
-function resize(){
-  var stage = document.getElementById("stage");
-  DPR = Math.min(window.devicePixelRatio || 1, 2);
-  W = stage.clientWidth || 600; H = stage.clientHeight || height;
-  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
-  cv.style.width = W + "px"; cv.style.height = H + "px";
-  draw();
-}
-addEventListener("resize", resize);
-
-(function loop(t){
-  requestAnimationFrame(loop);
-  if (!glide) return;
-  var k = Math.min(1, (t - glide.t0) / glide.ms);
-  var e = k < 0.5 ? 4*k*k*k : 1 - Math.pow(-2*k + 2, 3) / 2;   // ease-in-out cubic
-  yaw = glide.fromYaw + glide.dYaw * e;
-  pitch = glide.fromPitch + glide.dPitch * e;
-  if (k >= 1) glide = null;
-  draw();
-})(0);
+/* ── the world outline: local, so geometry never depends on the network ───────────── */
+var worldReady = fetch("world.json").then(function(r){ return r.json(); })
+  .then(function(d){ WORLD = d; return d; })
+  .catch(function(){ WORLD = {land:[], economies:{}}; return WORLD; });
 
 send("streamlit:componentReady", {apiVersion: 1});
+</script>
+
+<script type="importmap">
+{"imports":{"three":"https://esm.sh/three@0.160.0",
+            "three/addons/":"https://esm.sh/three@0.160.0/examples/jsm/"}}
+</script>
+
+<script type="module">
+/* The textured globe. Everything here is best-effort: if the import fails, if WebGL is
+   refused, or if it simply has not finished in six seconds, startCanvas() takes the stage and
+   the component behaves identically. */
+const mount = document.getElementById("globe");
+const note = document.getElementById("modeNote");
+let claimed = false;
+
+const timeout = setTimeout(() => {
+  if (!claimed){ claimed = true; startCanvas("offline outline — 3D assets unreachable"); }
+}, 6000);
+
+try {
+  const THREE = await import("three");
+  const { OrbitControls } = await import("three/addons/controls/OrbitControls.js");
+  await worldReady;
+  if (claimed) throw new Error("the canvas renderer already took the stage");
+  clearTimeout(timeout);
+  claimed = true;
+  startThree(THREE, OrbitControls);
+} catch (err) {
+  clearTimeout(timeout);
+  if (!claimed){ claimed = true; startCanvas("offline outline — 3D assets unreachable"); }
+}
+
+/* ── renderer 1: three.js ─────────────────────────────────────────────────────────── */
+function startThree(THREE, OrbitControls){
+  const TEX = "https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/";
+  const W = () => mount.clientWidth || 600;
+  const H = () => mount.clientHeight || height;
+
+  const scene = new THREE.Scene();
+  const cam = new THREE.PerspectiveCamera(38, 2, 0.1, 100);
+  const rnd = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+  rnd.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+  rnd.setClearColor(0x000000, 0);
+  rnd.domElement.tabIndex = 0;
+  rnd.domElement.setAttribute("role", "application");
+  rnd.domElement.setAttribute("aria-label",
+    "World map of the twelve economies VeriTrade covers. Arrow keys move between economies, "
+    + "Enter chooses one. The buttons underneath do the same thing.");
+  mount.appendChild(rnd.domElement);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.72));
+  /* The key light rides with the camera rather than sitting at a fixed point in space. A
+     fixed sun is astronomically honest and useless here: this globe opens facing Asia, the
+     sun was over the Atlantic, and the whole subject rendered as a night side. Offsetting it
+     slightly keeps a terminator so the sphere still reads as a sphere. */
+  const sun = new THREE.DirectionalLight(0xffffff, 1.05);
+  scene.add(sun);
+  const rim = new THREE.DirectionalLight(0x6aa7ff, 0.55); rim.position.set(-4, 1, -3);
+  scene.add(rim);
+
+  const ld = new THREE.TextureLoader(); ld.setCrossOrigin("anonymous");
+  const earth = new THREE.Mesh(
+    new THREE.SphereGeometry(1, 64, 64),
+    new THREE.MeshPhongMaterial({
+      map: ld.load(TEX + "earth_atmos_2048.jpg"),
+      normalMap: ld.load(TEX + "earth_normal_2048.jpg"),
+      specularMap: ld.load(TEX + "earth_specular_2048.jpg"),
+      specular: new THREE.Color(0x334466), shininess: 12 }));
+  scene.add(earth);
+
+  const clouds = new THREE.Mesh(
+    new THREE.SphereGeometry(1.012, 64, 64),
+    new THREE.MeshPhongMaterial({ map: ld.load(TEX + "earth_clouds_2048.png"),
+      transparent: true, opacity: 0.28, depthWrite: false }));
+  scene.add(clouds);
+
+  scene.add(new THREE.Mesh(
+    new THREE.SphereGeometry(1.10, 40, 40),
+    new THREE.ShaderMaterial({ transparent: true, side: THREE.BackSide,
+      uniforms: { c: { value: 0.5 }, p: { value: 4.0 } },
+      vertexShader: "varying vec3 vN; void main(){vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",
+      fragmentShader: "uniform float c,p; varying vec3 vN; void main(){float i=pow(c-dot(vN,vec3(0,0,1)),p); gl_FragColor=vec4(0.24,0.62,0.98,1.0)*i;}" })));
+
+  const toVec = (lat, lon, r) => {
+    const a = (90 - lat) * Math.PI / 180, b = (lon + 180) * Math.PI / 180;
+    return new THREE.Vector3(-r * Math.sin(a) * Math.cos(b), r * Math.cos(a),
+                              r * Math.sin(a) * Math.sin(b));
+  };
+
+  const overlay = new THREE.Group(); earth.add(overlay);
+  const markers = new THREE.Group(); earth.add(markers);
+
+  function paint(){
+    for (const g of [overlay, markers])
+      while (g.children.length) g.remove(g.children[0]);
+    ECON.forEach(c => {
+      const on = c.iso === selected;
+      const colour = new THREE.Color(num(levelColour(c.level, true)));
+
+      /* The country's own border, traced on the sphere. Several passes at slightly different
+         radii read as a band rather than a hairline: WebGL line width is always one pixel,
+         so thickness has to be built rather than asked for. */
+      const rings = (WORLD.economies || {})[c.iso] || [];
+      for (const ring of rings){
+        for (const r of (on ? [1.004, 1.009, 1.014] : [1.004, 1.009])){
+          const pts = ring.map(p => toVec(p[1], p[0], r));
+          const line = new THREE.LineLoop(
+            new THREE.BufferGeometry().setFromPoints(pts),
+            new THREE.LineBasicMaterial({ color: colour, transparent: true,
+                                          opacity: on ? 0.95 : 0.62 }));
+          line.userData.iso = c.iso;
+          overlay.add(line);
+        }
+      }
+
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(on ? 0.034 : 0.021, 16, 16),
+        new THREE.MeshBasicMaterial({ color: colour }));
+      dot.position.copy(toVec(c.lat, c.lon, 1.02));
+      dot.userData.iso = c.iso;
+      markers.add(dot);
+      const halo = new THREE.Mesh(new THREE.SphereGeometry(on ? 0.062 : 0.042, 16, 16),
+        new THREE.MeshBasicMaterial({ color: colour, transparent: true,
+                                      opacity: on ? 0.30 : 0.18 }));
+      halo.position.copy(dot.position);
+      halo.userData.iso = c.iso;
+      markers.add(halo);
+    });
+  }
+
+  const ctl = new OrbitControls(cam, rnd.domElement);
+  ctl.enablePan = false; ctl.enableZoom = false;
+  ctl.enableDamping = true; ctl.dampingFactor = 0.08;
+  ctl.rotateSpeed = 0.5;
+  /* Idle rotation is the first impression and nothing more: it stops the moment a country is
+     chosen, because from then on the globe is a reading surface and drifting labels are a
+     nuisance rather than a flourish. */
+  ctl.autoRotate = !reduce && !selected;
+  ctl.autoRotateSpeed = 0.42;
+
+  const place = (lat, lon) => toVec(lat, lon, 3.05);
+  cam.position.copy(place(14, 100));       // opens on Asia-Pacific, where all twelve of them are
+  if (selected){
+    const c0 = ECON.find(x => x.iso === selected);
+    if (c0) cam.position.copy(place(c0.lat, c0.lon));
+  }
+  ctl.update();
+
+  let glide = null;
+  function focus(iso){
+    paint();
+    const c = ECON.find(x => x.iso === iso);
+    if (!c) return;
+    ctl.autoRotate = false;
+    const to = place(c.lat, c.lon).setLength(cam.position.length());
+    if (reduce){ cam.position.copy(to); ctl.update(); return; }
+    glide = { from: cam.position.clone(), to, t0: performance.now(), ms: 620 };
+  }
+
+  const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
+  let down = null;
+  rnd.domElement.addEventListener("pointerdown", e => {
+    down = { x: e.clientX, y: e.clientY };
+    ctl.autoRotate = false;
+    glide = null;
+  });
+  rnd.domElement.addEventListener("pointermove", e => {
+    if (down) return;
+    const c = pick(e);
+    const r = rnd.domElement.getBoundingClientRect();
+    hover = c ? c.iso : null;
+    showTip(c, e.clientX - r.left, e.clientY - r.top, r.width);
+  });
+  rnd.domElement.addEventListener("pointerleave", () => showTip(null));
+  rnd.domElement.addEventListener("pointerup", e => {
+    if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5){ down = null; return; }
+    down = null;
+    const c = pick(e);
+    if (c) choose(c.iso);
+  });
+  rnd.domElement.addEventListener("keydown", e => {
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") stepSelection(1);
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") stepSelection(-1);
+    else if (e.key === "Enter" || e.key === " "){ if (selected) choose(selected); }
+    else return;
+    e.preventDefault();
+  });
+
+  function pick(e){
+    const r = rnd.domElement.getBoundingClientRect();
+    ptr.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+    ptr.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+    ray.setFromCamera(ptr, cam);
+    ray.params.Line = { threshold: 0.02 };
+    const hit = ray.intersectObjects(markers.children.concat(overlay.children), false)[0];
+    if (!hit || !hit.object.userData.iso) return null;
+    return ECON.find(x => x.iso === hit.object.userData.iso) || null;
+  }
+
+  const clock = new THREE.Clock();
+  const SUN_OFFSET = new THREE.Euler(0, -0.55, 0.28);
+  (function loop(){
+    requestAnimationFrame(loop);
+    clouds.rotation.y += 0.014 * clock.getDelta();
+    sun.position.copy(cam.position).applyEuler(SUN_OFFSET);
+    if (glide){
+      const k = Math.min(1, (performance.now() - glide.t0) / glide.ms);
+      const ease = k < 0.5 ? 4*k*k*k : 1 - Math.pow(-2*k + 2, 3) / 2;
+      cam.position.copy(glide.from.clone().lerp(glide.to, ease).setLength(glide.to.length()));
+      if (k >= 1) glide = null;
+    }
+    ctl.update();
+    rnd.render(scene, cam);
+  })();
+
+  function resize(){
+    rnd.setSize(W(), H());
+    cam.aspect = W() / Math.max(H(), 1);
+    cam.updateProjectionMatrix();
+  }
+  addEventListener("resize", resize);
+  resize(); paint();
+  note.textContent = "";
+
+  renderer = {
+    refresh: () => { paint(); resize(); },
+    focus,
+    setMode: m => {
+      /* "Flat" hands over to the canvas renderer, which already draws an equirectangular map
+         from the same outline. Two implementations of one projection would be two places to
+         fix the same bug in. */
+      if (m === "flat"){
+        rnd.domElement.style.display = "none";
+        startCanvas("");
+      }
+    }
+  };
+}
+
+/* ── renderer 2: plain canvas, no dependencies ────────────────────────────────────── */
+function startCanvas(why){
+  note.textContent = why || "";
+  const cv = document.createElement("canvas");
+  cv.tabIndex = 0;
+  cv.setAttribute("role", "application");
+  cv.setAttribute("aria-label",
+    "World map of the twelve economies VeriTrade covers. Arrow keys move between economies, "
+    + "Enter chooses one. The buttons underneath do the same thing.");
+  mount.appendChild(cv);
+  const ctx = cv.getContext("2d");
+  let W = 600, Hh = height, DPR = 1;
+  let yaw = 100, pitch = 14, glide = null;
+
+  worldReady.then(draw);
+
+  function radius(){ return Math.min(W, Hh) * 0.42; }
+  function project(lon, lat){
+    const l = (lon - yaw) * Math.PI/180, p = lat * Math.PI/180, p0 = pitch * Math.PI/180;
+    const cp = Math.cos(p), sp = Math.sin(p), cl = Math.cos(l), sl = Math.sin(l);
+    const cosc = Math.sin(p0)*sp + Math.cos(p0)*cp*cl;
+    const R = radius();
+    return [W/2 + R*(cp*sl), Hh/2 - R*(Math.cos(p0)*sp - Math.sin(p0)*cp*cl), cosc];
+  }
+  function projectFlat(lon, lat){
+    const pad = 8, w = W - pad*2, h = Math.min(Hh - pad*2, w/2);
+    return [pad + (lon + 180)/360*w, (Hh - h)/2 + (90 - lat)/180*h, 1];
+  }
+  function pt(lon, lat){ return mode === "globe" ? project(lon, lat) : projectFlat(lon, lat); }
+
+  /* Where a segment crosses the horizon, so a half-visible country gets a clean edge instead
+     of a chord cutting across the disc. Bisection is exact enough at twelve steps. */
+  function horizon(a, b){
+    let lo = 0, hi = 1;
+    for (let i = 0; i < 12; i++){
+      const m = (lo + hi) / 2;
+      const p = pt(a[0] + (b[0]-a[0])*m, a[1] + (b[1]-a[1])*m);
+      if (p[2] > 0) lo = m; else hi = m;
+    }
+    const t = (lo + hi) / 2;
+    return [a[0] + (b[0]-a[0])*t, a[1] + (b[1]-a[1])*t];
+  }
+  function tracePath(ring){
+    const runs = []; let cur = [];
+    for (let i = 0; i < ring.length; i++){
+      const a = ring[i], p = pt(a[0], a[1]), vis = p[2] > 0;
+      if (mode === "flat" && i > 0 && Math.abs(ring[i][0] - ring[i-1][0]) > 180){
+        if (cur.length > 1) runs.push(cur);
+        cur = [];
+      }
+      if (vis){
+        if (!cur.length && i > 0){ const c = horizon(ring[i-1], a); cur.push(pt(c[0], c[1])); }
+        cur.push(p);
+      } else if (cur.length){
+        const c = horizon(a, ring[i-1]); cur.push(pt(c[0], c[1]));
+        runs.push(cur); cur = [];
+      }
+    }
+    if (cur.length > 1) runs.push(cur);
+    return runs;
+  }
+  function fillRings(rings, fill, stroke, lw){
+    if (!rings) return;
+    for (const ring of rings){
+      for (const run of tracePath(ring)){
+        if (run.length < 2) continue;
+        ctx.beginPath();
+        ctx.moveTo(run[0][0], run[0][1]);
+        for (let i = 1; i < run.length; i++) ctx.lineTo(run[i][0], run[i][1]);
+        ctx.closePath();
+        if (fill){ ctx.fillStyle = fill; ctx.fill(); }
+        if (stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1; ctx.stroke(); }
+      }
+    }
+  }
+  /* This renderer has no lighting with which to separate one level from another, so each fill
+     also carries a pattern — the guidance is explicit that location meaning must not rest on
+     colour alone. */
+  const HATCH = {};
+  function hatch(kind, colour){
+    const key = kind + "|" + colour;
+    if (key in HATCH) return HATCH[key];
+    const s = 6, c = document.createElement("canvas");
+    c.width = c.height = s;
+    const g = c.getContext("2d");
+    g.strokeStyle = g.fillStyle = colour; g.lineWidth = 1;
+    if (kind === "dense"){ g.beginPath(); g.moveTo(-1,s); g.lineTo(s,-1); g.moveTo(-1,s*2); g.lineTo(s*2,-1); g.stroke(); }
+    else if (kind === "sparse"){ g.beginPath(); g.moveTo(-1,s); g.lineTo(s,-1); g.stroke(); }
+    else if (kind === "dots"){ g.beginPath(); g.arc(s/2, s/2, 1, 0, 7); g.fill(); }
+    else return (HATCH[key] = null);
+    return (HATCH[key] = ctx.createPattern(c, "repeat"));
+  }
+
+  function graticule(colour){
+    ctx.strokeStyle = colour; ctx.lineWidth = 0.6; ctx.globalAlpha = 0.6;
+    for (let lat = -60; lat <= 60; lat += 30) line(-180, lat, 180, lat);
+    for (let lon = -180; lon < 180; lon += 30) line(lon, -85, lon, 85);
+    ctx.globalAlpha = 1;
+    function line(l1, p1, l2, p2){
+      const n = 48; let run = [];
+      for (let i = 0; i <= n; i++){
+        const t = i/n, p = pt(l1 + (l2-l1)*t, p1 + (p2-p1)*t);
+        if (p[2] > 0) run.push(p); else if (run.length){ stroke(run); run = []; }
+      }
+      if (run.length) stroke(run);
+    }
+    function stroke(run){
+      if (run.length < 2) return;
+      ctx.beginPath(); ctx.moveTo(run[0][0], run[0][1]);
+      for (let i = 1; i < run.length; i++) ctx.lineTo(run[i][0], run[i][1]);
+      ctx.stroke();
+    }
+  }
+
+  function draw(){
+    const ink = cssv("--ink", "#0f172a"), rule = cssv("--rule", "#e2e8f0");
+    const sea = cssv("--panel", "#f8fafc");
+    const land = mix(cssv("--ink-faint", "#94a3b8"), sea, themeName === "dark" ? 0.34 : 0.55);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.clearRect(0, 0, W, Hh);
+    if (mode === "globe"){
+      ctx.beginPath(); ctx.arc(W/2, Hh/2, radius(), 0, 7);
+      ctx.fillStyle = sea; ctx.fill();
+      ctx.strokeStyle = rule; ctx.lineWidth = 1; ctx.stroke();
+      ctx.save(); ctx.clip();
+    }
+    graticule(rule);
+    if (WORLD){
+      fillRings(WORLD.land, land, null, 0);
+      ECON.forEach(c => {
+        const rings = (WORLD.economies || {})[c.iso];
+        if (!rings) return;
+        const on = c.iso === selected;
+        fillRings(rings, levelColour(c.level), on ? ink : rule, on ? 2 : 1);
+        const h = hatch((LEVELS[c.level] || {}).hatch || "dots",
+                        themeName === "dark" ? "rgba(255,255,255,.30)" : "rgba(15,23,42,.22)");
+        if (h) fillRings(rings, h, null, 0);
+      });
+    }
+    if (mode === "globe") ctx.restore();
+    /* Markers last, on top: Singapore has no polygon in the 110m outline at all — it is about
+       0.05 degrees across — so for that economy the marker IS the country. */
+    ECON.forEach(c => {
+      const p = pt(c.lon, c.lat);
+      if (p[2] <= 0) return;
+      const on = c.iso === selected;
+      ctx.beginPath(); ctx.arc(p[0], p[1], on ? 5.5 : 3.4, 0, 7);
+      ctx.fillStyle = on ? cssv("--accent", "#2563eb") : levelColour(c.level);
+      ctx.fill();
+      ctx.strokeStyle = themeName === "dark" ? "rgba(0,0,0,.55)" : "#fff";
+      ctx.lineWidth = 1.6; ctx.stroke();
+      if (on){
+        ctx.font = "600 12px Inter, sans-serif";
+        ctx.fillStyle = ink; ctx.textAlign = "center";
+        ctx.fillText(c.name, p[0], p[1] - 11);
+      }
+    });
+  }
+
+  function hitTest(mx, my){
+    let best = null, bestD = 26 * 26;
+    ECON.forEach(c => {
+      const p = pt(c.lon, c.lat);
+      if (p[2] <= 0) return;
+      const d = (p[0]-mx)*(p[0]-mx) + (p[1]-my)*(p[1]-my);
+      if (d < bestD){ bestD = d; best = c; }
+    });
+    if (best) return best;
+    for (const c of ECON){
+      const rings = WORLD && (WORLD.economies || {})[c.iso];
+      if (!rings) continue;
+      for (const ring of rings)
+        for (const run of tracePath(ring))
+          if (inside(run, mx, my)) return c;
+    }
+    return null;
+  }
+  function inside(poly, x, y){
+    let hitp = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++){
+      if (((poly[i][1] > y) !== (poly[j][1] > y)) &&
+          (x < (poly[j][0]-poly[i][0]) * (y-poly[i][1]) / (poly[j][1]-poly[i][1]) + poly[i][0]))
+        hitp = !hitp;
+    }
+    return hitp;
+  }
+
+  let drag = null, moved = 0;
+  cv.addEventListener("pointerdown", e => {
+    cv.setPointerCapture(e.pointerId);
+    drag = { x: e.clientX, y: e.clientY }; moved = 0; glide = null;
+  });
+  cv.addEventListener("pointermove", e => {
+    const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+    if (drag){
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      moved += Math.abs(dx) + Math.abs(dy);
+      if (mode === "globe"){
+        yaw += dx * 0.35;
+        pitch = Math.max(-80, Math.min(80, pitch - dy * 0.3));
+      }
+      drag = { x: e.clientX, y: e.clientY };
+      draw();
+      return;
+    }
+    const c = hitTest(mx, my);
+    if ((c ? c.iso : null) !== hover){ hover = c ? c.iso : null; draw(); }
+    showTip(c, mx, my, r.width);
+  });
+  cv.addEventListener("pointerup", e => {
+    if (!drag) return;
+    const r = cv.getBoundingClientRect();
+    if (moved < 5){
+      const c = hitTest(e.clientX - r.left, e.clientY - r.top);
+      if (c) choose(c.iso);
+    }
+    drag = null;
+  });
+  cv.addEventListener("pointercancel", () => { drag = null; });
+  cv.addEventListener("pointerleave", () => { hover = null; showTip(null); draw(); });
+  cv.addEventListener("keydown", e => {
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") stepSelection(1);
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") stepSelection(-1);
+    else if (e.key === "Enter" || e.key === " "){ if (selected) choose(selected); }
+    else return;
+    e.preventDefault();
+  });
+
+  function focus(iso){
+    const c = ECON.find(x => x.iso === iso);
+    if (!c || mode !== "globe"){ draw(); return; }
+    if (reduce){ yaw = c.lon; pitch = Math.max(-55, Math.min(55, c.lat)); draw(); return; }
+    const d = ((c.lon - yaw + 540) % 360) - 180;
+    glide = { fromYaw: yaw, dYaw: d, fromPitch: pitch,
+              dPitch: Math.max(-55, Math.min(55, c.lat)) - pitch,
+              t0: performance.now(), ms: 520 };
+  }
+  (function loop(t){
+    requestAnimationFrame(loop);
+    if (!glide) return;
+    const k = Math.min(1, (t - glide.t0) / glide.ms);
+    const ease = k < 0.5 ? 4*k*k*k : 1 - Math.pow(-2*k + 2, 3) / 2;
+    yaw = glide.fromYaw + glide.dYaw * ease;
+    pitch = glide.fromPitch + glide.dPitch * ease;
+    if (k >= 1) glide = null;
+    draw();
+  })(0);
+
+  function resize(){
+    const stage = document.getElementById("stage");
+    DPR = Math.min(devicePixelRatio || 1, 2);
+    W = stage.clientWidth || 600; Hh = stage.clientHeight || height;
+    cv.width = Math.round(W * DPR); cv.height = Math.round(Hh * DPR);
+    cv.style.width = W + "px"; cv.style.height = Hh + "px";
+    draw();
+  }
+  addEventListener("resize", resize);
+  resize();
+  if (selected) focus(selected);
+
+  renderer = { refresh: resize, focus, setMode: () => { resize(); } };
+}
 </script>

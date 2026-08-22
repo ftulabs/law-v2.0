@@ -1,14 +1,13 @@
-"""The 15 October hour, as four steps that produce three files.
+"""The 15 October live stress test: any economy, any pillar, named on the day.
 
-The live test is not another way to run the tool. It is a fixed, timed procedure with a
-deliverable, and the pieces are already scored elsewhere in the app — a run, an engine switch,
-an export. What is missing is the *shape*: one economy, one pillar, two indicators, announced at
-the start of the hour and not before; the same work done twice, once per declared engine; and
-three artefacts handed in at the end.
+The instruction for the day is deliberately open — a steward names ONE economy and ONE pillar,
+with no notice, and the tool has to go and find the law. So this is not a rehearsal surface for
+the ground we happen to have covered: both pickers offer everything the tool declares, and the
+screen says plainly what to expect from that particular combination before the clock starts.
 
-So this surface is a checklist, not a control panel. Every decision that can be made in advance
-has been made in advance, and what remains on the day is: type what the steward announced, press
-run twice, download three files.
+What it adds over the ordinary Run screen is the *shape* of the hour: a brief that is typed in
+rather than prepared, one run against the live portals, an optional second run on the other
+declared engine (which is what C5b marks), and three artefacts at the end.
 
 Design notes, kept because the reasoning is easy to lose:
 
@@ -22,8 +21,12 @@ Design notes, kept because the reasoning is easy to lose:
 * **The engines are read, not chosen.** They were declared on the submission and cannot change;
   offering a picker here would imply otherwise. The switch that C5b marks lives on the Engines
   screen, where a steward can watch it happen.
-* **Minimal text.** Each step is one line of instruction and one control. The explanation of why
-  lives in this docstring and in the README, not on a screen someone is reading against a clock.
+* **The second engine is optional.** Running the brief twice is worth doing when the clock
+  allows. Making it mandatory would strand the operator mid-flow, with nothing to hand in, on
+  exactly the day a first run turns out to be slow.
+* **The screen states the risk before the run, not after.** Being able to NAME an economy and
+  being ready for it are different claims, and the one moment that difference matters is this
+  one. Step 1 says which it is.
 """
 from __future__ import annotations
 
@@ -34,20 +37,64 @@ from datetime import datetime, timezone
 import streamlit as st
 
 STEPS = [
-    ("Brief", "What the steward announced"),
-    ("Run", "Once per declared engine"),
-    ("Compare", "Same work, two engines"),
+    ("Brief", "Any economy, any pillar"),
+    ("Run", "Live, against the real portals"),
+    ("Result", "What came back, and what it cost"),
     ("Hand in", "Three files"),
 ]
 
-#: The nine the sealed test draws from. Named here rather than derived from the full economy
-#: list, because being READY for an economy and merely being able to name it are different
-#: claims — and this screen is used at the one moment the difference matters.
+#: The nine the panel's 2025 database covers, listed FIRST in the picker because those are the
+#: ones the brief says the test draws from. They are an ordering, not a restriction: the
+#: instruction on the day is "any economy, any pillar", and a picker that could not accept
+#: Singapore — or a pillar nobody expected — would fail at the only moment it exists for.
 LIVE_TEST_ORDER = ("TH", "VN", "ID", "CN", "IN", "KZ", "LA", "MN", "RU")
 
 
 def new_state() -> dict:
     return {"step": 0, "brief": {}, "runs": {}, "started": None}
+
+
+def economy_order(codes) -> list[str]:
+    """Every declared economy, the live-test nine first, then the rest."""
+    nine = [c for c in LIVE_TEST_ORDER if c in codes]
+    return nine + [c for c in codes if c not in nine]
+
+
+#: Pillar labels, borrowed from the start screen so the two surfaces name a pillar the same
+#: way. home.py does not import this module, so there is no cycle.
+from .home import MEASURED_PILLARS, PILLAR_SHORT      # noqa: E402
+
+
+#: What each rung means for someone about to press Run under a clock — the READINESS ladder
+#: read as a forecast rather than as a status.
+_EXPECT = {
+    "measured": ("Measured end to end", "scored against the panel's own database"),
+    "extracted": ("Provisions extracted", "runs live; accuracy not yet scored"),
+    "reachable": ("Portal answers", "no adapter yet — discovery may return little or nothing"),
+    "declared": ("Declared only", "the portal has not answered us; expect an empty run"),
+}
+
+
+def _expect_html(code: str, pillar: int, readiness: dict) -> str:
+    """What this exact (economy, pillar) pair is likely to do.
+
+    Written before the run rather than explained after it. An empty result from an economy at
+    the "declared" rung and an empty result from a measured one look identical in the output
+    and mean completely different things, and the person watching has sixty minutes.
+    """
+    row = (readiness or {}).get(code, {})
+    level = row.get("level", "declared")
+    head, why = _EXPECT.get(level, _EXPECT["declared"])
+    measured = pillar in MEASURED_PILLARS
+    pill = (f"pillar {pillar} definitions are scored against the answer key" if measured
+            else f"pillar {pillar} definitions are coded from the Methodology, never scored")
+    return (f'<div class="lt-slot"><h4>What to expect</h4>'
+            f'<dl class="lt-kv">'
+            f'<dt>Economy</dt><dd>{head} &mdash; {why}</dd>'
+            f'<dt>Portal</dt><dd>{row.get("portal", "—")}</dd>'
+            f'<dt>Pillar</dt><dd>{pill}</dd>'
+            f'<dt>Blocker</dt><dd>{row.get("blocker", "—")}</dd>'
+            f'</dl></div>')
 
 
 # ── step indicator ───────────────────────────────────────────────────────────────────
@@ -66,10 +113,17 @@ def _steps_html(current: int) -> str:
 
 
 CSS = """
-.lt-steps{display:flex;gap:0;list-style:none;padding:0;margin:0 0 1.5rem 0;
+/* !important on the layout properties, and only those. Streamlit styles `ol`/`li` inside its
+   markdown container with a more specific selector than a bare class, so `display:flex` lost
+   and the four steps stacked into a narrow vertical column — the border and the numbered dots
+   applied, which made it look designed rather than broken. */
+.lt-steps{display:flex !important;width:100%;gap:0;list-style:none !important;
+  padding:0 !important;margin:0 0 1.5rem 0;
   border:1px solid var(--line);border-radius:10px;overflow:hidden}
-.lt-step{flex:1;display:flex;flex-direction:column;gap:.15rem;padding:.7rem .9rem;
-  border-right:1px solid var(--line);min-width:0}
+.lt-step{flex:1 1 0;display:flex !important;flex-direction:column;gap:.15rem;
+  padding:.7rem .9rem;border-right:1px solid var(--line);min-width:0;
+  margin:0 !important;list-style:none !important}
+.lt-step::marker{content:none}
 .lt-step:last-child{border-right:0}
 .lt-dot{display:inline-flex;align-items:center;justify-content:center;
   width:1.4rem;height:1.4rem;border-radius:50%;font-size:.78rem;font-weight:600;
@@ -222,24 +276,42 @@ def _slot_html(slot: str, r: dict | None) -> str:
         f'</dl></div>')
 
 
-def render(state: dict, economies: dict[str, str]) -> dict | None:
-    """Draw the surface. Returns a run request when the operator presses a run button."""
+def render(state: dict, economies: dict[str, str], readiness: dict | None = None,
+           engines: str = "") -> dict | None:
+    """Draw the surface. Returns a run request when the operator presses a run button.
+
+    The shape follows what actually happens on 15 October: a steward names ONE economy and ONE
+    pillar — any of them, with no notice — and the tool has to go and find the law. So step 1
+    is a pair of pickers over everything we declare, not a menu of what we prepared, and step 2
+    is a single button that runs live against the real portals.
+
+    The second engine is offered but not required. Running the same brief twice is what C5b
+    marks, and it is worth doing when the clock allows; making it a mandatory step would mean a
+    slow first run leaves the operator stranded mid-flow with nothing to hand in.
+    """
     st.markdown(f"<style>{CSS}</style>", unsafe_allow_html=True)
     step = state["step"]
     st.markdown(_steps_html(step), unsafe_allow_html=True)
     request = None
+    readiness = readiness or {}
 
     if step == 0:
-        st.caption("Type what the steward announced. Nothing here is known in advance.")
+        st.caption("Type in whatever the steward names. Every economy and every pillar is "
+                   "selectable — nothing here is prepared in advance.")
+        order = economy_order(list(economies))
         c1, c2 = st.columns([2, 1])
-        ready = [c for c in LIVE_TEST_ORDER if c in economies]
-        econ = c1.selectbox("Economy", ready, format_func=lambda c: economies[c],
-                            key="lt_econ")
-        pillar = c2.selectbox("Pillar", list(range(1, 13)), index=5, key="lt_pillar")
-        inds = st.text_input("The two indicators", placeholder="e.g. 6.2 and 6.4",
-                             key="lt_inds")
-        if st.button("Start the hour", type="primary", use_container_width=True):
-            state["brief"] = {"economy": economies[econ], "code": econ,
+        econ = c1.selectbox(
+            "Economy", order, key="lt_econ",
+            format_func=lambda c: economies.get(c, c)
+                                  + ("" if c in LIVE_TEST_ORDER else "  (outside the nine)"))
+        pillar = c2.selectbox("Pillar", list(range(1, 13)), index=5, key="lt_pillar",
+                              format_func=lambda n: f"{n} · {PILLAR_SHORT.get(n, '')}")
+        inds = st.text_input("Indicators they named, if any",
+                             placeholder="e.g. 6.2 and 6.4 — leave blank to search the "
+                                         "whole pillar", key="lt_inds")
+        st.markdown(_expect_html(econ, pillar, readiness), unsafe_allow_html=True)
+        if st.button("Start the clock", type="primary", width="stretch"):
+            state["brief"] = {"economy": economies.get(econ, econ), "code": econ,
                               "pillar": pillar, "indicators": inds}
             state["started"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
             state["step"] = 1
@@ -247,54 +319,75 @@ def render(state: dict, economies: dict[str, str]) -> dict | None:
 
     elif step == 1:
         b = state["brief"]
-        st.caption(f"{b['economy']} · pillar {b['pillar']} · {b['indicators']}")
+        st.caption(f"{b['economy']} · pillar {b['pillar']}"
+                   + (f" · {b['indicators']}" if b.get("indicators") else "")
+                   + (f" · {engines}" if engines else ""))
         c1, c2 = st.columns(2)
         for col, slot in ((c1, "A"), (c2, "B")):
             with col:
                 st.markdown(_slot_html(slot, state["runs"].get(slot)), unsafe_allow_html=True)
-                label = f"Run engine {slot}" + (" again" if slot in state["runs"] else "")
-                if st.button(label, key=f"lt_run_{slot}", use_container_width=True,
-                             type="primary" if slot not in state["runs"] else "secondary"):
+                done = slot in state["runs"]
+                label = ("Run again" if done else
+                         ("Run — engine A" if slot == "A" else "Run — engine B (optional)"))
+                if st.button(label, key=f"lt_run_{slot}", width="stretch",
+                             disabled=(slot == "B" and "A" not in state["runs"]),
+                             type="primary" if (slot == "A" and not done) else "secondary"):
                     request = {"slot": slot, "code": b["code"], "pillar": b["pillar"]}
-        if len(state["runs"]) == 2 and st.button("Both engines done", type="primary",
-                                                 use_container_width=True):
+        if state["runs"] and st.button("See the result", type="primary", width="stretch"):
             state["step"] = 2
             st.rerun()
 
     elif step == 2:
-        a, bb = state["runs"]["A"], state["runs"]["B"]
-        st.caption("Same economy, same pillar, same hour — so every difference is the engine.")
-        st.dataframe(
-            [{"": k,
-              "Engine A": va, "Engine B": vb}
-             for k, va, vb in [
-                 ("Model", a["model"], bb["model"]),
-                 ("Elapsed (min)", f"{a['elapsed_s']/60:.1f}", f"{bb['elapsed_s']/60:.1f}"),
-                 ("Cost (US$)", f"{a['cost_usd']:.4f}", f"{bb['cost_usd']:.4f}"),
-                 ("Rows", a["rows"], bb["rows"]),
-                 ("Needs review", a["review"], bb["review"]),
-                 ("Found only by this engine", a.get("only", "—"), bb.get("only", "—"))]],
-            hide_index=True, use_container_width=True)
-        if st.button("Prepare the hand-in", type="primary", use_container_width=True):
+        a, bb = state["runs"].get("A"), state["runs"].get("B")
+        b = state["brief"]
+        if bb:
+            st.caption("Same economy, same pillar, same hour — so every difference is the "
+                       "engine, which is exactly what C5b asks to see.")
+            st.dataframe(
+                [{"": k, "Engine A": va, "Engine B": vb} for k, va, vb in [
+                    ("Model", a["model"], bb["model"]),
+                    ("Elapsed (min)", f"{a['elapsed_s']/60:.1f}", f"{bb['elapsed_s']/60:.1f}"),
+                    ("Cost (US$)", f"{a['cost_usd']:.4f}", f"{bb['cost_usd']:.4f}"),
+                    ("Documents", a["documents"], bb["documents"]),
+                    ("Provisions", a["provisions"], bb["provisions"]),
+                    ("Rows", a["rows"], bb["rows"]),
+                    ("Needs review", a["review"], bb["review"]),
+                    ("Found only by this engine", a.get("only", "—"), bb.get("only", "—"))]],
+                hide_index=True, width="stretch")
+        elif a:
+            st.caption(f"{b['economy']} · pillar {b['pillar']} — one engine. Running the "
+                       "second is optional and can be done from the previous step.")
+            m = st.columns(4)
+            m[0].metric("Rows", a["rows"])
+            m[1].metric("Provisions read", a["provisions"])
+            m[2].metric("Minutes", f"{a['elapsed_s']/60:.1f}")
+            m[3].metric("Cost (US$)", f"{a['cost_usd']:.4f}")
+            st.caption(f"Engine: {a['model']} · {a['documents']} documents · "
+                       f"{a['review']} rows flagged for review")
+        else:
+            st.info("No run has been captured yet — go back a step and press Run.")
+        if st.button("Prepare the hand-in", type="primary", width="stretch"):
             state["step"] = 3
             st.rerun()
 
     elif step == 3:
-        st.caption("Three files. Everything in them was measured, not typed.")
+        st.caption("Three files. Everything in them was measured by the run, not typed.")
         note_md = short_note(state)
         c1, c2, c3 = st.columns(3)
         c1.download_button("Run record (.csv)", run_record(state), "run_record.csv",
-                           "text/csv", use_container_width=True)
+                           "text/csv", width="stretch")
         c2.download_button("Engine comparison (.csv)", engine_comparison(state),
-                           "engine_comparison.csv", "text/csv", use_container_width=True)
+                           "engine_comparison.csv", "text/csv", width="stretch")
         docx = short_note_docx(note_md)
         if docx:
             c3.download_button("Short note (.docx)", docx, "live_test_short_note.docx",
                                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                               use_container_width=True)
+                               width="stretch")
         else:
             c3.download_button("Short note (.md)", note_md, "live_test_short_note.md",
-                               "text/markdown", use_container_width=True)
+                               "text/markdown", width="stretch")
+        st.caption("The submission CSV itself is on the Download tab of the run that produced "
+                   "it — these three are the live-test paperwork, not the evidence.")
         with st.expander("Read the note before sending it"):
             st.markdown(note_md)
 
@@ -316,13 +409,17 @@ def brief_screen(*, economy: str, pillar: int, ocr_label: str, llm_label: str) -
     screen uses, records which engine slot it belongs to, and returns to this screen with the
     result captured — so the operator never leaves the checklist.
     """
-    st.markdown("#### The sealed hour")
-    st.caption(f"Declared engines: {ocr_label} · {llm_label} — frozen at submission and read, "
-               "not chosen. Everything in the three files is measured by the run.")
+    from . import geo                                   # noqa: PLC0415 — avoids an import cycle
+
+    st.markdown("#### Live stress test")
+    st.caption("One economy and one pillar, named by the steward on the day. Both pickers "
+               "cover everything the tool declares — there is no prepared shortlist.")
     if "livetest" not in st.session_state:
         st.session_state["livetest"] = new_state()
     econ_names = st.session_state.get("_econ_names") or {}
-    request = render(st.session_state["livetest"], econ_names)
+    request = render(st.session_state["livetest"], econ_names,
+                     readiness=geo.readiness(),
+                     engines=f"{ocr_label} · {llm_label} (declared, frozen)")
     if request:
         # Drive the ordinary pipeline. The slot is remembered so the completed run is filed
         # against the right engine without the operator copying anything.

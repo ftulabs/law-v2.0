@@ -85,3 +85,16 @@ blueBackgroundColor = "#0c2d43"
 runOnSave = true
 # serves docs/whitepaper.html + docs/landing.html + docs/fonts.html at /app/static/…
 enableStaticServing = true
+
+# Streamlit's source watcher walks every imported module's `__path__` to decide what to
+# watch. `transformers` resolves that attribute through a LAZY importer, so the walk imports
+# submodules — including ones that need `torchvision`, which we do not install. Each miss is
+# caught and logged as a full traceback. A single session printed 368 of them plus 808
+# "[transformers] Accessing __path__" lines: 9,344 lines of log for an app that was working
+# perfectly. Nothing was broken; it just looked broken, which for someone reading the terminal
+# during a 30-minute install is the same thing.
+#
+# "none" turns the watcher off. The cost is that editing a .py no longer hot-reloads the
+# browser — a developer's convenience, not a reviewer's. For that, override it per shell:
+#   STREAMLIT_SERVER_FILE_WATCHER_TYPE=auto streamlit run frontend/app.py
+fileWatcherType = "none"

@@ -124,11 +124,15 @@ run exists yet, and a tab inside the results cannot be reached before the first 
 | Accept, reject or correct a row | Tab **Needs review** (the tab label carries the queue count) |
 | Switch the AI engine | Screen **Engines**. No file edited, no command typed |
 | Export to the RDTII schema | Tab **Download** → Submission CSV · Evidence JSON · Scored CSV, with this run's measured cost above them |
-| Run the sealed live test on 15 October | Screen **Live test** — four steps (brief → run each engine → compare → hand in) producing the run record, the engine comparison and the short note. The run buttons run; nothing is typed that the code already measured |
+| Run the sealed live test on 15 October | Screen **Live test** — the steward names any economy and any pillar, and both pickers cover everything the tool declares. Four steps (brief → run → result → hand in) producing the run record, the engine comparison and the short note. Before the clock starts it states what to expect from that exact pair — an empty run from a *declared* economy and an empty run from a *measured* one look identical in the output and mean opposite things |
 
-The globe needs no network of its own: the world outline ships beside the component
-(`frontend/components/geo/world.json`, 117 KB). An earlier version loaded three.js and map
-textures from a CDN, which on a machine behind a proxy left an empty box and no error.
+The globe is a textured WebGL earth (three.js from a CDN) with each economy's border traced
+on it in the colour of its readiness. If the CDN is unreachable it falls back, after six
+seconds, to a dependency-free canvas globe that draws the same data and says so in the corner —
+an earlier version had only the CDN path, and its failure mode was an empty box with no error
+anywhere. The world outline itself always ships locally
+(`frontend/components/geo/world.json`, 117 KB), so *where* each economy is never depends on the
+network; only the photography does.
 
 **Walkthrough recording:** *to be recorded before 30 September, submitted with the Word document.*
 

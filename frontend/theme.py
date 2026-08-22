@@ -203,7 +203,20 @@ def inject_css() -> None:
     inject_style(
         f"""
           @import url('{font_import_url()}');
-          :root {{ {tokens} }}
+          :root {{
+            {tokens}
+            /* `--mono` is referenced in eight places across app.py, home.py and livetest.py —
+               every citation, indicator ID, run id and URL in the interface — and it was never
+               declared anywhere. All of them silently inherited Inter. CSS custom properties
+               fail by falling back, so nothing broke and nothing looked broken; the typographic
+               distinction the design calls for simply was not there. It is theme-independent,
+               so it belongs here rather than in LIGHT and DARK.
+               The three aliases below are the names frontend/livetest.py was written against.
+               Mapping them is a smaller change than renaming every rule in that file, and it
+               documents the two vocabularies rather than leaving one of them broken. */
+            --mono:{MONO_STACK};
+            --line:var(--rule); --muted:var(--ink-faint); --surface-2:var(--paper-2);
+          }}
 
           /* ── typography: one family everywhere ({BODY_FONT}), mono only for IDs/citations/URLs.
                 config.toml already points Streamlit's native widgets at the same family; this
@@ -429,6 +442,16 @@ _FOOTER_CSS = """
 """
 
 
+def _scope_line() -> str:
+    """What the tool covers, counted from the registries rather than remembered."""
+    try:
+        from backend.rdtii.indicators_wide import PILLAR_NAMES      # noqa: PLC0415
+        from backend.schemas import Economy                         # noqa: PLC0415
+        return (f"{len(PILLAR_NAMES)} pillars · {len(list(Economy))} economies")
+    except Exception:                                               # noqa: BLE001
+        return "RDTII 2.1"
+
+
 def site_footer() -> None:
     """The page's closing block: who made this, under whose framework, and where to read
     more. Shown on every screen — the app previously just ended mid-content."""
@@ -457,7 +480,10 @@ def site_footer() -> None:
         '</div>'
         '<div class="bar">'
         f'<span>© {year} Team FTU · Foreign Trade University · Apache-2.0</span>'
-        '<span class="mono">RDTII 2.1 · Pillars 6 &amp; 7 · SG · AU · MY</span>'
+        # Counted, not typed. The hardcoded version read "Pillars 6 & 7 · SG · AU · MY" long
+        # after the tool covered twelve of each, and a footer nobody reads is exactly where a
+        # stale claim survives longest.
+        f'<span class="mono">RDTII 2.1 · {_scope_line()}</span>'
         '</div></footer>',
         unsafe_allow_html=True,
     )
