@@ -103,7 +103,22 @@ class Settings(BaseSettings):
     # pipeline uses no proprietary API at all, which is what the Section 3 declaration claims.
     vlm_ocr_base_url: str = "https://openrouter.ai/api/v1"
     vlm_ocr_api_key: str = ""
-    vlm_ocr_model: str = "qwen/qwen2.5-vl-72b-instruct"
+    # Chosen on MDPBench (3,400 real documents, 17 languages, digital and photographed), which
+    # is the only public benchmark covering the scripts we actually need. Scores for this exact
+    # model: 68.3 overall - Vietnamese 79.1, Indonesian 68.5, Thai 61.9, Russian 58.4,
+    # Chinese 57.9.
+    #
+    # It replaces qwen/qwen2.5-vl-72b-instruct, which was picked on reputation: no benchmark
+    # covers it, and it costs about four times as much per page ($2.50 against $0.64 per 1k).
+    # Two things beyond the score decided it. The weights are Apache-2.0, so the same engine can
+    # be self-hosted and the Section 3 "no proprietary API" declaration still holds. And 8B is
+    # small enough that self-hosting is a real option rather than a formality.
+    vlm_ocr_model: str = "qwen/qwen3-vl-8b-instruct"
+    # Opt-in escalation for pages nothing else can read at all. The Gemini 3 Pro family tops
+    # MDPBench at 86.4 overall (Russian 90.4, Vietnamese 91.6, Thai 85.5) - about 18 points
+    # above the default, at roughly 23x the price, and proprietary. Worth it only where the
+    # alternative is no text; never a default, and never on the core path.
+    vlm_ocr_model_high_accuracy: str = "google/gemini-3.1-pro-preview"
     # Off by default: it bills per page and returns no confidence to grade, so it must be an
     # explicit choice. `vlm_ocr_auto_fallback` lets it rescue ONLY the case where the
     # alternative is a hard failure — no installed engine has a model for the script.

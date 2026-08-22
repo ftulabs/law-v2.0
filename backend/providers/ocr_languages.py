@@ -33,6 +33,42 @@ RAPIDOCR, PADDLE, TESSERACT, AZURE, GOOGLE = "rapidocr", "paddle", "tesseract", 
 #: Mongolian, Kazakh, Vietnamese and Lao. See ocr_vlm.py for what it costs to use it.
 VLM = "vlm"
 
+# ── What the public benchmarks do and do not settle (read 2026-08-22) ────────────────
+#
+# Two benchmarks were checked before choosing anything, and they answer different questions.
+#
+# olmOCR-bench (AllenAI, 1,403 PDFs, 7,010 unit tests) is ENGLISH-ONLY. It measures document
+# parsing — reading order, table structure, and whether headers/footers are correctly EXCLUDED
+# — so it is relevant to extraction quality and says nothing at all about our hard scripts.
+#
+# MDPBench (3,400 documents, 17 languages, digital and photographed) is the one that covers
+# the languages we need. Per-language scores for the systems that matter here:
+#
+#                                 overall   vi    th    ru    id    zh
+#   Gemini-3-pro-preview             86.4  91.6  85.5  90.4  91.5  84.9   proprietary
+#   MonkeyOCRv2-S-Parsing            82.5  87.2  88.7  87.1  85.4  78.0   open, self-host only
+#   dots.ocr                         76.5  87.8  68.5  77.3  82.5  66.8   open, self-host only
+#   Qwen3-VL-8B                      68.3  79.1  61.9  58.4  68.5  57.9   open, ON OpenRouter
+#   PP-StructureV3                   45.4  68.9  15.4   7.7  69.6   7.5   Paddle's PIPELINE
+#
+# Three conclusions, and the third is the one that constrains us.
+#
+# 1. Purpose-built document parsers beat general vision models by a wide margin (MonkeyOCRv2-S
+#    82.5 against Qwen3-VL-8B's 68.3). None of them is served by OpenRouter — they are
+#    self-host-only — so the hosted fallback has to be a general VLM, and Qwen3-VL-8B is the
+#    best-evidenced one we can actually reach.
+#
+# 2. NEITHER benchmark covers Lao, Mongolian or Kazakh — our three hardest scripts. Every
+#    number about them remains our own or nobody's.
+#
+# 3. PP-StructureV3's collapse on Thai (15.4), Russian (7.7) and Chinese (7.5) is a warning,
+#    NOT a verdict on the engines below. It scores PaddleOCR's document-parsing PIPELINE on
+#    photographed pages, whereas we call the per-script RECOGNISER (th_PP-OCRv5_mobile_rec,
+#    eslav_PP-OCRv5_mobile_rec) on pages we render ourselves from clean government PDFs — a
+#    different system on easier input. Treating a pipeline score as a recogniser score would be
+#    the same category error as quoting line-level accuracy as CER. It does mean the Thai and
+#    Cyrillic Paddle paths stay `validated=False` until we measure them on a local sidecar.
+
 
 @dataclass(frozen=True)
 class LangProfile:

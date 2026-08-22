@@ -325,3 +325,40 @@ def test_readme_points_at_the_docs_that_carry_the_detail():
     for doc in ("docs/ARCHITECTURE.md", "docs/CRAWLING.md", "docs/OCR_LANGUAGE_EVIDENCE.md"):
         assert doc in body, f"README no longer links {doc}"
         assert (ROOT / doc).exists(), f"{doc} is linked but missing"
+
+
+# ── OCR engine choice, and the evidence behind it ────────────────────────────────────
+def test_the_vlm_default_is_a_model_a_benchmark_actually_scored():
+    """The previous default (qwen2.5-vl-72b) was picked on reputation: no public benchmark
+    covers it, and it costs about four times as much per page as one that is scored. An engine
+    declaration that cannot be revised after submission should not rest on a hunch."""
+    from backend.config import settings
+    assert settings.vlm_ocr_model == "qwen/qwen3-vl-8b-instruct"
+    assert settings.vlm_ocr_model_high_accuracy.startswith("google/gemini-3")
+
+
+def test_the_high_accuracy_vlm_is_never_the_default():
+    """Gemini 3 Pro scores ~18 points above the default on MDPBench and costs roughly 23x more,
+    and it is proprietary. It belongs behind an explicit choice, not on the core path — the
+    Section 3 declaration says the pipeline runs with no proprietary API."""
+    from backend.config import settings
+    assert settings.vlm_ocr_model != settings.vlm_ocr_model_high_accuracy
+
+
+def test_the_benchmark_evidence_is_recorded_where_the_choice_is_made():
+    """A per-economy engine preference we cannot justify is one we should not ship, and the
+    justification has to live next to the choice rather than in a chat log."""
+    import inspect
+
+    from backend.providers import ocr_languages
+    src = inspect.getsource(ocr_languages)
+    assert "MDPBench" in src and "olmOCR-bench" in src
+    # The distinction that keeps the PP-StructureV3 number honest.
+    assert "PIPELINE" in src and "RECOGNISER" in src
+
+
+def test_lao_mongolian_and_kazakh_are_still_unmeasured_by_anyone():
+    """Neither benchmark covers them. Claiming otherwise would be the easiest way to turn a
+    real gap into an invisible one, so the registry keeps them validated=False."""
+    for code in ("LA", "MN", "KZ"):
+        assert not profile_for(code).validated, code

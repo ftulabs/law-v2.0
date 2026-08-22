@@ -175,13 +175,37 @@ Set `OCR_PROVIDER` in `.env`, or pick it in the **Engines** tab. No code changes
 | RapidOCR | `rapidocr` | no | Default. ONNX, pip-only. **CER 1.11 %** measured on the bundled scan |
 | PaddleOCR | `paddle` | no | PP-OCRv5 per-script models — the Thai and East-Slavic recognisers |
 | Tesseract | `tesseract` | no | Needs a system binary; the only offline option for Lao |
-| Vision model | `vlm` | optional | Reads any script. Point at a local Ollama for open weights |
+| Vision model | `vlm` | optional | Reads any script — the fallback for Lao, Mongolian, Kazakh, Vietnamese. `qwen3-vl-8b` (Apache-2.0, MDPBench 68.3) by default; `gemini-3.1-pro` opt-in for the hardest pages |
 | Azure Document Intelligence | `azure` | **yes** | Strongest on noisy gazette scans; needs endpoint + key |
 | Mock | `mock` | no | Offline sidecar, $0 |
 
 **The core pipeline runs with no proprietary API.** Azure is the only proprietary option and is
 never a default; the vision engine satisfies the same declaration when pointed at a locally
 served open-weights model.
+
+**Which OCR engine, on what evidence.** Two public benchmarks were read before choosing.
+[olmOCR-bench](https://huggingface.co/datasets/allenai/olmOCR-bench) is English-only — it
+measures reading order, tables and header/footer exclusion, so it bears on extraction quality
+and not at all on our hard scripts. [MDPBench](https://huggingface.co/datasets/Delores-Lin/MDPBench)
+covers 17 languages and is the one that decides:
+
+| | overall | vi | th | ru | id | zh | |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: | :--- |
+| Gemini-3-pro | **86.4** | 91.6 | 85.5 | 90.4 | 91.5 | 84.9 | proprietary · opt-in escalation |
+| MonkeyOCRv2-S | 82.5 | 87.2 | **88.7** | 87.1 | 85.4 | 78.0 | open, but self-host only |
+| Qwen3-VL-8B | 68.3 | 79.1 | 61.9 | 58.4 | 68.5 | 57.9 | open **and reachable** · our default VLM |
+| PP-StructureV3 | 45.4 | 68.9 | 15.4 | 7.7 | 69.6 | 7.5 | Paddle's *pipeline* — see below |
+
+Three things follow. Purpose-built document parsers beat general vision models by a wide
+margin, and **none of them is served by any hosted router** — so a hosted fallback has to be a
+general VLM, and Qwen3-VL-8B is the best-evidenced one we can actually reach (it also has
+Apache-2.0 weights, so self-hosting keeps the no-proprietary-API declaration true). **Neither
+benchmark covers Lao, Mongolian or Kazakh**, our three hardest scripts, so every number about
+them is ours or nobody's. And PP-StructureV3's collapse on Thai and Cyrillic is a *warning, not
+a verdict*: it scores Paddle's document-parsing pipeline on photographed pages, while we call
+its per-script recogniser on pages we render from clean government PDFs. Quoting one as the
+other would be the same category error as quoting line-level accuracy as CER — but it is why
+those paths stay `validated=false` until measured here.
 
 → per-language evidence, and why Paddle is disqualified for Vietnamese, Mongolian and Kazakh:
 [docs/OCR_LANGUAGE_EVIDENCE.md](docs/OCR_LANGUAGE_EVIDENCE.md)
@@ -195,7 +219,7 @@ and on 15 October five tools read the same government sites within the same hour
 
 | Setting | Value | Where it is set |
 | :--- | :--- | :--- |
-| Max requests per second per host | 0.5 (a 2-second gap) | [`config.py:140`](backend/config.py#L140) `crawl_delay_seconds` |
+| Max requests per second per host | 0.5 (a 2-second gap) | [`config.py:155`](backend/config.py#L155) `crawl_delay_seconds` |
 | Parallel requests per host | 1 | [`fetch.py:63`](backend/pipeline/fetch.py#L63) `_polite_wait` |
 | robots.txt respected | yes | [`robots.py`](backend/pipeline/robots.py), enforced at [`fetch.py:141`](backend/pipeline/fetch.py#L141) |
 
