@@ -114,7 +114,23 @@ INDICATORS: list[Indicator] = [
             "prior approval, or an evaluation/assessment. Because transfer remains legally possible once the "
             "condition is met, this is NOT a total ban (do not map to P6-I1). A provision listing SEVERAL "
             "alternative gateways (consent OR adequacy OR contract) maps here. Distinguish from P6-I1 (outright "
-            "ban with no liftable condition)."
+            "ban with no liftable condition). "
+            # Added after a live India run rejected the panel's OWN answer. DPDP 2023 s.16 reads
+            # "The Central Government may, by notification, restrict the transfer of personal data
+            # ... to such country or territory outside India as may be so notified", and every
+            # model refused it as "a delegation of power, not an operative rule". That reasoning
+            # is coherent and wrong for RDTII: the panel cites exactly this section for 6.4,
+            # because the resulting regime IS conditional — transfer is lawful unless and until
+            # the notification issues. The same shape appears in Viet Nam and China, so this is a
+            # class of provision, not one statute.
+            "A DELEGATED POWER also maps here: a provision empowering the government to restrict, "
+            "notify, blacklist, or permit transfers to particular countries creates a CONDITIONAL "
+            "regime, because transfer stays lawful unless and until that power is exercised. Do "
+            "NOT reject such a provision on the ground that it is 'only a delegation' or 'not "
+            "itself operative' — the notification is the condition. Worked example that MUST "
+            "satisfy: 'The Central Government may, by notification, restrict the transfer of "
+            "personal data by a Data Fiduciary for processing to such country or territory "
+            "outside India as may be so notified.'"
         ),
         scope="national",
         query_terms=["may be transferred unless", "with the consent of the individual", "adequate level of protection",

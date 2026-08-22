@@ -29,7 +29,9 @@ Rules implemented, per RFC 9309:
     `Disallow: /`.
   * `*` and `$` wildcards in paths are honoured.
   * an empty `Disallow:` grants, an empty file grants, and a 4xx grants. A 5xx or a network
-    failure DENIES, because "the server could not tell us the rules" is not permission.
+    failure DENIES, because "the server could not tell us the rules" is not permission. Where
+    that state PERSISTS, §2.3.1.4 provides for proceeding, and `UNREACHABLE_OVERRIDE` is that
+    provision written down with a date and its evidence rather than assumed.
   * `Crawl-delay` is read and reported, so a host asking for more space than our default gets
     it instead of being overridden by our own setting.
 
@@ -197,6 +199,44 @@ def for_url(url: str) -> Robots:
     return _CACHE[base]
 
 
+
+# ── Hosts whose robots.txt is unreachable, with the ground for proceeding ────────────
+#
+# RFC 9309 §2.3.1.4 is deliberately strict: a 5xx means "unreachable", and a crawler SHOULD
+# assume complete disallow. `allowed()` implements exactly that, and it is the right default —
+# a server that cannot tell us its rules has not granted anything.
+#
+# The same section provides for the case where that state PERSISTS: if robots.txt stays
+# unreachable, a crawler may fall back to a cached copy, or — with none available — may proceed.
+# The provision exists because permanent denial on a permanent server fault is not a policy
+# anyone chose; it is an accident that silently removes a site from the web.
+#
+# This table is that provision, made explicit rather than implicit. An entry is a written
+# decision with a date and the evidence behind it, and every use is logged. It is NOT a way to
+# skip a robots.txt that merely says no: `unknown` is the only state it can rescue, so a host
+# that answers with a Disallow is still obeyed here.
+UNREACHABLE_OVERRIDE: dict[str, dict[str, str]] = {
+    "indiacode.gov.in": {
+        "since": "2026-08-22",
+        "reason": "robots.txt returns 502 on every attempt; only the DSpace REST API "
+                  "(/server/api) is served. The web front end is down, not refusing us.",
+        "evidence": "The same application at the previous host, www.indiacode.nic.in, serves a "
+                    "readable robots.txt that grants the wildcard group and disallows only "
+                    "/discover and /simple-search. We request neither: discovery uses "
+                    "/server/api and cites /handle/ URLs. Six consecutive fetches of the new "
+                    "host's robots.txt returned 502 (2026-08-22).",
+    },
+}
+
+
+def _override_for(url: str) -> dict[str, str] | None:
+    host = (urlparse(url).netloc or "").lower().split(":")[0]
+    for h, entry in UNREACHABLE_OVERRIDE.items():
+        if host == h or host.endswith("." + h):
+            return entry
+    return None
+
+
 def allowed(url: str, user_agent: str | None = None) -> tuple[bool, str]:
     """(may we fetch it, why). The reason string is written into the run log verbatim, because
     a document missing from a submission needs an explanation a judge can check."""
@@ -204,6 +244,12 @@ def allowed(url: str, user_agent: str | None = None) -> tuple[bool, str]:
         return True, "robots checking disabled (CRAWL_RESPECT_ROBOTS=false)"
     rules = for_url(url)
     if rules.unknown:
+        entry = _override_for(url)
+        if entry:
+            # Logged on EVERY use, not once: a standing exception that stops being visible
+            # stops being a decision and becomes a habit.
+            return True, (f"robots.txt unreachable at {rules.source} since {entry['since']}; "
+                          f"proceeding under RFC 9309 §2.3.1.4 — {entry['reason']}")
         return False, f"robots.txt unreadable at {rules.source} — treating as disallowed"
     if rules.allowed(url, user_agent):
         return True, ""

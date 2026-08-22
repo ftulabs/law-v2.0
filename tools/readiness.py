@@ -44,7 +44,7 @@ DECLARED, REACHABLE, EXTRACTED, MEASURED = "declared", "reachable", "extracted",
 RUN_END_TO_END = {
     "SG": MEASURED, "AU": MEASURED, "MY": MEASURED,
     "CN": EXTRACTED,      # 21 rows / 11 laws / 105s / $2.48 on pillar 6, real LLM
-    "IN": DECLARED,
+    "IN": EXTRACTED,   # DPDP Act 2023 s.16 -> 6.4, live, matching the panel's answer key
     "MN": DECLARED,
 }
 

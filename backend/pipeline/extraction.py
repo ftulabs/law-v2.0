@@ -501,6 +501,10 @@ def _law_name(doc: DiscoveredDoc, raw_text: str = "") -> str:
     document's own header when the title is a generic portal label (MY's "Malaysia Federal
     Legislation", a UUID) OR a section heading with no law-type word ("Transfer of Personal
     Data Outside Singapore" — an SSO sub-provision title, not the regulation's name)."""
+    # A portal that states the statute name separately is more reliable than any heuristic
+    # over a title, so it wins outright. See DiscoveredDoc.law_name for when to set it.
+    if getattr(doc, "law_name", None):
+        return doc.law_name.strip()
     from .discovery import _clean_title, _is_generic_title
     title = doc.title.strip()
     cleaned = _clean_title(title)

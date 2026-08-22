@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 
 from .. import metering
 from ..config import settings
+from ..schemas import ECONOMY_UN_NAME
 from ..providers import get_llm_provider, get_ocr_provider
 from ..rdtii import get_indicators
 from ..schemas import Economy, OCRReport, RunMeta, RunResult
@@ -58,15 +59,41 @@ def _dedup_provisions_by_law(provisions, docs, log):
     for doc_id, plist in by_doc.items():
         groups[_law_identity(plist[0].law_name) or doc_id].append(doc_id)
 
+    # Same law name is NOT the same document. Two documents share a law identity for two very
+    # different reasons, and collapsing both was wrong:
+    #
+    #   duplicate     two editions of the whole Act (a gazette snapshot and the consolidated
+    #                 text). Keep the better one — that is what this function is for.
+    #   complementary different PARTS of one Act. India Code publishes one record per SECTION,
+    #                 so eighteen sections of the DPDP Act collapsed to four; Australia
+    #                 publishes large Acts as multi-volume compilations with the same title.
+    #
+    # The discriminator is the article numbers, not the name: editions of the same Act cover
+    # the same sections, parts of one Act cover different ones. Overlap is measured against the
+    # SMALLER document so a two-section fragment of a 600-section Act still reads as contained.
+    from ..rdtii.baseline import article_spine
+
+    def _spine(doc_id: str) -> set[str]:
+        out: set[str] = set()
+        for prov in by_doc[doc_id]:
+            out |= article_spine(prov.article_section)
+        return out
+
     kept: set[str] = set()
     for ids in groups.values():
-        best = max(ids, key=_rank)
-        kept.add(best)
-        for i in ids:
-            if i != best:
+        if len(ids) == 1:
+            kept.add(ids[0])
+            continue
+        spines = {i: _spine(i) for i in ids}
+        for i in sorted(ids, key=_rank, reverse=True):
+            covered = [j for j in kept if j in spines and spines[i] and spines[j]
+                       and len(spines[i] & spines[j]) / max(1, min(len(spines[i]), len(spines[j]))) >= 0.5]
+            if covered:
                 log(f"[dedup] '{by_doc[i][0].law_name[:42]}' — dropped duplicate "
                     f"{doc_by_id[i].source_url[:58] if i in doc_by_id else i} "
                     f"({len(by_doc[i])} prov) for the current version")
+                continue
+            kept.add(i)
     return [p for p in provisions if p.doc_id in kept]
 
 
@@ -329,18 +356,47 @@ def run_pipeline(
         log=log,
     )
     log(f"[timing] mapping total {time.perf_counter() - _t:.1f}s")
-    # KNOWN/NEW tagging against the judges' sample kit (law-level). NEW = found on our
-    # own (worth the most points); KNOWN = the law was a sample-kit example.
+    # ── Discovery Tag, decided PER PROVISION against the panel's 2025 baseline ──────────
+    #
+    # The template defines NEW as "your tool found it and it is not in the 2025 baseline you
+    # hold" — per provision, not per law. The old rule matched a law name and a URL with no
+    # article anywhere in the signature, which gives away our own credit: if the panel cites
+    # PDPA s.26 and we independently surface s.11(3), a law-level match reports the second one
+    # as something we were handed.
+    #
+    # rdtii/baseline.py compares the law AND the article, reducing both sides to a numeric
+    # spine so "Section 199", "s. 26(1)", 第四十条 and "14 дүгээр зүйл" all compare. Where the
+    # baseline names the law but no article the answer is unknowable, so it reports KNOWN and
+    # says why in Notes — overstating our own discovery is the error a judge can check against
+    # the database they wrote.
+    #
+    # The sample kit stays as the fallback for an economy the baseline does not cover.
+    from ..rdtii import baseline
+    from ..schemas import DiscoveryTag
     from . import sample_kit
+
     kit = sample_kit.load_known(settings.sample_kit_path or None)
-    if kit is not None:
-        from ..schemas import DiscoveryTag
+    has_baseline = bool(baseline.load())
+    if has_baseline or kit is not None:
         n_known = 0
         for m in mappings:
-            known = sample_kit.is_known(m.economy.value, m.pillar, m.law_name, m.source_url, kit)
-            m.discovery_tag = DiscoveryTag.KNOWN if known else DiscoveryTag.NEW
-            n_known += known
-        log(f"[tag] sample kit matched — KNOWN={n_known} NEW={len(mappings) - n_known}")
+            if m.law_name == "No provision found":
+                continue                      # a placeholder is neither found nor handed to us
+            economy_name = ECONOMY_UN_NAME.get(m.economy.value, m.economy.value)
+            tag, note = baseline.classify(economy_name, m.indicator_id, m.law_name,
+                                          m.article_section)
+            if tag == "NEW" and note is None and kit is not None:
+                # The baseline has nothing for this (economy, indicator). Fall back to the
+                # law-level sample kit rather than claiming a discovery by default.
+                if sample_kit.is_known(m.economy.value, m.pillar, m.law_name, m.source_url, kit):
+                    tag, note = "KNOWN", None
+            m.discovery_tag = DiscoveryTag.KNOWN if tag == "KNOWN" else DiscoveryTag.NEW
+            if note:
+                m.notes = f"{m.notes}  {note}".strip() if m.notes else note
+            n_known += tag == "KNOWN"
+        scored = [m for m in mappings if m.law_name != "No provision found"]
+        log(f"[tag] provision-level vs 2025 baseline — KNOWN={n_known} "
+            f"NEW={len(scored) - n_known}")
 
     # Zone 3 (OPTIONAL, opt-in) — assign each measure its RDTII Raw Score (0/0.5/1) + Impact.
     # Off by default (settings.scoring_enabled) so the mandatory discover→extract→map flow stays

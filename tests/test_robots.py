@@ -177,3 +177,45 @@ def test_disabling_the_check_is_possible_and_says_so(monkeypatch):
     monkeypatch.setattr(settings, "crawl_respect_robots", False)
     ok, why = robots.allowed("https://anything.test/x")
     assert ok and "disabled" in why
+
+
+# ── unreachable robots.txt, and the one narrow way past it ───────────────────────────
+def test_a_persistently_unreachable_host_can_be_overridden_only_by_a_written_decision(monkeypatch):
+    """The strict rule cost us an entire economy, correctly and unhelpfully.
+
+    indiacode.gov.in serves its DSpace API but its web front end returns 502 for everything,
+    robots.txt included — so "5xx means disallow" skipped every Indian document. RFC 9309
+    §2.3.1.4 provides for proceeding when unavailability persists, and this is that provision
+    made explicit: an entry with a date and the evidence behind it, logged on every use.
+    """
+    monkeypatch.setattr(settings, "crawl_respect_robots", True)
+    monkeypatch.setattr(robots, "for_url",
+                        lambda url: robots.Robots(unknown=True, source=url + "/robots.txt"))
+    ok, why = robots.allowed("https://indiacode.gov.in/handle/123456789/512146")
+    assert ok
+    assert "RFC 9309" in why and "2026-08-22" in why
+
+
+def test_the_override_does_not_apply_to_any_other_host(monkeypatch):
+    monkeypatch.setattr(settings, "crawl_respect_robots", True)
+    monkeypatch.setattr(robots, "for_url",
+                        lambda url: robots.Robots(unknown=True, source=url + "/robots.txt"))
+    ok, why = robots.allowed("https://some-other-portal.example/doc")
+    assert not ok and "disallowed" in why
+
+
+def test_the_override_cannot_rescue_a_host_that_actually_says_no(monkeypatch):
+    """It rescues UNKNOWN, never DENIED. A site that answers with Disallow is obeyed even if it
+    happens to be on the list — otherwise the table would quietly become a bypass."""
+    monkeypatch.setattr(settings, "crawl_respect_robots", True)
+    monkeypatch.setattr(robots, "for_url",
+                        lambda url: robots.parse("User-agent: *\nDisallow: /\n"))
+    ok, _ = robots.allowed("https://indiacode.gov.in/handle/1")
+    assert not ok
+
+
+def test_every_override_entry_carries_its_justification():
+    """An exception nobody has to justify stops being a decision."""
+    for host, entry in robots.UNREACHABLE_OVERRIDE.items():
+        assert entry.get("since") and entry.get("reason") and entry.get("evidence"), host
+        assert len(entry["evidence"]) > 60, f"{host}: evidence is too thin to review"

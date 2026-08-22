@@ -48,9 +48,21 @@ _TAG = re.compile(r"<[^>]+>")
 _WS = re.compile(r"\s+")
 
 
-def _md(item: dict, key: str) -> str:
-    vals = (item.get("metadata") or {}).get(key) or []
-    return vals[0].get("value", "") if vals else ""
+def _md(item: dict, *keys: str) -> str:
+    """First non-empty value among `keys`.
+
+    Several fields exist under more than one name and the SEARCH payload does not always carry
+    the same ones as a direct item fetch — the year is `dc.date.act_year` in search results and
+    `dc.identifier.act_year` when the item is fetched by uuid. Reading a single key silently
+    produced an empty Law Number for every Indian row, which is the quiet-wrong-field failure
+    that costs an optional column without ever raising.
+    """
+    md = item.get("metadata") or {}
+    for key in keys:
+        vals = md.get(key) or []
+        if vals and vals[0].get("value"):
+            return vals[0]["value"]
+    return ""
 
 
 def section_text(item: dict) -> str:
@@ -134,7 +146,7 @@ def _search_in_dspace(client, src: dict, query: str, economy: Economy, indicator
             continue
         title = f"{act} — Section {sec}: {heading}" if sec else f"{act} — {heading}"
         number = _md(item, "dc.identifier.act_number")
-        year = _md(item, "dc.identifier.act_year")
+        year = _md(item, "dc.identifier.act_year", "dc.date.act_year")
         # The text came back with the search result, and the citable HTML page is 502 today.
         # Seed it so every downstream stage sees an ordinary cached document.
         body = (f"<html><body><h1>{heading}</h1>"
@@ -147,6 +159,9 @@ def _search_in_dspace(client, src: dict, query: str, economy: Economy, indicator
             log(f"[discovery] could not seed India section {handle}: {type(exc).__name__}")
         out.append(DiscoveredDoc(
             doc_id=f"IN:{handle}", economy=economy, title=title[:200],
+            # The title carries the section so live-mode dedup keeps each one; the Law Name
+            # column must carry only the Act.
+            law_name=act,
             # The citable public URL, not the API endpoint — the Source URL column has to be
             # something a reviewer can open.
             source_url=f"https://indiacode.gov.in/handle/{handle}",

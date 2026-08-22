@@ -222,7 +222,7 @@ Only *measured* is a claim about quality.
 | Viet Nam | yes | Vietnamese | vbpl.vn | reachable | no discovery adapter yet |
 | Indonesia | yes | Indonesian | peraturan.bpk.go.id (+1) | reachable | no discovery adapter yet |
 | China | yes | Chinese | gov.cn (+1) | **extracted** | not yet scored against the 2025 database |
-| India | yes | English | indiacode.gov.in (+2) | reachable | adapter written; not yet run end to end |
+| India | yes | English | indiacode.gov.in (+2) | **extracted** | not yet scored across all 50 reference rows |
 | Kazakhstan | yes | Kazakh | adilet.zan.kz | reachable | robots closes the listing paths |
 | Lao PDR | yes | Lao | laoofficialgazette.gov.la | declared | host does not resolve |
 | Mongolia | yes | Mongolian | legalinfo.mn | reachable | no discovery adapter yet |
@@ -231,7 +231,7 @@ Only *measured* is a claim about quality.
 | Australia | — | English | legislation.gov.au (+1) | **measured** | — |
 | Malaysia | — | English | lom.agc.gov.my (+2) | **measured** | — |
 
-**Of the nine live-test economies today: 0 measured, 1 extracted, 5 reachable, 3 declared.**
+**Of the nine live-test economies today: 0 measured, 2 extracted, 5 reachable, 2 declared.**
 Singapore, Australia and Malaysia are our deepest corpora but are *not* among the nine — the
 panel holds no 2025 database for them.
 

@@ -142,6 +142,8 @@ def fetch_to_cache(url: str, log: Callable[[str], None] = print) -> FetchResult 
     if not ok:
         log(f"[fetch] SKIPPED by robots.txt: {url} ({why})")
         return None
+    if why:
+        log(f"[fetch] robots: {why}")
 
     idx = _load_index()
     # TTL: a recently-fetched body is reused without any network round-trip

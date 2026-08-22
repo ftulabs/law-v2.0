@@ -169,6 +169,13 @@ class DiscoveredDoc(BaseModel):
     discovery_tag: DiscoveryTag = DiscoveryTag.NEW
     amendment_date: Optional[str] = None        # ISO date if detectable
     law_number: Optional[str] = None            # official act/law number, e.g. "Act 709"
+    # The statute's own name, when the portal states it separately from the document title.
+    # Set it ONLY when the two genuinely differ: India Code publishes one record per SECTION,
+    # so a document's title has to carry the section (otherwise live-mode dedup collapses every
+    # section of an Act into one) while the Law Name column must read "The Digital Personal
+    # Data Protection Act, 2023" and nothing else. Left None, extraction derives the name from
+    # the title as before.
+    law_name: Optional[str] = None
     local_path: Optional[str] = None            # cached file
     raw_text: Optional[str] = None              # filled by extraction
 
