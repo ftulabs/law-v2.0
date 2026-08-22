@@ -268,6 +268,24 @@ def _n_indicators() -> int:
         return 61
 
 
+def _landing_economies() -> str:
+    """The economy strip, generated from the readiness table the README also prints."""
+    try:
+        from . import geo                                          # noqa: PLC0415
+        rows = geo.readiness()
+    except Exception:                                              # noqa: BLE001
+        rows = {}
+    if not rows:
+        return '<div class="land-econ"><span>12 economies across Asia-Pacific</span></div>'
+    rank = {"measured": 0, "extracted": 1, "reachable": 2, "declared": 3}
+    best = sorted(rows.values(), key=lambda r: (rank.get(r["level"], 9), r["economy"]))[:6]
+    cells = "".join(f'<span><b>{r["economy"]}</b> · {r["portal"]}</span>' for r in best)
+    more = len(rows) - len(best)
+    if more > 0:
+        cells += f'<span>+{more} more declared</span>'
+    return f'<div class="land-econ">{cells}</div>'
+
+
 def _landing_below() -> None:
     """Everything under the fold — same sections, same order as docs/landing.html."""
     st.markdown(
@@ -302,11 +320,13 @@ def _landing_below() -> None:
     )
     st.markdown(
         '<div class="land-sec"><div class="land-kicker"><b>02</b> · Coverage</div>'
-        '<div class="land-h2">Two mandatory pillars, <span class="dim">nine indicators, three economies.</span></div>'
-        '<div class="land-econ">'
-        '<span><b>Singapore</b> · sso.agc.gov.sg</span>'
-        '<span><b>Australia</b> · legislation.gov.au</span>'
-        '<span><b>Malaysia</b> · lom.agc.gov.my</span></div>'
+        f'<div class="land-h2">{_n_indicators()} indicators across 12 pillars, '
+        f'<span class="dim">{_n_economies()} economies.</span></div>'
+        # The economy strip is generated. Naming three by hand is what let this whole section
+        # go on describing the Round-1 tool months after the Round-2 one shipped, and it also
+        # lets the strip say which ones have actually been run rather than implying all of them
+        # are equal.
+        + _landing_economies() +
         '<div class="land-pillars">'
         '<div class="land-pillar"><div class="ph"><span class="pn">Pillar 6</span>'
         '<span class="pt">Cross-border data policies</span></div>'
