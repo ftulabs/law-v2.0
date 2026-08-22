@@ -196,8 +196,8 @@ and on 15 October five tools read the same government sites within the same hour
 | Setting | Value | Where it is set |
 | :--- | :--- | :--- |
 | Max requests per second per host | 0.5 (a 2-second gap) | [`config.py:140`](backend/config.py#L140) `crawl_delay_seconds` |
-| Parallel requests per host | 1 | [`fetch.py:62`](backend/pipeline/fetch.py#L62) `_polite_wait` |
-| robots.txt respected | yes | [`robots.py`](backend/pipeline/robots.py), enforced at [`fetch.py:140`](backend/pipeline/fetch.py#L140) |
+| Parallel requests per host | 1 | [`fetch.py:63`](backend/pipeline/fetch.py#L63) `_polite_wait` |
+| robots.txt respected | yes | [`robots.py`](backend/pipeline/robots.py), enforced at [`fetch.py:141`](backend/pipeline/fetch.py#L141) |
 
 A host's own `Crawl-delay` wins when larger than ours; an unreadable robots.txt denies; a
 skipped document is logged by URL and reason, never silently dropped.
@@ -281,28 +281,40 @@ surrounding source context, and `model_version`.
 
 ## Measured Cost
 
-**Measured 2026-07-12** · one ~50-page Act, ~64 grading calls · `deepseek/deepseek-v4-flash` at
-$0.09 / $0.18 per 1M input / output tokens (OpenRouter, verified) · Serper at $1.00 / 1k queries.
+**Produced by the code, not by a calculator.** `backend/metering.py` counts every billable unit
+as it is spent — token counts from each API response, OCR pages per engine, search queries,
+bytes fetched — and every run writes the table into its JSON under `run.cost`. The template's
+condition is that logging produces this "without manual arithmetic", so nothing here is
+estimated and nothing is entered by hand.
 
-| Component | Engine used | Measured cost |
-| :--- | :--- | :--- |
-| OCR | RapidOCR (local) | $0.000 |
-| Embedding | MiniLM + BM25 (local) | $0.000 |
-| Mapping — Engine A | *pending declaration* | — |
-| Mapping — Engine B | *pending declaration* | — |
-| Mapping — current default | deepseek-v4-flash | **$0.012 / document** |
-| Crawling | Serper (optional) | **$0.19** per 3-economy run; the free tier covers it |
-| **Total, current stack** | | **~$0.012 / document** + crawling |
-| **Total, open-weights swap** | Ollama + RapidOCR + free search | **$0.00 / document** |
+Below is a real run: **Singapore, pillar 6, offline sample corpus, 72s**
+(`run-3e07213f`, prices from `data/pricing.json`).
 
-**Wall-clock:** 6–9 minutes per economy-pillar on a live run, CPU only.
+| Component | Units | Measured cost |
+| :--- | :--- | ---: |
+| OCR — rapidocr | 0 pages (this corpus is HTML/text) | $0.0000 |
+| Embedding — MiniLM + BM25, local | — | $0.0000 |
+| Mapping — deepseek/deepseek-v4-flash | 64 calls · 219,036+27,787 tokens | **$0.0200** |
+| Mapping — google/gemini-2.5-flash | 6 calls · 21,074+1,038 tokens | **$0.0089** |
+| Crawling — search | 0 queries (offline run) | $0.0000 |
+| **Total** | | **$0.0289** |
 
-> **Not yet automatic.** The template requires cost recorded per run and per engine "without
-> manual arithmetic". Every unit is measurable — token counts come back in each API response,
-> OCR and embedding are local and free — but the meter that threads through the pipeline and
-> sums them per run does not exist yet. It is built before 30 September, and the figures
-> re-measured with the declared engines. Reproduce the current numbers:
-> `python tools/cost_logger.py --pdf data/samples/AU/privacy_act.pdf --economy Australia --pillar 6`
+Two things the hand-calculated figure had wrong, and metering found immediately:
+
+- **The cross-check lane was missing from the bill.** A second model re-grades borderline
+  rejections, and those 6 calls are **31% of this run's cost**. The old README counted only the
+  primary model and reported ~$0.012 per document.
+- **Token counts are not the prompt size.** 64 grading calls consumed 219k prompt tokens, well
+  above a per-call estimate, because the sibling-indicator context travels with every call.
+
+`total_is_complete` is `false` whenever any component has no price on file, and the total is
+then reported as a floor rather than an answer — a missing price shows as *unpriced*, never as
+$0.00. Refresh rates from the providers' own endpoints with
+`python tools/refresh_prices.py`.
+
+Paid OCR would change the shape of this bill rather than adding to it: at list price a 50-page
+Act costs more in OCR than the whole mapping run does in tokens. That is why local OCR is the
+default and `tests/test_metering.py` pins the comparison.
 
 ---
 

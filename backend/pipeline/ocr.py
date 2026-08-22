@@ -11,6 +11,10 @@ back to OCR automatically — a common real-world failure mode.
 """
 from __future__ import annotations
 
+import time as _time
+
+from .. import metering as _metering
+
 import hashlib
 import json
 import re
@@ -464,9 +468,13 @@ def _run_provider(provider, path: str, pages: list[int] | None = None) -> tuple[
     don't simply OCR the whole file, which costs time but never changes the result.
     """
     try:
+        _t0 = _time.monotonic()
         result = provider.ocr_pdf(path, pages=pages) if pages else provider.ocr_pdf(path)
+        _metering.record_ocr(provider.name, len(result.pages), _time.monotonic() - _t0)
     except TypeError:
+        _t0 = _time.monotonic()
         result = provider.ocr_pdf(path)          # provider predates the `pages` argument
+        _metering.record_ocr(provider.name, len(result.pages), _time.monotonic() - _t0)
     text = to_canonical(result.text)
     metrics = OCRMetrics(
         used=True,

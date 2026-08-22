@@ -64,6 +64,11 @@ def _parse(html: str, selector: str, max_results: int) -> list[tuple[str, str, s
 def _serper(client, q, n):
     if not settings.serper_api_key:
         return []
+    # One billable credit per query, counted at the moment it is spent. Serper charges the
+    # attempt, so this sits before the request rather than after a successful parse — a table
+    # that only counts successes understates the bill.
+    from .. import metering
+    metering.record_search("serper")
     r = client.post("https://google.serper.dev/search",
                     headers={"X-API-KEY": settings.serper_api_key, "Content-Type": "application/json"},
                     json={"q": q, "num": max(n, 10)})

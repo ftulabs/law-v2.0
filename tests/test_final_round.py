@@ -287,7 +287,13 @@ def test_readme_line_references_still_point_where_they_claim():
         assert body and not body.startswith("#"), f"{path}#L{n} points at a blank or comment line"
         marker = expectations.get(path)
         if marker:
-            assert marker in body, f"{path}#L{n} no longer contains {marker!r}"
+            # Name the correct line in the failure. This test has caught real drift three
+            # times, and each time the fix was "look up the new number by hand" — so it does
+            # that lookup itself. A test that tells you the answer costs one edit, not two.
+            actual = next((i for i, l in enumerate(lines, 1) if marker in l), None)
+            assert marker in body, (
+                f"README cites {path}#L{n}, but {marker!r} is now on line {actual}. "
+                f"Update the link to {path}#L{actual}.")
 
 
 def test_readme_documents_all_fourteen_columns_in_order():

@@ -27,6 +27,7 @@ from urllib.parse import urlparse
 from ..config import settings
 from ..schemas import DocFormat
 from . import robots
+from .. import metering
 
 _INDEX_NAME = "_index.json"
 _last_request: dict[str, float] = {}   # host → monotonic timestamp of last hit (politeness)
@@ -320,6 +321,7 @@ def _store(url, data: bytes, content_type: str, idx: dict, etag, last_mod, log,
     if fmt in (DocFormat.PDF_TEXT, DocFormat.PDF_SCANNED) and b"%PDF-" not in data[:1024]:
         log(f"[fetch] .pdf URL served non-PDF bytes (dead/moved link) -> skipping: {url}")
         return None
+    metering.record_fetch(len(data))     # bytes actually pulled over the wire
     sha = hashlib.sha256(data).hexdigest()
     fname = f"{sha[:16]}.{ext}"
     path = settings.cache_path / fname

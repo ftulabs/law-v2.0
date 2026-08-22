@@ -295,6 +295,10 @@ class RunMeta(BaseModel):
     model_version: str = ""
     ocr_reports: list[OCRReport] = Field(default_factory=list)   # per-doc OCR/CER proof
     notes: str = ""
+    # Measured cost for this run, produced by backend/metering.py as the run spends —
+    # per component and per engine. `total_is_complete` is False when any component has no
+    # price on file, in which case the total is a floor rather than the answer.
+    cost: dict = Field(default_factory=dict)
 
 
 class RunResult(BaseModel):

@@ -10,6 +10,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 
+from .. import metering
 from ..config import settings
 from ..providers import get_llm_provider, get_ocr_provider
 from ..rdtii import get_indicators
@@ -168,6 +169,10 @@ def run_pipeline(
     run_id = "run-" + uuid.uuid4().hex[:8]
     t0 = time.perf_counter()
     started = _now()
+    # Cost is counted from here, by the providers themselves as they spend. The template wants
+    # it "per run and per engine ... without manual arithmetic", and the arithmetic is the part
+    # that cannot be done after the fact: token counts live only in the API response.
+    meter = metering.start(run_id)
 
     # runtime-selected providers (dashboard) with safe fallback to mock
     ocr = _resolve_ocr(ocr_provider, log, economy)
@@ -371,7 +376,11 @@ def run_pipeline(
         llm_provider=llm.name,
         model_version=llm.model_version,
         ocr_reports=ocr_reports,
+        cost=meter.report(),
     )
+    log(f"[cost] {meta.cost.get('total_usd', 0):.4f} USD"
+        + ("" if meta.cost.get("total_is_complete") else
+           f"  (floor — unpriced: {', '.join(meta.cost.get('unpriced', []))})"))
     db.finish_run(meta)
     result = RunResult(meta=meta, mappings=mappings)
     if settings.result_cache_enabled:

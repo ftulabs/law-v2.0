@@ -10,6 +10,7 @@ import time
 from typing import Any
 
 from ..config import settings
+from .. import metering
 from .llm_base import LLMProvider
 
 BASE_URL = "https://openrouter.ai/api/v1"
@@ -69,6 +70,7 @@ class OpenRouterLLM(LLMProvider):
         """
         parsed: dict[str, Any] = {}
         for cap in (settings.openrouter_max_tokens, settings.openrouter_max_tokens * 4):
+            t0 = time.monotonic()
             resp = self._client.chat.completions.create(
                 model=model, temperature=0, max_tokens=cap,
                 messages=[{"role": "system", "content": sys_msg},
@@ -76,6 +78,13 @@ class OpenRouterLLM(LLMProvider):
             )
             self.model_version = model      # record the model that actually answered
             choice = resp.choices[0]
+            # Metered here rather than at the call site: this is the only place that sees the
+            # token counts, and a retry at 4x the budget is a second billable call that a
+            # caller-side counter would miss entirely.
+            usage = getattr(resp, "usage", None)
+            metering.record_llm(model, getattr(usage, "prompt_tokens", 0) or 0,
+                                getattr(usage, "completion_tokens", 0) or 0,
+                                time.monotonic() - t0)
             parsed = self._parse_json(choice.message.content or "{}")
             if parsed and not parsed.get("_parse_error"):
                 return parsed
