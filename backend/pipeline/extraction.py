@@ -82,8 +82,21 @@ _STRUCT_RE_CN = re.compile(
 # harmony: дүгээр/дугаар, and дэх/дахь for some drafting). The 14.1 / 20.1.5 forms below it are
 # CLAUSES inside the article — splitting on those would shatter one article into a dozen
 # fragments and destroy the verbatim context the grader needs.
+# The ordinal is written in DIGITS in modern drafting ("14 дүгээр зүйл") and SPELLED OUT in
+# older instruments ("Хоёрдугаар зүйл" = article 2, "Гучингуравдугаар зүйл" = article 33 —
+# both from the Constitution, which is cited by operative laws and so reaches extraction).
+# A digits-only pattern found nothing in those and the whole instrument collapsed into one
+# block, with no error: the quiet failure this economy specialises in. Mongolian builds the
+# ordinal as a compound, so up to two Cyrillic words are allowed before the suffix ("Арван
+# нэгдүгээр" = eleventh); a single \w+ would miss it.
+# The trailing lookahead rejects the GENITIVE/DATIVE forms "зүйлийн" and "зүйлд", which is how
+# a cross-reference reads ("…хуулийн 9 дүгээр зүйлийн 1 дэх хэсэг"). Those DO start a line in
+# a preamble, so without it the recital that cites another Act becomes an article boundary —
+# the same cross-reference trap the Latin and Han patterns above guard against.
 _STRUCT_RE_MN = re.compile(
-    r"(?im)^[ 	]*(\d{1,3}\s*(?:д[үу]г[эа]{0,2}р|дэх|дахь)\s+з[үу]йл)")
+    r"(?im)^[ 	]*("
+    r"(?:\d{1,3}|(?:[А-ЯӨҮЁа-яөүё]+[ 	]+){0,1}[А-ЯӨҮЁа-яөүё]+)"
+    r"[ 	]*(?:д[үу]г[эа]{0,2}р|дэх|дахь)[ 	]+з[үу]йл)(?![а-яөүё])")
 _APP_HEADING_RE = re.compile(
     r"^\s*(?:\d{1,3}[A-Za-z]{0,2}\s+)?Australian Privacy Principle\s+(\d+[A-Za-z]?)\b", re.I)
 _DOTTED_TOC_RE = re.compile(r"(?m)^.*\.{4,}.*$")        # a table-of-contents dotted-leader line

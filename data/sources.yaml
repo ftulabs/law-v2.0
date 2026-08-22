@@ -125,12 +125,23 @@ sources:
     adapter: websearch
     site: gov.cn
     verified: true             # measured: PIPL 74 provisions, data-export measures 19-20 each
-    queries:
+    queries_p6:
       - 数据出境安全评估办法
       - 个人信息出境标准合同
       - 应当在境内存储
       - 服务器 设在境内
+      - 向境外提供个人信息
+    queries_p7:
+      - 中华人民共和国网络安全法
+      - 中华人民共和国数据安全法
+      - 网络数据安全管理条例
+      - 个人信息保护影响评估
+      - 个人信息保护负责人
       - 个人信息 保存期限
+      - 留存 不少于 六个月
+      - 网络安全审查办法
+      - 反恐怖主义法 技术支持和协助
+      - 互联网信息服务管理办法
     notes: >
       THE PRIMARY CHINA LANE — listed first because it is the one that actually yields statute
       text. cac.gov.cn publishes the national laws as ordinary server-rendered pages, so an
@@ -148,12 +159,13 @@ sources:
     adapter: websearch
     site: flk.npc.gov.cn
     verified: partial          # discovery works; its document BODIES cannot be downloaded
-    queries:
+    queries_p6:
       - 个人信息 境内存储
       - 向境外提供个人信息
       - 数据出境安全评估
-      - 个人信息处理者 义务
       - 关键信息基础设施 运营者
+    queries_p7:
+      - 个人信息处理者 义务
       - 网络日志 留存 不少于
       - 个人信息保护负责人
       - 个人信息保护影响评估
@@ -225,26 +237,49 @@ sources:
   - economy: MN
     name: Unified Legal Information System (legalinfo.mn)
     base_url: https://legalinfo.mn
-    adapter: websearch
+    adapter: mn_legalinfo
     site: legalinfo.mn
-    verified: false
+    verified: true             # measured 2026-08-22: sitemap enumerates, export returns full text
     reachable: >-
-      2026-08-22 CORRECTED: /sitemap.xml returns 200 and lists 19,853 URLs, of which 13,070 are
-      /mn/detail?lawId=N — a complete enumeration of the corpus, and the discovery route. But a
-      detail page is MOSTLY CHROME: an earlier note here claimed "12.4k Cyrillic characters in
-      the response body, so OCR is not on the critical path". Those characters are the
-      navigation menu, a registration form, the Cyrillic alphabet index and a list of industry
-      sectors. Zero article headings. The claim counted Cyrillic without checking it was the
-      statute, which is the same mistake that had India recorded as a JS shell.
-    document_format: html
-    ocr_required: unknown
+      2026-08-22, third and correct reading. This entry has been wrong twice, in opposite
+      directions, and both errors are kept here because each is a different way to misread a
+      portal.
+      (1) "12.4k Cyrillic characters in the body, so OCR is not on the critical path" — those
+      characters are the navigation menu, a registration form, the alphabet index and a list of
+      industry sectors. Zero article headings. That counted Cyrillic without checking it was the
+      statute, the same mistake that had India recorded as a JS shell.
+      (2) "No .doc or .docx downloads, unlike China; body retrieval is unsolved" — false, and
+      falsifiable in one request. The detail page's own toolbar calls
+      downloadAnnexFile(this, "", lawId), which static.js resolves to
+      POST /mn/downloadFile?file=&lawId=N&fDownload=1. That returns the whole instrument.
+      What is true: /sitemap.xml answers 200 with 36,833 distinct lawId values; the export is
+      labelled .doc but the bytes are UTF-8 HTML; and Content-Disposition carries the law's
+      Mongolian title, which is the only place a title is available without running JavaScript.
+    document_format: html      # the ".doc" export is Word-flavoured HTML, not a binary
+    ocr_required: false        # measured — there is no image layer anywhere on this route
+    queries_p6:
+      - хувь хүний мэдээлэл
+      - мэдээлэл хамгаалах
+      - хилийн чанад
+      - мэдээллийн сан
+    queries_p7:
+      - хувь хүний мэдээлэл
+      - кибер аюулгүй
+      - мэдээллийн аюулгүй байдал
+      - нууцлал
+      - цахим гарын үсэг
+      - харилцаа холбоо
+      - улсын нууц
+      - банкны тухай
     note: >-
-      No .doc or .docx downloads, unlike China. Modern laws DO carry numeric article headings
-      ("1 дүгээр зүйл") where the text is present, so extraction._STRUCT_RE_MN is right for
-      them; the 1924 and 1940 constitutions use SPELLED-OUT ordinals ("Хоёрдугаар зүйл"),
-      which that pattern does not match — a real gap if historic instruments are ever in scope.
-      What is solved for Mongolia is DISCOVERY (the sitemap). What is not solved is BODY
-      RETRIEVAL: the full statute text is not in the server-rendered detail page.
+      Discovery is the sitemap; titles come from data/catalogues/MN_titles.json, built once by
+      tools/build_mn_catalogue.py because legalinfo.mn's listing pages render their rows in the
+      browser and no server-rendered index carries a title. That file is a TABLE OF CONTENTS —
+      id, title, byte size — with no provision text, no indicator and no mapping; bodies are
+      fetched live on every run. Same arrangement Malaysia already uses.
+      Queries are Mongolian STEMS, not inflected forms: the language is agglutinative and the
+      title index is matched by substring, so "мэдээллийг" would not match "мэдээлэл".
+      Check them with tools/audit_native_terms.py --economy MN.
   - economy: TH
     name: Office of the Council of State (Thai law library)
     base_url: https://www.krisdika.go.th

@@ -1079,6 +1079,24 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int,
     return kept
 
 
+def _source_queries(src: dict, pillar: int | None) -> list[str] | None:
+    """A source's own query set, narrowed to the pillar being run.
+
+    `queries:` applies to every pillar. `queries_p<N>:` applies only when pillar N is running,
+    and all of them apply when the run covers every pillar. Returning None (rather than []) is
+    deliberate: it means "this source has no opinion", which is what `discover_websearch`
+    already treats as "use the generated indicator queries".
+    """
+    out = list(src.get("queries") or [])
+    for key, val in src.items():
+        if not key.startswith("queries_p"):
+            continue
+        want = key[len("queries_p"):]
+        if pillar is None or want == str(pillar):
+            out.extend(val or [])
+    return out or None
+
+
 def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | None = None) -> list[DiscoveredDoc]:
     """Search the economy's official portal(s) with coarse pillar keywords and return
     ranked candidate documents (NEW). Returns [] if httpx/bs4 or the network are
@@ -1094,6 +1112,13 @@ def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | N
     max_docs = max_docs or settings.discovery_max_docs
     indicators = get_indicators(pillar)
     queries = portal_search_queries(economy.value, pillar)
+    # A source's own `queries:` used to be pillar-blind, and China is where that showed.
+    # The CN query set was written for pillar 6 — 数据出境安全评估, 应当在境内存储 — so the
+    # pillar-7 run searched for cross-border transfer, retrieved the pillar-6 corpus, and
+    # mapped a domain-name regulation to the cybersecurity indicator 12 times, while
+    # 网络安全法 and 数据安全法 (the panel's own 7.1/7.2 answers) were never fetched at all.
+    # Nothing errored. The wrong corpus simply answered a different question, confidently.
+    # `queries_p<N>:` fixes that at the source, where the language knowledge already lives.
     sources = [s for s in load_sources() if s.get("economy") == economy.value
                and (s.get("search_url_template") or s.get("adapter"))]
     if not sources:
@@ -1109,7 +1134,8 @@ def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | N
         if s.get("adapter") != "websearch":
             continue
         found = discover_websearch(economy, pillar, max_docs, site=s.get("site"),
-                                   queries=s.get("queries"), pdf_only=bool(s.get("pdf_only")),
+                                   queries=_source_queries(s, pillar),
+                                   pdf_only=bool(s.get("pdf_only")),
                                    per_query=s.get("per_query"))
         if economy.value == "AU":
             # content-lane hits can be bills, budget papers or repealed acts — keep only
@@ -1126,8 +1152,9 @@ def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | N
             # in_dspace lives in its own module (adapter_india.py) so this file keeps one
             # dispatch line rather than a fourth portal's worth of API handling.
             from .adapter_india import _search_in_dspace
+            from .adapter_mongolia import _search_mn_legalinfo
             _ADAPTERS = {"au_api": _search_au_api, "my_catalogue": _search_my_catalogue,
-                         "in_dspace": _search_in_dspace}
+                         "in_dspace": _search_in_dspace, "mn_legalinfo": _search_mn_legalinfo}
             for src in api_sources:
                 searcher = _ADAPTERS.get(src.get("adapter"), _search_one)
                 for q in queries:

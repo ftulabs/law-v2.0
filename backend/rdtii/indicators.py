@@ -251,18 +251,43 @@ INDICATORS: list[Indicator] = [
 
 
 def get_indicators(pillar: int | None = None) -> list[Indicator]:
+    """Indicators for one pillar, or the measured nine when no pillar is named.
+
+    `pillar=None` returns ONLY pillars 6 and 7, and that is deliberate rather than an
+    oversight. The evaluation harness (`backend/eval/*`) calls it that way to build its corpus,
+    and the retrieval parameters in `docs/retrieval-redesign.md` were swept against exactly
+    that set; widening it here would silently re-baseline every measurement we hold. A caller
+    that genuinely wants all sixty-one asks for each pillar, or reads
+    `indicators_wide.INDICATORS_WIDE` directly.
+    """
     if pillar is None:
         return list(INDICATORS)
-    return [i for i in INDICATORS if i.pillar == pillar]
+    ours = [i for i in INDICATORS if i.pillar == pillar]
+    if ours:
+        return ours
+    # Pillars 1-5 and 8-12: declared in indicators_wide, not measured. Imported lazily so the
+    # nine-indicator path has no dependency on the fifty-two.
+    from .indicators_wide import get_wide
+    return get_wide(pillar)
 
 
 def get_indicator(indicator_id: str) -> Indicator | None:
-    return next((i for i in INDICATORS if i.indicator_id == indicator_id), None)
+    hit = next((i for i in INDICATORS if i.indicator_id == indicator_id), None)
+    if hit is not None:
+        return hit
+    from .indicators_wide import INDICATORS_WIDE
+    return next((i for i in INDICATORS_WIDE if i.indicator_id == indicator_id), None)
 
 
 def siblings(indicator_id: str) -> list[Indicator]:
-    """Other indicators in the same pillar — used to disambiguate the mapping."""
+    """Other indicators in the same pillar — used to disambiguate the mapping.
+
+    The mapper shows these to the model so it can tell 6.1 from 6.4. That matters more outside
+    pillars 6 and 7, not less: 12.4 splits into seven limbs that differ only in which aspect of
+    a payment they restrict, and a grader shown one limb in isolation will map any payment rule
+    to it.
+    """
     ind = get_indicator(indicator_id)
     if ind is None:
         return []
-    return [i for i in INDICATORS if i.pillar == ind.pillar and i.indicator_id != indicator_id]
+    return [i for i in get_indicators(ind.pillar) if i.indicator_id != indicator_id]

@@ -54,6 +54,47 @@ PILLAR_SEARCH_TERMS: dict[int, list[str]] = {
         "government access personal data",
         "law enforcement access data",
     ],
+    # The other ten pillars. These are broad CONCEPT phrases for a full-text lane, matching what
+    # 6 and 7 do above; the discriminating work is done by each indicator's own `query_terms` in
+    # `indicators_wide.py`. Unmeasured, like the definitions they serve.
+    1: ["anti-dumping duty", "countervailing duty", "safeguard measure",
+        "trade remedies investigation"],
+    2: ["government procurement", "public procurement of goods and services",
+        "tender eligibility", "source code disclosure requirement"],
+    3: ["foreign investment law", "foreign equity limit", "investment screening",
+        "joint venture requirement", "negative list for foreign investment"],
+    4: ["copyright act", "patents act", "trade secrets protection",
+        "intellectual property enforcement", "notice and takedown"],
+    5: ["telecommunications act", "telecom licensing", "infrastructure sharing",
+        "independent regulatory authority", "significant market power"],
+    8: ["intermediary liability", "safe harbour for service providers",
+        "user identity verification", "obligation to monitor content"],
+    9: ["blocking of websites", "online content regulation", "internet content provider licence",
+        "online advertising restriction"],
+    10: ["import prohibition", "import licensing", "local content requirement",
+         "export control", "restricted goods list"],
+    11: ["technical standards", "conformity assessment", "type approval",
+         "commercial cryptography", "product certification"],
+    12: ["electronic commerce law", "electronic transactions act", "payment services act",
+         "consumer protection online", "de minimis threshold", "domain name registration"],
+}
+
+#: Law-NAME fragments for pillars 1-5 and 8-12, used only on a NAME_ONLY portal (AU's OData
+#: `contains(name,…)`, MY's title catalogue). Those lanes match a statute TITLE, so an
+#: obligation phrase there returns nothing — the failure is silent, which is precisely why the
+#: fallback is explicit rather than left to the generic terms above.
+PILLAR_NAME_FRAGMENTS: dict[int, list[str]] = {
+    1: ["customs tariff", "customs act", "anti-dumping", "trade remedies"],
+    2: ["government procurement", "public contracts", "financial management"],
+    3: ["foreign investment", "investment act", "companies act", "competition act"],
+    4: ["copyright act", "patents act", "trade marks act", "designs act", "circuit layouts"],
+    5: ["telecommunications act", "radiocommunications act", "broadcasting services"],
+    8: ["online safety", "criminal code", "copyright act", "broadcasting services"],
+    9: ["online safety", "classification", "broadcasting services", "interactive gambling"],
+    10: ["customs act", "customs prohibited imports", "export control", "defence trade controls"],
+    11: ["standards", "measurement", "electrical safety", "radiocommunications"],
+    12: ["electronic transactions", "consumer protection", "payment systems",
+         "competition and consumer", "spam act"],
 }
 
 # ── MID: per-indicator, country-agnostic, split into name fragments + descriptive obligations ──
@@ -296,12 +337,24 @@ def portal_search_queries(economy: str, pillar: int | None = None,
     ind_lists: list[list[str]] = []
     for p in pillars:
         for ind in get_indicators(p):
-            terms = INDICATOR_SEARCH_TERMS.get(ind.indicator_id, {})
-            frags = list(terms.get("name", []))
-            if not name_only:
-                frags += list(terms.get("desc", []))
+            terms = INDICATOR_SEARCH_TERMS.get(ind.indicator_id)
+            if terms is None:
+                # Pillars outside 6 and 7 have no hand-tuned name/desc split. Their own
+                # `query_terms` are obligation phrases, so they go in the full-text lane; a
+                # NAME_ONLY portal (AU OData, MY catalogue) matches titles, and firing an
+                # obligation phrase at it returns nothing at all — so those lanes fall back to
+                # the pillar's law-name fragments instead of quietly searching for nothing.
+                frags = ([] if name_only else list(ind.query_terms))
+            else:
+                frags = list(terms.get("name", []))
+                if not name_only:
+                    frags += list(terms.get("desc", []))
             if frags:
                 ind_lists.append(frags)
+    if name_only:
+        for p in pillars:
+            if not any(INDICATOR_SEARCH_TERMS.get(i.indicator_id) for i in get_indicators(p)):
+                ind_lists.append(list(PILLAR_NAME_FRAGMENTS.get(p, [])))
     depth = max((len(l) for l in ind_lists), default=0)
     for rank in range(depth):
         for l in ind_lists:

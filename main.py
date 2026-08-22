@@ -37,10 +37,41 @@ def parse_economy(value: str) -> Economy:
     return econ
 
 
+def parse_pillars(raw: str) -> list[int]:
+    """Which RDTII pillars this run covers.
+
+    `all` still means 6 and 7, and deliberately does not mean twelve. Those two are the
+    mandatory ones, they are the only pair whose indicator definitions have been measured
+    against the panel's answer key, and every script, doc and cached result in this repo
+    already assumes it. Widening the default would quietly multiply the cost of every existing
+    command by six. `all12` is the explicit opt-in.
+    """
+    from backend.rdtii.indicators import get_indicators
+
+    text = str(raw).strip().lower()
+    if text == "all":
+        return [6, 7]
+    if text in ("all12", "every", "1-12"):
+        return list(range(1, 13))
+    try:
+        want = [int(part) for part in text.replace(" ", "").split(",") if part]
+    except ValueError:
+        raise SystemExit(f"--pillar: {raw!r} is not a pillar, a list of pillars, 'all' or 'all12'")
+    if not want:
+        raise SystemExit("--pillar: nothing to run")
+    for pillar in want:
+        if not get_indicators(pillar):
+            raise SystemExit(f"--pillar {pillar}: no RDTII indicators are defined for that pillar "
+                             f"(valid: 1-12)")
+    return want
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description="VeriTrade — RDTII evidence extraction")
     p.add_argument("--economy", required=True, help="Singapore | Australia | Malaysia (or SG/AU/MY)")
-    p.add_argument("--pillar", default="all", help="6, 7, or all")
+    p.add_argument("--pillar", default="all",
+                   help="6 | 7 | all (=6,7) | any other RDTII pillar 1-12 | a list: 6,7,9 | "
+                        "all12 (every pillar — expensive)")
     p.add_argument("--output-dir", default=settings.output_dir)
     p.add_argument("--format", choices=["csv", "json", "both"], default="both")
     p.add_argument("--pdf", default=None, help="process a single local PDF (bypass crawler)")
@@ -57,7 +88,7 @@ def main() -> None:
     args = p.parse_args()
 
     economy = parse_economy(args.economy)
-    pillars = [6, 7] if str(args.pillar).lower() == "all" else [int(args.pillar)]
+    pillars = parse_pillars(args.pillar)
     from pathlib import Path
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)

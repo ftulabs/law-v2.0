@@ -1,11 +1,17 @@
 """VeriTrade dashboard (Streamlit).
 
-Design direction — "clear research tool": a calm, high-contrast, sans-serif
-interface built for policy researchers, not engineers. The screen leads with one
-simple flow — pick a country, pick a topic, run — and keeps every technical knob
-(OCR engine, LLM, model, keys) tucked inside an "Advanced settings" drawer. Plain
-language throughout; a traffic-light system (green = high confidence, amber = needs
-a check, red = set aside) carries certainty so the eye lands on doubt first.
+Design direction — "clear research tool": calm, high-contrast, sans-serif, built for policy
+researchers rather than engineers. Plain language throughout; a traffic-light system (green =
+high confidence, amber = needs a check, red = set aside) carries certainty so the eye lands on
+doubt first.
+
+The start screen is four MODES, not tabs — Run, Live test, Engines, Coverage (see
+`frontend/home.py`). Tabs live inside a completed run, and two of those four are needed when
+no run exists yet: on 15 October there is nothing to open a results tab from, and the engines
+are chosen before the first run rather than after it.
+
+There is no sidebar and no "Advanced settings" drawer; both were removed, and any instruction
+that still points at one is stale.
 
 Same backend the CLI/API use. Run:  streamlit run frontend/app.py
 """
@@ -15,6 +21,7 @@ import html as _html_mod
 import queue
 import sys
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -32,11 +39,10 @@ from backend.pipeline.orchestrator import run_pipeline  # noqa: E402
 from backend.providers import registry as reg  # noqa: E402
 from backend.rdtii import get_indicators  # noqa: E402
 from backend.review import workflow  # noqa: E402
-from frontend import livetest  # noqa: E402
 from backend.schemas import ECONOMY_UN_NAME, Economy, RunResult, SUBMISSION_COLUMNS  # noqa: E402
 from backend.storage import db  # noqa: E402
 
-from frontend import auth_ui, enginebench, geo, matrix, runview, theme  # noqa: E402
+from frontend import auth_ui, enginebench, geo, home, livetest, matrix, runview, theme  # noqa: E402
 from frontend.theme import site_footer  # noqa: E402
 from backend.rdtii.indicators import get_indicator  # noqa: E402
 
@@ -533,8 +539,10 @@ STATUS_LABEL = {"auto_accepted": "high confidence", "pending_review": "needs rev
                 "quarantined": "set aside", "approved": "approved", "rejected": "rejected",
                 "corrected": "corrected"}
 ECON_NAME = dict(ECONOMY_UN_NAME)          # never hardcode: the enum is the source of truth
-# "Singapore, Australia and Malaysia" for prose, derived so the copy cannot go stale
-_ECON_PROSE = ", ".join(list(ECON_NAME.values())[:-1]) + " and " + list(ECON_NAME.values())[-1]
+# The strapline used to name every economy. That read as three names when there were three
+# and as a paragraph once there were twelve — the copy did not go stale, it went long.
+# A count says the same thing and stays one line however many economies are declared.
+_ECON_PROSE = f"{len(ECON_NAME)} economies &middot; 12 pillars &middot; 61 indicators"
 
 
 def vcolor(c: float) -> str:
@@ -919,7 +927,10 @@ if st.session_state.get("economy") not in _ECON_CODES:
     st.session_state["economy"] = _ECON_CODES[0]
 economy = st.session_state["economy"]
 
-if st.session_state.get("pillar") not in (6, 7):
+# All twelve RDTII pillars are selectable now, not just the mandatory pair — the final-round
+# brief warns the sealed test may name "a pillar you have not worked on". 6 stays the default
+# because it is one of the two whose definitions are measured.
+if st.session_state.get("pillar") not in range(1, 13):
     st.session_state["pillar"] = 6
 pillar = st.session_state["pillar"]
 pillars = [pillar]
@@ -1045,126 +1056,63 @@ if run_clicked and pillars:
     track_box.empty()
     stream_box.empty()
     st.session_state["run_id"] = result.meta.run_id
+    # A live-test run belongs to an engine slot, not to the results screen. File it and go
+    # back to the checklist — leaving the operator in the ordinary results view mid-hour is
+    # how a step gets skipped.
+    _slot = st.session_state.pop("lt_pending", None)
+    if _slot:
+        livetest.capture(st.session_state["livetest"], _slot, result,
+                         st.session_state.pop("lt_started", ""),
+                         datetime.now(timezone.utc).isoformat(timespec="seconds"))
+        st.session_state["run_id"] = None
+        st.session_state["home_mode"] = "live"
+        st.rerun()
 run_id = st.session_state.get("run_id")
 if not run_id:
-    st.markdown(
-        '<div class="welcome">'
-        '<h3>Welcome — let\'s find the law</h3>'
-        '<p>VeriTrade searches official government websites, reads the documents (including scanned '
-        'PDFs), and maps each relevant law to the RDTII indicators — with the exact quote and a link '
-        'to the source. Follow three steps in the panel on the left.</p>'
-        '<div class="steps">'
-        '<div class="step"><div class="n">1</div><div class="t">Choose a country</div>'
-        f'<div class="d">{_ECON_PROSE}.</div></div>'
-        '<div class="step"><div class="n">2</div><div class="t">Choose a pillar</div>'
-        '<div class="d">Pillar 6 — cross-border data rules, or Pillar 7 — data protection &amp; cybersecurity.</div></div>'
-        '<div class="step"><div class="n">3</div><div class="t">Press “Run analysis”</div>'
-        '<div class="d">Results appear here in a few minutes. You can also reopen a past analysis.</div></div>'
-        '</div></div>',
-        unsafe_allow_html=True,
-    )
-    # The globe is the headline way in: spin it, click a marker (or a name) to choose the
-    # economy. It writes the same session_state the sidebar select reads, so the two stay
-    # in step whichever one you touch.
-    st.markdown('<div class="kicker" style="margin:1.4rem 0 .5rem">Choose an economy '
-                '<span class="muted">— spin the globe, or pick a name</span></div>',
-                unsafe_allow_html=True)
-    _picked = geo.country_picker(selected=st.session_state.get("economy"), key="geo_home")
-    if _picked and _picked != st.session_state.get("economy"):
-        st.session_state["economy"] = _picked
-        st.rerun()
+    # Four screens, not four tabs. A tab lives inside a completed run; on 15 October there is
+    # no completed run, and the live-test surface is the first thing needed.
+    _mode = home.mode_bar(st.session_state.get("home_mode", "run"))
 
-    # ── pillar as two large choice cards, not a radio ────────────────────────
-    # The two pillars are the second real decision, so they get real estate and the
-    # indicators they cover shown up front — a dropdown label could never carry that.
-    st.markdown('<div class="kicker" style="margin:1.6rem 0 .5rem">Choose a pillar '
-                '<span class="muted">— what kind of rule are you looking for?</span></div>',
-                unsafe_allow_html=True)
-    theme.inject_style(_PILLAR_CARD_CSS)
-    _pc = st.columns(2, gap="medium")
-    for _i, (_pn, _title, _sub, _inds) in enumerate([
-        (6, "Cross-border data rules",
-         "Can data leave the country, and on what conditions?",
-         ["Ban &amp; local processing", "Local storage", "Infrastructure", "Conditional flow"]),
-        (7, "Data protection &amp; cybersecurity",
-         "How personal data must be protected at home.",
-         ["Comprehensive framework", "Dedicated cybersecurity", "Minimum retention",
-          "DPO / DPIA", "Government access"]),
-    ]):
-        with _pc[_i]:
-            _on = st.session_state.get("pillar") == _pn
-            st.markdown(
-                f'<div class="pcard {"on" if _on else ""}">'
-                f'<div class="pnum">Pillar {_pn}</div>'
-                f'<div class="ptitle">{_title}</div>'
-                f'<div class="psub">{_sub}</div>'
-                f'<div class="plist">' +
-                "".join(f'<span>{x}</span>' for x in _inds) +
-                f'</div><div class="pfoot">{len(_inds)} indicators</div></div>',
-                unsafe_allow_html=True)
-            if st.button(("Selected" if _on else f"Choose Pillar {_pn}"),
-                         key=f"pick_pillar_{_pn}", width="stretch",
-                         type=("primary" if _on else "secondary"), disabled=_on):
-                st.session_state["pillar"] = _pn
-                st.rerun()
-
-    # Step 3 on the main surface, not buried in a sidebar expander: swapping the reader or
-    # the model is a scored requirement, so it gets real estate and every option explains
-    # itself.
-    st.markdown('<div class="kicker" style="margin:1.8rem 0 .5rem">Choose the engines '
-                '<span class="muted">— or leave the defaults, they are already sensible'
-                '</span></div>', unsafe_allow_html=True)
-    enginebench.render(st.session_state.get("ocr_provider", settings.ocr_provider),
-                       st.session_state.get("llm_provider", settings.llm_provider),
-                       scope="home", ocr_note=_ocr_language_note(economy, ocr_choice))
-
-    # ── run ────────────────────────────────────────────────────────────────
-    # The last thing on the page, after the three choices, because that is the order the
-    # work happens in. Everything here has a working default, so a first-time user can
-    # ignore all of it and press the button.
-    st.markdown('<div class="kicker" style="margin:1.8rem 0 .5rem">Run the analysis '
-                '<span class="muted">— this takes a few minutes on a live search</span>'
-                '</div>', unsafe_allow_html=True)
-    theme.inject_style(_RUNBAR_CSS)
-    _rc = st.columns([1.15, 1, 1], gap="medium")
-    with _rc[0]:
-        st.markdown('<div class="rbttl">Where to look</div>', unsafe_allow_html=True)
-        _LIVE = "Live search of the official portals"
-        _SAMPLE = "Bundled offline examples (fast, no internet)"
-        _mode = st.radio("Where to look", [_LIVE, _SAMPLE],
-                         index=1 if st.session_state.get("use_samples") else 0,
-                         label_visibility="collapsed",
-                         help="The live search crawls the government portals — this is the "
-                              "scored path. The offline examples are a reproducible fallback "
-                              "for when a portal is down.")
-        st.session_state["use_samples"] = _mode == _SAMPLE
-    with _rc[1]:
-        st.markdown('<div class="rbttl">Options</div>', unsafe_allow_html=True)
-        st.session_state["fresh_run"] = st.checkbox(
-            "Search again, ignore the saved result", value=st.session_state.get("fresh_run", False),
-            help="Identical inputs normally return the saved result instantly.")
-        st.session_state["scoring_on"] = st.checkbox(
-            "Also rate how restrictive each law is",
-            value=st.session_state.get("scoring_on", settings.scoring_enabled),
-            help="Adds an RDTII restrictiveness score (0 / 0.5 / 1) per law. One extra AI call "
-                 "each. Never written to the submission file.")
-    with _rc[2]:
-        st.markdown(f'<div class="rbttl">Ready</div>'
-                    f'<div class="rbsum">{ECON_NAME.get(economy, economy)} · Pillar {pillar}<br>'
-                    f'<span>{enginebench.short_name("ocr", ocr_choice)} · '
-                    f'{enginebench.short_name("llm", llm_choice)}'
-                    f'{" · " + llm_model if llm_model else ""}</span></div>',
-                    unsafe_allow_html=True)
-        if st.button("Run analysis", type="primary", width="stretch", key="run_home"):
+    if _mode == "run":
+        _choice = home.render(
+            economy=economy, pillar=pillar,
+            ocr_label=enginebench.short_name("ocr", ocr_choice),
+            llm_label=enginebench.short_name("llm", llm_choice),
+            use_samples=use_samples, fresh=fresh_run, scoring=scoring_on)
+        # The screen reports; the session is written here and only here.
+        st.session_state["use_samples"] = _choice["use_samples"]
+        st.session_state["fresh_run"] = _choice["fresh"]
+        st.session_state["scoring_on"] = _choice["scoring"]
+        if _choice.get("economy") and _choice["economy"] != economy:
+            st.session_state["economy"] = _choice["economy"]
+            st.rerun()
+        if _choice["pillar"] != pillar:
+            st.session_state["pillar"] = _choice["pillar"]
+            st.rerun()
+        if _choice.get("run"):
             st.session_state["run_requested"] = True
             st.rerun()
+        if prev:
+            st.markdown('<div class="sec">Past analyses</div>', unsafe_allow_html=True)
+            _pc = st.columns([1, 2])
+            with _pc[0]:
+                past_run_picker("prev_home")
 
-    if prev:
-        st.markdown('<div class="kicker" style="margin:1.6rem 0 .4rem">Or reopen a past '
-                    'analysis</div>', unsafe_allow_html=True)
-        _pc = st.columns([1, 2])
-        with _pc[0]:
-            past_run_picker("prev_home")
+    elif _mode == "engines":
+        # A screen rather than a drawer: swapping the reader or the model is scored, and every
+        # figure on a card is measured in this repo or says "not measured here".
+        enginebench.render(st.session_state.get("ocr_provider", settings.ocr_provider),
+                           st.session_state.get("llm_provider", settings.llm_provider),
+                           scope="home", ocr_note=_ocr_language_note(economy, ocr_choice))
+
+    elif _mode == "cover":
+        home.coverage_screen()
+
+    else:
+        st.session_state["_econ_names"] = ECON_NAME
+        livetest.brief_screen(economy=economy, pillar=pillar,
+                              ocr_label=enginebench.short_name("ocr", ocr_choice),
+                              llm_label=enginebench.short_name("llm", llm_choice))
 
     site_footer()
     st.stop()

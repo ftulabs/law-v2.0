@@ -62,15 +62,44 @@ _REPEALED = re.compile(
 _REPEAL_LED = re.compile(r"^\s*(?:the\s+)?[\w\s'\-]{0,40}\brepeal\b", re.I)
 
 
+# An official portal publishes more than law. cac.gov.cn carries the Cyberspace
+# Administration's press Q&A about a measure ("《数据出境安全评估办法》答记者问") and expert
+# commentary on it ("《中华人民共和国数据安全法》解读") on the same site, in the same template,
+# using the measure's exact vocabulary — so they retrieve at the top of the list and grade
+# well. In a China pillar-7 run three such pages produced confident mappings; every one of
+# them cited "(document)" rather than an article, because a press release has no articles to
+# cite. That absent citation is the tell, and it is what this pattern is written from.
+#
+# NOT included, on purpose: "guidance", "guideline", "standard", "specification", "code of
+# practice". Those ARE the cited instrument in several of the panel's own answers (Singapore's
+# PDPC advisory guidelines, China's GB/T 39335 personal-information impact-assessment guide).
+# Blocking them to catch a press release would cost real evidence.
+_COMMENTARY = re.compile(
+    r"答记者问"                                    # zh: "answering reporters' questions"
+    r"|政策问答|法规问答"                            # zh: policy / regulatory Q&A
+    r"|解读"                                       # zh: interpretation, incl. 专家解读/权威解读
+    r"|新闻发布会|记者会"                            # zh: press conference
+    r"|行业动态|新闻中心"                            # zh: industry news, newsroom
+    r"|\bpress\s+(?:release|conference|statement)\b"
+    r"|\bfrequently\s+asked\s+questions\b|\bFAQs?\b"
+    r"|\bexplanatory\s+(?:note|memorandum)\b"
+    r"|\bfact\s*sheet\b|\bnews\s+release\b"
+    r"|\bcommentary\s+on\b"
+    r"|разъяснени"                                 # ru: "clarifications"
+    r"|тайлбар,?\s*зөвлөмж",                       # mn: "explanation / recommendation"
+    re.I)
+
+
 class Status(str, Enum):
     SCOREABLE = "scoreable"
     AMENDING = "amending"
     DRAFT = "draft"
     REPEALED = "repealed"
+    COMMENTARY = "commentary"
 
 
 #: Statuses that must never reach the submission workbook as they stand.
-UNSCOREABLE = (Status.AMENDING, Status.DRAFT, Status.REPEALED)
+UNSCOREABLE = (Status.AMENDING, Status.DRAFT, Status.REPEALED, Status.COMMENTARY)
 
 _NOTE = {
     Status.AMENDING: (
@@ -78,6 +107,9 @@ _NOTE = {
         "instrument. Re-cite the principal act at the amended section."),
     Status.DRAFT: "Draft or bill — not in force, so it scores zero as a measure.",
     Status.REPEALED: "Repealed or revoked instrument — no longer in force, so it scores zero.",
+    Status.COMMENTARY: (
+        "Press release, Q&A or commentary published alongside a measure — not the measure "
+        "itself. Re-cite the instrument it explains, at the article that carries the rule."),
 }
 
 
@@ -86,6 +118,8 @@ def classify(law_name: str) -> Status:
     name = (law_name or "").strip()
     if not name:
         return Status.SCOREABLE
+    if _COMMENTARY.search(name):
+        return Status.COMMENTARY
     if _DRAFT.search(name):
         return Status.DRAFT
     if _REPEALED.search(name) and _REPEAL_LED.search(name):

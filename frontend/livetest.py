@@ -302,3 +302,35 @@ def render(state: dict, economies: dict[str, str]) -> dict | None:
         state["step"] = step - 1
         st.rerun()
     return request
+
+
+def brief_screen(*, economy: str, pillar: int, ocr_label: str, llm_label: str) -> None:
+    """The live-test surface as a top-level screen, reached before any run exists.
+
+    It used to be a tab inside the results, which meant it was unreachable until a run had
+    already been done — and on the day there is no earlier run to open it from. Worse, the tab
+    version ended with "run engine A from the sidebar", and the sidebar had been removed two
+    redesigns earlier: an instruction pointing at a control that no longer exists.
+
+    Here the run button IS the run. Pressing it hands the request to the same pipeline the Run
+    screen uses, records which engine slot it belongs to, and returns to this screen with the
+    result captured — so the operator never leaves the checklist.
+    """
+    st.markdown("#### The sealed hour")
+    st.caption(f"Declared engines: {ocr_label} · {llm_label} — frozen at submission and read, "
+               "not chosen. Everything in the three files is measured by the run.")
+    if "livetest" not in st.session_state:
+        st.session_state["livetest"] = new_state()
+    econ_names = st.session_state.get("_econ_names") or {}
+    request = render(st.session_state["livetest"], econ_names)
+    if request:
+        # Drive the ordinary pipeline. The slot is remembered so the completed run is filed
+        # against the right engine without the operator copying anything.
+        st.session_state["economy"] = request["code"]
+        st.session_state["pillar"] = request["pillar"]
+        st.session_state["use_samples"] = False
+        st.session_state["fresh_run"] = True
+        st.session_state["lt_pending"] = request["slot"]
+        st.session_state["lt_started"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        st.session_state["run_requested"] = True
+        st.rerun()

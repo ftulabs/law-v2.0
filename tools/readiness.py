@@ -43,8 +43,18 @@ DECLARED, REACHABLE, EXTRACTED, MEASURED = "declared", "reachable", "extracted",
 #: exists to avoid. Update it when a run is actually done, and not before.
 RUN_END_TO_END = {
     "SG": MEASURED, "AU": MEASURED, "MY": MEASURED,
-    "CN": EXTRACTED,      # 21 rows / 11 laws / 105s / $2.48 on pillar 6, real LLM
+    # P6: 21 rows / 11 laws, PIPL art.40 -> 6.2 (the panel's own answer).
+    # P7: 51 rows / 244s / $0.1377, reaching 网络安全法, 个人信息保护法, 数据安全法,
+    #     网络数据安全管理条例 and 网络安全审查办法 — four of the five indicators land on the
+    #     laws the panel names. Before queries were scoped per pillar the same run returned 21
+    #     rows about domain-name administration and never fetched any of them.
+    "CN": EXTRACTED,
     "IN": EXTRACTED,   # DPDP Act 2023 s.16 -> 6.4, live, matching the panel's answer key
+    # Discovery via /sitemap.xml (36,833 lawId) and bodies via the portal's own Word export.
+    # The Personal Data Protection Law fetches and splits into 32 articles when called
+    # directly — but that is a component check, not a pipeline run, and this table is the one
+    # place where the difference has to be kept. Raised only when the pipeline itself has
+    # produced provisions for Mongolia.
     "MN": DECLARED,
 }
 
