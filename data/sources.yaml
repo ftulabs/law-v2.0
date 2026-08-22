@@ -228,52 +228,23 @@ sources:
     adapter: websearch
     site: legalinfo.mn
     verified: false
-    reachable: "2026-08-21: HTTP 200, server-rendered HTML, UTF-8, 12.4k Cyrillic characters
-      on a law detail page, ZERO pdf links, ZERO U+1800-18AF"
+    reachable: >-
+      2026-08-22 CORRECTED: /sitemap.xml returns 200 and lists 19,853 URLs, of which 13,070 are
+      /mn/detail?lawId=N — a complete enumeration of the corpus, and the discovery route. But a
+      detail page is MOSTLY CHROME: an earlier note here claimed "12.4k Cyrillic characters in
+      the response body, so OCR is not on the critical path". Those characters are the
+      navigation menu, a registration form, the Cyrillic alphabet index and a list of industry
+      sectors. Zero article headings. The claim counted Cyrillic without checking it was the
+      statute, which is the same mistake that had India recorded as a JS shell.
     document_format: html
-    ocr_required: false
+    ocr_required: unknown
     note: >-
-      MEASURED, because "Mongolia has no OCR engine" was being read as "Mongolia cannot be
-      processed" and the two are unrelated. legalinfo.mn serves statute text as HTML in the
-      response body — not a JS shell, not a PDF wrapper — so OCR is NOT on the critical path
-      for Mongolia at all. Vertical Mongol Bichig (U+1800-18AF), which no engine reads, did
-      not appear at all. OCR only becomes load-bearing if a scanned amendment is published as
-      an image, and for that case the vision fallback now exists rather than a dead end —
-      which is the difference between an admitted gap and an unhandled one.
-    queries:
-      - хувь хүний мэдээлэл хамгаалах
-      - мэдээлэл дамжуулахыг хориглоно
-      - мэдээллийн аюулгүй байдал
-      - мэдээлэл хадгалах хугацаа
-      - эрсдэлийн үнэлгээ хийх
-      - кибер аюулгүй байдал
-      - мэдээлэл хариуцагч үүрэг
-      - нутаг дэвсгэрт байрлах сервер
-    notes: >
-      legalinfo.mn serves Mongolian text at /mn/detail?lawId=… and a partial English mirror at
-      /en/. Prefer the Mongolian original: the English mirror is incomplete and is a translation,
-      so a verbatim snippet taken from it would not be the authoritative text.
-
-# ─────────────────────────────────────────────────────────────────────────────────────────
-# REGULATOR SITES — where non-statutory instruments live.
-#
-# The judges' answer key cites Codes of Practice, technical standards, advisory guidelines,
-# licence conditions and a national strategy. None of those are on the statute portal, so an
-# Acts-only catalogue structurally cannot answer the indicators that rest on them (Malaysia's
-# sectoral Codes alone carry evidence for 10 indicator rows).
-#
-# What is listed here is a DOMAIN and its remit — the same portal-level fact as the entries
-# above, and the kind of thing the judges' own portal reference document records. No
-# instrument names and no document paths appear here: `backend/corpus/regulator.py` enumerates
-# each site from its own index (WordPress media API / sitemap / bounded crawl / site-scoped
-# search, strongest first). Adding a Finals economy means adding its regulators' domains.
-#
-#   remit: data_protection  -> the authority's whole output is in scope; take every document
-#   remit: sectoral         -> broad-remit body; require the P6/P7 subject vocabulary
-  # ── the remaining six of the live-test nine ────────────────────────────────────────
-  # Added so that "be ready for any of the nine" is a claim the code can start acting on.
-  # ALL marked verified: false — a portal is verified only once a build has produced provisions
-  # from it, and none of these has. tools/probe_portals.py reports which way each one fails.
+      No .doc or .docx downloads, unlike China. Modern laws DO carry numeric article headings
+      ("1 дүгээр зүйл") where the text is present, so extraction._STRUCT_RE_MN is right for
+      them; the 1924 and 1940 constitutions use SPELLED-OUT ordinals ("Хоёрдугаар зүйл"),
+      which that pattern does not match — a real gap if historic instruments are ever in scope.
+      What is solved for Mongolia is DISCOVERY (the sitemap). What is not solved is BODY
+      RETRIEVAL: the full statute text is not in the server-rendered detail page.
   - economy: TH
     name: Office of the Council of State (Thai law library)
     base_url: https://www.krisdika.go.th

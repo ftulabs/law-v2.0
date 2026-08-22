@@ -32,6 +32,7 @@ from backend.pipeline.orchestrator import run_pipeline  # noqa: E402
 from backend.providers import registry as reg  # noqa: E402
 from backend.rdtii import get_indicators  # noqa: E402
 from backend.review import workflow  # noqa: E402
+from frontend import livetest  # noqa: E402
 from backend.schemas import ECONOMY_UN_NAME, Economy, RunResult, SUBMISSION_COLUMNS  # noqa: E402
 from backend.storage import db  # noqa: E402
 
@@ -1245,8 +1246,9 @@ with _hb[2]:
         st.session_state.pop("run_id", None)
         st.rerun()
 
-tab_ev, tab_review, tab_audit, tab_export, tab_eng = st.tabs(
-    ["Results", f"Needs review · {len(workflow.queue(run_id))}", "Details", "Download", "Engines"]
+tab_ev, tab_review, tab_audit, tab_export, tab_eng, tab_live = st.tabs(
+    ["Results", f"Needs review · {len(workflow.queue(run_id))}", "Details", "Download",
+     "Engines", "Live test"]
 )
 
 # ── results ────────────────────────────────────────────────────────────────
@@ -1405,6 +1407,21 @@ with tab_audit:
 # ── download ───────────────────────────────────────────────────────────────
 with tab_export:
     result = RunResult(meta=meta, mappings=mappings)
+    # What the run cost, counted by backend/metering.py as it was spent. Shown here rather
+    # than buried in the JSON because the template requires it per run and per engine, and a
+    # figure nobody sees is a figure nobody checks.
+    _cost = meta.cost or {}
+    if _cost.get("llm") or _cost.get("ocr"):
+        _cols = st.columns(3)
+        _cols[0].metric("This run cost", f"${_cost.get('total_usd', 0):.4f}")
+        _cols[1].metric("Wall clock", f"{_cost.get('wall_seconds', 0):.0f}s")
+        _calls = sum(r["calls"] for r in _cost.get("llm", []))
+        _cols[2].metric("Model calls", _calls)
+        if not _cost.get("total_is_complete", True):
+            st.caption(f"Floor, not the full cost — no price on file for "
+                       f"{', '.join(_cost.get('unpriced', []))}.")
+        with st.expander("Cost by component"):
+            st.code(_meter_table(_cost), language="markdown")
     st.markdown('<div class="quote">The <b>Submission CSV</b> is the official RDTII file (exact template '
                 'columns) for the policy reviewer. The <b>Evidence JSON</b> carries the full trace for the '
                 'technical reviewer. The <b>Scored CSV</b> adds restrictiveness scores per law (optional).</div>',
@@ -1438,3 +1455,53 @@ with tab_eng:
 
 # every screen ends with the site footer, not mid-content
 site_footer()
+
+
+
+def _money(v) -> str:
+    """A missing price reports as "unpriced", never as $0.00 — zero is a claim, and we only
+    make it where a price is actually on file (see backend/metering.py)."""
+    return "unpriced" if v is None else f"${v:.4f}"
+
+
+def _meter_table(cost: dict) -> str:
+    """This run's cost by component, in the same shape the README carries.
+
+    Rebuilt from the run's own counters rather than copied, so the number on screen and the
+    number in the submission cannot disagree.
+    """
+    rows = ["| Component | Engine | Units | Cost |", "| :--- | :--- | :--- | ---: |"]
+    for r in cost.get("ocr", []):
+        rows.append(f"| OCR | {r['provider']} | {r['pages']} pages | {_money(r['cost_usd'])} |")
+    emb = cost.get("embedding") or {}
+    if emb.get("sentences"):
+        rows.append(f"| Embedding | local | {emb['sentences']} sentences | $0.0000 |")
+    for r in cost.get("llm", []):
+        tokens = r["prompt_tokens"] + r["completion_tokens"]
+        rows.append(f"| Mapping | {r['model']} | {r['calls']} calls, {tokens:,} tokens | "
+                    f"{_money(r['cost_usd'])} |")
+    for r in cost.get("search", []):
+        rows.append(f"| Crawling | {r['engine']} | {r['queries']} queries | "
+                    f"{_money(r['cost_usd'])} |")
+    fetch = cost.get("fetch") or {}
+    if fetch.get("requests"):
+        rows.append(f"| Crawling | fetch | {fetch['requests']} requests, "
+                    f"{fetch['bytes'] // 1000} KB | $0.0000 |")
+    rows.append(f"| **Total** | | **{cost.get('wall_seconds', 0):.0f}s** | "
+                f"**${cost.get('total_usd', 0):.4f}** |")
+    return "\n".join(rows)
+
+
+# ── live test (15 October) ─────────────────────────────────────────────────
+with tab_live:
+    st.markdown("#### The sealed hour")
+    st.caption("One economy, one pillar, two indicators — announced at the start and not "
+               "before. Run each declared engine once; the three files are generated from "
+               "what the runs measured.")
+    if "livetest" not in st.session_state:
+        st.session_state["livetest"] = livetest.new_state()
+    _req = livetest.render(st.session_state["livetest"], ECON_NAME)
+    if _req:
+        st.info(f"Run engine {_req['slot']} from the sidebar with "
+                f"{ECON_NAME.get(_req['code'], _req['code'])} · pillar {_req['pillar']}, "
+                f"then return here — the result is captured automatically.")

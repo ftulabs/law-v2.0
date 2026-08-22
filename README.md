@@ -116,7 +116,8 @@ Criteria **C3a** and **C3b** are marked on the interface by someone who did not 
 | Follow a row to its official source at the cited article | Tab **Results** → click a matrix cell → **Source URL** |
 | Accept, reject or correct a row | Tab **Needs review** (the tab label carries the queue count) |
 | Switch the AI engine | Tab **Engines**, on the main screen. No file edited, no command typed |
-| Export to the RDTII schema | Tab **Download** → Submission CSV · Evidence JSON · Scored CSV |
+| Export to the RDTII schema | Tab **Download** → Submission CSV · Evidence JSON · Scored CSV, with this run's measured cost above them |
+| Run the sealed live test on 15 October | Tab **Live test** — four steps (brief → run each engine → compare → hand in) producing the run record, the engine comparison and the short note |
 
 **Walkthrough recording:** *to be recorded before 30 September, submitted with the Word document.*
 
@@ -259,8 +260,12 @@ Only *measured* is a claim about quality.
 Singapore, Australia and Malaysia are our deepest corpora but are *not* among the nine — the
 panel holds no 2025 database for them.
 
-Mongolia's statutes are served as HTML, not scanned PDF (measured: 12.4k Cyrillic characters in
-the response body, zero PDF links), so OCR is not on its critical path.
+**Correction, 2026-08-22.** An earlier version of this table said Mongolia's statutes arrive as
+HTML "so OCR is not on its critical path", on the strength of 12.4k Cyrillic characters in the
+response body. Those characters are the navigation menu, a sign-up form and an alphabet index —
+zero article headings. Counting a script without checking what it spells is the same mistake
+that had India recorded as a JS shell when it had simply moved. What *is* solved for Mongolia is
+discovery: `/sitemap.xml` enumerates 13,070 laws. Body retrieval is not.
 
 ---
 
