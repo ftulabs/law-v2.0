@@ -129,13 +129,30 @@ the Word submission on 30 September and **cannot change afterwards**.
 
 |  | Engine A — commercial hosted | Engine B — open weights |
 | :--- | :--- | :--- |
-| Provider and model | *pending bake-off* | *pending bake-off* |
-| Config value | `LLM_PROVIDER=openrouter` | `LLM_PROVIDER=local` |
+| Provider and model | `openai/gpt-4o-mini` *(provisional)* | `mistralai/mistral-small-3.2-24b-instruct` *(provisional)* |
+| Local or hosted | hosted API | open weights, served via OpenRouter; self-hostable on one GPU |
+| Config value | `LLM_PROVIDER=openrouter` `OPENROUTER_MODEL=openai/gpt-4o-mini` | `LLM_PROVIDER=openrouter` `OPENROUTER_MODEL=mistralai/mistral-small-3.2-24b-instruct` |
 
-> The declaration freezes on 30 September and cannot be revised, so we are not naming two
-> engines before measuring them. The bake-off scores each candidate against
-> `data/ground_truth/rdtii_reference_p67.csv` — 180 rows from the panel's own 2025 databases
-> across six economies.
+Measured with `python tools/bakeoff.py`, over `data/benchmarks/grader_bakeoff.json` — 58 cases
+whose 16 positives are the panel's own answer key joined to our extracted provision text and
+then **read one by one** — using the production grading prompt.
+
+| Model | | F1 | precision | recall | $/1k calls | s/call |
+| :--- | :--- | ---: | ---: | ---: | ---: | ---: |
+| `mistral-small-3.2-24b` | open | **0.903** | 0.933 | 0.875 | 0.304 | 2.8 |
+| `gpt-4o-mini` | hosted | 0.812 | 0.812 | 0.812 | 0.591 | 2.2 |
+| `gpt-oss-120b` | open | 0.800 | 0.857 | 0.750 | 0.256 | 20.0 |
+| `deepseek-v4-flash` | open | 0.786 | 0.917 | 0.688 | 0.303 | 11.5 |
+
+> **Provisional, and why.** Sixteen positives means a 0.09 gap is one and a half cases. Only
+> two facts are firm: mistral-small reproduced 0.903 exactly across two independent runs and
+> leads on precision *and* recall, and the previous default (deepseek-v4-flash) is last, missing
+> 31% of the panel's own answers where mistral misses 12%. The benchmark grows as corpora are
+> built for more economies, and the declaration is made against the larger set.
+>
+> Two measurement traps are recorded in `tools/build_bakeoff_set.py` because both nearly chose
+> the wrong engine: an unverified benchmark scored every model 0.50–0.61 and ranked them
+> differently, and a provider-side 429 storm scored the eventual winner 0.316.
 
 **Switching:** interface → tab **Engines** → select. A steward watches this on 15 October; a
 switch needing code or config scores zero.
@@ -178,7 +195,7 @@ and on 15 October five tools read the same government sites within the same hour
 
 | Setting | Value | Where it is set |
 | :--- | :--- | :--- |
-| Max requests per second per host | 0.5 (a 2-second gap) | [`config.py:124`](backend/config.py#L124) `crawl_delay_seconds` |
+| Max requests per second per host | 0.5 (a 2-second gap) | [`config.py:140`](backend/config.py#L140) `crawl_delay_seconds` |
 | Parallel requests per host | 1 | [`fetch.py:62`](backend/pipeline/fetch.py#L62) `_polite_wait` |
 | robots.txt respected | yes | [`robots.py`](backend/pipeline/robots.py), enforced at [`fetch.py:140`](backend/pipeline/fetch.py#L140) |
 

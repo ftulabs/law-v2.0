@@ -36,7 +36,19 @@ class Settings(BaseSettings):
     # in committed code. Default is empty on purpose.
     openrouter_api_key: str = ""
     # Paid default; `:free` tier removed from failover (429s daily even on funded keys).
-    openrouter_model: str = "deepseek/deepseek-v4-flash"
+    # Chosen by measurement, not reputation — tools/bakeoff.py over the verified benchmark in
+    # data/benchmarks/grader_bakeoff.json (58 cases, 16 hand-read positives, the production
+    # prompt). Two independent runs, identical result:
+    #   mistral-small-3.2-24b  F1 0.903  prec 0.933  rec 0.875  $0.304/1k   2.8s   <- default
+    #   gpt-4o-mini            F1 0.812  prec 0.812  rec 0.812  $0.591/1k   2.2s
+    #   gpt-oss-120b           F1 0.800  prec 0.857  rec 0.750  $0.256/1k  20.0s
+    #   deepseek-v4-flash      F1 0.786  prec 0.917  rec 0.688  $0.303/1k  11.5s   <- was default
+    # The change that matters is RECALL: 0.688 -> 0.875 at the same price and four times
+    # faster. A miss is a row absent from the submission, which is the expensive direction.
+    # mistral and gpt-oss reproduced their scores exactly across both runs; the other two moved
+    # by ~0.05, so the ranking gap between second and fourth is inside the noise and only the
+    # first place is a firm result.
+    openrouter_model: str = "mistralai/mistral-small-3.2-24b-instruct"
     # Cap completion tokens. Two constraints pull in opposite directions:
     #   • a cap keeps OpenRouter's per-request credit pre-authorisation small — with NO cap,
     #     16-way concurrent calls can 402 (pre-auth exceeds balance) even on a funded key;
@@ -48,6 +60,10 @@ class Settings(BaseSettings):
     # (16 × 8192 tokens ≈ $0.02 at deepseek-v4-flash prices). complete_json also retries once
     # with 4× the cap if a response still comes back truncated/unparseable.
     openrouter_max_tokens: int = 8192
+    # Retries against the SAME model when it returns 429, before considering another one.
+    # Five with jittered exponential backoff covers a burst from sixteen concurrent workers.
+    # See llm_openrouter._is_rate_limited for why a rate limit must not trigger model failover.
+    openrouter_rate_limit_retries: int = 5
     # Cross-model second opinion on borderline REJECTIONS. When the primary grader rejects a
     # provision while itself signalling legal closeness (it names a better_sibling, or scores
     # legal_match >= 0.3 despite rejecting), a DIFFERENT model re-grades the same prompt in a
