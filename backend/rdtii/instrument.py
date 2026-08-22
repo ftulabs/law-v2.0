@@ -122,11 +122,40 @@ def classify(law_name: str) -> Status:
         return Status.COMMENTARY
     if _DRAFT.search(name):
         return Status.DRAFT
+    if _reports_on_an_instrument(name):
+        return Status.COMMENTARY
     if _REPEALED.search(name) and _REPEAL_LED.search(name):
         return Status.REPEALED
     if _AMENDING.search(name):
         return Status.AMENDING
     return Status.SCOREABLE
+
+
+#: A Chinese instrument named inside 《》 with a REPORTING VERB around it: the page is an
+#: article about the measure, not the measure. 《》 is the giveaway — a Chinese measure's own
+#: title never quotes itself, so 网络安全审查办法 is the measure and
+#: 国家互联网信息办公室等十三部门修订发布《网络安全审查办法》 is the news item announcing it.
+#: Both were reaching the submission, the second with the site's navigation menu as its
+#: Verbatim Snippet.
+_QUOTED_INSTRUMENT = re.compile(r"《[^》]{2,60}》")
+_REPORTING_VERB = re.compile(r"发布|公布|签署|印发|出台|下载|施行|实施")
+
+
+def _reports_on_an_instrument(name: str) -> bool:
+    """True for a page ABOUT a named instrument rather than the instrument itself.
+
+    Deliberately not a standalone rejection. `extraction` drops a document only when it is
+    commentary AND carries no article numbering, so a promulgating notice whose body actually
+    IS the measure — 国务院关于印发《…》的通知 with its 第一条…第N条 attached — still passes: it
+    has boundaries, so the pair does not hold. Being reported-about is a suspicion; being
+    reported-about with nothing citable in it is the finding.
+    """
+    if not _QUOTED_INSTRUMENT.search(name or ""):
+        return False
+    stripped = _QUOTED_INSTRUMENT.sub("", name).strip("　 ")
+    if not stripped:
+        return False            # the title IS the quoted instrument, just wearing brackets
+    return bool(_REPORTING_VERB.search(stripped))
 
 
 def note_for(status: Status) -> str | None:

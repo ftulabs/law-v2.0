@@ -393,6 +393,43 @@ def _pick_best(docs: list[DiscoveredDoc]) -> DiscoveredDoc:
     return max(docs, key=_key)
 
 
+def _budget_key(d: DiscoveredDoc) -> str:
+    """What one unit of the discovery budget buys: a LAW."""
+    return (d.law_name or d.title or d.source_url).strip().lower()
+
+
+def _budget_used(docs, section_unit: bool) -> int:
+    """How much of `max_docs` a candidate set has spent.
+
+    For an ordinary portal that is the document count, because a document is a law. For a
+    portal that publishes SECTIONS as records it is the number of distinct laws, so India's
+    budget buys the same thing Singapore's does.
+    """
+    docs = list(docs)
+    return len({_budget_key(d) for d in docs}) if section_unit else len(docs)
+
+
+def _cap(docs: list[DiscoveredDoc], max_docs: int, section_unit: bool) -> list[DiscoveredDoc]:
+    """The final shortlist, trimmed to the budget in whichever unit the source ships.
+
+    Section-unit portals admit whole LAWS in score order and keep every section of an admitted
+    law — a half-harvested Act is worse than a missing one, because the indicator it answers
+    can sit in the half that was cut and the run still reports evidence for the law.
+    """
+    if not section_unit:
+        return docs[:max_docs]
+    kept: list[DiscoveredDoc] = []
+    admitted: set[str] = set()
+    for d in docs:                       # already sorted by score, so laws arrive best-first
+        key = _budget_key(d)
+        if key not in admitted:
+            if len(admitted) >= max_docs:
+                continue
+            admitted.add(key)
+        kept.append(d)
+    return kept
+
+
 def _dedup_by_law_title(docs: list[DiscoveredDoc]) -> list[DiscoveredDoc]:
     """Collapse multiple versions/compilations of the same law into the best one.
 
@@ -1174,6 +1211,14 @@ def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | N
 
     # API / scrape adapters (AU JSON API; server-rendered portals)
     api_sources = [s for s in sources if s.get("adapter") not in ("websearch",)]
+    # Does any lane for this economy emit SECTIONS rather than whole laws? India Code does:
+    # it publishes each section as its own record, so a "document" there is a provision. The
+    # cap below counts documents, and applying it unchanged spent India's entire pillar budget
+    # on eighteen provisions while Singapore's bought eighteen statutes — which is exactly the
+    # shape of a bug that raises nothing: the run reported "18 documents -> 18 provisions" and
+    # both numbers were true. The source declares its own unit rather than the code testing
+    # `economy == IN`, so the next portal that does this needs one line of YAML, not a branch.
+    section_unit = any(s.get("unit") == "section" for s in api_sources)
     if api_sources:
         import httpx
         with httpx.Client(timeout=settings.crawl_timeout_seconds, headers=_headers(), follow_redirects=True) as client:
@@ -1213,7 +1258,7 @@ def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | N
                         prev = by_url.get(d.source_url)
                         if prev is None or d.relevance_score > prev.relevance_score:
                             by_url[d.source_url] = d
-                    if len(by_url) >= max_docs * 3:
+                    if _budget_used(by_url.values(), section_unit) >= max_docs * 3:
                         break
 
     # web-search docs carry score 0 (ranked later by CONTENT); keep them. Only drop
@@ -1240,7 +1285,7 @@ def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | N
     elif economy.value == "MY":
         docs = _collapse_my_amendments(docs)
     docs.sort(key=lambda d: d.relevance_score, reverse=True)
-    kept = docs[:max_docs]
+    kept = _cap(docs, max_docs, section_unit)
     # Enrich with the portal's own authoritative "last amended" date — only for the final,
     # already-bounded shortlist, so this is at most max_docs extra API/page fetches, never one
     # per raw candidate. AU: the OData /v1/documents feed's compilation start date (matches the

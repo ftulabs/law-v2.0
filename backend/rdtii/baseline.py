@@ -56,6 +56,21 @@ _APP = re.compile(r"\bAPP\s*(\d+(?:\.\d+)?)", re.I)
 _STOP = {"the", "of", "on", "and", "or", "a", "an", "to", "for", "in", "act", "law", "laws",
          "no", "republic", "people", "peoples"}
 
+#: The same idea in the scripts that do not write "the Republic of". Every Chinese national law
+#: opens with 中华人民共和国, which is seven characters of pure boilerplate — as tokens it is six
+#: identical bigrams shared by laws that have nothing else in common. Left in, 网络安全法
+#: (Cybersecurity Law) and 数据安全法 (Data Security Law) overlap 8/11 = 0.73, a hair under the
+#: 0.75 threshold: the two would have been conflated by one more shared character. Stripped,
+#: they overlap 2/4 = 0.5 and PIPL still matches its own baseline entry at 1.0.
+_STOP_PHRASES = ("中华人民共和国", "Монгол Улсын", "Российской Федерации")
+
+#: Scripts written without spaces between words, tokenised as character bigrams. Same rule and
+#: the same reason as `retrieval._tok`: a whole-run token matches only an identical name, and a
+#: per-character token matches almost anything.
+_NOSPACE = r"぀-ヿ㐀-䶿一-鿿豈-﫿" \
+           r"฀-๿຀-໿ក-៿က-႟"
+_NAME_TOKEN = re.compile(f"[{_NOSPACE}]+|[^\\W\\d_]{{2,}}", re.UNICODE)
+
 
 def _han_to_int(s: str) -> int | None:
     """第四十条 -> 40. Chinese statutes number articles in Han digits far more often than Arabic,
@@ -119,7 +134,31 @@ def article_spine(text: str) -> set[str]:
 
 
 def law_tokens(name: str) -> frozenset[str]:
-    return frozenset(w for w in re.findall(r"[a-z]{3,}", (name or "").lower()) if w not in _STOP)
+    """Identity tokens for a law name, in whatever script the name is written in.
+
+    This used to be `[a-z]{3,}`, which returns the EMPTY SET for 中华人民共和国个人信息保护法.
+    An empty set never overlaps, `_same_law` returns False, and every Chinese, Mongolian and
+    Russian provision was therefore tagged NEW — including the ones the panel's own database
+    cites. That is the exact error this module was written to prevent, inverted: instead of
+    giving away our discoveries we were claiming theirs, and the run reported it as a result
+    rather than as a failure ("KNOWN=1 NEW=2" is not a number anyone reads as a bug).
+
+    The baseline file carries both forms — `Personal Information Protection Law of the People's
+    Republic of China《中华人民共和国个人信息保护法》` — so tokenising both sides the same way
+    lets a Chinese name match its own entry through the Chinese half while an English one still
+    matches through the English half.
+    """
+    text = (name or "")
+    for phrase in _STOP_PHRASES:
+        text = text.replace(phrase, " ")
+    out: set[str] = set()
+    for w in _NAME_TOKEN.findall(text.lower()):
+        if re.match(f"[{_NOSPACE}]", w):
+            # A no-space run becomes its character bigrams (the bare glyph if it is alone).
+            out.update([w[i:i + 2] for i in range(len(w) - 1)] or [w])
+        elif len(w) >= 3 and w not in _STOP:
+            out.add(w)
+    return frozenset(out)
 
 
 @dataclass(frozen=True)

@@ -572,7 +572,46 @@ def _recover_law_name(text: str) -> str | None:
         score = (1.0 if _YEAR_RE.search(line) else 0.0) + 0.15 * min(len(words), 8)
         if score > best_score:
             best, best_score = line, score
-    return best
+    # Last resort: the instrument's own short-title clause, wherever it sits in the document.
+    # Everything above reads the HEADER region, and a Gazette of India notification defeats
+    # that completely — pages 1-23 are the Hindi text, so the English name first appears on
+    # page 23 and the Law Name column came out as the PDF's filename, a 32-character hash.
+    return best or _recover_short_title(text)
+
+
+#: "These rules may be called the Digital Personal Data Protection Rules, 2025."
+#: "This Act may be cited as the Personal Data Protection Act 2010."
+#: Every instrument in the Commonwealth drafting tradition names ITSELF in section 1, which
+#: makes this the most reliable name in the document and the only one that survives a cover
+#: page in another language. Kept as a fallback rather than the primary rule because the
+#: header-region paths above are already measured against SG/MY/AU, and this must not move a
+#: name those runs already get right.
+_SHORT_TITLE_RE = re.compile(
+    r"\bmay\s+be\s+(?:called|cited\s+as|known\s+as)\s+(?:the\s+)?([^.;]{6,120})",
+    re.IGNORECASE)
+
+
+def _recover_short_title(text: str) -> str | None:
+    """The name the instrument gives itself in its short-title clause, or None.
+
+    Scans well past the header region — that is the whole point — but accepts only a capture
+    that looks like an instrument name (`_LAW_TYPE_RE`), so prose such as "may be called upon
+    to produce records" cannot become a law name.
+
+    Whitespace is normalised FIRST because the clause wraps: the DPDP Rules gazette breaks the
+    name across a line ("… may be called the Digital Personal Data Protection" / "Rules,
+    2025"), and a newline-bounded match reads the half without the year and rejects it — which
+    is a silent None, not an error.
+    """
+    flat = re.sub(r"\s+", " ", text or "")
+    for m in _SHORT_TITLE_RE.finditer(flat):
+        name = re.sub(r"\s+", " ", m.group(1)).strip().strip(",")
+        # A short-title clause often continues "… Rules, 2025 and shall come into force …";
+        # cut at the joining clause so the year ends the name.
+        name = re.split(r"\s+(?:and|which|whichever)\s+", name, maxsplit=1)[0].strip()
+        if 6 <= len(name) <= 120 and _LAW_TYPE_RE.search(name) and _YEAR_RE.search(name):
+            return name
+    return None
 
 
 #: A title a search engine cut short. Both the ASCII and the typographic ellipsis, with or
@@ -596,9 +635,13 @@ def _recover_truncated(title: str, text: str) -> str | None:
     prefix = _TRUNCATED_TITLE.sub("", title).strip()
     if len(prefix) < 8:
         return None                       # too little left to identify anything with
+    # Compared with whitespace removed. A search engine renders the title through its own
+    # typography, so it prints "…六个月《" where the page has "…六个月 《" — one space, and a
+    # literal startswith() then rejects the very line it was looking for.
+    flat = re.sub(r"\s+", "", prefix)
     for line in (text or "")[:6000].splitlines()[:60]:
         line = line.strip()
-        if len(line) > len(prefix) and line.startswith(prefix):
+        if len(line) > len(prefix) and re.sub(r"\s+", "", line).startswith(flat):
             return _TITLE_SUFFIX.sub("", line).strip() or None
     return None
 
@@ -747,6 +790,41 @@ _ERROR_PAGE_RE = re.compile(
     r"page not found|page you are looking for cannot be found|404 not found|error 404", re.I)
 
 
+#: A Chinese instrument's legislative history, in the parenthetical directly under its title:
+#:   （2016年11月7日…会议通过　根据2025年10月28日…《关于修改…的决定》修正）
+#: `通过` = adopted, `修正`/`修订` = amended/revised. A law amended three times carries three
+#: 根据…修正 clauses in one parenthetical, so the LAST is the one the column wants.
+_CN_ADOPTED = re.compile(r"(\d{4})年(\d{1,2})月(\d{1,2})日[^）)]{0,80}?通过")
+_CN_AMENDED = re.compile(r"根据(\d{4})年(\d{1,2})月(\d{1,2})日[^）)]{0,120}?(?:修正|修订)")
+
+
+def _stated_amendment_date(text: str, economy) -> str | None:
+    """The date a document states for itself, ISO-formatted, or None.
+
+    Only Chinese instruments for now, because only they carry it in a fixed, parseable place.
+    Read from the HEAD of the document: a law quoting another law's amendment history deeper in
+    the text ("根据…修正的《网络安全法》") would otherwise overwrite its own date with that one.
+
+    An amendment date wins over the adoption date, and the latest amendment wins over earlier
+    ones — that is what "Last Amended" means. A law never amended reports its adoption date,
+    which is the honest answer and is what the panel's own database records for PIPL.
+    """
+    if getattr(economy, "value", economy) != "CN":
+        return None
+    # 1200 characters, measured: across the seven Chinese instruments in the corpus the
+    # parenthetical sits between characters 128 and 316, so this is generous — and it still
+    # stops short of the operative text, where 根据…修正 appears as a CROSS-REFERENCE to some
+    # other law and would quietly overwrite this one's date.
+    head = (text or "")[:1200]
+    dates = [m.groups() for m in _CN_AMENDED.finditer(head)]
+    if not dates:
+        dates = [m.groups() for m in _CN_ADOPTED.finditer(head)]
+    if not dates:
+        return None
+    iso = sorted(f"{y}-{int(mo):02d}-{int(d):02d}" for y, mo, d in dates)
+    return iso[-1]
+
+
 def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> list[Provision]:
     text = raw_text or ""
     # A dead/redirected portal URL (e.g. an uncommenced act whose PDF 404s) yields a short
@@ -758,6 +836,14 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
         text = _DOTTED_TOC_RE.sub("", text)              # ("Schedule 1……… 5") — drop those lines so
         text = _strip_running_headers(text)              # their "Schedule N" entries aren't boundaries
     law_name = _law_name(doc, text)                     # needs the ARRANGEMENT anchor → before TOC strip
+    if not doc.amendment_date:
+        # SG and MY get this date from their portal's own Timeline widget and AU from the OData
+        # compilation feed. China has no such endpoint — and needs none, because a Chinese law
+        # states its own legislative history in the parenthetical under its title. Without this
+        # the Last Amended column was empty for every Chinese row in the submission.
+        stated = _stated_amendment_date(text, doc.economy)
+        if stated:
+            doc = doc.model_copy(update={"amendment_date": stated})
     if doc.economy == Economy.AU:                        # drop act-title±page footers + word-form
         text = _strip_au_chrome(text)                    # "Section 77A"/"Clause 8"/"Schedule 1 …" headers
         text = _strip_au_table_continuation(text)        # repeated table caption + column header
@@ -894,6 +980,39 @@ def _normalise_label(label: str, marked: bool = False) -> str:
     return s
 
 
+#: Subordinate instruments whose components are NOT sections. The type word must END the name
+#: (a year may follow), which is where a drafter puts it: "… Rules, 2025". That deliberately
+#: fails to match a name carrying the word in its SUBJECT — "The Interpretation of Rules Act,
+#: 1950" keeps its sections — and equally fails on a type-leading name such as "Rules of Court
+#: 2021", which stays "Section N". Under-reaching here is the safe direction: a missed relabel
+#: leaves a citation in the house style, a wrong one invents a provision that does not exist.
+_SUBSIDIARY_UNIT = [
+    (re.compile(r"\brules\b(?:\s*,?\s*\d{4})?\s*$", re.I), "Rule"),
+    (re.compile(r"\bregulations\b(?:\s*,?\s*\d{4})?\s*$", re.I), "Regulation"),
+    (re.compile(r"\border\b(?:\s*,?\s*\d{4})?\s*$", re.I), "Article"),
+]
+
+
+def _unit_label(label: str, law_name: str) -> str:
+    """Re-title a `Section N` label when the instrument does not have sections.
+
+    The Digital Personal Data Protection Rules, 2025 is India's operative cross-border
+    instrument and its rule 15 is the 6.4 evidence — cited as "Section 15", which is not a
+    provision that exists. A reviewer checking the citation finds nothing, and the row reads as
+    fabricated rather than as mislabelled.
+
+    Deliberately narrow: it fires only on a bare `Section N` produced by the default numbering
+    rule, never on a label the document itself spelled out.
+    """
+    m = re.fullmatch(r"Section (\d+[A-Za-z]{0,2})", label or "")
+    if not m:
+        return label
+    for rx, unit in _SUBSIDIARY_UNIT:
+        if rx.search(law_name or ""):
+            return f"{unit} {m.group(1)}"
+    return label
+
+
 def _mk(doc: DiscoveredDoc, label: str, snippet: str, span, location_ref: str, ocr: OCRMetrics,
         idx: int, law_name: str) -> Provision:
     return Provision(
@@ -902,7 +1021,7 @@ def _mk(doc: DiscoveredDoc, label: str, snippet: str, span, location_ref: str, o
         economy=doc.economy,
         law_name=law_name,
         law_number=doc.law_number,
-        article_section=label,
+        article_section=_unit_label(label, law_name),
         verbatim_snippet=snippet,
         source_url=doc.source_url,
         amendment_date=doc.amendment_date,

@@ -194,22 +194,54 @@ sources:
       separate items carrying their own operative text, section number, parent Act and an
       in-force flag. The HTML front end 502s on /, /browse and /sitemap.xml — the API is the
       way in, not a fallback.
+    # A DOCUMENT here is a SECTION, not an Act — the publisher ships sections as separate
+    # records. `discovery_max_docs` counts documents, so without this declaration India's whole
+    # pillar budget was eighteen PROVISIONS where Singapore's is eighteen STATUTES, and the run
+    # reported "18 documents -> 18 provisions" as though that were a normal result.
+    unit: section
+    # Measured 2026-08-23 against the live API. Each comment is `total corpus matches -> the
+    # Central Acts whose SECTIONS matched`. Precision tracks phrase specificity almost exactly,
+    # which is why these are QUOTED phrases and not the generated bag-of-words queries: the
+    # unquoted form of the first line returns 71 items led by the Commercial Courts Act, the
+    # National Highways Rules and the Andaman & Nicobar Police Manual.
+    queries_p6:
+      - '"personal data" AND "outside India"'   # 19 -> DPDP 2023 (s.16 is the 6.4 answer)
+      - '"transfer of personal data"'           # 4 -> DPDP 2023 only
+      - '"personal data" AND "transfer"'        # 33 -> DPDP 2023 only
+      - '"data" AND "territory of India"'       # 176 -> DPDP 2023, Chemical Weapons Act
+      - '"outside the territory of India"'      # 71 -> DPDP + 5 unrelated (IDF demotes them)
+    queries_p7:
+      - '"personal data" AND "consent"'         # 43 -> DPDP 2023, 13 sections
+      - '"Data Protection Officer"'             # 7 -> DPDP 2023 (7.4)
+      - '"data protection impact"'              # 4 -> DPDP 2023 (7.4)
+      - '"Data Protection Board"'               # 6 -> DPDP 2023 (7.1)
+      - '"reasonable security practices"'       # 17 -> IT Act 2000 s.43A (7.1)
+      - '"sensitive personal data"'             # 18 -> IT Act 2000, Aadhaar Act
+      - '"cyber security"'                      # 67 -> IT Act 2000, Telecommunications Act 2023
+      - '"interception" AND "information"'      # 217 -> IT Act s.69, UAPA 1967 (7.5)
+      - '"monitor" OR "decrypt" AND "information"'   # 33 -> IT Act 2000 (7.5)
+      - '"preserve" AND "traffic data"'         # 12 -> IT Act 2000 s.67C (7.3)
+      - '"retain" AND "period" AND "records"'   # 2709 -> PMLA 2002 (7.3) + 10 unrelated
     note: >-
       CORRECTION. We recorded www.indiacode.nic.in as "a JS shell". It is not: it serves a
       SITE MIGRATION notice (meta refresh to indiacode.gov.in) and its backend is gone, which
       is why every other path there returns 504. The portal moved; we misread the symptom.
       This is now the cleanest source of the nine — no PDF, no OCR, no HTML scraping and no
       article-splitting heuristic, because the publisher ships sections as separate records.
-    note: >-
-      Answers, and answers with nothing: the statute list is rendered client-side, so a plain
-      fetch returns an application shell. This is the Australia failure mode again (an Angular
-      SPA whose full text is JS-gated), and it is why "portal returns 200" is not the same
-      claim as "portal is usable". Needs the browser lane or the site's own JSON endpoint.
+      (A second `note:` used to sit here repeating the "JS shell" claim this one corrects.
+      YAML keeps the LAST duplicate key, so the file asserted the error and discarded the
+      correction. Do not re-add it.)
     notes: >
-      Indian statutes are enacted and published in ENGLISH, so this lane needs no native query
-      pack — the generated English obligation phrases apply unchanged, and the numbered
-      drafting form ("43A. Compensation for failure to protect data.") parses on the same
-      SG/MY branch of the extractor. India is the cheapest of the three to add.
+      SUPERSEDED, and worth keeping because it was wrong in an expensive way: "Indian statutes
+      are published in ENGLISH, so this lane needs no native query pack — the generated English
+      obligation phrases apply unchanged." Sharing a language is not the same as sharing a
+      QUERY MODEL. India Code's `query=` is a loose full-text match with no useful ranking, and
+      the generated pack's name fragments (`companies act`, `labour act`, `income tax act`)
+      exist to match a TITLE on a name-only portal. Fired at a full-text engine they matched
+      any Act whose body mentions the word, and a pillar-6 run came back holding the Indian
+      Reserve Forces Act 1888, the Bonded Labour System (Abolition) Act and the Medical
+      Termination of Pregnancy Act. Nine of eighteen documents arrived that way, and the run
+      logged no error because none occurred. See the two-stage design in adapter_india.py.
 
   - economy: IN
     name: India Code (legacy host, migrated away)

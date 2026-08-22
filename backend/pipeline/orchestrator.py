@@ -97,6 +97,46 @@ def _dedup_provisions_by_law(provisions, docs, log):
     return [p for p in provisions if p.doc_id in kept]
 
 
+def _drop_instruments_with_no_force(mappings: list, log) -> list:
+    """Remove rows citing a DRAFT or a REPEALED instrument. Amending acts stay.
+
+    `rdtii/instrument.py` already recognised all three and the row already carried a warning in
+    Notes — "Draft or bill — not in force, so it scores zero as a measure." — but nothing acted
+    on it, so a China pillar-7 submission carried two consultation drafts as evidence, at
+    confidence 1.00 and 0.83. A warning nobody reads is not a control.
+
+    The three statuses do NOT deserve the same treatment, which is why this is not a blanket
+    filter:
+
+      AMENDING   the finding is real and the rule is in force — the citation just names the
+                 amending act instead of the principal. Dropping it loses genuine evidence, so
+                 it stays with its warning.
+      DRAFT      has no legal force at all. `互联网信息服务管理办法（修订草案征求意见稿）` is a
+                 consultation notice; its article 39 is a PROPOSAL. The Indicator Reference is
+                 explicit that a draft scores zero, so citing one is a false positive, not a
+                 mislabelled citation.
+      REPEALED   the same, for the opposite reason.
+
+    Dropping the row can leave an indicator with nothing, and that is the correct outcome: the
+    placeholder that follows says "No provision found", which is an honest answer where citing
+    a draft is a wrong one.
+    """
+    from ..rdtii import instrument
+
+    kept, dropped = [], []
+    for m in mappings:
+        status = instrument.classify(m.law_name)
+        if status in (instrument.Status.DRAFT, instrument.Status.REPEALED):
+            dropped.append((m, status))
+        else:
+            kept.append(m)
+    for m, status in dropped:
+        log(f"[force] dropped {m.indicator_id} — {status.value}: {m.law_name[:60]}")
+    if dropped:
+        log(f"[force] {len(dropped)} row(s) cited an instrument with no legal force")
+    return kept
+
+
 def _no_evidence_placeholders(run_id, economy, indicators, mappings, log) -> list:
     """Explicit 'No evidence' row per indicator with no submittable mapping."""
     from ..schemas import DiscoveryTag, EvidenceMapping, ReviewStatus, SUBMITTABLE_STATUSES
@@ -426,6 +466,9 @@ def run_pipeline(
     if do_score and mappings:
         log(f"[score] scoring {len(mappings)} measures (LLM={llm.name})")
         scoring.score_mappings(mappings, llm=llm, log=log)
+
+    # A draft or a repealed instrument is not evidence, whatever it says.
+    mappings = _drop_instruments_with_no_force(mappings, log)
 
     # indicators with no evidence still need an explicit placeholder row (blank = penalty)
     mappings.extend(_no_evidence_placeholders(run_id, economy, indicators, mappings, log))
