@@ -187,3 +187,60 @@ def test_the_india_query_pack_is_phrases_not_law_names():
     india = [s for s in load_sources() if s.get("adapter") == "in_dspace"][0]
     for q in india["queries_p6"] + india["queries_p7"]:
         assert '"' in q, f"{q!r} is not a phrase query"
+
+
+# ── the section marker: 53 of 125 sections were cited as "(document)" ──────────────────────
+
+def _sec(number, text):
+    return {"handle": "1/1", "name": "H", "metadata": {
+        "dc.identifier.collection": [{"value": "SECTION"}],
+        "dc.identifier.section_number": [{"value": number}],
+        "dc.identifier.section_page_note": [{"value": text}],
+        "dc.title.act_name": [{"value": "The Information Technology Act, 2000"}],
+        "dc.identifier.state_name": [{"value": "CENTRAL"}]}}
+
+
+@pytest.mark.parametrize("number, raw, expect", [
+    # The four shapes India Code actually publishes, measured across the IT Act 2000 and the
+    # DPDP Act 2023: 64 sections open on "(1)", 53 on prose, 33 on a footnote marker, 16 on
+    # their own number, 3 on a number with a space before the stop.
+    ("86", "(1) If any difficulty arises in giving effect to the provisions",
+     "86. (1) If any difficulty arises in giving effect to the provisions"),
+    ("66E", "Whoever, intentionally or knowingly captures the image",
+     "66E. Whoever, intentionally or knowingly captures the image"),
+    ("40A", "1 [40A. Duties of subscriber of Electronic Signature Certificate. --In respect]",
+     "40A. Duties of subscriber of Electronic Signature Certificate. --In respect"),
+    ("21", "21. Licence to issue Certificates. --(1) Subject to the provisions",
+     "21. Licence to issue Certificates. --(1) Subject to the provisions"),
+    # A space before the stop, and the bracket the marker opened is closed mid-line — so the
+    # orphaned closer goes too, rather than being left in the snippet as punctuation the
+    # statute never wrote.
+    ("91", "91 . [ Amendment of Act 45 of 1860 .] Omitted",
+     "91. Amendment of Act 45 of 1860 . Omitted"),
+    # A closing bracket where the marker opens — the portal's own rendering, not a typo of ours.
+    ("70B", "1 ]70B. Indian Computer Emergency Response Team to serve as national agency",
+     "70B. Indian Computer Emergency Response Team to serve as national agency"),
+    # The footnote number absent, bracket alone.
+    ("79A", "[79A. Central Government to notify Examiner of Electronic Evidence. --The]",
+     "79A. Central Government to notify Examiner of Electronic Evidence. --The"),
+])
+def test_the_section_marker_appears_exactly_once_at_the_front(number, raw, expect):
+    """`_NUMBERED_RE` needs a CAPITAL after the stop — the guard that stops every "26. 3"
+    cross-reference in a statute from opening a new provision. The old seed prepended the
+    number unconditionally, producing "69B. 1 [69B. Power …" and "21. 21. Licence …", and a
+    doubled marker is not a marker: the section fell to the whole-document fallback and was
+    cited with no article number at all."""
+    assert A.body_text(_sec(number, raw)) == expect
+
+
+def test_a_section_repealed_in_its_text_is_dropped(monkeypatch):
+    """India Code keeps omitted sections in place and records the repeal in the TEXT, not in
+    `dc.identifier.repealed`, so the in-force flag says nothing. The IT Act carries 15 of them
+    and a repealed provision scores zero."""
+    live = _sec("43A", "Compensation for failure to protect data. --Where a body corporate")
+    dead = _sec("49", "[Composition of Cyber Appellate Tribunal.] Omitted by the Finance Act, 2017")
+    assert not A.is_omitted(live)
+    assert A.is_omitted(dead)
+    monkeypatch.setattr(A, "_get", lambda *a, **k: _wrap([live, dead]))
+    assert [A._md(i, "dc.identifier.section_number")
+            for i in A.act_sections(None, "The Information Technology Act, 2000")] == ["43A"]

@@ -22,9 +22,17 @@ from backend.pipeline.extraction import _recover_short_title, _unit_label
      "Personal Data Protection Act 2010"),
     ("1. This Act may be called the Information Technology Act, 2000.",
      "Information Technology Act, 2000"),
-    # The clause continues past the name; the joining word ends it.
+    # The clause continues past the name; the year ends it, not the "and".
     ("These regulations may be known as the Cybersecurity Regulations 2018 and shall come "
      "into operation on 31 August 2018.", "Cybersecurity Regulations 2018"),
+    # The title's OWN parenthetical contains "and". Cutting the clause at " and " — the first
+    # attempt — reduced this to "Information Technology (Intermediary Guidelines", which has no
+    # year and was therefore rejected, leaving India's IT Rules 2021 named by the PDF's
+    # filename: a 32-character hash, in the Law Name column of the submission.
+    ("(1) These rules may be called the Information Technology (Intermediary Guidelines and "
+     "Digital Media Ethics Code) Rules, 2021 and shall come into force at once.",
+     "Information Technology (Intermediary Guidelines and Digital Media Ethics Code) "
+     "Rules, 2021"),
 ])
 def test_the_instrument_names_itself(text, expect):
     assert _recover_short_title(text) == expect

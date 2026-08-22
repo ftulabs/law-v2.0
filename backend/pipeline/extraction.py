@@ -156,11 +156,31 @@ def _trim_trailing_furniture(body: str) -> str:
         if not last:
             lines.pop()
             continue
-        if _CMS_LINE.search(last) or (len(last) <= 40 and not _SENTENCE_END.search(last)):
+        if _is_furniture_line(last):
             lines.pop()
             continue
         break
-    return "\n".join(lines).strip()
+    out = "\n".join(lines).strip()
+    # Never return nothing. The docstring above used to claim this "can only ever eat the tail"
+    # — true for a multi-line page, false for a body that is ONE line, where the tail is
+    # everything. India Code publishes a section as a single line, and section 3 of the
+    # Information Technology Act vanished entirely: no provision, no error, no log.
+    return out or body.strip()
+
+
+#: A CMS stamp is a SHORT line. The length bound is not cosmetic: `produced by` is in the list
+#: to catch a "Produced by …" footer, and it was matched with `.search` against the whole line,
+#: so it fired inside statutory prose — "the hash result produced by the algorithm" (IT Act
+#: s.3), "have been produced by a computer" (s.43) — and took the provision with it.
+_FURNITURE_MAX = 120
+
+
+def _is_furniture_line(line: str) -> bool:
+    """True for a trailing line that is site chrome rather than law."""
+    if len(line) > _FURNITURE_MAX:
+        return False                      # too long to be a footer, whatever it contains
+    return bool(_CMS_LINE.search(line)
+                or (len(line) <= 40 and not _SENTENCE_END.search(line)))
 
 
 _APP_HEADING_RE = re.compile(
@@ -586,8 +606,16 @@ def _recover_law_name(text: str) -> str | None:
 #: page in another language. Kept as a fallback rather than the primary rule because the
 #: header-region paths above are already measured against SG/MY/AU, and this must not move a
 #: name those runs already get right.
+#: The capture ENDS AT THE YEAR, non-greedily, because a short title always does. That is what
+#: bounds the name — the clause runs on ("… Rules, 2021 and shall come into force at once") and
+#: an earlier attempt cut it at " and ", which fired inside the title's own parenthetical and
+#: reduced "The Information Technology (Intermediary Guidelines and Digital Media Ethics Code)
+#: Rules, 2021" to "Information Technology (Intermediary Guidelines". That has no year, so it
+#: was rejected, and India's IT Rules 2021 kept the PDF's filename — a 32-character hash — as
+#: its Law Name.
 _SHORT_TITLE_RE = re.compile(
-    r"\bmay\s+be\s+(?:called|cited\s+as|known\s+as)\s+(?:the\s+)?([^.;]{6,120})",
+    r"\bmay\s+be\s+(?:called|cited\s+as|known\s+as)\s+(?:the\s+)?"
+    r"([^.;]{6,120}?\b(?:19|20)\d{2})",
     re.IGNORECASE)
 
 
@@ -606,10 +634,7 @@ def _recover_short_title(text: str) -> str | None:
     flat = re.sub(r"\s+", " ", text or "")
     for m in _SHORT_TITLE_RE.finditer(flat):
         name = re.sub(r"\s+", " ", m.group(1)).strip().strip(",")
-        # A short-title clause often continues "… Rules, 2025 and shall come into force …";
-        # cut at the joining clause so the year ends the name.
-        name = re.split(r"\s+(?:and|which|whichever)\s+", name, maxsplit=1)[0].strip()
-        if 6 <= len(name) <= 120 and _LAW_TYPE_RE.search(name) and _YEAR_RE.search(name):
+        if 6 <= len(name) <= 120 and _LAW_TYPE_RE.search(name):
             return name
     return None
 

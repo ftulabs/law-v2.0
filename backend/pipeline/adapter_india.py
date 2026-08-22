@@ -268,6 +268,8 @@ def act_sections(client, act: str, log=lambda _m: None) -> list[dict]:
                 continue      # act_name is a phrase match, so a longer title can slip in
             if not section_text(item):
                 continue
+            if is_omitted(item):
+                continue      # repealed in the text, not in the in-force flag
             handle = item.get("handle") or ""
             if handle in seen:
                 continue
@@ -326,6 +328,73 @@ def _doc(item: dict, src: dict, economy: Economy, score: float) -> DiscoveredDoc
         amendment_date=(year or None))
 
 
+#: India Code renders amended text with the publisher's own footnote marker: `1 [40A. Duties
+#: of subscriber …]`. That is editorial apparatus, not the statute, and it also hides the
+#: section marker behind a digit.
+#: `[\[\]]` because the portal's own rendering is not consistent: s.70B of the IT Act opens
+#: `1 ]70B. Indian Computer Emergency Response Team …` — a closing bracket where the marker
+#: opens. Matching only `[` left that section with no readable marker.
+_FOOTNOTE_LEAD = re.compile(r"^\d+\s*[\[\]]\s*")
+#: The same apparatus with the footnote number absent: s.79A opens `[79A. Central Government …`.
+_BRACKET_LEAD = re.compile(r"^\[\s*")
+
+
+def body_text(item: dict) -> str:
+    """The section's text with exactly one section marker, at the front.
+
+    India Code publishes `section_page_note` in four shapes, and the difference is invisible
+    until something reads the marker. Measured across the Information Technology Act 2000 and
+    the DPDP Act 2023: 64 sections open on `(1)`, 53 on prose, 33 on a footnote marker, 16 on
+    their own number, 3 on a number with a space before the stop.
+
+    The old seed prepended `{sec}. ` to all of them, so a third of the Act came out as
+    `69B. 1 [69B. Power to authorise …` and `21. 21. Licence to issue …`. A doubled marker is
+    not a marker: `_boundaries` requires a non-digit after the stop — otherwise every "26. 3"
+    cross-reference in a statute would open a new provision — so it found nothing, the whole
+    section fell to the whole-document fallback, and 53 of the Act's 125 sections were cited
+    as "(document)" with no article number at all. The citation column is the row's
+    checkability, so that is a submission defect, not a cosmetic one.
+    """
+    text = section_text(item)
+    if not text:
+        return ""
+    sec = _md(item, "dc.identifier.section_number")
+    own_number = re.compile(r"^" + re.escape(sec) + r"\s*\.\s*") if sec else None
+    # Peel the publisher's apparatus off the front until the statute's own words are first.
+    # Order is not fixed — `1 [40A. Duties …`, `72A. 2 [Penalty] …`, `91 . [ Amendment …` — so
+    # this loops rather than applying a fixed sequence.
+    for _ in range(4):
+        before = text
+        text = _FOOTNOTE_LEAD.sub("", text).lstrip()
+        text = _BRACKET_LEAD.sub("", text).lstrip()
+        if own_number:
+            text = own_number.sub("", text).lstrip()
+        if text == before:
+            break
+    # A bracket the leading marker opened is now unmatched. Drop the surplus closer so the
+    # snippet neither ends nor opens on punctuation the statute did not write.
+    while text.count("]") > text.count("["):
+        i = text.rfind("]")
+        text = text[:i] + text[i + 1:]
+    if sec:
+        # Re-add the marker once, in the canonical form. `_NUMBERED_RE` requires a CAPITAL
+        # after the stop — the guard that stops every "26. 3" cross-reference in a statute from
+        # opening a new provision — so the peeling above is what makes the marker readable.
+        text = f"{sec}. {text}"
+    return text.strip()
+
+
+#: India Code keeps repealed sections in place, with the repeal recorded in the text rather
+#: than in `dc.identifier.repealed`: "[Composition of Cyber Appellate Tribunal.] Omitted by the
+#: Finance Act, 2017 (7 of 2017), s. 169". The in-force flag says nothing, so without this the
+#: Act's omitted sections are graded and can be cited — and a repealed provision scores zero.
+_OMITTED = re.compile(r"\bomitted\s+by\b|\brepealed\s+by\b", re.I)
+
+
+def is_omitted(item: dict) -> bool:
+    return bool(_OMITTED.search(section_text(item)[:200]))
+
+
 def _seed(item: dict, doc: DiscoveredDoc, log) -> None:
     """Put the section's text where `fetch` will find it.
 
@@ -335,9 +404,8 @@ def _seed(item: dict, doc: DiscoveredDoc, log) -> None:
     image layer to read, which is a property of this portal rather than a step being skipped.
     """
     heading = (item.get("name") or "").strip()
-    sec = _md(item, "dc.identifier.section_number")
     body = (f"<html><body><h1>{heading}</h1>"
-            f"<p>{sec}. {section_text(item)}</p></body></html>").encode("utf-8")
+            f"<p>{body_text(item)}</p></body></html>").encode("utf-8")
     try:
         from .fetch import seed_cache
         seed_cache(doc.source_url, body, "text/html", log=lambda _m: None)
