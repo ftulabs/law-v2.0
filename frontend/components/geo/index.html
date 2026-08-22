@@ -341,7 +341,11 @@ function hatch(kind, colour){
 function draw(){
   if (!ctx) return;
   var ink = cssv("--ink", "#0f172a"), rule = cssv("--rule", "#e2e8f0");
-  var sea = cssv("--panel", "#f8fafc"), land = mix(cssv("--ink-faint","#94a3b8"), sea, 0.55);
+  var sea = cssv("--panel", "#f8fafc");
+  /* The rest of the world is context, not data, so it sits close to the sea — but "close" is
+     not the same distance in both themes. A single mix factor left the dark globe almost
+     unreadable, land and ocean separated by a few points of luminance. */
+  var land = mix(cssv("--ink-faint", "#94a3b8"), sea, themeName === "dark" ? 0.34 : 0.55);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.clearRect(0, 0, W, H);
 
