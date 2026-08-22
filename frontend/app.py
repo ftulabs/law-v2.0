@@ -18,6 +18,7 @@ Same backend the CLI/API use. Run:  streamlit run frontend/app.py
 from __future__ import annotations
 
 import html as _html_mod
+import logging
 import queue
 import sys
 import threading
@@ -29,6 +30,21 @@ import pandas as pd
 import base64
 
 import streamlit as st
+
+# Streamlit's source watcher walks every imported module's `__path__` to decide what to
+# watch. `transformers` resolves that attribute through a LAZY importer, so the walk actually
+# imports submodules — and some of them need `torchvision`, which we do not install. Every miss
+# is caught by the watcher and logged as a full traceback: one session produced 368 of them
+# plus 808 "[transformers] Accessing __path__" lines, 9,344 lines of log for an app that was
+# working perfectly. Nothing was broken; it just looked broken, which during a 30-minute
+# install is the same thing.
+#
+# Silencing that ONE logger is the whole fix. The first attempt was
+# `fileWatcherType = "none"` in config.toml, which was worse than the problem: with the
+# watcher off Streamlit also stops reloading changed modules, so a long-running server keeps
+# serving stale code and reports it as `AttributeError: module has no attribute …` on a
+# function that plainly exists. Hot reload stays on.
+logging.getLogger("streamlit.watcher.local_sources_watcher").setLevel(logging.ERROR)
 
 # allow `import backend...` when launched via `streamlit run frontend/app.py`
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))

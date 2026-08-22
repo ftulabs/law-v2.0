@@ -40,38 +40,40 @@ LLM_ORDER = ["openrouter", "anthropic", "openai", "gemini", "local", "mock"]
 OCR: dict[str, dict] = {
     "rapidocr": {
         "name": "RapidOCR",
-        "role": "Recognises the words in a scanned page as an image. The default, and the "
-                "engine the accuracy claim is based on.",
+        "role": "Reads a scan. The default.",
+        "why": "Recognises the words in a scanned page as an image — the engine the "
+               "accuracy claim is based on.",
         "bundled": "Ships with the app",
     },
     "markitdown": {
         "name": "MarkItDown",
-        "role": "Reads a PDF's own text layer — an exact copy, instantly. It is not an OCR "
-                "engine, so it cannot read a scan at all.",
+        "role": "Reads a text layer. Exact, instant.",
+        "why": "Copies a PDF's own text layer. Not an OCR engine, so it cannot read "
+               "a scan at all.",
         "bundled": "Ships with the app",
     },
     "paddle": {
         "name": "PaddleOCR",
-        "role": "Built for non-Latin script — the reader to switch to for Thai, Chinese and "
-                "Mongolian law in the finals.",
+        "role": "Non-Latin script.",
+        "why": "Built for Thai, Chinese and Mongolian text — the reader to switch to when the corpus stops being Latin.",
         "bundled": "Optional · a ~1 GB extra",
     },
     "azure": {
         "name": "Azure Document Intelligence",
-        "role": "A cloud reader, strongest on damaged, skewed, real-world gazette scans. "
-                "Bring your own key — pages are sent to Microsoft.",
+        "role": "Cloud. Best on damaged scans.",
+        "why": "Strongest on skewed, real-world gazette scans. Bring your own key — pages are sent to Microsoft.",
         "bundled": "Optional · bring a key",
     },
     "tesseract": {
         "name": "Tesseract",
-        "role": "The classic open-source reader. Needs a system binary, so it cannot be "
-                "installed from Python alone.",
+        "role": "Classic open-source reader.",
+        "why": "Needs a system binary, so it cannot be installed from Python alone.",
         "bundled": "Optional · system install",
     },
     "mock": {
         "name": "Offline stand-in",
-        "role": "Does not read anything — returns the sample's stored text so a demo runs "
-                "with no network. Never use it for a submission.",
+        "role": "Replays stored text. Demo only.",
+        "why": "Does not read anything. Never use it for a submission.",
         "bundled": "Ships with the app",
     },
 }
@@ -81,40 +83,40 @@ LLM: dict[str, dict] = {
     "openrouter": {
         "name": "OpenRouter",
         "kind": "gateway",
-        "role": "A gateway, not a model. One key reaches many models — choose which one "
-                "below. If a model rate-limits, the run fails over to the next.",
+        "role": "Gateway. One key, many models.",
+        "why": "Choose the model below. If one rate-limits, the run fails over to the next.",
         "facts": [("Key", "one, for every model", ""), ("Cost", "pay per token", ""),
                   ("Model", "you choose below", "good"), ("Text", "sent to the provider", "warn")],
     },
     "anthropic": {
         "name": "Anthropic Claude",
         "kind": "direct",
-        "role": "Straight to Anthropic on your own account. Strong on the indicator pairs "
-                "that get confused — 6.1 against 6.4, 7.1 against 7.2.",
+        "role": "Direct to Anthropic.",
+        "why": "Strong on the indicator pairs that get confused — 6.1 against 6.4, 7.1 against 7.2.",
         "facts": [("Key", "your Anthropic key", ""), ("Cost", "pay per token", ""),
                   ("Model", "you name it below", "good"), ("Text", "sent to Anthropic", "warn")],
     },
     "openai": {
         "name": "OpenAI",
         "kind": "direct",
-        "role": "Straight to OpenAI on your own account — useful for cross-checking a run "
-                "made with a different provider.",
+        "role": "Direct to OpenAI.",
+        "why": "Useful for cross-checking a run made with a different provider.",
         "facts": [("Key", "your OpenAI key", ""), ("Cost", "pay per token", ""),
                   ("Model", "you name it below", "good"), ("Text", "sent to OpenAI", "warn")],
     },
     "gemini": {
         "name": "Google Gemini",
         "kind": "direct",
-        "role": "Straight to Google. Strong multilingual reading, which matters once the "
-                "corpus stops being English.",
+        "role": "Direct to Google.",
+        "why": "Strong multilingual reading, which matters once the corpus stops being English.",
         "facts": [("Key", "your Google key", ""), ("Cost", "pay per token", ""),
                   ("Model", "you name it below", "good"), ("Text", "sent to Google", "warn")],
     },
     "local": {
         "name": "Self-hosted",
         "kind": "local",
-        "role": "Any OpenAI-compatible server you run — Ollama, vLLM, LM Studio. No key, no "
-                "network, nothing about the documents leaves the building.",
+        "role": "Your own server. No key, no network.",
+        "why": "Any OpenAI-compatible server — Ollama, vLLM, LM Studio. Nothing about the documents leaves the building.",
         "facts": [("Key", "none", "good"), ("Cost", "free", "good"),
                   ("Model", "whatever you serve", "good"),
                   ("Text", "never leaves your machine", "good")],
@@ -122,8 +124,8 @@ LLM: dict[str, dict] = {
     "mock": {
         "name": "Offline stand-in",
         "kind": "offline",
-        "role": "Keyword rules, not a model. Reproducible with no network — but it confuses "
-                "6.1 with 6.4, so never use it for a submission.",
+        "role": "Keyword rules, not a model.",
+        "why": "Reproducible with no network, but it confuses 6.1 with 6.4. Never use it for a submission.",
         "facts": [("Key", "none", "good"), ("Cost", "free", "good"),
                   ("Judgement", "keywords only", "warn"),
                   ("Text", "never leaves your machine", "good")],
@@ -133,7 +135,7 @@ LLM: dict[str, dict] = {
 CSS = """
   .eb{border:1px solid var(--rule);border-radius:13px;background:var(--panel);
     padding:.85rem .95rem .6rem;box-shadow:var(--shadow);position:relative;
-    display:flex;flex-direction:column;min-height:206px;
+    display:flex;flex-direction:column;min-height:168px;
     transition:border-color .18s ease, box-shadow .18s ease;}
   .eb:hover{border-color:color-mix(in srgb,var(--accent) 55%,transparent);}
   .eb.on{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft),var(--shadow);}
@@ -142,7 +144,8 @@ CSS = """
   .eb .st{margin-left:auto;width:9px;height:9px;border-radius:50%;flex:none;}
   .eb .st.up{background:var(--good);box-shadow:0 0 0 3px var(--good-soft);}
   .eb .st.off{background:var(--ink-faint);opacity:.55;}
-  .eb .role{font-size:.74rem;color:var(--ink-soft);margin:.4rem 0 .5rem;line-height:1.5;}
+  .eb .role{font-size:.75rem;color:var(--ink-soft);margin:.35rem 0 .45rem;
+    line-height:1.45;}
   .eb .ship{font-size:.63rem;color:var(--ink-faint);text-transform:uppercase;
     letter-spacing:.05em;margin-bottom:.4rem;}
   .eb .ship.in{color:var(--good);}
@@ -242,7 +245,11 @@ def _card(spec: dict, ready: bool, note: str, selected: bool,
         shipline = f'<div class="ship{" in" if bundled else ""}">{ship}</div>'
     body = (f'<div class="facts">{facts_html}</div>' if facts_html
             else f'<div class="unmeasured">{unmeasured}</div>')
-    return (f'<div class="eb{" on" if selected else ""}">{tag}'
+    # The long explanation moves to `title`, so it is one hover away instead of three lines
+    # of body copy on every one of twelve cards. What stays visible is the one thing that
+    # distinguishes this engine from its neighbours.
+    why = spec.get("why", "")
+    return (f'<div class="eb{" on" if selected else ""}"{f" title={why!r}" if why else ""}>{tag}'
             f'<div class="ebh"><b>{spec["name"]}</b>'
             f'<span class="st {dot}" title="{title}"></span></div>'
             f'{shipline}<div class="role">{spec["role"]}</div>{body}</div>')
@@ -264,70 +271,90 @@ def _order(preferred: list[str], available: list[str]) -> list[str]:
 def _ocr_bench(current: str, scope: str, note: str = "") -> None:
     bench = _bench()
     names = _order(OCR_ORDER, reg.OCR_PROVIDERS)
-    cols = st.columns(3, gap="small")
-    for i, name in enumerate(names):
-        spec = OCR.get(name)
-        if not spec:
-            continue
-        av = reg.ocr_availability(name)
-        selected = name == current
-        facts, unmeasured = _ocr_facts(name, bench, av.ready)
-        with cols[i % 3]:
-            st.markdown(_card(spec, av.ready, av.note, selected, facts, unmeasured,
-                              spec.get("bundled")), unsafe_allow_html=True)
-            # An engine that is not installed stays visible but unselectable — hiding it
-            # would make the app look like it has fewer options than it has. The install
-            # command goes in the tooltip; as a label it truncated to "pip install azure-".
-            label = "In use" if selected else ("Use this" if av.ready else "Needs installing")
-            if st.button(label, key=f"{scope}_ocr_{name}", width="stretch",
-                         help=None if av.ready else f"Not installed here — {av.note}",
-                         type="primary" if selected else "secondary",
-                         disabled=selected or not av.ready):
-                st.session_state["ocr_provider"] = name
-                st.rerun()
+    ready = [n for n in names if n in OCR and reg.ocr_availability(n).ready]
+    absent = [n for n in names if n in OCR and n not in ready]
+
+    def _draw(subset: list[str], tag: str) -> None:
+        cols = st.columns(3, gap="small")
+        for i, name in enumerate(subset):
+            spec, av = OCR[name], reg.ocr_availability(name)
+            selected = name == current
+            facts, unmeasured = _ocr_facts(name, bench, av.ready)
+            with cols[i % 3]:
+                st.markdown(_card(spec, av.ready, av.note, selected, facts, unmeasured,
+                                  spec.get("bundled")), unsafe_allow_html=True)
+                # An engine that is not installed stays SELECTABLE-LOOKING but disabled —
+                # hiding it entirely would make the app look like it has fewer options than
+                # it has. The install command goes in the tooltip; as a label it truncated
+                # to "pip install azure-".
+                label = "In use" if selected else ("Use this" if av.ready else "Not installed")
+                if st.button(label, key=f"{scope}_ocr_{tag}_{name}", width="stretch",
+                             help=None if av.ready else f"Not installed here — {av.note}",
+                             type="primary" if selected else "secondary",
+                             disabled=selected or not av.ready):
+                    st.session_state["ocr_provider"] = name
+                    st.rerun()
+
+    _draw(ready, "on")
+    if absent:
+        # Behind a fold rather than gone. Twelve cards on one screen was the complaint; the
+        # ones you cannot pick today are the ones that earn their place least.
+        with st.expander(f"{len(absent)} more readers, not installed on this machine"):
+            _draw(absent, "off")
 
     if note:
         st.markdown(f'<div class="ebnote"><div>{note}</div></div>', unsafe_allow_html=True)
 
     b = _bench()
-    stamp = (f'Measured {b.get("measured_on", "—")} on {b.get("machine", "this machine")}, '
-             f'over <code>{b.get("sample", "the bundled scan")}</code>.' if b else
-             'No measurements recorded yet — run <code>python tools/bench_ocr.py</code>.')
-    st.markdown(
-        '<div class="ebnote"><div><b>RapidOCR and MarkItDown ship with the app</b> — between '
-        'them they cover a scanned page and a text PDF, so nothing needs installing for a '
-        'normal run. PaddleOCR is a ~1 GB extra, and the measurement is why it stays optional: '
-        'on this page it was no more accurate than RapidOCR and about 140× slower on CPU, '
-        'which is a day’s work for a hundred-page Act. It is the reader for non-Latin '
-        'script, but not at that speed. Tesseract needs a system binary and Azure needs a key, '
-        'so neither can be bundled.<br><br>' + stamp + '</div></div>',
-        unsafe_allow_html=True)
+    stamp = (f'measured {b.get("measured_on", "—")} on {b.get("machine", "this machine")} '
+             f'over <code>{b.get("sample", "the bundled scan")}</code>' if b else
+             'not measured yet — run <code>python tools/bench_ocr.py</code>')
+    st.caption(f"RapidOCR and MarkItDown ship with the app and cover a scan and a text PDF "
+               f"between them — nothing to install for a normal run · {stamp}",
+               unsafe_allow_html=True)
+    with st.expander("Why PaddleOCR is optional, not the default"):
+        st.markdown(
+            "It is a ~1 GB extra, and the measurement is the reason it stays optional: on the "
+            "bundled page it was **no more accurate than RapidOCR and about 140× slower on "
+            "CPU** — a day's work for a hundred-page Act. It is still the reader to switch to "
+            "for non-Latin script, but not at that speed.\n\n"
+            "Tesseract needs a system binary and Azure needs a key, so neither can be bundled.")
 
 
 def _llm_bench(current: str, scope: str) -> None:
-    names = _order(LLM_ORDER, reg.LLM_PROVIDERS)
-    cols = st.columns(3, gap="small")
-    for i, name in enumerate(names):
-        spec = LLM.get(name)
-        if not spec:
-            continue
-        av = reg.llm_availability(name, api_key=st.session_state.get("llm_key"))
-        selected = name == current
-        facts = "".join(f'<div class="fx"><b class="{tone}">{v}</b><span>{lab}</span></div>'
-                        for lab, v, tone in spec["facts"])
-        with cols[i % 3]:
-            st.markdown(_card(spec, av.ready, av.note, selected, facts, ""),
-                        unsafe_allow_html=True)
-            # Never blocked for want of a key. Choosing the route is how you GET to the field
-            # that takes the key — refusing the click was a dead end with no way forward.
-            lib_missing = av.note.startswith("pip install")
-            if st.button("In use" if selected else "Use this",
-                         key=f"{scope}_llm_{name}", width="stretch",
-                         help=av.note if lib_missing else None,
-                         type="primary" if selected else "secondary",
-                         disabled=selected or lib_missing):
-                st.session_state["llm_provider"] = name
-                st.rerun()
+    names = [n for n in _order(LLM_ORDER, reg.LLM_PROVIDERS) if n in LLM]
+
+    def _draw(subset: list[str], tag: str) -> None:
+        cols = st.columns(3, gap="small")
+        for i, name in enumerate(subset):
+            spec = LLM[name]
+            av = reg.llm_availability(name, api_key=st.session_state.get("llm_key"))
+            selected = name == current
+            facts = "".join(f'<div class="fx"><b class="{tone}">{v}</b><span>{lab}</span></div>'
+                            for lab, v, tone in spec["facts"])
+            with cols[i % 3]:
+                st.markdown(_card(spec, av.ready, av.note, selected, facts, ""),
+                            unsafe_allow_html=True)
+                # Never blocked for want of a key. Choosing the route is how you GET to the
+                # field that takes the key — refusing the click was a dead end.
+                lib_missing = av.note.startswith("pip install")
+                if st.button("In use" if selected else "Use this",
+                             key=f"{scope}_llm_{tag}_{name}", width="stretch",
+                             help=av.note if lib_missing else None,
+                             type="primary" if selected else "secondary",
+                             disabled=selected or lib_missing):
+                    st.session_state["llm_provider"] = name
+                    st.rerun()
+
+    # The route in use, plus the two that need no account, stay on screen. The rest are a
+    # click away — they are all "your own key, direct to the vendor" and differ only in which
+    # vendor, which the fold's label already says.
+    front = [n for n in names if n == current or n in ("openrouter", "local", "mock")]
+    rest = [n for n in names if n not in front]
+    _draw(front, "on")
+    if rest:
+        with st.expander(f"{len(rest)} more routes — direct to a vendor, on your own key"):
+            _draw(rest, "off")
 
     _llm_setup(current, scope)
 
@@ -442,12 +469,10 @@ def render(ocr_current: str, llm_current: str, scope: str = "eb",
 
     theme.inject_style(CSS)
 
-    st.markdown('<div class="kicker" style="margin:.2rem 0 .1rem">Reading the documents '
-                '<span class="muted">— how a PDF becomes text</span></div>',
-                unsafe_allow_html=True)
+    st.markdown('<div class="kicker" style="margin:.2rem 0 .1rem">Reading the documents'
+                '</div>', unsafe_allow_html=True)
     _ocr_bench(ocr_current, scope, ocr_note)
 
-    st.markdown('<div class="kicker" style="margin:1.4rem 0 .1rem">Judging the law '
-                '<span class="muted">— which model decides that a provision meets an '
-                'indicator</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="kicker" style="margin:1.6rem 0 .1rem">Judging the law'
+                '</div>', unsafe_allow_html=True)
     _llm_bench(llm_current, scope)

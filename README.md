@@ -74,6 +74,12 @@ streamlit run frontend/app.py                       # → http://localhost:8501
 minutes**, written to `outputs/`. A live run takes **6–9 minutes** per economy-pillar, most of
 it embedding on CPU.
 
+**After a `git pull`, restart the server.** Streamlit re-executes the main script on every
+interaction but does not re-import modules that are already loaded, so a server left running
+across a code change serves a mix of old and new files. It reports that as
+`AttributeError: module 'frontend.geo' has no attribute 'readiness'` on a function that plainly
+exists — the error names the symptom and not the cause. Ctrl-C and start it again.
+
 **Everything else happens in the interface** — starting a run, reviewing, correcting, switching
 engines, exporting. You should not need the command line again. `AUTH_ENABLED=false` skips the
 sign-in screen for a demo.
