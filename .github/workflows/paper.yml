@@ -1,0 +1,109 @@
+# Publish paper/ to its own repository and to Overleaf, on every push that
+# touches it.
+#
+# Two hops, one source of truth:
+#
+#   law-v2.0/paper/  --(1)-->  ftulabs/rdtii-bench-paper  (a small repo Overleaf
+#                                                          can import; also what
+#                                                          Overleaf's own GitHub
+#                                                          Sync points at)
+#                    --(2)-->  git.overleaf.com/<id>      (the live project,
+#                                                          updated with no clicks)
+#
+# Direction is deliberate. Overleaf cannot run the pipeline: everything under
+# paper/generated/ and paper/cases/ comes from `ledger figures` and
+# `bench.case_studies`, and editing it in Overleaf would make `ledger verify`
+# fail on the next build. So the repository is the source of truth and Overleaf
+# holds a snapshot of it.
+#
+# Neither push is forced. If someone has edited the Overleaf project, hop 2
+# fails rather than overwriting their paragraph -- recover it with
+# `tools/overleaf.sh pull`, commit, and the next push succeeds.
+name: paper
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'paper/**'
+      - '.github/workflows/paper.yml'
+  workflow_dispatch:
+
+# Two pushes to the same two remotes must not interleave.
+concurrency:
+  group: paper-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the paper is self-contained
+        run: |
+          # Overleaf compiles what it is given and nothing else, so everything
+          # paper.tex inputs has to be committed. Checking here turns "the
+          # Overleaf build is broken" into "this job failed, and said which file".
+          missing=0
+          for f in paper/paper.tex paper/references.bib paper/latexmkrc \
+                   paper/generated/values.tex paper/generated/claims.tex \
+                   paper/generated/assets.json paper/cases/cases.tex \
+                   paper/style/iclr2027/iclr2027_conference.sty \
+                   paper/style/iclr2027/iclr2027_conference.bst; do
+            [ -f "$f" ] || { echo "missing: $f"; missing=1; }
+          done
+          # A .tex that inputs a file nobody committed fails the same way.
+          grep -ho '\\input{[^}]*}' paper/*.tex paper/cases/*.tex \
+            | sed 's/.*{\(.*\)}/\1/' | while read -r rel; do
+              [ -f "paper/$rel" ] || [ -f "paper/$rel.tex" ] \
+                || { echo "paper.tex inputs $rel, which is not committed"; exit 1; }
+            done
+          exit $missing
+
+      - name: Mirror to the paper repository
+        if: vars.PAPER_REPO != ''
+        env:
+          TOKEN: ${{ secrets.PAPER_REPO_TOKEN }}
+          PAPER_REPO: ${{ vars.PAPER_REPO }}
+        run: |
+          set -euo pipefail
+          test -n "$TOKEN" || { echo "PAPER_REPO_TOKEN secret is not set"; exit 1; }
+          git clone --depth 1 "https://x-access-token:${TOKEN}@github.com/${PAPER_REPO}" target
+          # paper/ becomes the repository root, so every relative path in
+          # paper.tex -- generated/, cases/, style/ -- resolves unchanged, and
+          # Overleaf can import it without being told where the main file is.
+          rsync -a --delete --exclude '.git' paper/ target/
+          cd target
+          git config user.name  "ledger"
+          git config user.email "ledger@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "paper repository is already up to date."
+          else
+            git commit -m "paper from ${GITHUB_REPOSITORY}@${GITHUB_SHA::12}"
+            git push origin HEAD:main
+          fi
+
+      - name: Push to Overleaf
+        if: vars.OVERLEAF_PROJECT_ID != ''
+        env:
+          OVERLEAF_TOKEN: ${{ secrets.OVERLEAF_TOKEN }}
+          PROJECT_ID: ${{ vars.OVERLEAF_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$OVERLEAF_TOKEN" || { echo "OVERLEAF_TOKEN secret is not set"; exit 1; }
+          # Overleaf's git remote has no branches; master is the only ref.
+          git clone --depth 1 \
+            "https://git:${OVERLEAF_TOKEN}@git.overleaf.com/${PROJECT_ID}" overleaf
+          rsync -a --delete --exclude '.git' paper/ overleaf/
+          cd overleaf
+          git config user.name  "ledger"
+          git config user.email "ledger@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Overleaf is already up to date."
+          else
+            git commit -m "ledger: paper from ${GITHUB_SHA::12}"
+            git push origin master
+          fi
