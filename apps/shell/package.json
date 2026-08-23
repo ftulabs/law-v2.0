@@ -1,0 +1,16 @@
+{
+  "name": "veritrade-shell",
+  "private": true,
+  "version": "0.1.0",
+  "description": "The Tauri shell. One project, five platforms: macOS, Windows, Linux, iOS, Android.",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "ios:init": "tauri ios init",
+    "android:init": "tauri android init",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.1.0"
+  }
+}

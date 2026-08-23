@@ -12,6 +12,7 @@ app use. Endpoints:
 from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from .config import settings
@@ -22,6 +23,33 @@ from .schemas import Economy, RunResult
 from .storage import db
 
 app = FastAPI(title="VeriTrade", version="0.1.0", description="Auditable legal evidence extraction pipeline")
+
+# Every client except a same-origin web build is cross-origin: a Tauri desktop
+# webview serves from tauri://localhost or https://tauri.localhost, the mobile
+# shells from capacitor://, and a separately served web bundle from whatever
+# port it sits on. Without this, all five platforms fail at the first request
+# with an opaque "Failed to fetch" that says nothing about why.
+#
+# The default list is local development only. Set CORS_ORIGINS in .env for a
+# deployment; "*" is refused when credentials are allowed, which is why the
+# origins are named rather than wildcarded.
+_DEFAULT_ORIGINS = [
+    "http://localhost:5173", "http://127.0.0.1:5173",   # vite dev
+    "http://localhost:4173", "http://127.0.0.1:4173",   # vite preview
+    "http://localhost:8501", "http://127.0.0.1:8501",   # streamlit
+    "tauri://localhost", "https://tauri.localhost",     # tauri webview (macOS/Linux, Windows)
+    "capacitor://localhost", "ionic://localhost",       # mobile shells
+]
+_configured = getattr(settings, "cors_origins", None)
+_origins = [o.strip() for o in _configured.split(",") if o.strip()] if _configured else _DEFAULT_ORIGINS
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class RunRequest(BaseModel):

@@ -1,0 +1,251 @@
+# Build the VeriTrade clients for every platform, and publish installers on a tag.
+#
+# Caching is the difference between a 20-minute matrix and a 3-minute one. Three
+# things are cached, and each needs a different key:
+#
+#   npm       keyed on the lockfiles -- restore is exact or it is wrong
+#   cargo     registry + git index + the target/ dir, keyed on Cargo.lock AND
+#             the platform, because a target/ built on macOS is useless on Linux
+#   apt       not cached: the Linux WebKit packages restore slower than they
+#             install, so caching them costs time rather than saving it
+#
+# Swatinem/rust-cache handles the cargo half correctly, including pruning stale
+# artifacts that would otherwise grow the cache until it is evicted every run.
+name: apps
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths:
+      - "apps/**"
+      - "backend/**"
+      - "project.yaml"
+      - ".github/workflows/apps.yml"
+  pull_request:
+    paths:
+      - "apps/**"
+      - "backend/**"
+      - ".github/workflows/apps.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: apps-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # A release build does not need debug info, and omitting it roughly halves
+  # both the compile time and the size of the cached target/ directory.
+  CARGO_PROFILE_RELEASE_DEBUG: false
+
+jobs:
+  # The UI is platform-independent, so it is built once and the five shells
+  # download it. Building it inside each matrix leg would compile it five times.
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Typecheck and build
+        working-directory: apps/web
+        run: npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: apps/web/dist
+          retention-days: 7
+
+  desktop:
+    needs: web
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Apple silicon and Intel are separate binaries. `universal-apple-darwin`
+          # would produce one bundle for both, but it cannot be used the moment a
+          # Python sidecar is bundled, since that sidecar is per-architecture.
+          - os: macos-14
+            target: aarch64-apple-darwin
+            label: macos-arm64
+          - os: macos-13
+            target: x86_64-apple-darwin
+            label: macos-x64
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            label: linux-x64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            label: windows-x64
+          # Windows on ARM runs x64 under emulation, so an arm64 build is a
+          # performance choice rather than a compatibility one. It is built
+          # because Tauri makes it nearly free once the toolchain is cached.
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            label: windows-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/shell/package-lock.json
+
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # Keyed on the target as well as the OS: two Windows legs share a runner
+      # image but not their build output, and one key for both would thrash.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/shell/src-tauri -> target
+          key: ${{ matrix.target }}
+          cache-on-failure: true
+
+      - name: Linux build dependencies
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Shell dependencies
+        working-directory: apps/shell
+        run: npm ci
+
+      # The UI came from the `web` job, so the shell must not rebuild it.
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: apps/web/dist
+
+      - name: Build
+        working-directory: apps/shell
+        env:
+          TAURI_SKIP_DEVSERVER_CHECK: "true"
+        run: npx tauri build --target ${{ matrix.target }} --config '{"build":{"beforeBuildCommand":""}}'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: veritrade-${{ matrix.label }}
+          path: |
+            apps/shell/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
+            apps/shell/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.app
+            apps/shell/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage
+            apps/shell/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.deb
+            apps/shell/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.rpm
+            apps/shell/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi
+            apps/shell/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe
+          if-no-files-found: warn
+          retention-days: 14
+
+  # Mobile compiles here but is not signed: App Store and Play submission need
+  # certificates this workflow deliberately does not carry. The job proves the
+  # Rust core and the UI build for the platform, which is what breaks silently.
+  mobile:
+    needs: web
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: android
+            os: ubuntu-22.04
+          - platform: ios
+            os: macos-14
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/shell/package-lock.json
+
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Android targets
+        if: matrix.platform == 'android'
+        run: rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
+
+      - name: iOS targets
+        if: matrix.platform == 'ios'
+        run: rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/shell/src-tauri -> target
+          key: mobile-${{ matrix.platform }}
+          cache-on-failure: true
+
+      - uses: actions/setup-java@v4
+        if: matrix.platform == 'android'
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - uses: android-actions/setup-android@v3
+        if: matrix.platform == 'android'
+
+      - name: Install the NDK
+        if: matrix.platform == 'android'
+        run: sdkmanager --install "ndk;27.0.12077973"
+
+      - name: Shell dependencies
+        working-directory: apps/shell
+        run: npm ci
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: apps/web/dist
+
+      - name: Compile the mobile core
+        working-directory: apps/shell
+        env:
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.12077973
+        run: |
+          npx tauri ${{ matrix.platform }} init --ci
+          # Unsigned: `build` would demand a signing identity. `cargo check`
+          # against the platform target proves the core compiles, which is the
+          # regression this job exists to catch.
+          if [ "${{ matrix.platform }}" = "ios" ]; then
+            cargo check --manifest-path src-tauri/Cargo.toml --target aarch64-apple-ios
+          else
+            cargo check --manifest-path src-tauri/Cargo.toml --target aarch64-linux-android
+          fi
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [desktop, mobile]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Publish the installers
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true
+          draft: true

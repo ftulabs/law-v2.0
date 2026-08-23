@@ -1,0 +1,38 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "VeriTrade",
+  "version": "0.1.0",
+  "identifier": "org.ftulabs.veritrade",
+  "build": {
+    "beforeDevCommand": "npm --prefix ../web run dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm --prefix ../web run build",
+    "frontendDist": "../../web/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "VeriTrade",
+        "width": 1200,
+        "height": 820,
+        "minWidth": 380,
+        "minHeight": 520,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:8000 http://localhost:8000 ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["icons/icon.png"],
+    "copyright": "© 2026 Team FTU · Foreign Trade University",
+    "category": "Productivity",
+    "shortDescription": "Auditable legal evidence extraction",
+    "longDescription": "Finds digital-trade law on official government portals, reads it, and maps each provision to a UN ESCAP RDTII 2.1 indicator with a verbatim citation.",
+    "macOS": { "minimumSystemVersion": "10.15" },
+    "linux": { "deb": { "depends": [] } }
+  }
+}

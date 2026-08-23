@@ -1,0 +1,54 @@
+# VeriTrade as a Ledger tenant.
+#
+# Ledger never vendors tenant code; it imports the entry points named here.
+# See ftulabs/ledger and docs/PIPELINE_SPEC.md.
+name: veritrade
+title: "RDTII-Bench: Autonomous Discovery and Indicator-Grounded Mapping"
+
+out: bench/out
+
+code:
+  dirs: ["."]
+  env: requirements.txt
+
+# The bench task modules are S0 work and do not exist yet; `ledger product`
+# does not touch them, so the app scaffolding can be generated before they land.
+tasks:
+  - id: t1_discovery
+    entry: bench.tasks.discovery:run
+    gold: data/ground_truth/gov_portals_p6_p7.csv
+    metrics: [recall_at_k, precision]
+  - id: t3_mapping
+    entry: bench.tasks.mapping:run
+    metrics: [precision, recall, f1, kappa]
+
+matrix:
+  economy: [SG, AU, MY]
+  pillar: [6, 7]
+  crosscheck: [off, panel_3]
+  seed: [0, 1, 2, 3, 4]
+
+seed_axes: [seed]
+
+# S8 -- one API contract, five platforms. The types below are real and
+# importable, so the generated client is typed rather than `unknown`.
+product:
+  entry: backend.pipeline.orchestrator:run_pipeline
+  request: backend.main:RunRequest
+  result: backend.schemas:RunResult
+  version: "0.1.0"
+  identifier: "org.ftulabs.veritrade"
+  product_name: "VeriTrade"
+  frontend_dist: "../../web/dist"
+  targets:
+    web:     {api: hosted, auth: session, base_url: "http://127.0.0.1:8000"}
+    macos:   {api: sidecar, auth: loopback_token}
+    windows: {api: sidecar, auth: loopback_token}
+    linux:   {api: sidecar, auth: loopback_token}
+    ios:     {api: hosted, auth: session, base_url: "http://127.0.0.1:8000"}
+    android: {api: hosted, auth: session, base_url: "http://127.0.0.1:8000"}
+  sidecar: true
+  slots:
+    results_detail: "the coverage matrix and the evidence panel beside it"
+    confidence_view: "the traffic-light breakdown on a mapping"
+    review_queue: "approve / reject / correct, with the reviewer's note"
