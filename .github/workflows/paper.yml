@@ -61,14 +61,17 @@ jobs:
             done
           exit $missing
 
+      # Each hop is gated on BOTH its variable and its secret. A hop that is
+      # not configured is skipped and says so in the run; it does not fail, and
+      # it does not stop the other hop. Half-configured is a setup state, not an
+      # error -- but it is never silent.
       - name: Mirror to the paper repository
-        if: vars.PAPER_REPO != ''
+        if: vars.PAPER_REPO != '' && secrets.PAPER_REPO_TOKEN != ''
         env:
           TOKEN: ${{ secrets.PAPER_REPO_TOKEN }}
           PAPER_REPO: ${{ vars.PAPER_REPO }}
         run: |
           set -euo pipefail
-          test -n "$TOKEN" || { echo "PAPER_REPO_TOKEN secret is not set"; exit 1; }
           git clone --depth 1 "https://x-access-token:${TOKEN}@github.com/${PAPER_REPO}" target
           # paper/ becomes the repository root, so every relative path in
           # paper.tex -- generated/, cases/, style/ -- resolves unchanged, and
@@ -86,13 +89,12 @@ jobs:
           fi
 
       - name: Push to Overleaf
-        if: vars.OVERLEAF_PROJECT_ID != ''
+        if: vars.OVERLEAF_PROJECT_ID != '' && secrets.OVERLEAF_TOKEN != ''
         env:
           OVERLEAF_TOKEN: ${{ secrets.OVERLEAF_TOKEN }}
           PROJECT_ID: ${{ vars.OVERLEAF_PROJECT_ID }}
         run: |
           set -euo pipefail
-          test -n "$OVERLEAF_TOKEN" || { echo "OVERLEAF_TOKEN secret is not set"; exit 1; }
           # Overleaf's git remote has no branches; master is the only ref.
           git clone --depth 1 \
             "https://git:${OVERLEAF_TOKEN}@git.overleaf.com/${PROJECT_ID}" overleaf
@@ -107,3 +109,20 @@ jobs:
             git commit -m "ledger: paper from ${GITHUB_SHA::12}"
             git push origin master
           fi
+
+      - name: Say what was skipped
+        if: always()
+        run: |
+          # A skipped hop is invisible in the run summary unless something says
+          # so, and "the paper stopped reaching Overleaf" is exactly the kind of
+          # quiet failure this repository is about.
+          mirror='${{ vars.PAPER_REPO != '' && secrets.PAPER_REPO_TOKEN != '' }}'
+          overleaf='${{ vars.OVERLEAF_PROJECT_ID != '' && secrets.OVERLEAF_TOKEN != '' }}'
+          {
+            echo "| hop | configured |"
+            echo "|---|---|"
+            echo "| paper repository (\`PAPER_REPO\` + \`PAPER_REPO_TOKEN\`) | $mirror |"
+            echo "| Overleaf (\`OVERLEAF_PROJECT_ID\` + \`OVERLEAF_TOKEN\`) | $overleaf |"
+            echo ""
+            echo "See [paper/README.md](../blob/main/paper/README.md) to configure either."
+          } >> "$GITHUB_STEP_SUMMARY"
