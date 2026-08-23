@@ -336,6 +336,13 @@ def _url_law_key(url: str) -> str:
     return key or url.lower()
 
 
+#: Does a normalised law key actually name an INSTRUMENT? Deliberately a short list, and
+#: deliberately not "order": SSO titles a deep link by its section heading, and "Production
+#: orders" is a heading, not a law. "Record keeping" has no type word at all and falls back to
+#: the statute id, which is the behaviour this list exists to preserve.
+_LAW_TYPE_KEY = re.compile(r"\b(?:act|regulations|rules|code|by[- ]?laws|ordinance)\b")
+
+
 def _dedup_key(d: DiscoveredDoc) -> str:
     """Grouping key for a document.
 
@@ -451,7 +458,45 @@ def _dedup_by_law_title(docs: list[DiscoveredDoc]) -> list[DiscoveredDoc]:
     groups: dict[str, list[DiscoveredDoc]] = {}
     for d in working:
         groups.setdefault(_dedup_key(d), []).append(d)
+    groups = _merge_sg_url_shapes(groups)
     return [_pick_best(g) for g in groups.values()]
+
+
+def _merge_sg_url_shapes(groups: dict[str, list[DiscoveredDoc]]) -> dict[str, list[DiscoveredDoc]]:
+    """Union SG groups that are the same Act reached through different SSO URL shapes.
+
+    SSO publishes one Act at three addresses — /Act/CA2018 (the consolidated current text),
+    /Acts-Supp/9-2018 (the Act as enacted) and /Act-Rev/50A/Published (a revised edition) —
+    and `_sg_statute_id` reads a DIFFERENT id out of each, so the id grouping above never
+    brings them together. A live pillar-7 run therefore spent six of its eighteen document
+    slots on three laws it already had: the Cybersecurity Act twice, the PDPA twice, the
+    Computer Misuse Act twice. The Companies Act, which the panel cites for 7.3, sat one
+    place below the cut.
+
+    Done as a SECOND pass rather than by keying on the name in the first place, because the id
+    is load-bearing: SSO also titles a deep link by its SECTION heading ("Transfer of Personal
+    Data Outside Singapore", "Record keeping", "Production orders"), and one law arrives as a
+    heading, a name and a UUID at once. Only the id holds those together. So the id groups
+    first, and groups are then joined when their titles agree on a real law NAME — which is
+    what `_LAW_TYPE_KEY` tests, and why "Production orders" (a heading, not an instrument)
+    does not qualify.
+    """
+    by_name: dict[str, str] = {}          # law-name key -> the group key that owns it
+    merged: dict[str, list[DiscoveredDoc]] = {}
+    for key, docs in groups.items():
+        if not docs or docs[0].economy.value != "SG":
+            merged[key] = docs
+            continue
+        name = next((k for k in (_law_key(d.title) for d in docs)
+                     if k and _LAW_TYPE_KEY.search(k)), None)
+        target = by_name.get(name) if name else None
+        if target is not None:
+            merged[target].extend(docs)
+            continue
+        merged[key] = list(docs)
+        if name:
+            by_name[name] = key
+    return merged
 
 
 def _prefer_english_my(docs: list[DiscoveredDoc]) -> list[DiscoveredDoc]:
@@ -1048,19 +1093,26 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int,
     # once abundant data-protection queries had filled it. We instead collect ROUND-ROBIN
     # below, so every query's TOP hit is taken before any query's 2nd.
     buckets: list[list[tuple[str, str, str]]] = []
+    bucket_query: list[str] = []                   # the query that produced buckets[i]
     for topic in topics:
         res = websearch.find_law_urls(economy, topic, max_results=(per_query or settings.discovery_per_query), site=site)
         if pdf_only:
             res = [r for r in res if r[0].lower().split("?")[0].endswith(".pdf")]
         if res:
             buckets.append(res)
+            bucket_query.append(topic)
 
     by_url: dict[str, DiscoveredDoc] = {}
     # search snippet(s) per cleaned source_url — accumulated across every query that surfaced
     # the law, so the content-relevance score below sees the fullest preview of what it's about.
     snippets: dict[str, str] = {}
+    # Which query FIRST surfaced each law, by its position in `topics`. `portal_search_queries`
+    # already interleaves the indicators round-robin so none is starved, so this position is a
+    # fair priority — and it is the only evidence a NAME query leaves behind (see the name lane
+    # below, where the snippet carries no indicator vocabulary to rank on).
+    found_by: dict[str, int] = {}
 
-    def _add(url: str, title: str, snippet: str) -> None:
+    def _add(url: str, title: str, snippet: str, qi: int = 0) -> None:
         # source_url stays the human-facing LANDING page (judges prefer it); the PDF body
         # URL is resolved only at fetch time (see _resolve_pdf_url).
         su = _clean_source_url(economy, url)
@@ -1082,6 +1134,7 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int,
                 title = stem
         if snippet:
             snippets[su] = (snippets.get(su, "") + " " + snippet).strip()
+        found_by.setdefault(su, qi)
         if url in by_url:
             return
         _, fmt = _resolve_pdf_url(economy, url)
@@ -1093,10 +1146,10 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int,
 
     depth = max((len(b) for b in buckets), default=0)
     for rank in range(depth):                      # round-robin: rank-0 of every query first
-        for b in buckets:
+        for bi, b in enumerate(buckets):
             if rank < len(b):
                 it = b[rank]
-                _add(it[0], it[1], it[2] if len(it) > 2 else "")
+                _add(it[0], it[1], it[2] if len(it) > 2 else "", bi)
         if len(by_url) >= max_docs * 3:
             break
     # Collapse multiple URL variants of the same law into the most current/in-force version.
@@ -1133,7 +1186,7 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int,
         # the bottom and get them cut by the global cap. Floor them so they stay in contention.
         for d in docs:
             d.relevance_score = max(d.relevance_score, 0.6)
-    kept = docs[:max_docs]
+    kept = _two_lane_shortlist(docs, pillar, max_docs, found_by)
     # SG: the landing page's own Timeline widget carries the true "current version as at"
     # date (see _sg_amendment_date) — fetched only for the final, already-bounded shortlist,
     # never the full round-robin candidate pool, so this is at most max_docs extra page fetches.
@@ -1143,6 +1196,73 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int,
             if date:
                 d.amendment_date = date
     return kept
+
+
+#: A Bill is not law. SSO serves them under /Bills-Supp/ and titles them "… Bill", and one was
+#: taking a shortlist slot from the Act it later became.
+_BILL = re.compile(r"/bills?-supp/|\bbill\b", re.I)
+
+
+def _curated_law_names(pillar: int | None) -> set[str]:
+    """The law-NAME fragments the indicator definitions carry for this pillar.
+
+    These are not search sugar. They are the answer to "what kind of instrument answers this
+    indicator" — Companies Act and Employment Act are in the pillar-7 set because §199 and §95
+    are retention rules, which is exactly what 7.3 asks about.
+    """
+    from ..rdtii.keywords import INDICATOR_SEARCH_TERMS
+    out: set[str] = set()
+    for ind in get_indicators(pillar):
+        out |= set((INDICATOR_SEARCH_TERMS.get(ind.indicator_id) or {}).get("name", []))
+    return out
+
+
+def _two_lane_shortlist(docs: list[DiscoveredDoc], pillar: int | None, max_docs: int,
+                        found_by: dict[str, int]) -> list[DiscoveredDoc]:
+    """The shortlist, filled from two lanes in alternation.
+
+    The content score answers "what is this law ABOUT", read off the search snippet. It is the
+    right question for a law a CONCEPT query found, and it is unanswerable for a law a NAME
+    query found: ask an engine for "companies act" and the snippet it returns is the Act's
+    generic blurb, with none of the retention vocabulary the score looks for. The Companies
+    Act 1967 therefore scored 0.0000 and sat at rank 85 of 106 — while the code's own comment
+    above used that very Act as its example of a law the snippet would rescue.
+
+    That is not a low score, it is a MISSING score, and the two must not be pooled. So:
+
+        name lane     a law whose title matches a curated name fragment, ordered by the
+                      POSITION of the query that found it. `portal_search_queries` interleaves
+                      the indicators round-robin, so that position is a fair priority and is
+                      the only evidence a name query leaves behind.
+        content lane  everything else, ordered by snippet relevance as before.
+
+    Alternating means neither starves the other. A flat floor over the whole pool was tried
+    first and measured: it recovered the Companies Act and the Employment Act, and evicted the
+    PDPA Regulations 2021 and the Cybersecurity (CII) Regulations to do it — subsidiary
+    instruments the panel cites in the same breath as the Acts.
+    """
+    frags = _curated_law_names(pillar)
+    if not frags:
+        return docs[:max_docs]
+
+    def named(d: DiscoveredDoc) -> bool:
+        title = re.sub(r"\s+", " ", (d.title or "").lower())
+        return any(f in title for f in frags)
+
+    live = [d for d in docs if not _BILL.search(d.source_url + " " + (d.title or ""))]
+    live = live or docs                       # never empty the shortlist on a filter
+    lane_a = sorted([d for d in live if named(d)],
+                    key=lambda d: (found_by.get(d.source_url, 10_000), -d.relevance_score))
+    lane_b = [d for d in live if not named(d)]          # already sorted by score
+
+    out: list[DiscoveredDoc] = []
+    ia = ib = 0
+    while len(out) < max_docs and (ia < len(lane_a) or ib < len(lane_b)):
+        if ia < len(lane_a):
+            out.append(lane_a[ia]); ia += 1
+        if len(out) < max_docs and ib < len(lane_b):
+            out.append(lane_b[ib]); ib += 1
+    return out
 
 
 def _source_queries(src: dict, pillar: int | None) -> list[str] | None:

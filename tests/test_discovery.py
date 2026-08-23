@@ -446,3 +446,53 @@ def test_pdf_only_websearch_uses_filename_titles_and_keeps_distinct_codes(monkey
     titles = {d.title for d in docs}
     assert len(docs) >= 3 and len(titles) == len(docs)             # distinct, not collapsed to one
     assert any("Aviation" in t for t in titles)                    # filename-derived sector name
+
+
+def test_sg_one_act_under_three_url_shapes_collapses_to_the_consolidated_text():
+    """SSO publishes the SAME Act at three addresses and `_sg_statute_id` reads a different id
+    out of each, so id-grouping alone never brought them together:
+
+        /Act/CA2018            the consolidated current text
+        /Acts-Supp/9-2018/     the Act as enacted (Act 9 of 2018)
+        /Act-Rev/50A/Published a revised edition
+
+    A live pillar-7 run spent SIX of its eighteen document slots on three laws it already had
+    — Cybersecurity Act twice, PDPA twice, Computer Misuse Act twice — and the Companies Act,
+    which the panel cites for 7.3, sat one place below the cut.
+    """
+    docs = [
+        _doc("Cybersecurity Act 2018 - Singapore Statutes Online",
+             "https://sso.agc.gov.sg/Act/CA2018"),
+        _doc("Cybersecurity Act 2018 - Singapore Statutes Online",
+             "https://sso.agc.gov.sg/Acts-Supp/9-2018/"),
+        _doc("Computer Misuse Act - Singapore Statutes Online",
+             "https://sso.agc.gov.sg/Act-Rev/50A/Published"),
+        _doc("Computer Misuse Act 1993 - Singapore Statutes Online",
+             "https://sso.agc.gov.sg/Act/CMA1993"),
+    ]
+    out = _dedup_by_law_title(docs)
+    assert len(out) == 2
+    # The consolidated /Act/ text survives, not the as-enacted or revised-edition snapshot.
+    urls = sorted(d.source_url for d in out)
+    assert urls == ["https://sso.agc.gov.sg/Act/CA2018", "https://sso.agc.gov.sg/Act/CMA1993"]
+
+
+def test_sg_an_act_and_its_subsidiary_regulations_are_not_merged():
+    """The merge keys on the law NAME, and "… Act" is not "… Regulations". Collapsing these
+    would lose an instrument the panel cites separately."""
+    docs = [_doc("Personal Data Protection Act 2012 - Singapore Statutes Online",
+                 "https://sso.agc.gov.sg/Act/PDPA2012"),
+            _doc("Personal Data Protection Regulations 2021 - Singapore ...",
+                 "https://sso.agc.gov.sg/SL/PDPA2012-S63-2021")]
+    assert len(_dedup_by_law_title(docs)) == 2
+
+
+def test_sg_two_section_heading_titles_are_kept_apart_by_their_statute_id():
+    """SSO titles a deep link by its SECTION heading. "Production orders" and "Record keeping"
+    are headings, not instruments, so the name merge must not touch them — only the id holds
+    them, and two unrelated Acts can share a heading."""
+    docs = [_doc("Production orders - Singapore Statutes Online",
+                 "https://sso.agc.gov.sg/Act/CDTOSCCBA1992"),
+            _doc("Record keeping - Singapore Statutes Online",
+                 "https://sso.agc.gov.sg/SL/AA2004-S328-2023")]
+    assert len(_dedup_by_law_title(docs)) == 2

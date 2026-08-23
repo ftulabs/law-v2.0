@@ -201,11 +201,26 @@ class Settings(BaseSettings):
     # them. I/O-bound (pdfplumber/MarkItDown release the GIL during parsing), so a thread pool is
     # enough; no process-pool complexity needed.
     extraction_concurrency: int = 8
-    discovery_max_docs: int = 18               # candidate cap per (economy, pillar). Tunable knob:
-                                               # raising it fetches+OCRs more law types (e.g. Banking/
-                                               # financial, ~rank 30) but the FIRST run is linearly slower
-                                               # (sequential polite fetch + OCR); cached after. 18 covers
-                                               # all SCORED SG P6/P7 answers.
+    # Candidate cap per (economy, pillar). MEASURED against the panel's own SG pillar-7 rows,
+    # counting how many of the twelve laws they cite reach the shortlist:
+    #
+    #     cap 18 -> 6/12   (no Employment Act 1968, no Telecommunications Act 1999)
+    #     cap 22 -> 8/12
+    #     cap 26 -> 8/12
+    #     cap 30 -> 8/12
+    #
+    # 22 is where the curve flattens, and it flattens because the four still missing are PDPC
+    # guidance notes and an IMDA licence condition that are not published on sso.agc.gov.sg at
+    # all — a catalogue gap, not a ranking one, and no cap reaches them.
+    #
+    # The old note said "18 covers all SCORED SG P6/P7 answers". That was true of a P6+P7 run,
+    # where discovery runs ONCE PER PILLAR and the pillar-6 lane happened to carry the Companies
+    # Act in on its own budget. A pillar-7-only run — which is what the judges may ask for — got
+    # 18 documents total and left it out.
+    #
+    # Cost of the change is fetch and extraction, not grading: mapping is bounded by the
+    # retrieval shortlist (`retrieve_max_top_k`) per indicator, not by corpus size.
+    discovery_max_docs: int = 22
     discovery_max_pages: int = 1               # search-result pages to walk per query
     # Web-search discovery breadth. Results are collected ROUND-ROBIN across queries — each
     # query's top hit before any query's 2nd — so a specific law-type query ("companies act")
