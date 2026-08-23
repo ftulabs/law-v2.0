@@ -293,7 +293,11 @@ def run_pipeline(
     else:
         log(f"[discovery] economy={economy.value} pillars={pillars} samples={use_samples}")
         for pillar in pillars:
-            for d in discovery.discover(economy, pillar, use_samples=use_samples):
+            # `log`, not the default `print`: discovery's own messages — which Act a phrase
+            # matched, how many sections it returned, which query died — are the most
+            # informative lines in the run and were going to a terminal nobody watches while
+            # the Run screen showed nothing between "discovery" and "fetch".
+            for d in discovery.discover(economy, pillar, use_samples=use_samples, log=log):
                 if d.doc_id not in seen:
                     seen.add(d.doc_id)
                     docs.append(d)
@@ -445,7 +449,7 @@ def run_pipeline(
                 continue                      # a placeholder is neither found nor handed to us
             economy_name = ECONOMY_UN_NAME.get(m.economy.value, m.economy.value)
             tag, note = baseline.classify(economy_name, m.indicator_id, m.law_name,
-                                          m.article_section)
+                                          m.article_section, m.source_url or "")
             if tag == "NEW" and note is None and kit is not None:
                 # The baseline has nothing for this (economy, indicator). Fall back to the
                 # law-level sample kit rather than claiming a discovery by default.

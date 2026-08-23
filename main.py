@@ -16,9 +16,9 @@ from datetime import datetime, timezone
 
 # See batch_run.py for why: Windows stdout defaults to cp1252 (even redirected to a file), so a
 # single non-ASCII character in a log() line otherwise crashes the whole run.
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+from backend.console import enable_utf8_stdio  # noqa: E402 — must precede any printing
+
+enable_utf8_stdio()
 
 from backend.config import settings
 from backend.export import export_csv, export_json, export_scored_csv

@@ -15,9 +15,9 @@ from pathlib import Path
 # character in ANY log() line (log defaults to print) then raises UnicodeEncodeError and kills
 # the whole multi-economy run, potentially losing an hour+ of already-completed live crawling
 # with no master file written. Reconfigure to UTF-8 with a safe fallback instead of crashing.
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+from backend.console import enable_utf8_stdio  # noqa: E402 — must precede any printing
+
+enable_utf8_stdio()
 
 from backend.config import settings
 from backend.export import export_csv, export_json, export_master_csv, export_scored_csv

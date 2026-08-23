@@ -49,6 +49,15 @@ logging.getLogger("streamlit.watcher.local_sources_watcher").setLevel(logging.ER
 # allow `import backend...` when launched via `streamlit run frontend/app.py`
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from backend.console import enable_utf8_stdio  # noqa: E402
+
+# The CLI entry points have done this since Round 1; the DASHBOARD never did, which is why a
+# Mongolian pillar-6 run died in the browser and not in a terminal. Windows gives a process the
+# console's ANSI code page (cp1252 here), so one Mongolian character in a `print` raised
+# UnicodeEncodeError — inside the `except` block written so a dead query would not be fatal.
+# The recovery path became the fatal path.
+enable_utf8_stdio()
+
 from backend.config import settings  # noqa: E402
 from backend.export import export_csv, export_json, export_scored_csv  # noqa: E402
 from backend.pipeline.orchestrator import run_pipeline  # noqa: E402

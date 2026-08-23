@@ -15,12 +15,17 @@ from rich.console import Console
 from rich.table import Table
 
 from .config import settings
+from .console import enable_utf8_stdio
 from .export import export_csv, export_json
 from .pipeline import discovery as discovery_mod
 from .pipeline.orchestrator import run_pipeline
 from .review import workflow
 from .schemas import Economy, RunResult
 from .storage import db
+
+# Before any command can print. Every economy after Round 1 writes in a script the Windows
+# console's default code page has no characters for — see backend/console.py.
+enable_utf8_stdio()
 
 app = typer.Typer(add_completion=False, help="VeriTrade — auditable legal evidence extraction")
 console = Console()

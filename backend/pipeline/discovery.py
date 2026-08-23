@@ -22,6 +22,7 @@ from pathlib import Path
 import yaml
 
 from ..config import ROOT, settings
+from ..console import safe_log
 from ..rdtii import get_indicators
 from ..schemas import DiscoveredDoc, DiscoveryTag, DocFormat, Economy, Indicator
 
@@ -1162,7 +1163,8 @@ def _source_queries(src: dict, pillar: int | None) -> list[str] | None:
     return out or None
 
 
-def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | None = None) -> list[DiscoveredDoc]:
+def discover_live(economy: Economy, pillar: int | None = None,
+                  max_docs: int | None = None, log=safe_log) -> list[DiscoveredDoc]:
     """Search the economy's official portal(s) with coarse pillar keywords and return
     ranked candidate documents (NEW). Returns [] if httpx/bs4 or the network are
     unavailable — callers fall back to sample mode. Bodies are fetched later (Zone 1b).
@@ -1246,10 +1248,10 @@ def discover_live(economy: Economy, pillar: int | None = None, max_docs: int | N
                 for q in terms:
                     try:
                         buckets.append(list(searcher(client, src, q, economy, indicators,
-                                                     log=print)))
+                                                     log=log)))
                     except Exception as exc:            # noqa: BLE001 — one dead query is not fatal
-                        print(f"[discovery] {src.get('name', '?')} failed on {q!r}: "
-                              f"{type(exc).__name__}: {exc}")
+                        log(f"[discovery] {src.get('name', '?')} failed on {q!r}: "
+                            f"{type(exc).__name__}: {exc}")
                 for rank in range(max((len(b) for b in buckets), default=0)):
                     for bucket in buckets:
                         if rank >= len(bucket):
@@ -1325,7 +1327,8 @@ def doc_from_file(economy: Economy, path: str) -> DiscoveredDoc:
 SAMPLE_ECONOMIES = {"SG", "AU", "MY"}     # the Round-1 bundle; Round-2 economies are live-only
 
 
-def discover(economy: Economy, pillar: int | None = None, use_samples: bool = True) -> list[DiscoveredDoc]:
+def discover(economy: Economy, pillar: int | None = None, use_samples: bool = True,
+             log=safe_log) -> list[DiscoveredDoc]:
     if use_samples:
         if economy.value not in SAMPLE_ECONOMIES:
             # No bundled corpus exists for the Round-2 economies. Returning [] here would look
@@ -1339,4 +1342,4 @@ def discover(economy: Economy, pillar: int | None = None, use_samples: bool = Tr
     # Live mode is the SCORED path: retrieve from live portals only. Do NOT fall back to
     # the bundled sample corpus — the rubric forbids pre-downloaded files. An empty result
     # surfaces a real discovery failure (e.g. search rate-limited) instead of masking it.
-    return discover_live(economy, pillar)
+    return discover_live(economy, pillar, log=log)

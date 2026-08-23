@@ -133,6 +133,43 @@ def article_spine(text: str) -> set[str]:
     return {s for s in out if s}
 
 
+#: `web.archive.org/web/<stamp>/<real url>` — the identity is the wrapped URL, not the archive.
+_ARCHIVE = re.compile(r"^https?://web\.archive\.org/web/[^/]+/", re.I)
+#: A portal's own identifier for a law, wherever it puts it: `?lawId=16390288615991`,
+#: `/mn/detail/523`, `/handle/123456789/512146`.
+_URL_ID = re.compile(r"(?:lawid|docid|id)=([A-Za-z0-9._-]+)", re.I)
+
+
+def url_key(url: str) -> str:
+    """A law's identity as the PORTAL states it, or "" when the URL says nothing useful.
+
+    This is the only cross-script bridge available. The panel's reference file writes Mongolia
+    in English — "Law on Personal Data Protection" — while the portal, and therefore our run,
+    writes ХҮНИЙ ХУВИЙН МЭДЭЭЛЭЛ ХАМГААЛАХ ТУХАЙ. The two share no characters, so no tokeniser
+    can ever match them and every Mongolian row would be reported as our own discovery.
+
+    Both sides do cite the same `legalinfo.mn/mn/detail?lawId=16390288615991`, and an id issued
+    by the publisher is a stronger identity than either name: it survives translation,
+    transliteration and re-titling. China's entries carry both scripts in one cell so names
+    work there; Mongolia's do not, and hand-writing the Cyrillic equivalents would mean US
+    deciding which law the panel meant.
+    """
+    u = _ARCHIVE.sub("", (url or "").strip())
+    if not u:
+        return ""
+    m = _URL_ID.search(u)
+    host = re.sub(r"^https?://(?:www\.)?", "", u).split("/")[0].lower()
+    if m:
+        return f"{host}#{m.group(1)}"
+    path = re.sub(r"^https?://(?:www\.)?[^/]+", "", u).split("?")[0].split("#")[0]
+    seg = [p for p in path.split("/") if p]
+    # A trailing numeric segment is an id ("/mn/detail/523"); anything else is a page name and
+    # too weak to assert identity on, so those fall back to the name comparison.
+    if seg and re.fullmatch(r"\d{2,}", seg[-1]):
+        return f"{host}#{seg[-1]}"
+    return ""
+
+
 def law_tokens(name: str) -> frozenset[str]:
     """Identity tokens for a law name, in whatever script the name is written in.
 
@@ -168,6 +205,7 @@ class BaselineEntry:
     law_name: str
     tokens: frozenset[str]
     spine: frozenset[str]
+    url_key: str = ""
 
 
 @lru_cache(maxsize=1)
@@ -189,6 +227,7 @@ def load(path: str | None = None) -> dict[tuple[str, str], list[BaselineEntry]]:
                 economy=economy, indicator_id=indicator, law_name=law,
                 tokens=law_tokens(law),
                 spine=frozenset(article_spine(row.get("Article / Section") or "")),
+                url_key=url_key(row.get("Source URL") or ""),
             ))
     return index
 
@@ -203,17 +242,31 @@ def _same_law(a: frozenset[str], b: frozenset[str]) -> bool:
 
 
 def classify(economy: str, indicator_id: str, law_name: str,
-             article_section: str) -> tuple[str, str | None]:
+             article_section: str, source_url: str = "") -> tuple[str, str | None]:
     """(tag, note) for one provision. `tag` is "NEW" or "KNOWN"; `note` explains a KNOWN that
-    rests on the law alone, and is None otherwise."""
+    rests on the law alone, and is None otherwise.
+
+    `source_url` is optional and is tried FIRST. The publisher's own id for a law is a stronger
+    identity than either side's name for it, and for an economy whose reference rows are written
+    in a different script from the portal it is the only identity the two sides share — see
+    `url_key`.
+    """
     entries = load().get((economy, indicator_id))
     if not entries:
         return "NEW", None
 
     ours = article_spine(article_section)
+    ours_url = url_key(source_url)
+    ours_tokens = law_tokens(law_name)
+
+    def _is_same(e: BaselineEntry) -> bool:
+        if ours_url and e.url_key and ours_url == e.url_key:
+            return True
+        return _same_law(ours_tokens, e.tokens)
+
     law_hit = False
     for e in entries:
-        if not _same_law(law_tokens(law_name), e.tokens):
+        if not _is_same(e):
             continue
         law_hit = True
         if ours and e.spine and (ours & e.spine):
@@ -223,7 +276,7 @@ def classify(economy: str, indicator_id: str, law_name: str,
 
     # The law is in the baseline but this article is not. Two different situations, and they
     # deserve opposite answers.
-    matched = [e for e in entries if _same_law(law_tokens(law_name), e.tokens)]
+    matched = [e for e in entries if _is_same(e)]
     if any(e.spine for e in matched):
         # The panel recorded articles for this law and ours is not among them. The definition is
         # about the provision — "not in the 2025 baseline" — so this IS a discovery, and calling
