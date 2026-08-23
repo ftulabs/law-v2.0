@@ -15,10 +15,11 @@ to get past it, is under each heading below.
 |---|---|
 | Mac, Apple silicon (M1–M4) | `VeriTrade_<version>_aarch64.dmg` |
 | Mac, Intel | `VeriTrade_<version>_x64.dmg` |
-| Windows 10/11 | `VeriTrade_<version>_x64_en-US.msi` |
-| Windows on ARM | `VeriTrade_<version>_arm64_en-US.msi` |
-| Ubuntu / Debian | `veritrade_<version>_amd64.deb` |
-| Any other Linux | `veritrade_<version>_amd64.AppImage` |
+| Windows 10/11 | `VeriTrade_<version>_x64_en-US.msi` (or `_x64-setup.exe`) |
+| Windows on ARM | `VeriTrade_<version>_arm64_en-US.msi` (or `_arm64-setup.exe`) |
+| Ubuntu / Debian | `VeriTrade_<version>_amd64.deb` |
+| Any other Linux | `VeriTrade_<version>_amd64.AppImage` |
+| Fedora / RHEL | `VeriTrade-<version>-1.x86_64.rpm` |
 
 On a Mac, ` > About This Mac` names the chip. Anything called "Apple M…" is
 Apple silicon.
@@ -45,7 +46,7 @@ notarised, which needs an Apple Developer account.
 
 ## Windows
 
-Double-click the `.msi`. SmartScreen says **"Windows protected your PC"**;
+Double-click the `.msi` — or the `-setup.exe`, which is the same app with an NSIS installer.  SmartScreen says **"Windows protected your PC"**;
 choose *More info* → *Run anyway*. The installer is unsigned, so Windows cannot
 name a publisher. An EV code-signing certificate removes this and takes a few
 weeks of identity verification to obtain.
@@ -58,14 +59,20 @@ faster — take it if you have it.
 **Debian and Ubuntu:**
 
 ```bash
-sudo apt install ./veritrade_0.1.0_amd64.deb
+sudo apt install ./VeriTrade_0.1.0_amd64.deb
 ```
 
 `apt` resolves the WebKit dependency for you. On Ubuntu 22.04 and newer that
 package is `libwebkit2gtk-4.1-0`; if you are on 20.04 the app will not install,
 because Tauri v2 requires WebKitGTK 4.1 and 20.04 ships 4.0.
 
-**Anything else — Fedora, Arch, openSUSE, NixOS:**
+**Fedora, RHEL, openSUSE:**
+
+```bash
+sudo dnf install ./VeriTrade-0.1.0-1.x86_64.rpm
+```
+
+**Anything else — Arch, NixOS, or no package manager:**
 
 ```bash
 chmod +x VeriTrade_0.1.0_amd64.AppImage

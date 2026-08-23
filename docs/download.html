@@ -84,7 +84,7 @@
     </div>
     <div class="card">
       <h4>Linux</h4>
-      <p>.deb for Ubuntu/Debian · .AppImage elsewhere</p>
+      <p>.deb, .rpm, or .AppImage</p>
       <a href="https://github.com/ftulabs/law-v2.0/releases/latest">Download</a>
     </div>
     <div class="card">
@@ -182,9 +182,9 @@ cp .env.example .env                        # runs with no API key
     }
     if (/Linux|X11/i.test(plat)) {
       return { os: "Linux · x64", title: "VeriTrade for Linux",
-               file: "veritrade_<version>_amd64.deb  ·  or the .AppImage",
+               file: "VeriTrade_<version>_amd64.deb  ·  .AppImage  ·  .rpm",
                href: RELEASES, cta: "Download for Linux",
-               warn: "<b>Ubuntu or Debian:</b><pre>sudo apt install ./veritrade_&lt;version&gt;_amd64.deb</pre>" +
+               warn: "<b>Ubuntu or Debian:</b><pre>sudo apt install ./VeriTrade_&lt;version&gt;_amd64.deb</pre>" +
                      "Needs WebKitGTK 4.1, so Ubuntu 22.04 or newer. On any other distribution take the " +
                      "AppImage:<pre>chmod +x VeriTrade_&lt;version&gt;_amd64.AppImage\n./VeriTrade_&lt;version&gt;_amd64.AppImage</pre>" };
     }

@@ -149,7 +149,6 @@ jobs:
           name: veritrade-${{ matrix.label }}
           path: |
             apps/shell/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
-            apps/shell/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.app
             apps/shell/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage
             apps/shell/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.deb
             apps/shell/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.rpm
@@ -249,9 +248,18 @@ jobs:
         with:
           path: artifacts
 
+      # Only installers. A bare `artifacts/**/*` also uploads the .app bundle's
+      # own contents as loose files -- Info.plist, the raw binary, the web
+      # assets -- which look like downloads and are not.
       - name: Publish the installers
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/**/*
+          files: |
+            artifacts/**/*.dmg
+            artifacts/**/*.msi
+            artifacts/**/*.exe
+            artifacts/**/*.deb
+            artifacts/**/*.rpm
+            artifacts/**/*.AppImage
           generate_release_notes: true
           draft: true
