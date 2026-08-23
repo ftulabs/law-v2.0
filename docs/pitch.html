@@ -1,0 +1,910 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VeriTrade — presentation</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* ── tokens ─────────────────────────────────────────────────────────────
+   VeriTrade's own palette (frontend/theme.py), not a new one. Light is the
+   bare :root so the un-stamped state resolves; dark is redefined at token
+   level only, twice, so both the OS setting and the toggle win. */
+:root{
+  --paper:#ffffff; --paper-2:#f4f7fb; --panel:#ffffff;
+  --ink:#0b1220; --ink-soft:#48566a; --ink-faint:#71809a;
+  --rule:#e2e8f0; --rule-soft:#eef2f7;
+  --accent:#0369a1; --accent-ink:#ffffff; --accent-soft:#e0f2fe;
+  --good:#15803d; --warn:#a16207; --bad:#dc2626;
+  --good-soft:#e7f4ec; --warn-soft:#faf1dd; --bad-soft:#fdeaea;
+  --shadow:0 1px 2px rgba(11,18,32,.05), 0 12px 32px rgba(11,18,32,.07);
+  --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#050a16; --paper-2:#0d1626; --panel:#0e1626;
+    --ink:#eaf0f8; --ink-soft:#9aabc0; --ink-faint:#7b8aa1;
+    --rule:#1f2c42; --rule-soft:#182338;
+    --accent:#38bdf8; --accent-ink:#04121f; --accent-soft:#0d2c45;
+    --good:#34d399; --warn:#fbbf24; --bad:#f87171;
+    --good-soft:#0d2a20; --warn-soft:#2c2410; --bad-soft:#33161a;
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 12px 32px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#050a16; --paper-2:#0d1626; --panel:#0e1626;
+  --ink:#eaf0f8; --ink-soft:#9aabc0; --ink-faint:#7b8aa1;
+  --rule:#1f2c42; --rule-soft:#182338;
+  --accent:#38bdf8; --accent-ink:#04121f; --accent-soft:#0d2c45;
+  --good:#34d399; --warn:#fbbf24; --bad:#f87171;
+  --good-soft:#0d2a20; --warn-soft:#2c2410; --bad-soft:#33161a;
+  --shadow:0 1px 2px rgba(0,0,0,.5), 0 12px 32px rgba(0,0,0,.5);
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:var(--sans); font-size:17px; line-height:1.55;
+  -webkit-font-smoothing:antialiased; overflow:hidden;
+}
+h1,h2,h3{margin:0; letter-spacing:-.02em; text-wrap:balance}
+p{margin:0}
+b,strong{font-weight:600}
+.mono{font-family:var(--mono); font-variant-numeric:tabular-nums}
+:focus-visible{outline:3px solid var(--accent); outline-offset:3px; border-radius:4px}
+
+/* ── slide frame ─────────────────────────────────────────────────────── */
+.deck{position:relative; height:100dvh; width:100%}
+.slide{
+  position:absolute; inset:0; display:none;
+  padding:clamp(2rem,5vh,4rem) clamp(1.5rem,5vw,5rem) 4.5rem;
+  overflow-y:auto;
+}
+/* Centre vertically: a slide half-full at the top and empty below reads as a
+   web page, not a slide. Content that overflows still scrolls, so a long slide
+   is never clipped. */
+.slide.on{display:flex; flex-direction:column; justify-content:center}
+.inner{max-width:1120px; margin:0 auto; width:100%}
+.eyebrow{
+  font-family:var(--mono); font-size:.72rem; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--accent); font-weight:600;
+}
+h1.title{font-size:clamp(2rem,4.6vw,3.3rem); line-height:1.08; margin:.5rem 0 0}
+h2{font-size:clamp(1.5rem,3.2vw,2.35rem); line-height:1.14; margin:.45rem 0 0}
+.lede{font-size:clamp(1rem,1.5vw,1.18rem); color:var(--ink-soft); margin-top:1rem; max-width:62ch}
+
+/* ── chrome ──────────────────────────────────────────────────────────── */
+.bar{
+  position:fixed; left:0; right:0; bottom:0; height:46px; z-index:20;
+  display:flex; align-items:center; gap:1rem;
+  padding:0 clamp(1rem,4vw,2.5rem);
+  background:color-mix(in srgb,var(--paper) 88%,transparent);
+  backdrop-filter:blur(8px); border-top:1px solid var(--rule-soft);
+}
+.bar .mark{display:flex;align-items:center;gap:.5rem;font-weight:700;font-size:.82rem}
+.bar .mark i{width:18px;height:18px;border-radius:5px;background:var(--accent);
+  display:grid;place-items:center;color:var(--accent-ink);font-size:10px;font-style:normal}
+.bar .sp{flex:1}
+.bar button{
+  font:inherit; font-size:.78rem; font-weight:600; color:var(--ink-soft);
+  background:none; border:1px solid var(--rule); border-radius:7px;
+  padding:.3rem .6rem; cursor:pointer; min-height:30px;
+}
+.bar button:hover{color:var(--accent); border-color:var(--accent)}
+.count{font-family:var(--mono); font-size:.78rem; color:var(--ink-faint)}
+.prog{position:fixed; left:0; top:0; height:3px; background:var(--accent); z-index:21;
+  transition:width .25s ease}
+@media (prefers-reduced-motion:reduce){ .prog{transition:none} }
+
+/* ── the step rail: the same diagram, on every method slide ──────────── */
+.rail{display:flex; align-items:flex-start; gap:0; margin:1.1rem 0 1.6rem}
+.rail .st{flex:1; text-align:center; position:relative; min-width:0}
+.rail .st .dot{
+  width:30px; height:30px; margin:0 auto .4rem; border-radius:9px;
+  display:grid; place-items:center; font-family:var(--mono); font-size:.78rem;
+  font-weight:600; background:var(--paper-2); color:var(--ink-faint);
+  border:1.5px solid var(--rule);
+}
+.rail .st .lbl{font-size:.72rem; color:var(--ink-faint); font-weight:500; line-height:1.2}
+.rail .st::after{
+  content:""; position:absolute; top:15px; left:calc(50% + 21px);
+  right:calc(-50% + 21px); height:1.5px; background:var(--rule);
+}
+.rail .st:last-child::after{display:none}
+.rail .st.done .dot{background:var(--accent-soft); color:var(--accent);
+  border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+.rail .st.done::after{background:color-mix(in srgb,var(--accent) 45%,transparent)}
+.rail .st.now .dot{background:var(--accent); color:var(--accent-ink);
+  border-color:var(--accent); transform:scale(1.12)}
+.rail .st.now .lbl{color:var(--ink); font-weight:600}
+
+/* ── the big overview diagram ────────────────────────────────────────── */
+.flow{display:flex; align-items:stretch; gap:.55rem; margin-top:1.6rem; flex-wrap:wrap}
+.flow .io{
+  flex:0 0 auto; align-self:center; padding:.7rem .9rem; border-radius:11px;
+  background:var(--paper-2); border:1px dashed var(--rule); text-align:center;
+}
+.flow .io b{display:block; font-size:.86rem}
+.flow .io span{font-size:.7rem; color:var(--ink-faint); font-family:var(--mono)}
+.flow .arrow{align-self:center; color:var(--ink-faint); flex:0 0 auto}
+.flow .step{
+  flex:1 1 0; min-width:112px; padding:1.1rem .7rem; border-radius:12px;
+  background:var(--panel); border:1px solid var(--rule); box-shadow:var(--shadow);
+  display:flex; flex-direction:column; gap:.25rem; text-align:center;
+}
+.flow .step .n{font-family:var(--mono); font-size:.72rem; color:var(--accent); font-weight:600}
+.flow .step b{font-size:.92rem; line-height:1.2}
+.flow .step span{font-size:.7rem; color:var(--ink-faint); line-height:1.35}
+@media (max-width:820px){ .flow .step{min-width:calc(50% - .5rem)} }
+
+/* ── content blocks ──────────────────────────────────────────────────── */
+.cols{display:grid; grid-template-columns:1fr 1fr; gap:1.4rem 2.2rem; margin-top:1.3rem}
+.cols.wide{grid-template-columns:.85fr 1.15fr}
+@media (max-width:860px){ .cols,.cols.wide{grid-template-columns:1fr} }
+.kick{font-size:.7rem; font-weight:600; text-transform:uppercase; letter-spacing:.09em;
+  color:var(--ink-faint); margin-bottom:.45rem}
+ul{margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:.6rem}
+ul.tight{gap:.4rem}
+li{font-size:.95rem; color:var(--ink-soft); line-height:1.5; padding-left:1.05rem;
+  position:relative}
+li::before{content:""; position:absolute; left:0; top:.62em; width:5px; height:5px;
+  border-radius:50%; background:var(--accent)}
+li b{color:var(--ink)}
+.pair{display:flex; flex-direction:column; gap:.9rem}
+.pair .p{border-left:2px solid var(--rule); padding-left:.9rem}
+.pair .p .prob{font-size:.92rem; color:var(--ink); font-weight:500}
+.pair .p .fix{font-size:.86rem; color:var(--ink-soft); margin-top:.2rem}
+.pair .p .fix::before{content:"→ "; color:var(--accent); font-weight:600}
+
+.open{margin-top:1.5rem; padding:.85rem 1rem; border-radius:11px;
+  background:var(--warn-soft); border:1px solid color-mix(in srgb,var(--warn) 32%,transparent);
+  font-size:.87rem; color:var(--ink-soft)}
+.open b{color:var(--warn)}
+.win{margin-top:1.5rem; padding:.85rem 1rem; border-radius:11px;
+  background:var(--good-soft); border:1px solid color-mix(in srgb,var(--good) 32%,transparent);
+  font-size:.87rem; color:var(--ink-soft)}
+.win b{color:var(--good)}
+
+.stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:.8rem;
+  margin-top:1.4rem}
+.stat{padding:.9rem 1rem; border-radius:12px; background:var(--panel);
+  border:1px solid var(--rule); box-shadow:var(--shadow)}
+.stat b{display:block; font-family:var(--mono); font-size:1.7rem; font-weight:600;
+  line-height:1.1; font-variant-numeric:tabular-nums}
+.stat span{font-size:.72rem; color:var(--ink-faint); line-height:1.3; display:block;
+  margin-top:.2rem}
+.stat.g b{color:var(--good)} .stat.w b{color:var(--warn)}
+
+table{border-collapse:collapse; width:100%; margin-top:1.2rem; font-size:.88rem}
+th,td{text-align:left; padding:.5rem .7rem; border-bottom:1px solid var(--rule-soft)}
+th{font-size:.68rem; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-faint);
+  font-weight:600; border-bottom:1px solid var(--rule)}
+td.num{font-family:var(--mono); text-align:right; font-variant-numeric:tabular-nums}
+tbody tr:hover{background:var(--paper-2)}
+.tblwrap{overflow-x:auto}
+
+.quote{margin-top:1.4rem; padding:1rem 1.2rem; border-left:3px solid var(--accent);
+  background:var(--paper-2); border-radius:0 11px 11px 0; font-size:1rem;
+  color:var(--ink); line-height:1.6}
+.quote span{display:block; margin-top:.4rem; font-size:.8rem; color:var(--ink-faint)}
+
+.why{margin-top:.5rem; font-size:.85rem; color:var(--ink-faint); line-height:1.55}
+.why b{color:var(--ink-soft)}
+
+/* ── print: one slide per page, for a PDF handout ────────────────────── */
+@media print{
+  body{overflow:visible}
+  .bar,.prog{display:none}
+  .deck{height:auto}
+  .slide{display:flex !important; flex-direction:column; position:static;
+    page-break-after:always; min-height:100vh; padding:2.5rem}
+}
+</style>
+</head>
+<body>
+
+<div class="prog" id="prog"></div>
+<div class="deck" id="deck">
+
+<!-- 1 ─ title -->
+<section class="slide on">
+  <div class="inner" style="margin:auto">
+    <div class="eyebrow">UN ESCAP · KMITL Global Hackathon 2026</div>
+    <h1 class="title">Finding the law, and<br>proving the clause.</h1>
+    <p class="lede">An autonomous pipeline that takes an economy and a regulatory topic,
+    searches the official government portals with no starting URL, reads what it finds —
+    including scans — and maps each provision to an RDTII indicator with the exact quote
+    attached.</p>
+    <div style="margin-top:2.2rem;font-size:.9rem;color:var(--ink-faint)">
+      <b style="color:var(--ink)">VeriTrade</b> · Team FTU · Foreign Trade University
+    </div>
+  </div>
+</section>
+
+<!-- 2 ─ who ESCAP is -->
+<section class="slide">
+  <div class="inner">
+    <div class="eyebrow">Problem statement · 1 of 2</div>
+    <h2>ESCAP measures how open the region is to digital trade.</h2>
+    <div class="cols">
+      <div>
+        <div class="kick">What RDTII is</div>
+        <ul>
+          <li>The <b>Regional Digital Trade Integration Index</b> — ESCAP's measure of how each
+            economy regulates digital trade.</li>
+          <li><b>12 pillars, 61 indicators.</b> Each indicator is a legal question, answered
+            with a citation to a real provision.</li>
+          <li>Used by governments to see where their rules sit against the region.</li>
+        </ul>
+      </div>
+      <div>
+        <div class="kick">How it is built today</div>
+        <ul>
+          <li><b>By hand.</b> Analysts search each government portal, read the statutes, and
+            record the article that answers each indicator.</li>
+          <li>Slow, expensive, and it ages the moment a law is amended.</li>
+          <li>Coverage is bounded by how many analyst-hours exist.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="quote">The index is only as current as the last person who read the gazette.
+      <span>That is the bottleneck this hackathon exists to attack.</span></div>
+  </div>
+</section>
+
+<!-- 3 ─ the ask -->
+<section class="slide">
+  <div class="inner">
+    <div class="eyebrow">Problem statement · 2 of 2</div>
+    <h2>The ask: from two words to a citation.</h2>
+    <div class="flow" style="margin-top:1.4rem">
+      <div class="io"><b>Singapore</b><span>economy</span></div>
+      <div class="io"><b>Pillar 6</b><span>topic</span></div>
+      <div class="arrow" aria-hidden="true">
+        <svg width="26" height="18" viewBox="0 0 26 18" fill="none" stroke="currentColor"
+             stroke-width="1.6"><path d="M1 9h22m0 0-6-6m6 6-6 6"/></svg></div>
+      <div class="step" style="flex:2"><div class="n">the system</div>
+        <b>find · read · map</b><span>no human tells it where to look</span></div>
+      <div class="arrow" aria-hidden="true">
+        <svg width="26" height="18" viewBox="0 0 26 18" fill="none" stroke="currentColor"
+             stroke-width="1.6"><path d="M1 9h22m0 0-6-6m6 6-6 6"/></svg></div>
+      <div class="io"><b>Submission CSV</b><span>law · article · quote · URL</span></div>
+    </div>
+    <div class="cols" style="margin-top:1.8rem">
+      <div>
+        <div class="kick">Mandatory, every submission</div>
+        <ul class="tight">
+          <li><b>Zone 1 — discovery.</b> Live crawl of official portals. No seed URLs, no
+            hardcoded law names, no baked corpus.</li>
+          <li><b>Zone 2 — extraction.</b> HTML, text PDFs <em>and</em> scanned PDFs.
+            Character error rate under <b>5%</b>.</li>
+          <li>Both pillars. All required economies. Exact CSV template.</li>
+        </ul>
+      </div>
+      <div>
+        <div class="kick">What that rules out</div>
+        <ul class="tight">
+          <li>Shipping a corpus we collected beforehand.</li>
+          <li>A lookup table of (economy, pillar) → known answer.</li>
+          <li>Skipping the documents that are hard to read.</li>
+        </ul>
+        <p class="why" style="margin-top:.9rem">The rules are written to stop the shortcut that
+          would otherwise win: <b>knowing the answer in advance.</b></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 ─ nature of the problem -->
+<section class="slide">
+  <div class="inner">
+    <div class="eyebrow">The nature of the problem</div>
+    <h2>It is not "read a PDF". It is four harder problems stacked.</h2>
+    <div class="cols" style="margin-top:1.5rem">
+      <div>
+        <ul>
+          <li><b>You don't know where the law is.</b> Every portal is a different machine, and
+            the good ones are not indexed by Google.</li>
+          <li><b>The portals resist.</b> Bot walls, JavaScript-only pages, an encrypted
+            catalogue, pagination that ignores the page number.</li>
+        </ul>
+      </div>
+      <div>
+        <ul>
+          <li><b>An indicator maps to a provision, not a document.</b> A 600-section Act is not
+            an answer; section 26 is.</li>
+          <li><b>"Relevant" is a legal test, not a keyword.</b> A ban and a conditional
+            permission use the same words and mean the opposite.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="quote" style="margin-top:1.8rem">
+      And every one of those failures is <b>silent</b>. The run completes, the report says
+      “no provision found”, and that is indistinguishable from an economy that genuinely has
+      no such law.
+      <span>This is the single observation the whole design is built around.</span>
+    </div>
+  </div>
+</section>
+
+<!-- 5 ─ approach -->
+<section class="slide">
+  <div class="inner">
+    <div class="eyebrow">How we approach it</div>
+    <h2>If failure is silent, make everything measured.</h2>
+    <div class="cols" style="margin-top:1.4rem">
+      <div>
+        <div class="kick">Three rules we hold ourselves to</div>
+        <ul>
+          <li><b>Every claim has a number behind it, or it is not claimed.</b> Where nothing was
+            measured, the app says “not measured here”.</li>
+          <li><b>Evidence is verbatim.</b> The output carries the statute's own words and a link,
+            so a reviewer can overrule the machine.</li>
+          <li><b>Uncertainty is routed, not hidden.</b> Low confidence goes to a human queue
+            instead of quietly into the submission.</li>
+        </ul>
+      </div>
+      <div>
+        <div class="kick">Why this is the right shape</div>
+        <p class="why">A policy researcher will not adopt a black box that outputs legal
+        conclusions. They will adopt a tool that <b>shows its working</b> and is
+        <b>wrong in visible ways</b>.</p>
+        <p class="why" style="margin-top:.8rem">So the deliverable is not just the answer. It is
+        the answer, the quote it came from, the test it was judged against, and how sure the
+        system is.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 6 ─ overview diagram -->
+<section class="slide">
+  <div class="inner">
+    <div class="eyebrow">Proposed solution</div>
+    <h2>Six steps. Each one has its own failure mode.</h2>
+    <div class="flow">
+      <div class="io"><b>economy<br>+ pillar</b><span>input</span></div>
+      <div class="step"><div class="n">1</div><b>Discover</b><span>which laws exist</span></div>
+      <div class="step"><div class="n">2</div><b>Fetch</b><span>get the bytes</span></div>
+      <div class="step"><div class="n">3</div><b>Read</b><span>text, incl. scans</span></div>
+      <div class="step"><div class="n">4</div><b>Split</b><span>into provisions</span></div>
+      <div class="step"><div class="n">5</div><b>Match</b><span>to the legal test</span></div>
+      <div class="step"><div class="n">6</div><b>Score</b><span>how sure, how strict</span></div>
+      <div class="io"><b>CSV<br>+ evidence</b><span>output</span></div>
+    </div>
+    <div class="cols" style="margin-top:1.8rem">
+      <div>
+        <p class="why"><b>Read it as a funnel.</b> Thousands of candidate documents become tens
+        of thousands of provisions, become a handful of cited clauses. Every step throws things
+        away, and every step can throw away the right thing.</p>
+      </div>
+      <div>
+        <p class="why"><b>The next six slides take one step each</b> — what it is for, what goes
+        wrong, what we did about it, and what is still open. The rail at the top of each slide
+        shows where we are.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 7 ─ step 1 -->
+<section class="slide" data-step="1">
+  <div class="inner">
+    <div class="eyebrow">Step 1 of 6</div>
+    <h2>Discover — find the law without being told where it is.</h2>
+    <div class="rail"></div>
+    <div class="cols wide">
+      <div>
+        <div class="kick">Purpose &amp; output</div>
+        <ul class="tight">
+          <li>From <b>(economy, pillar)</b> only, produce candidate laws.</li>
+          <li>Output: title + official URL, tagged <span class="mono">NEW</span> when crawled
+            live.</li>
+        </ul>
+        <div class="kick" style="margin-top:1.2rem">What we built</div>
+        <ul class="tight">
+          <li>Site-scoped web search <b>plus a per-portal adapter</b> — each portal gets code
+            that understands its own index.</li>
+          <li>491 English indicator terms across all 61 indicators, plus native statutory
+            phrases for Chinese and Mongolian.</li>
+        </ul>
+      </div>
+      <div>
+        <div class="kick">What went wrong — and the fix</div>
+        <div class="pair">
+          <div class="p"><div class="prob">Malaysia's portal <b>AES-encrypts its catalogue
+            JSON</b>. The adapter silently returned <b>0 Acts</b>.</div>
+            <div class="fix">Decrypt with the key the page publishes itself.</div></div>
+          <div class="p"><div class="prob">Singapore's portal <b>ignores the page number</b>, so
+            paging never advanced.</div>
+            <div class="fix">Enumerate by union of sort windows instead.</div></div>
+          <div class="p"><div class="prob">Australia's API only matches the <b>Act title</b>, not
+            its text.</div>
+            <div class="fix">Query short, title-robust name fragments.</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="open"><b>Still open —</b> the sectoral tail. China's key cites ride-hailing,
+      lending and credit instruments whose titles contain <em>no data vocabulary at all</em>;
+      no query for “cross-border data transfer” will ever reach them. The fix is a sector sweep
+      — more queries, not a new mechanism.</div>
+  </div>
+</section>
+
+<!-- 8 ─ step 2 -->
+<section class="slide" data-step="2">
+  <div class="inner">
+    <div class="eyebrow">Step 2 of 6</div>
+    <h2>Fetch — get the bytes past a portal that would rather you didn't.</h2>
+    <div class="rail"></div>
+    <div class="cols wide">
+      <div>
+        <div class="kick">Purpose &amp; output</div>
+        <ul class="tight">
+          <li>Turn a URL into the actual document body.</li>
+          <li>Output: cached bytes, de-duplicated by content hash.</li>
+        </ul>
+        <div class="kick" style="margin-top:1.2rem">What we built</div>
+        <ul class="tight">
+          <li>A TLS-fingerprint-spoofing client, escalating to a <b>real stealth browser</b>
+            only when a page turns out to be JavaScript-only.</li>
+          <li>Detect a single-page-app shell and <b>suppress it</b> rather than mapping
+            navigation chrome as if it were law.</li>
+        </ul>
+      </div>
+      <div>
+        <div class="kick">What went wrong — and the fix</div>
+        <div class="pair">
+          <div class="p"><div class="prob">Australia publishes large Acts as <b>multi-volume
+            compilations</b> and 404s the single-file PDF.</div>
+            <div class="fix">Resolve every volume, then split per volume.</div></div>
+          <div class="p"><div class="prob">One portal answers <code>"download": 0</code> — the
+            operator saying no.</div>
+            <div class="fix">We do not engineer around it. We use a lane that permits us.</div></div>
+        </div>
+        <div class="win" style="margin-top:1.1rem"><b>What that one fix was worth —</b> the
+          Telecommunications (Interception and Access) Act 1979 was yielding
+          <b>1 provision instead of 618</b>. The Telecommunications Act 1997:
+          <b>0 instead of 1,377</b>. Nothing had thrown an error.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 9 ─ step 3 -->
+<section class="slide" data-step="3">
+  <div class="inner">
+    <div class="eyebrow">Step 3 of 6</div>
+    <h2>Read — including the documents that are pictures of text.</h2>
+    <div class="rail"></div>
+    <div class="cols wide">
+      <div>
+        <div class="kick">Purpose &amp; output</div>
+        <ul class="tight">
+          <li>Document → clean text, <b>with the error rate measured</b>, not assumed.</li>
+          <li>Output: text + a character error rate the run reports.</li>
+        </ul>
+        <div class="kick" style="margin-top:1.2rem">What we built</div>
+        <ul class="tight">
+          <li>Detect a real text layer → copy it. No text layer → raster OCR.</li>
+          <li>Score the result against a human-checked transcript, every run.</li>
+          <li>Six engines, swappable from the main screen — each card states its cost, its
+            speed and whether the page leaves the machine.</li>
+        </ul>
+      </div>
+      <div>
+        <div class="kick">Measured, on the bundled scan</div>
+        <div class="tblwrap"><table>
+          <thead><tr><th>Engine</th><th class="num">Error rate</th><th class="num">Speed</th></tr></thead>
+          <tbody>
+            <tr><td><b>RapidOCR</b> — default</td><td class="num" style="color:var(--good)">1.11%</td><td class="num">4 s / page</td></tr>
+            <tr><td>PaddleOCR</td><td class="num" style="color:var(--good)">0.00%</td><td class="num" style="color:var(--warn)">10 min / page</td></tr>
+            <tr><td>MarkItDown — text layer only</td><td class="num" style="color:var(--bad)">cannot read a scan</td><td class="num">instant</td></tr>
+          </tbody>
+        </table></div>
+        <p class="why" style="margin-top:.9rem">The rubric bar is <b>under 5%</b>. We are at
+          1.11% on a real scanned central-bank notice.</p>
+      </div>
+    </div>
+    <div class="open"><b>The lesson that cost us a day —</b> MarkItDown first scored a
+      <em>perfect</em> 0.00%. It extracts nothing from a scan and falls back to reading the
+      sidecar transcript — <b>which is the answer key the error rate is measured against.</b>
+      Benchmarks must be run where the answer is not reachable.</div>
+  </div>
+</section>
+
+<!-- 10 ─ step 4 -->
+<section class="slide" data-step="4">
+  <div class="inner">
+    <div class="eyebrow">Step 4 of 6</div>
+    <h2>Split — a citation is an article, not a document.</h2>
+    <div class="rail"></div>
+    <div class="cols wide">
+      <div>
+        <div class="kick">Purpose &amp; output</div>
+        <ul class="tight">
+          <li>Cut a statute into the unit an indicator actually maps to.</li>
+          <li>Output: article/section chunks, <b>verbatim</b> — never paraphrased, because the
+            snippet column <em>is</em> the statute's text.</li>
+        </ul>
+        <div class="kick" style="margin-top:1.2rem">What we built</div>
+        <ul class="tight">
+          <li><b>Per-country splitters.</b> One shared regex was the wrong idea: Singapore
+            numbers sections, Australia marks them by font weight.</li>
+          <li>Script-aware tokenising, so a language without spaces still indexes.</li>
+        </ul>
+      </div>
+      <div>
+        <div class="kick">What went wrong — and the fix</div>
+        <div class="pair">
+          <div class="p"><div class="prob">Only a Mongolian <b>law</b> numbers articles
+            <span class="mono">N дүгээр зүйл</span>. A ministry rule numbers clauses
+            <span class="mono">1.1.</span> — so every rule collapsed into <b>one</b> provision.</div>
+            <div class="fix">Recognise both forms. Measured on real documents: 1 → 29,
+              1 → 34, 1 → 25.</div></div>
+          <div class="p"><div class="prob">Keyword-shaped headings in Singapore turned out to be
+            cross-references, not section starts.</div>
+            <div class="fix">Split on numbering only; strip portal chrome first.</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="open"><b>Still open —</b> some instruments have no numbering at all (a national
+      programme's action plan is a table of measures). It extracts as one block. Arguably it is
+      not law and should never have entered the corpus — which is the better fix.</div>
+  </div>
+</section>
+
+<!-- 11 ─ step 5 -->
+<section class="slide" data-step="5">
+  <div class="inner">
+    <div class="eyebrow">Step 5 of 6</div>
+    <h2>Match — decide whether a clause satisfies a legal test.</h2>
+    <div class="rail"></div>
+    <div class="cols wide">
+      <div>
+        <div class="kick">Purpose &amp; output</div>
+        <ul class="tight">
+          <li>Provision → indicator, with a reason a lawyer can argue with.</li>
+          <li>Output: quote + citation + rationale + source URL.</li>
+        </ul>
+        <div class="kick" style="margin-top:1.2rem">What we built</div>
+        <ul class="tight">
+          <li><b>Hybrid retrieval</b> — lexical + multilingual embeddings + reranking — to
+            shortlist from tens of thousands of provisions.</li>
+          <li>The model is shown <b>all sibling indicators at once</b>, so it must choose
+            between “ban” and “allowed on conditions” rather than pattern-match.</li>
+          <li>Small corpus → <b>grade everything</b>, so retrieval is a signal, never a gate.</li>
+        </ul>
+      </div>
+      <div>
+        <div class="kick">Parameters were measured, not tuned by feel</div>
+        <div class="stats" style="margin-top:.3rem">
+          <div class="stat"><b>383</b><span>laws in the sweep corpus</span></div>
+          <div class="stat"><b>36,590</b><span>provisions</span></div>
+          <div class="stat g"><b>0.833→1.000</b><span>provision recall, after the sweep</span></div>
+        </div>
+        <p class="why" style="margin-top:.9rem">Two results were counter-intuitive and are
+          recorded so nobody re-argues them: a <b>law-level prefilter makes recall worse</b>,
+          and asking for three provisions per law degenerates into breadth without depth.</p>
+      </div>
+    </div>
+    <div class="open"><b>The bug that taught us the most —</b> the tokeniser was
+      <span class="mono">[a-z0-9]+</span>. For Chinese text it returned <b>zero tokens</b>, so
+      every Chinese provision scored a flat 0.0 on the lexical half of the score — 65% of the
+      ranking. Nothing threw. The run completed and reported “no provision found”.</div>
+  </div>
+</section>
+
+<!-- 12 ─ step 6 -->
+<section class="slide" data-step="6">
+  <div class="inner">
+    <div class="eyebrow">Step 6 of 6</div>
+    <h2>Score — say how sure we are, and never overstate it.</h2>
+    <div class="rail"></div>
+    <div class="cols wide">
+      <div>
+        <div class="kick">Purpose &amp; output</div>
+        <ul class="tight">
+          <li>Attach a confidence to every row, and route it.</li>
+          <li>Optionally rate how restrictive the law is (0 / 0.5 / 1), on the index's own
+            scale.</li>
+        </ul>
+        <div class="kick" style="margin-top:1.2rem">Four signals, one number</div>
+        <ul class="tight">
+          <li><b>Legal fit</b> 0.40 — does it satisfy the test?</li>
+          <li><b>Search match</b> 0.25 · <b>Quote grounding</b> 0.20 — is the quote really in
+            the document?</li>
+          <li><b>Scope</b> 0.15 — general rule or one sector? A sector-specific rule is
+            <b>capped</b>, never auto-accepted.</li>
+        </ul>
+      </div>
+      <div>
+        <div class="kick">What the number does</div>
+        <div class="stats" style="margin-top:.3rem">
+          <div class="stat g"><b>≥ 0.85</b><span>accepted into the submission</span></div>
+          <div class="stat w"><b>0.60 – 0.85</b><span>queued for a human check</span></div>
+          <div class="stat"><b>&lt; 0.60</b><span>set aside, kept visible</span></div>
+        </div>
+        <p class="why" style="margin-top:.9rem">A “no provision found” row is written
+          <b>explicitly</b>, with the portal and terms searched. An indicator is never silently
+          blank — an absence is a finding, and it is scored as one.</p>
+      </div>
+    </div>
+    <div class="open"><b>Being straight about this one —</b> those weights and cut-offs are a
+      <b>reasoned judgement, not a fitted model</b>. The next slide is why, and what it would
+      take to fix.</div>
+  </div>
+</section>
+
+<!-- 13 ─ what we can prove -->
+<section class="slide">
+  <div class="inner">
+    <div class="eyebrow">Where it stands</div>
+    <h2>Six economies run end to end, with no seed URLs.</h2>
+    <p class="lede" style="margin-top:.7rem;font-size:1rem">Round 1's three — Singapore,
+      Australia, Malaysia — plus the three below. Only the Round-2 three have a dated
+      measurement, so those are the ones on the table.</p>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Round-2 economy · pillar</th><th class="num">Documents</th>
+        <th class="num">Provisions</th><th class="num">Rows</th><th class="num">Wall clock</th>
+        <th class="num">Cost</th></tr></thead>
+      <tbody>
+        <tr><td>China · 7</td><td class="num">17</td><td class="num">420</td><td class="num">51</td><td class="num">244 s</td><td class="num">$0.14</td></tr>
+        <tr><td>India · 7</td><td class="num">18</td><td class="num">18</td><td class="num">8</td><td class="num">219 s</td><td class="num">$0.05</td></tr>
+        <tr><td>Mongolia · 7</td><td class="num">18</td><td class="num">76</td><td class="num">39</td><td class="num">262 s</td><td class="num">$0.21</td></tr>
+      </tbody>
+    </table></div>
+    <div class="cols" style="margin-top:1.6rem">
+      <div>
+        <div class="kick">What "end to end" means here</div>
+        <p class="why">Economy and pillar in; discovery, fetch, extraction and mapping; a
+        submission CSV in the official column format out. No URL was supplied. Whether the
+        <b>content</b> is right is the separate question — and we measure that separately.</p>
+      </div>
+      <div>
+        <div class="kick">Against the panel's own answer key</div>
+        <ul class="tight">
+          <li>China <b>7 of 9 indicators</b> reached — but 8 of 31 citations, because the key
+            names sectoral instruments and we find the national law.</li>
+          <li>Mongolia 3 of 9. India 3 of 9, and 19 of its 43 citations sit under one
+            indicator alone.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="why" style="margin-top:1.2rem"><b>Every figure on this slide is one run.</b> Live
+      portals change. A number from a single run is a reading, not a rate — so we present it
+      as one.</p>
+  </div>
+</section>
+
+<!-- 14 ─ limitation 1 -->
+<section class="slide">
+  <div class="inner">
+    <div class="eyebrow">Limitations · 1 of 4</div>
+    <h2>The confidence score is not calibrated. It cannot be, yet.</h2>
+    <div class="cols wide" style="margin-top:1.3rem">
+      <div>
+        <div class="kick">What is actually true</div>
+        <ul class="tight">
+          <li>0.40 / 0.25 / 0.20 / 0.15 and the 0.85 / 0.60 cut-offs are a
+            <b>stated judgement</b>.</li>
+          <li>The number is a <b>relative ranking</b>. It is not a probability, and we never
+            print it as one.</li>
+        </ul>
+      </div>
+      <div>
+        <div class="kick">Why we cannot fix it</div>
+        <ul class="tight">
+          <li><b>No labelled dataset exists.</b> The panel's database gives the <em>answer</em> —
+            which law cites which indicator. It does not label
+            <span class="mono">(provision, indicator) → correct/incorrect</span>, which is what
+            fitting a weight requires.</li>
+          <li>A held-out set would need <b>negatives</b> too — provisions that look right and are
+            not. Nobody has published those.</li>
+          <li>Generating them ourselves means <b>the system grading its own homework</b>.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="win"><b>What we did instead —</b> made the number auditable rather than
+      authoritative. Every row shows its four signals separately, the legal test it was judged
+      against, and the quote — so a reviewer can overrule it in seconds. And anything under 0.85
+      is routed to a human by default.</div>
+  </div>
+</section>
+
+<!-- 15 ─ limitation 2 -->
+<section class="slide">
+  <div class="inner">
+    <div class="eyebrow">Limitations · 2 of 4</div>
+    <h2>There is nothing to benchmark against.</h2>
+    <div class="cols wide" style="margin-top:1.3rem">
+      <div>
+        <div class="kick">The gap</div>
+        <ul class="tight">
+          <li>RDTII is compiled <b>by hand</b>. There is no published automated system doing this
+            job.</li>
+          <li>So there is <b>no baseline score</b>, no shared evaluation harness, and no other
+            team's numbers to sit beside ours.</li>
+        </ul>
+        <p class="why" style="margin-top:.9rem">“Provision recall 1.000” — good compared with
+          what? We can only say it is better than our own previous configuration.</p>
+      </div>
+      <div>
+        <div class="kick">What we built to stand in for one</div>
+        <ul class="tight">
+          <li>An evaluation harness that scores against <b>the panel's own database</b>, matching
+            on portal URL first and instrument name second.</li>
+          <li>A parameter sweep, so choices are <b>comparable to each other</b> even when they
+            cannot be compared to the field.</li>
+        </ul>
+        <p class="why" style="margin-top:.9rem"><b>A measurement error we caught:</b> Mongolia
+          first scored 0 of 9. The key writes the law in English; the portal serves it in
+          Mongolian. No string comparison bridges that — the scorer was wrong, not the run.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 16 ─ limitation 3 -->
+<section class="slide">
+  <div class="inner">
+    <div class="eyebrow">Limitations · 3 of 4</div>
+    <h2>The biggest gap is discovery, not intelligence.</h2>
+    <div class="cols" style="margin-top:1.3rem">
+      <div>
+        <div class="kick">Round 1 — the missing tier</div>
+        <ul class="tight">
+          <li><b>10 of 37 cited laws are not Acts.</b> They are regulator guidance, a licence
+            condition, a statutory instrument, sectoral codes of practice.</li>
+          <li>We search Act portals. Those documents are not in an Act portal.</li>
+        </ul>
+      </div>
+      <div>
+        <div class="kick">Round 2 — the same shape</div>
+        <ul class="tight">
+          <li><b>India:</b> the evidence is subordinate legislation — ministry and central-bank
+            circulars as gazette PDFs. We are searching the right index for the
+            <b>wrong tier</b>.</li>
+          <li><b>Mongolia:</b> the catalogue is nine parts paperwork to one part statute.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="open" style="margin-top:1.5rem"><b>Why it is not fixed —</b> each tier needs its
+      own enumerable index, and those indexes mostly do not exist. There is no API that lists
+      “every code of practice a sector regulator has issued”. Closing it is a per-portal
+      engineering cost, repeated per economy — not a model that needs to get smarter.</div>
+    <div class="quote" style="margin-top:1.2rem">A Mongolian term taken from a dictionary rather
+      than from the statute cost one run its entire document set.
+      <span>Twelve of seventeen documents were customs rules about processing <b>goods</b>
+      abroad. Vocabulary must be measured against the portal's own index before it is trusted.</span></div>
+  </div>
+</section>
+
+<!-- 17 ─ limitation 4 -->
+<section class="slide">
+  <div class="inner">
+    <div class="eyebrow">Limitations · 4 of 4</div>
+    <h2>What we have not measured, said plainly.</h2>
+    <div class="cols" style="margin-top:1.3rem">
+      <div>
+        <ul class="tight">
+          <li><b>Retrieval parameters were swept on English.</b> The lexical side now runs on
+            character bigrams for scripts without spaces. Whether the tuning still holds is
+            unknown — and answerable with the sweep we already have.</li>
+          <li><b>The multilingual reranker has never been benchmarked.</b> It is switched off for
+            non-Latin economies rather than contributing noise. Safe is not the same as
+            measured.</li>
+          <li><b>No OCR engine here reads Cyrillic or Lao.</b> It has not mattered — China, India
+            and Mongolia are all text. Thailand is where it starts to.</li>
+        </ul>
+      </div>
+      <div>
+        <ul class="tight">
+          <li><b>PaddleOCR is 10 minutes per page on CPU</b> — 140× RapidOCR for the same
+            accuracy. It is the intended reader for non-Latin script, and at that speed the
+            plan does not hold as configured.</li>
+          <li><b>52 of 61 indicators have never been scored.</b> They run; nothing has checked
+            that their definitions discriminate.</li>
+          <li><b>Nothing has been run twice on different days.</b> Every number we show is a
+            single reading.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="win" style="margin-top:1.4rem"><b>Why we list these at all —</b> a judge will
+      find them. Better that we found them first, wrote them down, and can say exactly what each
+      one would take to close.</div>
+  </div>
+</section>
+
+<!-- 18 ─ close -->
+<section class="slide">
+  <div class="inner" style="margin:auto">
+    <div class="eyebrow">In one sentence</div>
+    <h1 class="title" style="font-size:clamp(1.7rem,3.6vw,2.7rem)">A tool a policy researcher
+      can overrule.</h1>
+    <p class="lede">It finds the law without being told where to look, reads it including the
+      scans, quotes the clause verbatim, states the test it was judged against, and says how
+      sure it is — so the person who signs off on the index can check the machine instead of
+      trusting it.</p>
+    <div class="stats" style="margin-top:2rem">
+      <div class="stat g"><b>1.11%</b><span>OCR error rate · bar is 5%</span></div>
+      <div class="stat g"><b>1.000</b><span>provision recall after the sweep</span></div>
+      <div class="stat"><b>6</b><span>economies running · 3 with dated figures</span></div>
+      <div class="stat"><b>~$0.14</b><span>per economy · pillar run</span></div>
+    </div>
+    <div style="margin-top:2rem;font-size:.88rem;color:var(--ink-faint)">
+      VeriTrade · Team FTU · <span class="mono">minhtc@ftu.edu.vn</span>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<nav class="bar" aria-label="Slide controls">
+  <span class="mark"><i aria-hidden="true">V</i>VeriTrade</span>
+  <span class="sp"></span>
+  <button id="theme" aria-label="Switch light or dark">◐</button>
+  <button id="prev" aria-label="Previous slide">←</button>
+  <span class="count"><span id="cur">1</span> / <span id="tot">18</span></span>
+  <button id="next" aria-label="Next slide">→</button>
+</nav>
+
+<script>
+/* ── the step rail, generated once per method slide ─────────────────────
+   Same six steps as the overview diagram, so the audience can see which one
+   is being talked about. Built from data rather than pasted six times, which
+   is how the two would drift apart. */
+var STEPS = ["Discover", "Fetch", "Read", "Split", "Match", "Score"];
+document.querySelectorAll(".slide[data-step]").forEach(function (s) {
+  var here = +s.dataset.step;
+  s.querySelector(".rail").innerHTML = STEPS.map(function (name, i) {
+    var n = i + 1;
+    var cls = n === here ? "now" : (n < here ? "done" : "");
+    return '<div class="st ' + cls + '"' + (n === here ? ' aria-current="step"' : '') + '>' +
+           '<div class="dot">' + n + '</div><div class="lbl">' + name + '</div></div>';
+  }).join("");
+});
+
+/* ── navigation ─────────────────────────────────────────────────────── */
+var slides = [].slice.call(document.querySelectorAll(".slide"));
+var i = 0;
+document.getElementById("tot").textContent = slides.length;
+
+function show(n) {
+  i = Math.max(0, Math.min(slides.length - 1, n));
+  slides.forEach(function (s, k) { s.classList.toggle("on", k === i); });
+  document.getElementById("cur").textContent = i + 1;
+  document.getElementById("prog").style.width =
+    ((i + 1) / slides.length * 100) + "%";
+  slides[i].scrollTop = 0;
+  location.hash = i + 1;
+}
+document.getElementById("next").onclick = function () { show(i + 1); };
+document.getElementById("prev").onclick = function () { show(i - 1); };
+
+addEventListener("keydown", function (e) {
+  if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") { show(i + 1); e.preventDefault(); }
+  else if (e.key === "ArrowLeft" || e.key === "PageUp") { show(i - 1); e.preventDefault(); }
+  else if (e.key === "Home") { show(0); }
+  else if (e.key === "End") { show(slides.length - 1); }
+});
+/* Click to advance, but never when the click was a link or a control. */
+document.getElementById("deck").addEventListener("click", function (e) {
+  if (e.target.closest("a,button")) return;
+  show(i + 1);
+});
+
+document.getElementById("theme").onclick = function (e) {
+  e.stopPropagation();
+  var r = document.documentElement, cur = r.getAttribute("data-theme");
+  if (!cur) cur = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  r.setAttribute("data-theme", cur === "dark" ? "light" : "dark");
+};
+
+show(parseInt(location.hash.slice(1), 10) - 1 || 0);
+</script>
+</body>
+</html>
