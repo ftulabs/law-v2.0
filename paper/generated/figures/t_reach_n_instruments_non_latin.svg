@@ -1,0 +1,160 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="606" viewBox="0 0 760 606" font-family="Helvetica,Arial,sans-serif">
+<rect width="760" height="606" fill="#ffffff"/>
+<text x="70" y="26" font-size="15" font-weight="600" fill="#1a1a1a">n_instruments_non_latin &#183; t_reach</text>
+<line x1="70" y1="306.00" x2="740" y2="306.00" stroke="#e4e7ea" stroke-width="1"/>
+<text x="62" y="310.00" font-size="11" fill="#5b6b7a" text-anchor="end">0.000</text>
+<line x1="70" y1="241.00" x2="740" y2="241.00" stroke="#e4e7ea" stroke-width="1"/>
+<text x="62" y="245.00" font-size="11" fill="#5b6b7a" text-anchor="end">8.120</text>
+<line x1="70" y1="176.00" x2="740" y2="176.00" stroke="#e4e7ea" stroke-width="1"/>
+<text x="62" y="180.00" font-size="11" fill="#5b6b7a" text-anchor="end">16.240</text>
+<line x1="70" y1="111.00" x2="740" y2="111.00" stroke="#e4e7ea" stroke-width="1"/>
+<text x="62" y="115.00" font-size="11" fill="#5b6b7a" text-anchor="end">24.360</text>
+<line x1="70" y1="46.00" x2="740" y2="46.00" stroke="#e4e7ea" stroke-width="1"/>
+<text x="62" y="50.00" font-size="11" fill="#5b6b7a" text-anchor="end">32.480</text>
+<line x1="70" y1="306.00" x2="740" y2="306.00" stroke="#9aa5b1" stroke-width="1"/>
+<rect x="75.30" y="306.00" width="17.31" height="0.00" fill="#2f6fb2" opacity="0.88"/>
+<line x1="83.96" y1="306.00" x2="83.96" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="76.96" y1="306.00" x2="90.96" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="76.96" y1="306.00" x2="90.96" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="83.96" y="299.00" font-size="11" fill="#1a1a1a" text-anchor="middle">0.000</text>
+<text x="83.96" y="318.00" font-size="10" fill="#3d4852" text-anchor="end" transform="rotate(-90 83.96 318.00)">economy=AU,terms=english,tokeniser=ascii_only</text>
+<rect x="103.22" y="306.00" width="17.31" height="0.00" fill="#c8622b" opacity="0.88"/>
+<line x1="111.88" y1="306.00" x2="111.88" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="104.88" y1="306.00" x2="118.88" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="104.88" y1="306.00" x2="118.88" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="111.88" y="299.00" font-size="11" fill="#1a1a1a" text-anchor="middle">0.000</text>
+<text x="111.88" y="318.00" font-size="10" fill="#3d4852" text-anchor="end" transform="rotate(-90 111.88 318.00)">economy=AU,terms=english,tokeniser=script_aware</text>
+<rect x="131.14" y="306.00" width="17.31" height="0.00" fill="#4a8f5b" opacity="0.88"/>
+<line x1="139.79" y1="306.00" x2="139.79" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="132.79" y1="306.00" x2="146.79" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="132.79" y1="306.00" x2="146.79" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="139.79" y="299.00" font-size="11" fill="#1a1a1a" text-anchor="middle">0.000</text>
+<text x="139.79" y="318.00" font-size="10" fill="#3d4852" text-anchor="end" transform="rotate(-90 139.79 318.00)">economy=AU,terms=english_plus_native,tokeniser=ascii_only</text>
+<rect x="159.05" y="306.00" width="17.31" height="0.00" fill="#8a5aa8" opacity="0.88"/>
+<line x1="167.71" y1="306.00" x2="167.71" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="160.71" y1="306.00" x2="174.71" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="160.71" y1="306.00" x2="174.71" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="167.71" y="299.00" font-size="11" fill="#1a1a1a" text-anchor="middle">0.000</text>
+<text x="167.71" y="318.00" font-size="10" fill="#3d4852" text-anchor="end" transform="rotate(-90 167.71 318.00)">economy=AU,terms=english_plus_native,tokeniser=script_aware</text>
+<rect x="186.97" y="73.86" width="17.31" height="232.14" fill="#b8912f" opacity="0.88"/>
+<line x1="195.62" y1="73.86" x2="195.62" y2="73.86" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="188.62" y1="73.86" x2="202.62" y2="73.86" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="188.62" y1="73.86" x2="202.62" y2="73.86" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="195.62" y="66.86" font-size="11" fill="#1a1a1a" text-anchor="middle">29.000</text>
+<text x="195.62" y="318.00" font-size="10" fill="#3d4852" text-anchor="end" transform="rotate(-90 195.62 318.00)">economy=CN,terms=english,tokeniser=ascii_only</text>
+<rect x="214.89" y="73.86" width="17.31" height="232.14" fill="#5b6b7a" opacity="0.88"/>
+<line x1="223.54" y1="73.86" x2="223.54" y2="73.86" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="216.54" y1="73.86" x2="230.54" y2="73.86" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="216.54" y1="73.86" x2="230.54" y2="73.86" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="223.54" y="66.86" font-size="11" fill="#1a1a1a" text-anchor="middle">29.000</text>
+<text x="223.54" y="318.00" font-size="10" fill="#3d4852" text-anchor="end" transform="rotate(-90 223.54 318.00)">economy=CN,terms=english,tokeniser=script_aware</text>
+<rect x="242.80" y="73.86" width="17.31" height="232.14" fill="#2f6fb2" opacity="0.88"/>
+<line x1="251.46" y1="73.86" x2="251.46" y2="73.86" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="244.46" y1="73.86" x2="258.46" y2="73.86" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="244.46" y1="73.86" x2="258.46" y2="73.86" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="251.46" y="66.86" font-size="11" fill="#1a1a1a" text-anchor="middle">29.000</text>
+<text x="251.46" y="318.00" font-size="10" fill="#3d4852" text-anchor="end" transform="rotate(-90 251.46 318.00)">economy=CN,terms=english_plus_native,tokeniser=ascii_only</text>
+<rect x="270.72" y="73.86" width="17.31" height="232.14" fill="#c8622b" opacity="0.88"/>
+<line x1="279.38" y1="73.86" x2="279.38" y2="73.86" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="272.38" y1="73.86" x2="286.38" y2="73.86" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="272.38" y1="73.86" x2="286.38" y2="73.86" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="279.38" y="66.86" font-size="11" fill="#1a1a1a" text-anchor="middle">29.000</text>
+<text x="279.38" y="318.00" font-size="10" fill="#3d4852" text-anchor="end" transform="rotate(-90 279.38 318.00)">economy=CN,terms=english_plus_native,tokeniser=script_aware</text>
+<rect x="298.64" y="306.00" width="17.31" height="0.00" fill="#4a8f5b" opacity="0.88"/>
+<line x1="307.29" y1="306.00" x2="307.29" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="300.29" y1="306.00" x2="314.29" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="300.29" y1="306.00" x2="314.29" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="307.29" y="299.00" font-size="11" fill="#1a1a1a" text-anchor="middle">0.000</text>
+<text x="307.29" y="318.00" font-size="10" fill="#3d4852" text-anchor="end" transform="rotate(-90 307.29 318.00)">economy=IN,terms=english,tokeniser=ascii_only</text>
+<rect x="326.55" y="306.00" width="17.31" height="0.00" fill="#8a5aa8" opacity="0.88"/>
+<line x1="335.21" y1="306.00" x2="335.21" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="328.21" y1="306.00" x2="342.21" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="328.21" y1="306.00" x2="342.21" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="335.21" y="299.00" font-size="11" fill="#1a1a1a" text-anchor="middle">0.000</text>
+<text x="335.21" y="318.00" font-size="10" fill="#3d4852" text-anchor="end" transform="rotate(-90 335.21 318.00)">economy=IN,terms=english,tokeniser=script_aware</text>
+<rect x="354.47" y="306.00" width="17.31" height="0.00" fill="#b8912f" opacity="0.88"/>
+<line x1="363.12" y1="306.00" x2="363.12" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="356.12" y1="306.00" x2="370.12" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="356.12" y1="306.00" x2="370.12" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="363.12" y="299.00" font-size="11" fill="#1a1a1a" text-anchor="middle">0.000</text>
+<text x="363.12" y="318.00" font-size="10" fill="#3d4852" text-anchor="end" transform="rotate(-90 363.12 318.00)">economy=IN,terms=english_plus_native,tokeniser=ascii_only</text>
+<rect x="382.39" y="306.00" width="17.31" height="0.00" fill="#5b6b7a" opacity="0.88"/>
+<line x1="391.04" y1="306.00" x2="391.04" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="384.04" y1="306.00" x2="398.04" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="384.04" y1="306.00" x2="398.04" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="391.04" y="299.00" font-size="11" fill="#1a1a1a" text-anchor="middle">0.000</text>
+<text x="391.04" y="318.00" font-size="10" fill="#3d4852" text-anchor="end" transform="rotate(-90 391.04 318.00)">economy=IN,terms=english_plus_native,tokeniser=script_aware</text>
+<rect x="410.30" y="265.98" width="17.31" height="40.02" fill="#2f6fb2" opacity="0.88"/>
+<line x1="418.96" y1="265.98" x2="418.96" y2="265.98" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="411.96" y1="265.98" x2="425.96" y2="265.98" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="411.96" y1="265.98" x2="425.96" y2="265.98" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="418.96" y="258.98" font-size="11" fill="#1a1a1a" text-anchor="middle">5.000</text>
+<text x="418.96" y="318.00" font-size="10" fill="#3d4852" text-anchor="end" transform="rotate(-90 418.96 318.00)">economy=MN,terms=english,tokeniser=ascii_only</text>
+<rect x="438.22" y="265.98" width="17.31" height="40.02" fill="#c8622b" opacity="0.88"/>
+<line x1="446.88" y1="265.98" x2="446.88" y2="265.98" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="439.88" y1="265.98" x2="453.88" y2="265.98" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="439.88" y1="265.98" x2="453.88" y2="265.98" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="446.88" y="258.98" font-size="11" fill="#1a1a1a" text-anchor="middle">5.000</text>
+<text x="446.88" y="318.00" font-size="10" fill="#3d4852" text-anchor="end" transform="rotate(-90 446.88 318.00)">economy=MN,terms=english,tokeniser=script_aware</text>
+<rect x="466.14" y="265.98" width="17.31" height="40.02" fill="#4a8f5b" opacity="0.88"/>
+<line x1="474.79" y1="265.98" x2="474.79" y2="265.98" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="467.79" y1="265.98" x2="481.79" y2="265.98" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="467.79" y1="265.98" x2="481.79" y2="265.98" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="474.79" y="258.98" font-size="11" fill="#1a1a1a" text-anchor="middle">5.000</text>
+<text x="474.79" y="318.00" font-size="10" fill="#3d4852" text-anchor="end" transform="rotate(-90 474.79 318.00)">economy=MN,terms=english_plus_native,tokeniser=ascii_only</text>
+<rect x="494.05" y="265.98" width="17.31" height="40.02" fill="#8a5aa8" opacity="0.88"/>
+<line x1="502.71" y1="265.98" x2="502.71" y2="265.98" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="495.71" y1="265.98" x2="509.71" y2="265.98" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="495.71" y1="265.98" x2="509.71" y2="265.98" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="502.71" y="258.98" font-size="11" fill="#1a1a1a" text-anchor="middle">5.000</text>
+<text x="502.71" y="318.00" font-size="10" fill="#3d4852" text-anchor="end" transform="rotate(-90 502.71 318.00)">economy=MN,terms=english_plus_native,tokeniser=script_aware</text>
+<rect x="521.97" y="306.00" width="17.31" height="0.00" fill="#b8912f" opacity="0.88"/>
+<line x1="530.62" y1="306.00" x2="530.62" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="523.62" y1="306.00" x2="537.62" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="523.62" y1="306.00" x2="537.62" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="530.62" y="299.00" font-size="11" fill="#1a1a1a" text-anchor="middle">0.000</text>
+<text x="530.62" y="318.00" font-size="10" fill="#3d4852" text-anchor="end" transform="rotate(-90 530.62 318.00)">economy=MY,terms=english,tokeniser=ascii_only</text>
+<rect x="549.89" y="306.00" width="17.31" height="0.00" fill="#5b6b7a" opacity="0.88"/>
+<line x1="558.54" y1="306.00" x2="558.54" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="551.54" y1="306.00" x2="565.54" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="551.54" y1="306.00" x2="565.54" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="558.54" y="299.00" font-size="11" fill="#1a1a1a" text-anchor="middle">0.000</text>
+<text x="558.54" y="318.00" font-size="10" fill="#3d4852" text-anchor="end" transform="rotate(-90 558.54 318.00)">economy=MY,terms=english,tokeniser=script_aware</text>
+<rect x="577.80" y="306.00" width="17.31" height="0.00" fill="#2f6fb2" opacity="0.88"/>
+<line x1="586.46" y1="306.00" x2="586.46" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="579.46" y1="306.00" x2="593.46" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="579.46" y1="306.00" x2="593.46" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="586.46" y="299.00" font-size="11" fill="#1a1a1a" text-anchor="middle">0.000</text>
+<text x="586.46" y="318.00" font-size="10" fill="#3d4852" text-anchor="end" transform="rotate(-90 586.46 318.00)">economy=MY,terms=english_plus_native,tokeniser=ascii_only</text>
+<rect x="605.72" y="306.00" width="17.31" height="0.00" fill="#c8622b" opacity="0.88"/>
+<line x1="614.38" y1="306.00" x2="614.38" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="607.38" y1="306.00" x2="621.38" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="607.38" y1="306.00" x2="621.38" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="614.38" y="299.00" font-size="11" fill="#1a1a1a" text-anchor="middle">0.000</text>
+<text x="614.38" y="318.00" font-size="10" fill="#3d4852" text-anchor="end" transform="rotate(-90 614.38 318.00)">economy=MY,terms=english_plus_native,tokeniser=script_aware</text>
+<rect x="633.64" y="306.00" width="17.31" height="0.00" fill="#4a8f5b" opacity="0.88"/>
+<line x1="642.29" y1="306.00" x2="642.29" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="635.29" y1="306.00" x2="649.29" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="635.29" y1="306.00" x2="649.29" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="642.29" y="299.00" font-size="11" fill="#1a1a1a" text-anchor="middle">0.000</text>
+<text x="642.29" y="318.00" font-size="10" fill="#3d4852" text-anchor="end" transform="rotate(-90 642.29 318.00)">economy=SG,terms=english,tokeniser=ascii_only</text>
+<rect x="661.55" y="306.00" width="17.31" height="0.00" fill="#8a5aa8" opacity="0.88"/>
+<line x1="670.21" y1="306.00" x2="670.21" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="663.21" y1="306.00" x2="677.21" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="663.21" y1="306.00" x2="677.21" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="670.21" y="299.00" font-size="11" fill="#1a1a1a" text-anchor="middle">0.000</text>
+<text x="670.21" y="318.00" font-size="10" fill="#3d4852" text-anchor="end" transform="rotate(-90 670.21 318.00)">economy=SG,terms=english,tokeniser=script_aware</text>
+<rect x="689.47" y="306.00" width="17.31" height="0.00" fill="#b8912f" opacity="0.88"/>
+<line x1="698.12" y1="306.00" x2="698.12" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="691.12" y1="306.00" x2="705.12" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="691.12" y1="306.00" x2="705.12" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="698.12" y="299.00" font-size="11" fill="#1a1a1a" text-anchor="middle">0.000</text>
+<text x="698.12" y="318.00" font-size="10" fill="#3d4852" text-anchor="end" transform="rotate(-90 698.12 318.00)">economy=SG,terms=english_plus_native,tokeniser=ascii_only</text>
+<rect x="717.39" y="306.00" width="17.31" height="0.00" fill="#5b6b7a" opacity="0.88"/>
+<line x1="726.04" y1="306.00" x2="726.04" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="719.04" y1="306.00" x2="733.04" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="719.04" y1="306.00" x2="733.04" y2="306.00" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="726.04" y="299.00" font-size="11" fill="#1a1a1a" text-anchor="middle">0.000</text>
+<text x="726.04" y="318.00" font-size="10" fill="#3d4852" text-anchor="end" transform="rotate(-90 726.04 318.00)">economy=SG,terms=english_plus_native,tokeniser=script_aware</text>
+<text x="70" y="42" font-size="11" fill="#5b6b7a">whiskers: min-max across seed</text>
+</svg>

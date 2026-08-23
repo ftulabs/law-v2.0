@@ -1,0 +1,87 @@
+{
+  "artifacts": [
+    {
+      "path": "claims.tex",
+      "sha256": "ce885398c47529e323b0069d0cce272523cc6570ba2132d99963b4893b5691ee"
+    },
+    {
+      "path": "figures/t_reach_mrr.svg",
+      "sha256": "06faf8d2ac685a40d65dc89de1a142ada3dd643014656ba9a945727dd81ee4d5"
+    },
+    {
+      "path": "figures/t_reach_mrr.tex",
+      "sha256": "49656c954127205bafc75dd23f31714ef64ae0ee02089c64d10b977bb01281ce"
+    },
+    {
+      "path": "figures/t_reach_n_docs.svg",
+      "sha256": "a893f9bc350e0b5b091de3ac76ffa78933997c4ebd9ef48454cb7d6f651aa958"
+    },
+    {
+      "path": "figures/t_reach_n_docs.tex",
+      "sha256": "491be79f5a4515081565c6f212e812878e7e47b231933546e7ce62bcb57ca56a"
+    },
+    {
+      "path": "figures/t_reach_n_instruments_non_latin.svg",
+      "sha256": "8c50e39d0df439b558bef1f1f22b939869e36e1764be0e222fcf06352fc994b5"
+    },
+    {
+      "path": "figures/t_reach_n_instruments_non_latin.tex",
+      "sha256": "4f77d4cb3b3d1f992484da804303b558f7881e2e314cd8763f37097c0fe02e29"
+    },
+    {
+      "path": "figures/t_reach_n_pairs.svg",
+      "sha256": "bd98197ce81dca1653d7c15ffe77c364dabd15926b188d8c0b25d954493f098a"
+    },
+    {
+      "path": "figures/t_reach_n_pairs.tex",
+      "sha256": "780172cb5ad54fa1bc7a9e5376fea55d34038be7d773ab6899f9e61ebd4dcbf0"
+    },
+    {
+      "path": "figures/t_reach_reachable.svg",
+      "sha256": "e63f9da29e4e3bf21309ff9161c8b6f0b4f706c556f572e71fe9ffd6f70b5386"
+    },
+    {
+      "path": "figures/t_reach_reachable.tex",
+      "sha256": "39f2ae0207b0f519894d177773ce5d5d07b54487e168acc5d05a905d84bef88f"
+    },
+    {
+      "path": "figures/t_reach_recall_at_10.svg",
+      "sha256": "b34005b8d1cae348a44e29540a1b5cfa5551fa63dd8d0018cf34e82df197978f"
+    },
+    {
+      "path": "figures/t_reach_recall_at_10.tex",
+      "sha256": "f33609eb4c3dc5be7b8dcc374ace7c6a7b9128c3d614e7bed48fe9b5f3b27dba"
+    },
+    {
+      "path": "tables/t_reach_mrr.tex",
+      "sha256": "4db69a00cfa4462a35774a34cd2cb481e8dc0d7b4178bbb4aecd16ed2d2d2b69"
+    },
+    {
+      "path": "tables/t_reach_n_docs.tex",
+      "sha256": "7b1b60ecb89d79457487d116fcfe0e11beb0cd1ebae2c1f1c7a52bbf7e289f10"
+    },
+    {
+      "path": "tables/t_reach_n_instruments_non_latin.tex",
+      "sha256": "1e57c49a4654f08a91a5ca348ed74938b7a5525d0efcd1a9885cd528f9f72011"
+    },
+    {
+      "path": "tables/t_reach_n_pairs.tex",
+      "sha256": "286a41d255abbe6b1f7b74cf774058b8f793097ba9b8b2ae3450cd0f5aae46f4"
+    },
+    {
+      "path": "tables/t_reach_reachable.tex",
+      "sha256": "79091321b42ddbf11855fc29a9eea538a99418f2a18d7a8228b35bddc058a160"
+    },
+    {
+      "path": "tables/t_reach_recall_at_10.tex",
+      "sha256": "cfe4a1258d83ae29f97695fa22490175ea6524ce5e6753fa0a456de43452e02f"
+    },
+    {
+      "path": "values.tex",
+      "sha256": "ff0c4305ee770e9e65b0bfac2001e41c6c24d43cc74c0259ebfc096c0d2848c0"
+    }
+  ],
+  "metrics_hash": "53a2534632050563e91e74856e470557fe8b2df54f7c4514e6ed2c5985302d8d",
+  "project": "veritrade",
+  "schema": "ledger/assets@1"
+}

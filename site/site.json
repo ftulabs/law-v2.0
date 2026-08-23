@@ -1,0 +1,68 @@
+{
+  "artifacts": [
+    {
+      "path": "downloads/claims.json",
+      "sha256": "a0f6dc134fd4a716862049354dd331b79dd4ed4fa6944dc5c9704a0ea6e2d93d"
+    },
+    {
+      "path": "downloads/metrics.json",
+      "sha256": "2d4c41d20e551f260b8313e73d35baa3ac57af1644086866f04244e3b6857ed2"
+    },
+    {
+      "path": "downloads/paper.pdf",
+      "sha256": "a06305b848152116d234d78d47c1e13db923802aac822685dfc65834d98aa94a"
+    },
+    {
+      "path": "index.html",
+      "sha256": "15a27bab8fe1bb852cdfd75c02a36aaeb76f4f181d5eac8b92dffb0ab22ca4f0"
+    },
+    {
+      "path": "media/favicon.svg",
+      "sha256": "64168eee04205ba073eeeb617e06b7418a8ae7abfa8c73d11ff7ed505409da7f"
+    },
+    {
+      "path": "media/panel_a.png",
+      "sha256": "e9e74456a31651214224d85cb3b84d33751d5800d3e80fcfcf993444201d3d64"
+    },
+    {
+      "path": "media/panel_b.png",
+      "sha256": "adf002be1d30dba3c69b0b26a7449761a39a04902ad8488d26a233995ee2f0ca"
+    },
+    {
+      "path": "media/panel_c.png",
+      "sha256": "98b1689a5734b11a37e62a0766e7a6c16793489569861e43eac49a3df538081d"
+    },
+    {
+      "path": "media/panel_d.png",
+      "sha256": "86d7cd23747510a0192afcd7156bb7d38b81ef2bc816e5387db6d40191c1371b"
+    },
+    {
+      "path": "theme/css/bulma-carousel.min.css",
+      "sha256": "9d586b0d953f9dedc8ff3e8b5d611bc943849afefdb0f18a11bb0fed258b9072"
+    },
+    {
+      "path": "theme/css/bulma-slider.min.css",
+      "sha256": "9bd5f05ad71360d0e87f21dd3d07d94c080486342f335ff041f5394c6aa6dac9"
+    },
+    {
+      "path": "theme/css/bulma.min.css",
+      "sha256": "58b28659220961ead137cb5b346b5759562750ce703094d70fc786e0db467033"
+    },
+    {
+      "path": "theme/css/index.css",
+      "sha256": "747bae5899d9a93f21caa423e264b2b7ed7ec2b12e1f57be1a715f8103c5c744"
+    }
+  ],
+  "base_url": "https://ftulabs.github.io/rdtii-bench",
+  "metrics_hash": "53a2534632050563e91e74856e470557fe8b2df54f7c4514e6ed2c5985302d8d",
+  "project": "veritrade",
+  "schema": "ledger/site@1",
+  "sections": [
+    "findings",
+    "leaderboard",
+    "method",
+    "downloads",
+    "paper",
+    "provenance"
+  ]
+}

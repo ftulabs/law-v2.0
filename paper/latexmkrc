@@ -1,0 +1,19 @@
+# Overleaf compiles from the project root, and TeX does not search
+# subdirectories for .sty or .bst files. The conference author kit is kept in
+# style/iclr2027 unmodified -- that is the point of it, and flattening it into
+# the root to satisfy a search path would make the kit indistinguishable from
+# our own files.
+#
+# `ledger paper` sets the same two variables for the local build. Setting them
+# here as well is what makes the project compile identically in a browser, with
+# nothing about the layout changed to suit either one.
+#
+# The trailing `//` is a TeX path convention meaning "and every directory below".
+$ENV{'TEXINPUTS'} = './style/iclr2027//:./generated//:./cases//:' . ($ENV{'TEXINPUTS'} // '');
+$ENV{'BSTINPUTS'} = './style/iclr2027//:' . ($ENV{'BSTINPUTS'} // '');
+$ENV{'BIBINPUTS'} = './:' . ($ENV{'BIBINPUTS'} // '');
+
+# pdflatex, matching the local build. The document uses pgfplots and included
+# PNGs, both of which pdflatex handles; xelatex would also work and is what to
+# switch to if the native-script titles are ever typeset rather than rasterised.
+$pdf_mode = 1;

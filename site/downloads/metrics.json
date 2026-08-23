@@ -1,0 +1,2158 @@
+{
+  "cells": [
+    {
+      "cell_id": "007a2821b28f77cdcd96b111f57afa1093f11f5707563ce0976378e3195b823a",
+      "config": {
+        "economy": "AU",
+        "terms": "english",
+        "tokeniser": "ascii_only"
+      },
+      "failures": [],
+      "label": "economy=AU,terms=english,tokeniser=ascii_only",
+      "metrics": {
+        "mrr": {
+          "ci95_half": 0.013111108263953803,
+          "max": 0.15662370304539755,
+          "mean": 0.14496927561882048,
+          "min": 0.12777307279186975,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.028850630253527798,
+          "std": 0.014958095831637704
+        },
+        "n_docs": {
+          "ci95_half": 0.0,
+          "max": 2113.0,
+          "mean": 2113.0,
+          "min": 2113.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_instruments_non_latin": {
+          "ci95_half": 0.0,
+          "max": 0.0,
+          "mean": 0.0,
+          "min": 0.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_pairs": {
+          "ci95_half": 0.0,
+          "max": 19.0,
+          "mean": 19.0,
+          "min": 19.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "reachable": {
+          "ci95_half": 0.0,
+          "max": 0.5263157894736842,
+          "mean": 0.5263157894736842,
+          "min": 0.5263157894736842,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "recall_at_10": {
+          "ci95_half": 0.0,
+          "max": 0.2631578947368421,
+          "mean": 0.2631578947368421,
+          "min": 0.2631578947368421,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        }
+      },
+      "n": 5,
+      "n_failed": 0,
+      "n_ok": 5,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "task": "t_reach"
+    },
+    {
+      "cell_id": "06f7621783bba95db72c13192d29f46cb7780aeeb9501388e13cca767333c983",
+      "config": {
+        "economy": "AU",
+        "terms": "english",
+        "tokeniser": "script_aware"
+      },
+      "failures": [],
+      "label": "economy=AU,terms=english,tokeniser=script_aware",
+      "metrics": {
+        "mrr": {
+          "ci95_half": 0.0004796812239785817,
+          "max": 0.06156180177958761,
+          "mean": 0.061286762302211674,
+          "min": 0.060308668947507416,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0012531328320801935,
+          "std": 0.0005472548599598823
+        },
+        "n_docs": {
+          "ci95_half": 0.0,
+          "max": 2113.0,
+          "mean": 2113.0,
+          "min": 2113.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_instruments_non_latin": {
+          "ci95_half": 0.0,
+          "max": 0.0,
+          "mean": 0.0,
+          "min": 0.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_pairs": {
+          "ci95_half": 0.0,
+          "max": 19.0,
+          "mean": 19.0,
+          "min": 19.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "reachable": {
+          "ci95_half": 0.0,
+          "max": 0.5263157894736842,
+          "mean": 0.5263157894736842,
+          "min": 0.5263157894736842,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "recall_at_10": {
+          "ci95_half": 0.0,
+          "max": 0.15789473684210525,
+          "mean": 0.15789473684210525,
+          "min": 0.15789473684210525,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        }
+      },
+      "n": 5,
+      "n_failed": 0,
+      "n_ok": 5,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "task": "t_reach"
+    },
+    {
+      "cell_id": "419d85693ea53a0e0777418a25ab38ff9e69b439234417196aaf9e3518d190b2",
+      "config": {
+        "economy": "AU",
+        "terms": "english_plus_native",
+        "tokeniser": "ascii_only"
+      },
+      "failures": [],
+      "label": "economy=AU,terms=english_plus_native,tokeniser=ascii_only",
+      "metrics": {
+        "mrr": {
+          "ci95_half": 0.013111108263953803,
+          "max": 0.15662370304539755,
+          "mean": 0.14496927561882048,
+          "min": 0.12777307279186975,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.028850630253527798,
+          "std": 0.014958095831637704
+        },
+        "n_docs": {
+          "ci95_half": 0.0,
+          "max": 2113.0,
+          "mean": 2113.0,
+          "min": 2113.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_instruments_non_latin": {
+          "ci95_half": 0.0,
+          "max": 0.0,
+          "mean": 0.0,
+          "min": 0.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_pairs": {
+          "ci95_half": 0.0,
+          "max": 19.0,
+          "mean": 19.0,
+          "min": 19.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "reachable": {
+          "ci95_half": 0.0,
+          "max": 0.5263157894736842,
+          "mean": 0.5263157894736842,
+          "min": 0.5263157894736842,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "recall_at_10": {
+          "ci95_half": 0.0,
+          "max": 0.2631578947368421,
+          "mean": 0.2631578947368421,
+          "min": 0.2631578947368421,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        }
+      },
+      "n": 5,
+      "n_failed": 0,
+      "n_ok": 5,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "task": "t_reach"
+    },
+    {
+      "cell_id": "bb4025d9e735f668dafe55856a8047841722f372f45d310136520530999a4e58",
+      "config": {
+        "economy": "AU",
+        "terms": "english_plus_native",
+        "tokeniser": "script_aware"
+      },
+      "failures": [],
+      "label": "economy=AU,terms=english_plus_native,tokeniser=script_aware",
+      "metrics": {
+        "mrr": {
+          "ci95_half": 0.0004796812239785817,
+          "max": 0.06156180177958761,
+          "mean": 0.061286762302211674,
+          "min": 0.060308668947507416,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0012531328320801935,
+          "std": 0.0005472548599598823
+        },
+        "n_docs": {
+          "ci95_half": 0.0,
+          "max": 2113.0,
+          "mean": 2113.0,
+          "min": 2113.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_instruments_non_latin": {
+          "ci95_half": 0.0,
+          "max": 0.0,
+          "mean": 0.0,
+          "min": 0.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_pairs": {
+          "ci95_half": 0.0,
+          "max": 19.0,
+          "mean": 19.0,
+          "min": 19.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "reachable": {
+          "ci95_half": 0.0,
+          "max": 0.5263157894736842,
+          "mean": 0.5263157894736842,
+          "min": 0.5263157894736842,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "recall_at_10": {
+          "ci95_half": 0.0,
+          "max": 0.15789473684210525,
+          "mean": 0.15789473684210525,
+          "min": 0.15789473684210525,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        }
+      },
+      "n": 5,
+      "n_failed": 0,
+      "n_ok": 5,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "task": "t_reach"
+    },
+    {
+      "cell_id": "3e71806388b16c9f920765c1c1f1099b196802a027240fa18fac6c29f8e62ef1",
+      "config": {
+        "economy": "CN",
+        "terms": "english",
+        "tokeniser": "ascii_only"
+      },
+      "failures": [],
+      "label": "economy=CN,terms=english,tokeniser=ascii_only",
+      "metrics": {
+        "mrr": {
+          "ci95_half": 0.0,
+          "max": 0.0,
+          "mean": 0.0,
+          "min": 0.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_docs": {
+          "ci95_half": 0.0,
+          "max": 2113.0,
+          "mean": 2113.0,
+          "min": 2113.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_instruments_non_latin": {
+          "ci95_half": 0.0,
+          "max": 29.0,
+          "mean": 29.0,
+          "min": 29.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_pairs": {
+          "ci95_half": 0.0,
+          "max": 38.0,
+          "mean": 38.0,
+          "min": 38.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "reachable": {
+          "ci95_half": 0.0,
+          "max": 0.0,
+          "mean": 0.0,
+          "min": 0.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "recall_at_10": {
+          "ci95_half": 0.0,
+          "max": 0.0,
+          "mean": 0.0,
+          "min": 0.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        }
+      },
+      "n": 5,
+      "n_failed": 0,
+      "n_ok": 5,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "task": "t_reach"
+    },
+    {
+      "cell_id": "609611899375ca51430b08ea3d3c5a390106aa75acb83b76888b42c14b3cbd94",
+      "config": {
+        "economy": "CN",
+        "terms": "english",
+        "tokeniser": "script_aware"
+      },
+      "failures": [],
+      "label": "economy=CN,terms=english,tokeniser=script_aware",
+      "metrics": {
+        "mrr": {
+          "ci95_half": 0.0,
+          "max": 0.0,
+          "mean": 0.0,
+          "min": 0.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_docs": {
+          "ci95_half": 0.0,
+          "max": 2113.0,
+          "mean": 2113.0,
+          "min": 2113.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_instruments_non_latin": {
+          "ci95_half": 0.0,
+          "max": 29.0,
+          "mean": 29.0,
+          "min": 29.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_pairs": {
+          "ci95_half": 0.0,
+          "max": 38.0,
+          "mean": 38.0,
+          "min": 38.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "reachable": {
+          "ci95_half": 0.0,
+          "max": 0.0,
+          "mean": 0.0,
+          "min": 0.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "recall_at_10": {
+          "ci95_half": 0.0,
+          "max": 0.0,
+          "mean": 0.0,
+          "min": 0.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        }
+      },
+      "n": 5,
+      "n_failed": 0,
+      "n_ok": 5,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "task": "t_reach"
+    },
+    {
+      "cell_id": "6fe8a12ce8a6c9639b453e722781874afe8415596b27ddd87ce61f6f3b883bc7",
+      "config": {
+        "economy": "CN",
+        "terms": "english_plus_native",
+        "tokeniser": "ascii_only"
+      },
+      "failures": [],
+      "label": "economy=CN,terms=english_plus_native,tokeniser=ascii_only",
+      "metrics": {
+        "mrr": {
+          "ci95_half": 0.0,
+          "max": 0.0,
+          "mean": 0.0,
+          "min": 0.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_docs": {
+          "ci95_half": 0.0,
+          "max": 2113.0,
+          "mean": 2113.0,
+          "min": 2113.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_instruments_non_latin": {
+          "ci95_half": 0.0,
+          "max": 29.0,
+          "mean": 29.0,
+          "min": 29.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_pairs": {
+          "ci95_half": 0.0,
+          "max": 38.0,
+          "mean": 38.0,
+          "min": 38.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "reachable": {
+          "ci95_half": 0.0,
+          "max": 0.0,
+          "mean": 0.0,
+          "min": 0.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "recall_at_10": {
+          "ci95_half": 0.0,
+          "max": 0.0,
+          "mean": 0.0,
+          "min": 0.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        }
+      },
+      "n": 5,
+      "n_failed": 0,
+      "n_ok": 5,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "task": "t_reach"
+    },
+    {
+      "cell_id": "ccd396458ae6a4cd50d9d2cb5efc6cb63d4f91b000b6889d8a062fa75e526c89",
+      "config": {
+        "economy": "CN",
+        "terms": "english_plus_native",
+        "tokeniser": "script_aware"
+      },
+      "failures": [],
+      "label": "economy=CN,terms=english_plus_native,tokeniser=script_aware",
+      "metrics": {
+        "mrr": {
+          "ci95_half": 0.00017903014760321212,
+          "max": 0.10889752750216349,
+          "mean": 0.10879270928165508,
+          "min": 0.10842760269013337,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.00046992481203012026,
+          "std": 0.00020425047606109262
+        },
+        "n_docs": {
+          "ci95_half": 0.0,
+          "max": 2113.0,
+          "mean": 2113.0,
+          "min": 2113.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_instruments_non_latin": {
+          "ci95_half": 0.0,
+          "max": 29.0,
+          "mean": 29.0,
+          "min": 29.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_pairs": {
+          "ci95_half": 0.0,
+          "max": 38.0,
+          "mean": 38.0,
+          "min": 38.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "reachable": {
+          "ci95_half": 0.0,
+          "max": 0.39473684210526316,
+          "mean": 0.39473684210526316,
+          "min": 0.39473684210526316,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "recall_at_10": {
+          "ci95_half": 0.0,
+          "max": 0.21052631578947367,
+          "mean": 0.21052631578947367,
+          "min": 0.21052631578947367,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        }
+      },
+      "n": 5,
+      "n_failed": 0,
+      "n_ok": 5,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "task": "t_reach"
+    },
+    {
+      "cell_id": "e307f1e5caab0105fbf8dd434a8f4ef8b3fbf8fe72fd2b0274b0f8ef7ea7f406",
+      "config": {
+        "economy": "IN",
+        "terms": "english",
+        "tokeniser": "ascii_only"
+      },
+      "failures": [],
+      "label": "economy=IN,terms=english,tokeniser=ascii_only",
+      "metrics": {
+        "mrr": {
+          "ci95_half": 0.000883780140472216,
+          "max": 0.07546923527688096,
+          "mean": 0.07451104778550029,
+          "min": 0.07325392447738262,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0022153107994983406,
+          "std": 0.0010082799843569516
+        },
+        "n_docs": {
+          "ci95_half": 0.0,
+          "max": 2113.0,
+          "mean": 2113.0,
+          "min": 2113.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_instruments_non_latin": {
+          "ci95_half": 0.0,
+          "max": 0.0,
+          "mean": 0.0,
+          "min": 0.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_pairs": {
+          "ci95_half": 0.0,
+          "max": 49.0,
+          "mean": 49.0,
+          "min": 49.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "reachable": {
+          "ci95_half": 0.0,
+          "max": 0.7959183673469388,
+          "mean": 0.7959183673469388,
+          "min": 0.7959183673469388,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "recall_at_10": {
+          "ci95_half": 0.0,
+          "max": 0.20408163265306123,
+          "mean": 0.20408163265306123,
+          "min": 0.20408163265306123,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        }
+      },
+      "n": 5,
+      "n_failed": 0,
+      "n_ok": 5,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "task": "t_reach"
+    },
+    {
+      "cell_id": "6ec4b10acee2949bbb41243d85e72cbaf6a957dc01ad812006a1ff35f6360081",
+      "config": {
+        "economy": "IN",
+        "terms": "english",
+        "tokeniser": "script_aware"
+      },
+      "failures": [],
+      "label": "economy=IN,terms=english,tokeniser=script_aware",
+      "metrics": {
+        "mrr": {
+          "ci95_half": 4.8133547324760785e-05,
+          "max": 0.08081429867139248,
+          "mean": 0.08074033703732428,
+          "min": 0.0806737291943301,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.00014056947706238276,
+          "std": 5.49142146571918e-05
+        },
+        "n_docs": {
+          "ci95_half": 0.0,
+          "max": 2113.0,
+          "mean": 2113.0,
+          "min": 2113.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_instruments_non_latin": {
+          "ci95_half": 0.0,
+          "max": 0.0,
+          "mean": 0.0,
+          "min": 0.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_pairs": {
+          "ci95_half": 0.0,
+          "max": 49.0,
+          "mean": 49.0,
+          "min": 49.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "reachable": {
+          "ci95_half": 0.0,
+          "max": 0.7959183673469388,
+          "mean": 0.7959183673469388,
+          "min": 0.7959183673469388,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "recall_at_10": {
+          "ci95_half": 0.0,
+          "max": 0.22448979591836735,
+          "mean": 0.22448979591836732,
+          "min": 0.22448979591836735,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        }
+      },
+      "n": 5,
+      "n_failed": 0,
+      "n_ok": 5,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "task": "t_reach"
+    },
+    {
+      "cell_id": "8a514c8c600f4c026214066553c635193f505fb010efa6533f541bc79e1e1f1e",
+      "config": {
+        "economy": "IN",
+        "terms": "english_plus_native",
+        "tokeniser": "ascii_only"
+      },
+      "failures": [],
+      "label": "economy=IN,terms=english_plus_native,tokeniser=ascii_only",
+      "metrics": {
+        "mrr": {
+          "ci95_half": 0.000883780140472216,
+          "max": 0.07546923527688096,
+          "mean": 0.07451104778550029,
+          "min": 0.07325392447738262,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0022153107994983406,
+          "std": 0.0010082799843569516
+        },
+        "n_docs": {
+          "ci95_half": 0.0,
+          "max": 2113.0,
+          "mean": 2113.0,
+          "min": 2113.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_instruments_non_latin": {
+          "ci95_half": 0.0,
+          "max": 0.0,
+          "mean": 0.0,
+          "min": 0.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_pairs": {
+          "ci95_half": 0.0,
+          "max": 49.0,
+          "mean": 49.0,
+          "min": 49.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "reachable": {
+          "ci95_half": 0.0,
+          "max": 0.7959183673469388,
+          "mean": 0.7959183673469388,
+          "min": 0.7959183673469388,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "recall_at_10": {
+          "ci95_half": 0.0,
+          "max": 0.20408163265306123,
+          "mean": 0.20408163265306123,
+          "min": 0.20408163265306123,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        }
+      },
+      "n": 5,
+      "n_failed": 0,
+      "n_ok": 5,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "task": "t_reach"
+    },
+    {
+      "cell_id": "851cac8cebea61c392be0c3a59bfe88f36f9e5fd268b0b5b944a8f90b563120a",
+      "config": {
+        "economy": "IN",
+        "terms": "english_plus_native",
+        "tokeniser": "script_aware"
+      },
+      "failures": [],
+      "label": "economy=IN,terms=english_plus_native,tokeniser=script_aware",
+      "metrics": {
+        "mrr": {
+          "ci95_half": 4.8133547324760785e-05,
+          "max": 0.08081429867139248,
+          "mean": 0.08074033703732428,
+          "min": 0.0806737291943301,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.00014056947706238276,
+          "std": 5.49142146571918e-05
+        },
+        "n_docs": {
+          "ci95_half": 0.0,
+          "max": 2113.0,
+          "mean": 2113.0,
+          "min": 2113.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_instruments_non_latin": {
+          "ci95_half": 0.0,
+          "max": 0.0,
+          "mean": 0.0,
+          "min": 0.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_pairs": {
+          "ci95_half": 0.0,
+          "max": 49.0,
+          "mean": 49.0,
+          "min": 49.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "reachable": {
+          "ci95_half": 0.0,
+          "max": 0.7959183673469388,
+          "mean": 0.7959183673469388,
+          "min": 0.7959183673469388,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "recall_at_10": {
+          "ci95_half": 0.0,
+          "max": 0.22448979591836735,
+          "mean": 0.22448979591836732,
+          "min": 0.22448979591836735,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        }
+      },
+      "n": 5,
+      "n_failed": 0,
+      "n_ok": 5,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "task": "t_reach"
+    },
+    {
+      "cell_id": "06e7c5739a03fa5a3dd7969148426d98f17a131a7762725fe6a618d8d29639af",
+      "config": {
+        "economy": "MN",
+        "terms": "english",
+        "tokeniser": "ascii_only"
+      },
+      "failures": [],
+      "label": "economy=MN,terms=english,tokeniser=ascii_only",
+      "metrics": {
+        "mrr": {
+          "ci95_half": 0.0,
+          "max": 0.08333333333333333,
+          "mean": 0.08333333333333333,
+          "min": 0.08333333333333333,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_docs": {
+          "ci95_half": 0.0,
+          "max": 2113.0,
+          "mean": 2113.0,
+          "min": 2113.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_instruments_non_latin": {
+          "ci95_half": 0.0,
+          "max": 5.0,
+          "mean": 5.0,
+          "min": 5.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_pairs": {
+          "ci95_half": 0.0,
+          "max": 12.0,
+          "mean": 12.0,
+          "min": 12.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "reachable": {
+          "ci95_half": 0.0,
+          "max": 0.08333333333333333,
+          "mean": 0.08333333333333333,
+          "min": 0.08333333333333333,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "recall_at_10": {
+          "ci95_half": 0.0,
+          "max": 0.08333333333333333,
+          "mean": 0.08333333333333333,
+          "min": 0.08333333333333333,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        }
+      },
+      "n": 5,
+      "n_failed": 0,
+      "n_ok": 5,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "task": "t_reach"
+    },
+    {
+      "cell_id": "dae438855d6f0aa80e58e862da4503ca8369327eb8b71760baede7f6dcb3ad1a",
+      "config": {
+        "economy": "MN",
+        "terms": "english",
+        "tokeniser": "script_aware"
+      },
+      "failures": [],
+      "label": "economy=MN,terms=english,tokeniser=script_aware",
+      "metrics": {
+        "mrr": {
+          "ci95_half": 0.0,
+          "max": 0.08333333333333333,
+          "mean": 0.08333333333333333,
+          "min": 0.08333333333333333,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_docs": {
+          "ci95_half": 0.0,
+          "max": 2113.0,
+          "mean": 2113.0,
+          "min": 2113.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_instruments_non_latin": {
+          "ci95_half": 0.0,
+          "max": 5.0,
+          "mean": 5.0,
+          "min": 5.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_pairs": {
+          "ci95_half": 0.0,
+          "max": 12.0,
+          "mean": 12.0,
+          "min": 12.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "reachable": {
+          "ci95_half": 0.0,
+          "max": 0.08333333333333333,
+          "mean": 0.08333333333333333,
+          "min": 0.08333333333333333,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "recall_at_10": {
+          "ci95_half": 0.0,
+          "max": 0.08333333333333333,
+          "mean": 0.08333333333333333,
+          "min": 0.08333333333333333,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        }
+      },
+      "n": 5,
+      "n_failed": 0,
+      "n_ok": 5,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "task": "t_reach"
+    },
+    {
+      "cell_id": "87fb22a4689365a20a2a4176c286ee89d27b63e76298ffa57493d435aa76ff1f",
+      "config": {
+        "economy": "MN",
+        "terms": "english_plus_native",
+        "tokeniser": "ascii_only"
+      },
+      "failures": [],
+      "label": "economy=MN,terms=english_plus_native,tokeniser=ascii_only",
+      "metrics": {
+        "mrr": {
+          "ci95_half": 0.0,
+          "max": 0.08333333333333333,
+          "mean": 0.08333333333333333,
+          "min": 0.08333333333333333,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_docs": {
+          "ci95_half": 0.0,
+          "max": 2113.0,
+          "mean": 2113.0,
+          "min": 2113.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_instruments_non_latin": {
+          "ci95_half": 0.0,
+          "max": 5.0,
+          "mean": 5.0,
+          "min": 5.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_pairs": {
+          "ci95_half": 0.0,
+          "max": 12.0,
+          "mean": 12.0,
+          "min": 12.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "reachable": {
+          "ci95_half": 0.0,
+          "max": 0.08333333333333333,
+          "mean": 0.08333333333333333,
+          "min": 0.08333333333333333,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "recall_at_10": {
+          "ci95_half": 0.0,
+          "max": 0.08333333333333333,
+          "mean": 0.08333333333333333,
+          "min": 0.08333333333333333,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        }
+      },
+      "n": 5,
+      "n_failed": 0,
+      "n_ok": 5,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "task": "t_reach"
+    },
+    {
+      "cell_id": "20ec86ac1e20e83b38c8867418da59784f572227b68caedd36bd9dccda04cc86",
+      "config": {
+        "economy": "MN",
+        "terms": "english_plus_native",
+        "tokeniser": "script_aware"
+      },
+      "failures": [],
+      "label": "economy=MN,terms=english_plus_native,tokeniser=script_aware",
+      "metrics": {
+        "mrr": {
+          "ci95_half": 0.016516327299737323,
+          "max": 0.08671631619937696,
+          "mean": 0.0779919041839762,
+          "min": 0.04428732235823835,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.04242899384113861,
+          "std": 0.018843014759887526
+        },
+        "n_docs": {
+          "ci95_half": 0.0,
+          "max": 2113.0,
+          "mean": 2113.0,
+          "min": 2113.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_instruments_non_latin": {
+          "ci95_half": 0.0,
+          "max": 5.0,
+          "mean": 5.0,
+          "min": 5.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_pairs": {
+          "ci95_half": 0.0,
+          "max": 12.0,
+          "mean": 12.0,
+          "min": 12.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "reachable": {
+          "ci95_half": 0.0,
+          "max": 0.25,
+          "mean": 0.25,
+          "min": 0.25,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "recall_at_10": {
+          "ci95_half": 0.0,
+          "max": 0.08333333333333333,
+          "mean": 0.08333333333333333,
+          "min": 0.08333333333333333,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        }
+      },
+      "n": 5,
+      "n_failed": 0,
+      "n_ok": 5,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "task": "t_reach"
+    },
+    {
+      "cell_id": "022db27b00bcd2a19a0b8d625622656200aa5da513a9d12c7b10799444025a09",
+      "config": {
+        "economy": "MY",
+        "terms": "english",
+        "tokeniser": "ascii_only"
+      },
+      "failures": [],
+      "label": "economy=MY,terms=english,tokeniser=ascii_only",
+      "metrics": {
+        "mrr": {
+          "ci95_half": 0.0010195068359259056,
+          "max": 0.0691968456789414,
+          "mean": 0.06821583824261421,
+          "min": 0.0663075024980562,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0028893431808851983,
+          "std": 0.001163126765928379
+        },
+        "n_docs": {
+          "ci95_half": 0.0,
+          "max": 2113.0,
+          "mean": 2113.0,
+          "min": 2113.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_instruments_non_latin": {
+          "ci95_half": 0.0,
+          "max": 0.0,
+          "mean": 0.0,
+          "min": 0.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_pairs": {
+          "ci95_half": 0.0,
+          "max": 35.0,
+          "mean": 35.0,
+          "min": 35.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "reachable": {
+          "ci95_half": 0.0,
+          "max": 0.8,
+          "mean": 0.8,
+          "min": 0.8,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "recall_at_10": {
+          "ci95_half": 0.022399588571428576,
+          "max": 0.3142857142857143,
+          "mean": 0.3028571428571428,
+          "min": 0.2571428571428571,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.05714285714285716,
+          "std": 0.025555062599997604
+        }
+      },
+      "n": 5,
+      "n_failed": 0,
+      "n_ok": 5,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "task": "t_reach"
+    },
+    {
+      "cell_id": "3cad86a1ca29afe19a9921801893401d59ff5c96b5d36726d4757915f3dab3a8",
+      "config": {
+        "economy": "MY",
+        "terms": "english",
+        "tokeniser": "script_aware"
+      },
+      "failures": [],
+      "label": "economy=MY,terms=english,tokeniser=script_aware",
+      "metrics": {
+        "mrr": {
+          "ci95_half": 0.00010237233661370956,
+          "max": 0.09253221343003748,
+          "mean": 0.09241557408135136,
+          "min": 0.09224203225754299,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0002901811724944914,
+          "std": 0.00011679372870305027
+        },
+        "n_docs": {
+          "ci95_half": 0.0,
+          "max": 2113.0,
+          "mean": 2113.0,
+          "min": 2113.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_instruments_non_latin": {
+          "ci95_half": 0.0,
+          "max": 0.0,
+          "mean": 0.0,
+          "min": 0.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_pairs": {
+          "ci95_half": 0.0,
+          "max": 35.0,
+          "mean": 35.0,
+          "min": 35.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "reachable": {
+          "ci95_half": 0.0,
+          "max": 0.8,
+          "mean": 0.8,
+          "min": 0.8,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "recall_at_10": {
+          "ci95_half": 0.0,
+          "max": 0.34285714285714286,
+          "mean": 0.34285714285714286,
+          "min": 0.34285714285714286,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        }
+      },
+      "n": 5,
+      "n_failed": 0,
+      "n_ok": 5,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "task": "t_reach"
+    },
+    {
+      "cell_id": "0b03d39f42c20cff44fa5037bf4884a4ab28fd26decd687c369843aff400cffb",
+      "config": {
+        "economy": "MY",
+        "terms": "english_plus_native",
+        "tokeniser": "ascii_only"
+      },
+      "failures": [],
+      "label": "economy=MY,terms=english_plus_native,tokeniser=ascii_only",
+      "metrics": {
+        "mrr": {
+          "ci95_half": 0.0010195068359259056,
+          "max": 0.0691968456789414,
+          "mean": 0.06821583824261421,
+          "min": 0.0663075024980562,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0028893431808851983,
+          "std": 0.001163126765928379
+        },
+        "n_docs": {
+          "ci95_half": 0.0,
+          "max": 2113.0,
+          "mean": 2113.0,
+          "min": 2113.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_instruments_non_latin": {
+          "ci95_half": 0.0,
+          "max": 0.0,
+          "mean": 0.0,
+          "min": 0.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_pairs": {
+          "ci95_half": 0.0,
+          "max": 35.0,
+          "mean": 35.0,
+          "min": 35.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "reachable": {
+          "ci95_half": 0.0,
+          "max": 0.8,
+          "mean": 0.8,
+          "min": 0.8,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "recall_at_10": {
+          "ci95_half": 0.022399588571428576,
+          "max": 0.3142857142857143,
+          "mean": 0.3028571428571428,
+          "min": 0.2571428571428571,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.05714285714285716,
+          "std": 0.025555062599997604
+        }
+      },
+      "n": 5,
+      "n_failed": 0,
+      "n_ok": 5,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "task": "t_reach"
+    },
+    {
+      "cell_id": "79b44f4d7f2a9a708dfcd5e75fa0691f19821e3d3f54b339b585fe534b2fc9ff",
+      "config": {
+        "economy": "MY",
+        "terms": "english_plus_native",
+        "tokeniser": "script_aware"
+      },
+      "failures": [],
+      "label": "economy=MY,terms=english_plus_native,tokeniser=script_aware",
+      "metrics": {
+        "mrr": {
+          "ci95_half": 0.00010237233661370956,
+          "max": 0.09253221343003748,
+          "mean": 0.09241557408135136,
+          "min": 0.09224203225754299,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0002901811724944914,
+          "std": 0.00011679372870305027
+        },
+        "n_docs": {
+          "ci95_half": 0.0,
+          "max": 2113.0,
+          "mean": 2113.0,
+          "min": 2113.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_instruments_non_latin": {
+          "ci95_half": 0.0,
+          "max": 0.0,
+          "mean": 0.0,
+          "min": 0.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_pairs": {
+          "ci95_half": 0.0,
+          "max": 35.0,
+          "mean": 35.0,
+          "min": 35.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "reachable": {
+          "ci95_half": 0.0,
+          "max": 0.8,
+          "mean": 0.8,
+          "min": 0.8,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "recall_at_10": {
+          "ci95_half": 0.0,
+          "max": 0.34285714285714286,
+          "mean": 0.34285714285714286,
+          "min": 0.34285714285714286,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        }
+      },
+      "n": 5,
+      "n_failed": 0,
+      "n_ok": 5,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "task": "t_reach"
+    },
+    {
+      "cell_id": "5e355c3d26f41987b4be46686eb688ba18f3f673052012ee2c664532a30e4812",
+      "config": {
+        "economy": "SG",
+        "terms": "english",
+        "tokeniser": "ascii_only"
+      },
+      "failures": [],
+      "label": "economy=SG,terms=english,tokeniser=ascii_only",
+      "metrics": {
+        "mrr": {
+          "ci95_half": 0.0024573108770121915,
+          "max": 0.18922318442828417,
+          "mean": 0.18624153251735232,
+          "min": 0.18268398268398267,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.006539201744301504,
+          "std": 0.002803477085726516
+        },
+        "n_docs": {
+          "ci95_half": 0.0,
+          "max": 2113.0,
+          "mean": 2113.0,
+          "min": 2113.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_instruments_non_latin": {
+          "ci95_half": 0.0,
+          "max": 0.0,
+          "mean": 0.0,
+          "min": 0.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_pairs": {
+          "ci95_half": 0.0,
+          "max": 22.0,
+          "mean": 22.0,
+          "min": 22.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "reachable": {
+          "ci95_half": 0.0,
+          "max": 0.6363636363636364,
+          "mean": 0.6363636363636364,
+          "min": 0.6363636363636364,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "recall_at_10": {
+          "ci95_half": 0.0,
+          "max": 0.36363636363636365,
+          "mean": 0.36363636363636365,
+          "min": 0.36363636363636365,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        }
+      },
+      "n": 5,
+      "n_failed": 0,
+      "n_ok": 5,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "task": "t_reach"
+    },
+    {
+      "cell_id": "0319d7716ca635d041789c15204d2b2412875736a9ef204c5020160cf656b695",
+      "config": {
+        "economy": "SG",
+        "terms": "english",
+        "tokeniser": "script_aware"
+      },
+      "failures": [],
+      "label": "economy=SG,terms=english,tokeniser=script_aware",
+      "metrics": {
+        "mrr": {
+          "ci95_half": 2.3945711169816974e-05,
+          "max": 0.1779963041326678,
+          "mean": 0.17797818332507329,
+          "min": 0.17793483762383283,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 6.146650883495641e-05,
+          "std": 2.7318990524972277e-05
+        },
+        "n_docs": {
+          "ci95_half": 0.0,
+          "max": 2113.0,
+          "mean": 2113.0,
+          "min": 2113.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_instruments_non_latin": {
+          "ci95_half": 0.0,
+          "max": 0.0,
+          "mean": 0.0,
+          "min": 0.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_pairs": {
+          "ci95_half": 0.0,
+          "max": 22.0,
+          "mean": 22.0,
+          "min": 22.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "reachable": {
+          "ci95_half": 0.0,
+          "max": 0.6363636363636364,
+          "mean": 0.6363636363636364,
+          "min": 0.6363636363636364,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "recall_at_10": {
+          "ci95_half": 0.0,
+          "max": 0.36363636363636365,
+          "mean": 0.36363636363636365,
+          "min": 0.36363636363636365,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        }
+      },
+      "n": 5,
+      "n_failed": 0,
+      "n_ok": 5,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "task": "t_reach"
+    },
+    {
+      "cell_id": "1d58450dcbf2acd8a210c93474ddd9c19143603635ecd1d6f2cb7d3699f3d1a7",
+      "config": {
+        "economy": "SG",
+        "terms": "english_plus_native",
+        "tokeniser": "ascii_only"
+      },
+      "failures": [],
+      "label": "economy=SG,terms=english_plus_native,tokeniser=ascii_only",
+      "metrics": {
+        "mrr": {
+          "ci95_half": 0.0024573108770121915,
+          "max": 0.18922318442828417,
+          "mean": 0.18624153251735232,
+          "min": 0.18268398268398267,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.006539201744301504,
+          "std": 0.002803477085726516
+        },
+        "n_docs": {
+          "ci95_half": 0.0,
+          "max": 2113.0,
+          "mean": 2113.0,
+          "min": 2113.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_instruments_non_latin": {
+          "ci95_half": 0.0,
+          "max": 0.0,
+          "mean": 0.0,
+          "min": 0.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_pairs": {
+          "ci95_half": 0.0,
+          "max": 22.0,
+          "mean": 22.0,
+          "min": 22.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "reachable": {
+          "ci95_half": 0.0,
+          "max": 0.6363636363636364,
+          "mean": 0.6363636363636364,
+          "min": 0.6363636363636364,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "recall_at_10": {
+          "ci95_half": 0.0,
+          "max": 0.36363636363636365,
+          "mean": 0.36363636363636365,
+          "min": 0.36363636363636365,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        }
+      },
+      "n": 5,
+      "n_failed": 0,
+      "n_ok": 5,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "task": "t_reach"
+    },
+    {
+      "cell_id": "1ce859484373b12be1622334541d9655a1c2c7fc856f1b02ae3dfa9ad847adfc",
+      "config": {
+        "economy": "SG",
+        "terms": "english_plus_native",
+        "tokeniser": "script_aware"
+      },
+      "failures": [],
+      "label": "economy=SG,terms=english_plus_native,tokeniser=script_aware",
+      "metrics": {
+        "mrr": {
+          "ci95_half": 2.3945711169816974e-05,
+          "max": 0.1779963041326678,
+          "mean": 0.17797818332507329,
+          "min": 0.17793483762383283,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 6.146650883495641e-05,
+          "std": 2.7318990524972277e-05
+        },
+        "n_docs": {
+          "ci95_half": 0.0,
+          "max": 2113.0,
+          "mean": 2113.0,
+          "min": 2113.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_instruments_non_latin": {
+          "ci95_half": 0.0,
+          "max": 0.0,
+          "mean": 0.0,
+          "min": 0.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "n_pairs": {
+          "ci95_half": 0.0,
+          "max": 22.0,
+          "mean": 22.0,
+          "min": 22.0,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "reachable": {
+          "ci95_half": 0.0,
+          "max": 0.6363636363636364,
+          "mean": 0.6363636363636364,
+          "min": 0.6363636363636364,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        },
+        "recall_at_10": {
+          "ci95_half": 0.0,
+          "max": 0.36363636363636365,
+          "mean": 0.36363636363636365,
+          "min": 0.36363636363636365,
+          "n": 5,
+          "n_failed": 0,
+          "n_ok": 5,
+          "spread": 0.0,
+          "std": 0.0
+        }
+      },
+      "n": 5,
+      "n_failed": 0,
+      "n_ok": 5,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "task": "t_reach"
+    }
+  ],
+  "metrics_hash": "53a2534632050563e91e74856e470557fe8b2df54f7c4514e6ed2c5985302d8d",
+  "project": "veritrade",
+  "schema": "ledger/metrics@1",
+  "source": {
+    "code_commits": [
+      "020ff53ec693ca6af117264f170005465b54d988"
+    ],
+    "data_hashes": [
+      "9b70d58224944b5283ee62991ff46219a70da7ae1c7a85a19578a47645f4aa75"
+    ],
+    "dirty": true,
+    "n_failed": 0,
+    "n_ok": 120,
+    "n_records": 120,
+    "seed_axes": [
+      "seed"
+    ]
+  }
+}

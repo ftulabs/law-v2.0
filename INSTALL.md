@@ -94,15 +94,31 @@ The desktop app is a **client**. It reads and displays; the analysis itself runs
 in the Python engine, and the app expects to find it at `http://127.0.0.1:8000`.
 
 Bundling that engine into the installer is not done yet — see below — so for now
-start it yourself, from a checkout of this repository:
+start it yourself, from a checkout of this repository. Python 3.10–3.12.
+
+**Linux and macOS:**
 
 ```bash
 git clone https://github.com/ftulabs/law-v2.0 && cd law-v2.0
-python3 -m venv .venv                       # Python 3.10-3.12
+python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 cp .env.example .env                         # runs with no API key at all
 .venv/bin/python -m uvicorn backend.main:app --port 8000
 ```
+
+**Windows (PowerShell):**
+
+```powershell
+git clone https://github.com/ftulabs/law-v2.0; cd law-v2.0
+py -3.12 -m venv .venv
+.venv\Scripts\pip install -r requirements.txt
+Copy-Item .env.example .env
+.venv\Scripts\python -m uvicorn backend.main:app --port 8000
+```
+
+A virtualenv puts its executables in `bin/` on Linux and macOS and in
+`Scripts\` on Windows. Every command below follows that split; it is the only
+difference between the platforms in this file.
 
 Point the app somewhere else by setting `VERITRADE_API_BASE` before launching it.
 
@@ -119,6 +135,106 @@ submission is a separate piece of work.
 
 Mobile is designed to talk to a hosted API rather than a local engine — Python
 cannot ship inside an App Store binary.
+
+## Reproducing the benchmark, the paper and the site
+
+Separate from the app, and much lighter: the RDTII-Bench results are produced by
+[Ledger](https://github.com/ftulabs/ledger), which imports the entry points this
+repo's `project.yaml` names. It needs neither an API key nor a network — every
+input is a file checked into this repository — so the numbers in the paper can be
+re-derived by anyone who clones it.
+
+The environment is deliberately its own. Ledger has to run somewhere the tenant
+is importable, so it is installed *beside* this repo's own dependencies rather
+than into them. Three packages plus Ledger cover the benchmark; Pillow is needed
+only by the case-study generator, which rasterises Chinese and Mongolian titles
+that no stock TeX installation can typeset.
+
+**Linux and macOS:**
+
+```bash
+python3 -m venv .venv-bench                  # Python 3.9+
+.venv-bench/bin/pip install pydantic pydantic-settings PyYAML Pillow
+.venv-bench/bin/pip install -e ../ledger    # Ledger has no public repo yet; see below
+
+.venv-bench/bin/ledger run                   # 120 records, about 40 seconds
+.venv-bench/bin/ledger metrics
+.venv-bench/bin/ledger claims
+.venv-bench/bin/ledger figures
+.venv-bench/bin/ledger verify --explain      # every cited value, traced to records
+```
+
+**Windows (PowerShell):**
+
+```powershell
+py -3.12 -m venv .venv-bench
+.venv-bench\Scripts\pip install pydantic pydantic-settings PyYAML Pillow
+.venv-bench\Scripts\pip install -e ..\ledger   # Ledger has no public repo yet; see below
+
+.venv-bench\Scripts\ledger run
+.venv-bench\Scripts\ledger metrics
+.venv-bench\Scripts\ledger claims
+.venv-bench\Scripts\ledger figures
+.venv-bench\Scripts\ledger verify --explain
+```
+
+Ledger is not published to PyPI and its repository is not public yet, so the
+install above points at a sibling checkout — clone it next to this one. When the
+repository lands, that line becomes an ordinary `pip install`.
+
+`verify` is the point of the exercise. It walks `paper/paper.tex`, resolves every
+`\lnum{}` and `\claim{}` back through `bench/out/metrics.json` to the records in
+`bench/out/runs/`, and exits non-zero on anything it cannot ground.
+
+### The PDF
+
+`ledger paper` runs `verify` first and refuses to compile if any number in the
+source is unbacked. It needs a TeX engine on `PATH` and the `pgfplots` package:
+
+| Platform | Install |
+|---|---|
+| Ubuntu / Debian | `sudo apt install texlive-latex-recommended texlive-pictures texlive-fonts-recommended` |
+| Fedora / RHEL | `sudo dnf install texlive-scheme-medium` |
+| macOS | `brew install --cask basictex`, then `sudo tlmgr install pgfplots booktabs` |
+| Windows | [MiKTeX](https://miktex.org/download) — it fetches missing packages on first compile |
+| Any platform | [Tectonic](https://tectonic-typesetting.github.io/) — one binary, no TeX distribution, and the only option that makes the build byte-reproducible |
+
+```bash
+.venv-bench/bin/python -m bench.case_studies   # appendix case studies + glyph images
+.venv-bench/bin/ledger paper                   # -> bench/out/paper.pdf
+```
+
+Tectonic is worth preferring where you have the choice. `pdflatex` and `xelatex`
+write a random document identifier into the PDF trailer, so two builds from the
+same records differ in those bytes; Tectonic's deterministic mode does not.
+
+### The project site
+
+```bash
+.venv-bench/bin/ledger web                     # -> site/index.html
+```
+
+Generated from the same `metrics.json` the paper is compiled from, which is why
+the two cannot disagree about a result.
+
+The layout is the [Nerfies](https://github.com/nerfies/nerfies.github.io)
+project-page template, vendored unmodified under `assets/nerfies/` and copied
+into `site/theme/` at build time. **That template is CC BY-SA 4.0, and it is
+share-alike**: the rendered site is a derivative and carries that licence, not
+this repository's Apache-2.0. `ledger web` emits the required notice and the
+link back in the page footer whenever a theme is configured, so the attribution
+cannot be lost by forgetting it. See `assets/nerfies/LICENSE.md`.
+
+Only the two stylesheets are vendored — not the analytics snippet, not the
+icon-font JavaScript, not the carousel, and none of the Nerfies media. The one
+network request the page makes is to Google Fonts, and it degrades to the system
+stack without it.
+
+Nothing is uploaded — open `site/index.html` directly, or serve the directory:
+
+```bash
+python3 -m http.server -d site 8080           # Windows: py -m http.server -d site 8080
+```
 
 ## What is not done yet
 

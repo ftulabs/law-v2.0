@@ -1,0 +1,739 @@
+{
+  "claims": {
+    "C1": {
+      "bind": {
+        "cn_ascii": "cells[economy=CN,tokeniser=ascii_only,terms=english].reachable",
+        "cn_full": "cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].reachable",
+        "cn_script": "cells[economy=CN,tokeniser=script_aware,terms=english].reachable",
+        "mn_ascii": "cells[economy=MN,tokeniser=ascii_only,terms=english].reachable",
+        "mn_full": "cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].reachable",
+        "mn_script": "cells[economy=MN,tokeniser=script_aware,terms=english].reachable"
+      },
+      "deps": [
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english",
+            "tokeniser": "ascii_only"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        },
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        },
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english",
+            "tokeniser": "script_aware"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        },
+        {
+          "filters": {
+            "economy": "MN",
+            "terms": "english",
+            "tokeniser": "ascii_only"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        },
+        {
+          "filters": {
+            "economy": "MN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        },
+        {
+          "filters": {
+            "economy": "MN",
+            "terms": "english",
+            "tokeniser": "script_aware"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        }
+      ],
+      "formatted": {
+        "cn_ascii": "0.000",
+        "cn_full": "0.395",
+        "cn_script": "0.000",
+        "mn_ascii": "0.083",
+        "mn_full": "0.250",
+        "mn_script": "0.083"
+      },
+      "template": "Under the monolingual tokeniser the indicator vocabulary reaches {cn_ascii} of China's cited instruments and {mn_ascii} of Mongolia's; making tokenisation script-aware leaves China at {cn_script} and Mongolia at {mn_script}, and only adding native statutory vocabulary raises them to {cn_full} and {mn_full}.",
+      "text": "Under the monolingual tokeniser the indicator vocabulary reaches 0.000 of China's cited instruments and 0.083 of Mongolia's; making tokenisation script-aware leaves China at 0.000 and Mongolia at 0.083, and only adding native statutory vocabulary raises them to 0.395 and 0.250.",
+      "values": {
+        "cn_ascii": 0.0,
+        "cn_full": 0.39473684210526316,
+        "cn_script": 0.0,
+        "mn_ascii": 0.08333333333333333,
+        "mn_full": 0.25,
+        "mn_script": 0.08333333333333333
+      }
+    },
+    "C2": {
+      "bind": {
+        "au_delta": "cells[economy=AU,tokeniser=script_aware,terms=english].recall_at_10 - cells[economy=AU,tokeniser=ascii_only,terms=english].recall_at_10",
+        "my_delta": "cells[economy=MY,tokeniser=script_aware,terms=english].recall_at_10 - cells[economy=MY,tokeniser=ascii_only,terms=english].recall_at_10"
+      },
+      "deps": [
+        {
+          "filters": {
+            "economy": "AU",
+            "terms": "english",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_10",
+          "stat": "mean"
+        },
+        {
+          "filters": {
+            "economy": "AU",
+            "terms": "english",
+            "tokeniser": "ascii_only"
+          },
+          "metric": "recall_at_10",
+          "stat": "mean"
+        },
+        {
+          "filters": {
+            "economy": "MY",
+            "terms": "english",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_10",
+          "stat": "mean"
+        },
+        {
+          "filters": {
+            "economy": "MY",
+            "terms": "english",
+            "tokeniser": "ascii_only"
+          },
+          "metric": "recall_at_10",
+          "stat": "mean"
+        }
+      ],
+      "formatted": {
+        "au_delta": "-0.105",
+        "my_delta": "+0.040"
+      },
+      "template": "Widening the tokeniser is not free for the languages that already worked: with the ASCII path byte-identical, Australia's recall@10 moves by {au_delta} and Malaysia's by {my_delta}, because the two share one index and therefore one set of collection statistics.",
+      "text": "Widening the tokeniser is not free for the languages that already worked: with the ASCII path byte-identical, Australia's recall@10 moves by -0.105 and Malaysia's by +0.040, because the two share one index and therefore one set of collection statistics.",
+      "values": {
+        "au_delta": -0.10526315789473684,
+        "my_delta": 0.040000000000000036
+      }
+    },
+    "C3": {
+      "bind": {
+        "mrr_spread": "cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].mrr.spread",
+        "reach_spread": "cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].reachable.spread",
+        "seeds": "cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].reachable.n"
+      },
+      "deps": [
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "mrr",
+          "stat": "spread"
+        },
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "reachable",
+          "stat": "spread"
+        },
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "reachable",
+          "stat": "n"
+        }
+      ],
+      "formatted": {
+        "mrr_spread": "0.0005",
+        "reach_spread": "0.0000",
+        "seeds": "5"
+      },
+      "template": "Reachability is a property of the vocabulary and the tokeniser rather than of the corpus sample: over {seeds} seeded draws of the distractor pool its spread is {reach_spread}, while the rank-sensitive MRR over the same draws spreads {mrr_spread}.",
+      "text": "Reachability is a property of the vocabulary and the tokeniser rather than of the corpus sample: over 5 seeded draws of the distractor pool its spread is 0.0000, while the rank-sensitive MRR over the same draws spreads 0.0005.",
+      "values": {
+        "mrr_spread": 0.00046992481203012026,
+        "reach_spread": 0.0,
+        "seeds": 5.0
+      }
+    }
+  },
+  "metrics_hash": "53a2534632050563e91e74856e470557fe8b2df54f7c4514e6ed2c5985302d8d",
+  "project": "veritrade",
+  "schema": "ledger/claims@1",
+  "values": {
+    "mrr_cn_full": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "mrr",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].mrr",
+      "format": ".4f",
+      "formatted": "0.1088",
+      "value": 0.10879270928165508
+    },
+    "mrr_cn_spread": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "mrr",
+          "stat": "spread"
+        }
+      ],
+      "expr": "cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].mrr.spread",
+      "format": ".4f",
+      "formatted": "0.0005",
+      "value": 0.00046992481203012026
+    },
+    "n_docs": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "n_docs",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].n_docs",
+      "format": ".0f",
+      "formatted": "2113",
+      "value": 2113.0
+    },
+    "nonlatin_cn": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "n_instruments_non_latin",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].n_instruments_non_latin",
+      "format": ".0f",
+      "formatted": "29",
+      "value": 29.0
+    },
+    "nonlatin_mn": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "MN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "n_instruments_non_latin",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].n_instruments_non_latin",
+      "format": ".0f",
+      "formatted": "5",
+      "value": 5.0
+    },
+    "pairs_cn": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "n_pairs",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].n_pairs",
+      "format": ".0f",
+      "formatted": "38",
+      "value": 38.0
+    },
+    "pairs_in": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "IN",
+            "terms": "english",
+            "tokeniser": "script_aware"
+          },
+          "metric": "n_pairs",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=IN,tokeniser=script_aware,terms=english].n_pairs",
+      "format": ".0f",
+      "formatted": "49",
+      "value": 49.0
+    },
+    "pairs_mn": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "MN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "n_pairs",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].n_pairs",
+      "format": ".0f",
+      "formatted": "12",
+      "value": 12.0
+    },
+    "r10_au_ascii": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "AU",
+            "terms": "english",
+            "tokeniser": "ascii_only"
+          },
+          "metric": "recall_at_10",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=AU,tokeniser=ascii_only,terms=english].recall_at_10",
+      "format": ".4f",
+      "formatted": "0.2632",
+      "value": 0.2631578947368421
+    },
+    "r10_au_script": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "AU",
+            "terms": "english",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_10",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=AU,tokeniser=script_aware,terms=english].recall_at_10",
+      "format": ".4f",
+      "formatted": "0.1579",
+      "value": 0.15789473684210525
+    },
+    "r10_cn_full": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_10",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].recall_at_10",
+      "format": ".4f",
+      "formatted": "0.2105",
+      "value": 0.21052631578947367
+    },
+    "r10_in_ascii": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "IN",
+            "terms": "english",
+            "tokeniser": "ascii_only"
+          },
+          "metric": "recall_at_10",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=IN,tokeniser=ascii_only,terms=english].recall_at_10",
+      "format": ".4f",
+      "formatted": "0.2041",
+      "value": 0.20408163265306123
+    },
+    "r10_in_script": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "IN",
+            "terms": "english",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_10",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=IN,tokeniser=script_aware,terms=english].recall_at_10",
+      "format": ".4f",
+      "formatted": "0.2245",
+      "value": 0.22448979591836732
+    },
+    "r10_my_ascii": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "MY",
+            "terms": "english",
+            "tokeniser": "ascii_only"
+          },
+          "metric": "recall_at_10",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=MY,tokeniser=ascii_only,terms=english].recall_at_10",
+      "format": ".4f",
+      "formatted": "0.3029",
+      "value": 0.3028571428571428
+    },
+    "r10_my_script": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "MY",
+            "terms": "english",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_10",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=MY,tokeniser=script_aware,terms=english].recall_at_10",
+      "format": ".4f",
+      "formatted": "0.3429",
+      "value": 0.34285714285714286
+    },
+    "reach_au_ascii": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "AU",
+            "terms": "english",
+            "tokeniser": "ascii_only"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=AU,tokeniser=ascii_only,terms=english].reachable",
+      "format": ".4f",
+      "formatted": "0.5263",
+      "value": 0.5263157894736842
+    },
+    "reach_au_script": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "AU",
+            "terms": "english",
+            "tokeniser": "script_aware"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=AU,tokeniser=script_aware,terms=english].reachable",
+      "format": ".4f",
+      "formatted": "0.5263",
+      "value": 0.5263157894736842
+    },
+    "reach_cn_ascii": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english",
+            "tokeniser": "ascii_only"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=CN,tokeniser=ascii_only,terms=english].reachable",
+      "format": ".4f",
+      "formatted": "0.0000",
+      "value": 0.0
+    },
+    "reach_cn_ascii_nat": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english_plus_native",
+            "tokeniser": "ascii_only"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=CN,tokeniser=ascii_only,terms=english_plus_native].reachable",
+      "format": ".4f",
+      "formatted": "0.0000",
+      "value": 0.0
+    },
+    "reach_cn_full": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].reachable",
+      "format": ".4f",
+      "formatted": "0.3947",
+      "value": 0.39473684210526316
+    },
+    "reach_cn_script": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english",
+            "tokeniser": "script_aware"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=CN,tokeniser=script_aware,terms=english].reachable",
+      "format": ".4f",
+      "formatted": "0.0000",
+      "value": 0.0
+    },
+    "reach_cn_spread": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "reachable",
+          "stat": "spread"
+        }
+      ],
+      "expr": "cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].reachable.spread",
+      "format": ".4f",
+      "formatted": "0.0000",
+      "value": 0.0
+    },
+    "reach_in_ascii": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "IN",
+            "terms": "english",
+            "tokeniser": "ascii_only"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=IN,tokeniser=ascii_only,terms=english].reachable",
+      "format": ".4f",
+      "formatted": "0.7959",
+      "value": 0.7959183673469388
+    },
+    "reach_in_script": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "IN",
+            "terms": "english",
+            "tokeniser": "script_aware"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=IN,tokeniser=script_aware,terms=english].reachable",
+      "format": ".4f",
+      "formatted": "0.7959",
+      "value": 0.7959183673469388
+    },
+    "reach_mn_ascii": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "MN",
+            "terms": "english",
+            "tokeniser": "ascii_only"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=MN,tokeniser=ascii_only,terms=english].reachable",
+      "format": ".4f",
+      "formatted": "0.0833",
+      "value": 0.08333333333333333
+    },
+    "reach_mn_full": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "MN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].reachable",
+      "format": ".4f",
+      "formatted": "0.2500",
+      "value": 0.25
+    },
+    "reach_mn_script": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "MN",
+            "terms": "english",
+            "tokeniser": "script_aware"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=MN,tokeniser=script_aware,terms=english].reachable",
+      "format": ".4f",
+      "formatted": "0.0833",
+      "value": 0.08333333333333333
+    },
+    "reach_my_ascii": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "MY",
+            "terms": "english",
+            "tokeniser": "ascii_only"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=MY,tokeniser=ascii_only,terms=english].reachable",
+      "format": ".4f",
+      "formatted": "0.8000",
+      "value": 0.8
+    },
+    "reach_my_script": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "MY",
+            "terms": "english",
+            "tokeniser": "script_aware"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=MY,tokeniser=script_aware,terms=english].reachable",
+      "format": ".4f",
+      "formatted": "0.8000",
+      "value": 0.8
+    },
+    "reach_sg_ascii": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "SG",
+            "terms": "english",
+            "tokeniser": "ascii_only"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=SG,tokeniser=ascii_only,terms=english].reachable",
+      "format": ".4f",
+      "formatted": "0.6364",
+      "value": 0.6363636363636364
+    },
+    "reach_sg_script": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "SG",
+            "terms": "english",
+            "tokeniser": "script_aware"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=SG,tokeniser=script_aware,terms=english].reachable",
+      "format": ".4f",
+      "formatted": "0.6364",
+      "value": 0.6363636363636364
+    },
+    "seeds_per_cell": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "reachable",
+          "stat": "n"
+        }
+      ],
+      "expr": "cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].reachable.n",
+      "format": ".0f",
+      "formatted": "5",
+      "value": 5.0
+    }
+  }
+}

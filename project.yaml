@@ -3,7 +3,7 @@
 # Ledger never vendors tenant code; it imports the entry points named here.
 # See ftulabs/ledger and docs/PIPELINE_SPEC.md.
 name: veritrade
-title: "RDTII-Bench: Autonomous Discovery and Indicator-Grounded Mapping"
+title: "RDTII-Bench: Auditable Multilingual Legal Evidence Extraction"
 
 out: bench/out
 
@@ -11,24 +11,211 @@ code:
   dirs: ["."]
   env: requirements.txt
 
-# The bench task modules are S0 work and do not exist yet; `ledger product`
-# does not touch them, so the app scaffolding can be generated before they land.
 tasks:
-  - id: t1_discovery
-    entry: bench.tasks.discovery:run
-    gold: data/ground_truth/gov_portals_p6_p7.csv
-    metrics: [recall_at_k, precision]
-  - id: t3_mapping
-    entry: bench.tasks.mapping:run
-    metrics: [precision, recall, f1, kappa]
+  # The lexical-reachability ablation. Offline, deterministic, no LLM and no
+  # network -- every input is a file checked into this repo, which is why the
+  # records behind the paper can be re-derived by anyone who clones it.
+  #
+  # `gold:` names both inputs deliberately. Ledger hashes what a task declares
+  # here into every record's provenance stamp, so editing the reference set or
+  # the catalogue invalidates the records rather than silently reusing them.
+  - id: t_reach
+    entry: bench.tasks.retrieval:run
+    gold:
+      - data/ground_truth/rdtii_reference_p67.csv
+      - data/catalogues/MN_titles.json
+    metrics: [reachable, recall_at_10, mrr, n_pairs, n_docs, n_instruments_non_latin]
+
+  # The end-to-end discovery and mapping tasks remain S0 work. They need a built
+  # corpus (backend/corpus L0-L3) that does not exist for CN/IN/MN yet, and a
+  # live crawl is neither reproducible nor free -- see the limitations section of
+  # the paper, which says so rather than implying coverage this repo cannot show.
 
 matrix:
-  economy: [SG, AU, MY]
-  pillar: [6, 7]
-  crosscheck: [off, panel_3]
+  economy: [SG, AU, MY, IN, CN, MN]
+  tokeniser: [ascii_only, script_aware]
+  terms: [english, english_plus_native]
   seed: [0, 1, 2, 3, 4]
 
 seed_axes: [seed]
+
+# ICLR 2027. Author kit dropped in unmodified under paper/style/iclr2027.
+paper:
+  dir: paper
+  main: paper.tex
+  generated: paper/generated
+  style: paper/style/iclr2027
+  engine: auto
+  pdf: bench/out/paper.pdf
+  page_limit: 9        # main text; references and appendix excluded
+  anonymous: true      # double-blind -- identity anywhere is a desk reject
+  strict_environments: [abstract]
+  # Nomenclature, not measurement. Both of these are names that happen to
+  # contain digits, and a strict region has no other way to tell them from a
+  # result. Kept to two, and each has to be a name a reader could look up:
+  # "RDTII 2.1" is the framework's own version, "recall@10" is the metric's own
+  # name. Anything that could be a finding stays banned.
+  allow:
+    - 'RDTII\s+2\.1'
+    - 'recall@\d+'
+
+# Named scalars the paper may cite as \lnum{name}.
+values:
+  # Reachability -- the silent-failure metric.
+  reach_cn_ascii:      cells[economy=CN,tokeniser=ascii_only,terms=english].reachable
+  reach_cn_ascii_nat:  cells[economy=CN,tokeniser=ascii_only,terms=english_plus_native].reachable
+  reach_cn_script:     cells[economy=CN,tokeniser=script_aware,terms=english].reachable
+  reach_cn_full:       cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].reachable
+  reach_mn_ascii:      cells[economy=MN,tokeniser=ascii_only,terms=english].reachable
+  reach_mn_script:     cells[economy=MN,tokeniser=script_aware,terms=english].reachable
+  reach_mn_full:       cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].reachable
+  reach_sg_ascii:      cells[economy=SG,tokeniser=ascii_only,terms=english].reachable
+  reach_sg_script:     cells[economy=SG,tokeniser=script_aware,terms=english].reachable
+  reach_au_ascii:      cells[economy=AU,tokeniser=ascii_only,terms=english].reachable
+  reach_au_script:     cells[economy=AU,tokeniser=script_aware,terms=english].reachable
+  reach_my_ascii:      cells[economy=MY,tokeniser=ascii_only,terms=english].reachable
+  reach_my_script:     cells[economy=MY,tokeniser=script_aware,terms=english].reachable
+  reach_in_ascii:      cells[economy=IN,tokeniser=ascii_only,terms=english].reachable
+  reach_in_script:     cells[economy=IN,tokeniser=script_aware,terms=english].reachable
+
+  # Ranked retrieval -- the cost side.
+  r10_au_ascii:        cells[economy=AU,tokeniser=ascii_only,terms=english].recall_at_10
+  r10_au_script:       cells[economy=AU,tokeniser=script_aware,terms=english].recall_at_10
+  r10_my_ascii:        cells[economy=MY,tokeniser=ascii_only,terms=english].recall_at_10
+  r10_my_script:       cells[economy=MY,tokeniser=script_aware,terms=english].recall_at_10
+  r10_in_ascii:        cells[economy=IN,tokeniser=ascii_only,terms=english].recall_at_10
+  r10_in_script:       cells[economy=IN,tokeniser=script_aware,terms=english].recall_at_10
+  r10_cn_full:         cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].recall_at_10
+  mrr_cn_full:         cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].mrr
+
+  # Stability of the headline metric across seeded distractor draws.
+  reach_cn_spread:     cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].reachable.spread
+  mrr_cn_spread:       cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].mrr.spread
+  seeds_per_cell:
+    expr: cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].reachable.n
+    format: ".0f"
+
+  # The experiment's own dimensions -- measured, not typed.
+  n_docs:
+    expr: cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].n_docs
+    format: ".0f"
+  pairs_cn:
+    expr: cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].n_pairs
+    format: ".0f"
+  pairs_mn:
+    expr: cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].n_pairs
+    format: ".0f"
+  pairs_in:
+    expr: cells[economy=IN,tokeniser=script_aware,terms=english].n_pairs
+    format: ".0f"
+  nonlatin_cn:
+    expr: cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].n_instruments_non_latin
+    format: ".0f"
+  nonlatin_mn:
+    expr: cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].n_instruments_non_latin
+    format: ".0f"
+
+claims:
+  - id: C1
+    template: >-
+      Under the monolingual tokeniser the indicator vocabulary reaches
+      {cn_ascii} of China's cited instruments and {mn_ascii} of Mongolia's;
+      making tokenisation script-aware leaves China at {cn_script} and Mongolia
+      at {mn_script}, and only adding native statutory vocabulary raises them to
+      {cn_full} and {mn_full}.
+    bind:
+      cn_ascii:  cells[economy=CN,tokeniser=ascii_only,terms=english].reachable
+      mn_ascii:  cells[economy=MN,tokeniser=ascii_only,terms=english].reachable
+      cn_script: cells[economy=CN,tokeniser=script_aware,terms=english].reachable
+      mn_script: cells[economy=MN,tokeniser=script_aware,terms=english].reachable
+      cn_full:   cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].reachable
+      mn_full:   cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].reachable
+    format:
+      cn_ascii: ".3f"
+      mn_ascii: ".3f"
+      cn_script: ".3f"
+      mn_script: ".3f"
+      cn_full: ".3f"
+      mn_full: ".3f"
+
+  - id: C2
+    template: >-
+      Widening the tokeniser is not free for the languages that already worked:
+      with the ASCII path byte-identical, Australia's recall@10 moves by
+      {au_delta} and Malaysia's by {my_delta}, because the two share one
+      index and therefore one set of collection statistics.
+    bind:
+      au_delta: cells[economy=AU,tokeniser=script_aware,terms=english].recall_at_10 - cells[economy=AU,tokeniser=ascii_only,terms=english].recall_at_10
+      my_delta: cells[economy=MY,tokeniser=script_aware,terms=english].recall_at_10 - cells[economy=MY,tokeniser=ascii_only,terms=english].recall_at_10
+    format:
+      au_delta: "+.3f"
+      my_delta: "+.3f"
+
+  - id: C3
+    template: >-
+      Reachability is a property of the vocabulary and the tokeniser rather than
+      of the corpus sample: over {seeds} seeded draws of the distractor pool its
+      spread is {reach_spread}, while the rank-sensitive MRR over the same draws
+      spreads {mrr_spread}.
+    bind:
+      seeds:        cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].reachable.n
+      reach_spread: cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].reachable.spread
+      mrr_spread:   cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].mrr.spread
+    format:
+      seeds: ".0f"
+      reach_spread: ".4f"
+      mrr_spread: ".4f"
+
+# S7 -- the project site, generated from the same metrics.json the paper reads.
+# The abstract below is prose, written by hand, exactly like the paper's; the
+# numbers under it are not, and come from claims.json.
+web:
+  dir: site
+  # The site kit, dropped in unmodified -- the same arrangement `paper.style`
+  # uses for the conference author kit. It is CC BY-SA 4.0; see its LICENSE.md,
+  # and note that the rendered site inherits that licence rather than this
+  # repository's Apache-2.0.
+  theme: assets/nerfies
+  # The slot at the top of the page. Four frames, one per condition, drawn from
+  # metrics.json by `python -m bench.media` -- not a stock illustration.
+  # The panel row at the top of the page: the whole ablation, before a word of
+  # prose. Drawn from metrics.json by `python -m bench.media`.
+  teaser_panels:
+    - {image: assets/media/panel_a.png, label: "Monolingual, English terms"}
+    - {image: assets/media/panel_b.png, label: "Script-aware, English terms"}
+    - {image: assets/media/panel_c.png, label: "Monolingual, + native terms"}
+    - {image: assets/media/panel_d.png, label: "Script-aware, + native terms"}
+  teaser_caption: >-
+    Three of the four configurations leave China and Mongolia at exactly zero
+    reachable instruments, and nothing in the pipeline raises.
+  favicon: assets/media/favicon.svg
+  base_url: https://ftulabs.github.io/rdtii-bench
+  include: [leaderboard, method, downloads, paper]
+  abstract: >-
+    Automated extraction of regulatory evidence from primary law is increasingly
+    deployed across jurisdictions, but it is almost never evaluated across the
+    scripts those jurisdictions actually publish in. We present a harness that
+    treats a legal-evidence pipeline the way an experiment is treated: every
+    published number is carried from a recorded run rather than typed, and every
+    stage refuses rather than guesses.
+
+
+    We instantiate it on the RDTII 2.1 regulatory framework over six Asia-Pacific
+    economies publishing in three writing systems, and use it to ablate a single
+    design decision -- how text is tokenised for lexical retrieval -- against the
+    reference answers of the framework's own expert panel. The harness, not the
+    pipeline, is the contribution: its methodology is domain-general, and the
+    paper sets out what porting it to another body of law requires.
+
+# S6 -- what a release would carry. Nothing here is pushed; the stage writes the
+# payload each service would receive and stops.
+release:
+  repo: ftulabs/law-v2.0
+  license: apache-2.0
+  type: software
+  authors:
+    - name: "Anonymous authors"
+      affiliation: "Under double-blind review"
 
 # S8 -- one API contract, five platforms. The types below are real and
 # importable, so the generated client is typed rather than `unknown`.
