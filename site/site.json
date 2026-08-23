@@ -6,15 +6,15 @@
     },
     {
       "path": "downloads/metrics.json",
-      "sha256": "2d4c41d20e551f260b8313e73d35baa3ac57af1644086866f04244e3b6857ed2"
+      "sha256": "1ce1c5d9eed2762f5866e6783a7a8dbfc0dac2bdea2d644b295454b42732e6ff"
     },
     {
       "path": "downloads/paper.pdf",
-      "sha256": "a06305b848152116d234d78d47c1e13db923802aac822685dfc65834d98aa94a"
+      "sha256": "24ef442a6962570d44dd7daf981d6e36a8beea390bec75bdb171fab974d4b714"
     },
     {
       "path": "index.html",
-      "sha256": "15a27bab8fe1bb852cdfd75c02a36aaeb76f4f181d5eac8b92dffb0ab22ca4f0"
+      "sha256": "deefa115c9249ca1e0fcdf4b06975ac2fc4d8f94c2fa057ada9b5b45ac46f991"
     },
     {
       "path": "media/favicon.svg",
