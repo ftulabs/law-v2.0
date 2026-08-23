@@ -1,0 +1,1190 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VeriTrade — bài thuyết trình</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* ── tokens ─────────────────────────────────────────────────────────────
+   VeriTrade's own palette. Light is the bare :root so the un-stamped state
+   resolves; dark is redefined at token level only, twice, so both the OS
+   setting and the toggle win. */
+:root{
+  --paper:#ffffff; --paper-2:#f3f7fb; --panel:#ffffff;
+  --ink:#0b1220; --ink-soft:#46546a; --ink-faint:#6f7e99;
+  --rule:#e2e8f0; --rule-soft:#eef2f7;
+  --accent:#0369a1; --accent-ink:#ffffff; --accent-soft:#e0f2fe;
+  --accent-2:#0e7fb8; --accent-3:#38a3d6; --accent-4:#8ecae6;
+  --good:#15803d; --warn:#a16207; --bad:#dc2626; --mute:#64748b;
+  --good-soft:#e7f4ec; --warn-soft:#faf1dd; --bad-soft:#fdeaea;
+  --shadow:0 1px 2px rgba(11,18,32,.05), 0 12px 32px rgba(11,18,32,.07);
+  --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#050a16; --paper-2:#0d1626; --panel:#0e1626;
+    --ink:#eaf0f8; --ink-soft:#9aabc0; --ink-faint:#7b8aa1;
+    --rule:#1f2c42; --rule-soft:#182338;
+    --accent:#38bdf8; --accent-ink:#04121f; --accent-soft:#0d2c45;
+    --accent-2:#2ba3dd; --accent-3:#1d7fb4; --accent-4:#155f87;
+    --good:#34d399; --warn:#fbbf24; --bad:#f87171; --mute:#94a3b8;
+    --good-soft:#0d2a20; --warn-soft:#2c2410; --bad-soft:#33161a;
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 12px 32px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#050a16; --paper-2:#0d1626; --panel:#0e1626;
+  --ink:#eaf0f8; --ink-soft:#9aabc0; --ink-faint:#7b8aa1;
+  --rule:#1f2c42; --rule-soft:#182338;
+  --accent:#38bdf8; --accent-ink:#04121f; --accent-soft:#0d2c45;
+  --accent-2:#2ba3dd; --accent-3:#1d7fb4; --accent-4:#155f87;
+  --good:#34d399; --warn:#fbbf24; --bad:#f87171; --mute:#94a3b8;
+  --good-soft:#0d2a20; --warn-soft:#2c2410; --bad-soft:#33161a;
+  --shadow:0 1px 2px rgba(0,0,0,.5), 0 12px 32px rgba(0,0,0,.5);
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:var(--sans); font-size:17px; line-height:1.5;
+  -webkit-font-smoothing:antialiased; overflow:hidden;
+}
+h1,h2{margin:0; letter-spacing:-.022em; text-wrap:balance}
+p{margin:0}
+b,strong{font-weight:600}
+.mono{font-family:var(--mono); font-variant-numeric:tabular-nums}
+:focus-visible{outline:3px solid var(--accent); outline-offset:3px; border-radius:4px}
+
+/* ── slide frame: full-bleed, not a column in the middle ─────────────── */
+.deck{position:relative; height:100dvh; width:100%}
+.slide{
+  position:absolute; inset:0; display:none;
+  padding:clamp(1.5rem,4vh,3rem) clamp(1.5rem,3.5vw,3.5rem) 4rem;
+  overflow-y:auto;
+}
+.slide.on{display:flex; flex-direction:column; justify-content:center}
+.inner{max-width:1680px; margin:0 auto; width:100%}
+.eyebrow{font-family:var(--mono); font-size:.72rem; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--accent); font-weight:600}
+h1.title{font-size:clamp(2.1rem,4.8vw,3.6rem); line-height:1.06; margin:.5rem 0 0}
+h2{font-size:clamp(1.5rem,3vw,2.4rem); line-height:1.12; margin:.4rem 0 0}
+.lede{font-size:clamp(1rem,1.35vw,1.22rem); color:var(--ink-soft); margin-top:1rem;
+  max-width:78ch; line-height:1.6}
+
+/* ── entrance motion: one orchestrated moment per slide ──────────────── */
+.reveal{opacity:0; transform:translateY(14px)}
+.slide.on .reveal{animation:rise .5s cubic-bezier(.2,.7,.3,1) forwards}
+.slide.on .reveal:nth-child(2){animation-delay:.06s}
+.slide.on .reveal:nth-child(3){animation-delay:.12s}
+.slide.on .reveal:nth-child(4){animation-delay:.18s}
+.slide.on .reveal:nth-child(5){animation-delay:.24s}
+@keyframes rise{to{opacity:1; transform:none}}
+@media (prefers-reduced-motion:reduce){
+  .reveal{opacity:1; transform:none}
+  .slide.on .reveal{animation:none}
+  .bar-fill,.seg,.prog{transition:none !important}
+}
+
+/* ── chrome ──────────────────────────────────────────────────────────── */
+.bar{position:fixed; left:0; right:0; bottom:0; height:44px; z-index:20;
+  display:flex; align-items:center; gap:1rem; padding:0 clamp(1rem,3vw,2.5rem);
+  background:color-mix(in srgb,var(--paper) 88%,transparent);
+  backdrop-filter:blur(8px); border-top:1px solid var(--rule-soft)}
+.bar .mark{display:flex;align-items:center;gap:.5rem;font-weight:700;font-size:.82rem}
+.bar .mark i{width:18px;height:18px;border-radius:5px;background:var(--accent);
+  display:grid;place-items:center;color:var(--accent-ink);font-size:10px;font-style:normal}
+.bar .sp{flex:1}
+.bar button{font:inherit; font-size:.78rem; font-weight:600; color:var(--ink-soft);
+  background:none; border:1px solid var(--rule); border-radius:7px;
+  padding:.3rem .62rem; cursor:pointer; min-height:30px}
+.bar button:hover{color:var(--accent); border-color:var(--accent)}
+.count{font-family:var(--mono); font-size:.78rem; color:var(--ink-faint)}
+.prog{position:fixed; left:0; top:0; height:3px; background:var(--accent); z-index:21;
+  transition:width .3s ease}
+
+/* ── the step rail, repeated on every method slide ───────────────────── */
+.rail{display:flex; align-items:flex-start; margin:1rem 0 1.5rem}
+.rail .st{flex:1; text-align:center; position:relative; min-width:0}
+.rail .st .dot{width:32px; height:32px; margin:0 auto .4rem; border-radius:10px;
+  display:grid; place-items:center; font-family:var(--mono); font-size:.82rem;
+  font-weight:600; background:var(--paper-2); color:var(--ink-faint);
+  border:1.5px solid var(--rule); transition:transform .3s ease}
+.rail .st .lbl{font-size:.75rem; color:var(--ink-faint); font-weight:500; line-height:1.2}
+.rail .st::after{content:""; position:absolute; top:16px; left:calc(50% + 22px);
+  right:calc(-50% + 22px); height:1.5px; background:var(--rule)}
+.rail .st:last-child::after{display:none}
+.rail .st.done .dot{background:var(--accent-soft); color:var(--accent);
+  border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+.rail .st.done::after{background:color-mix(in srgb,var(--accent) 45%,transparent)}
+.rail .st.now .dot{background:var(--accent); color:var(--accent-ink);
+  border-color:var(--accent); transform:scale(1.15)}
+.rail .st.now .lbl{color:var(--ink); font-weight:600}
+
+/* ── layout helpers ──────────────────────────────────────────────────── */
+.g2{display:grid; grid-template-columns:1fr 1fr; gap:1.3rem 2.4rem; margin-top:1.2rem}
+.g3{display:grid; grid-template-columns:repeat(3,1fr); gap:1.3rem 2.2rem; margin-top:1.2rem}
+.g4{display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-top:1.3rem}
+.g23{display:grid; grid-template-columns:.9fr 1.1fr 1fr; gap:1.3rem 2.2rem; margin-top:1.2rem}
+@media (max-width:1100px){ .g3,.g23{grid-template-columns:1fr 1fr} .g4{grid-template-columns:1fr 1fr} }
+@media (max-width:760px){ .g2,.g3,.g23,.g4{grid-template-columns:1fr} }
+.kick{font-size:.7rem; font-weight:600; text-transform:uppercase; letter-spacing:.09em;
+  color:var(--ink-faint); margin-bottom:.5rem}
+ul{margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:.5rem}
+li{font-size:.95rem; color:var(--ink-soft); line-height:1.5; padding-left:1rem; position:relative}
+li::before{content:""; position:absolute; left:0; top:.6em; width:5px; height:5px;
+  border-radius:50%; background:var(--accent)}
+li b{color:var(--ink)}
+.note{font-size:.87rem; color:var(--ink-faint); line-height:1.55}
+.note b{color:var(--ink-soft)}
+
+/* ── cards ───────────────────────────────────────────────────────────── */
+.card{padding:1.05rem 1.15rem; border-radius:14px; background:var(--panel);
+  border:1px solid var(--rule); box-shadow:var(--shadow)}
+.card h3{margin:0 0 .35rem; font-size:1rem; font-weight:600; line-height:1.3}
+.card p{font-size:.87rem; color:var(--ink-soft); line-height:1.5}
+.card .ic{width:34px;height:34px;border-radius:10px;background:var(--accent-soft);
+  color:var(--accent);display:grid;place-items:center;margin-bottom:.6rem}
+.card .ic svg{width:18px;height:18px}
+
+/* ── the pipeline flow ───────────────────────────────────────────────── */
+.flow{display:flex; align-items:stretch; gap:.5rem; margin-top:1.4rem; flex-wrap:wrap}
+.flow .io{flex:0 0 auto; align-self:center; padding:.85rem 1rem; border-radius:12px;
+  background:var(--paper-2); border:1px dashed var(--rule); text-align:center}
+.flow .io b{display:block; font-size:.92rem}
+.flow .io span{font-size:.7rem; color:var(--ink-faint); font-family:var(--mono)}
+.flow .step{flex:1 1 0; min-width:120px; padding:1.15rem .75rem; border-radius:13px;
+  background:var(--panel); border:1px solid var(--rule); box-shadow:var(--shadow);
+  text-align:center; display:flex; flex-direction:column; gap:.22rem}
+.flow .step .n{font-family:var(--mono); font-size:.74rem; color:var(--accent); font-weight:600}
+.flow .step b{font-size:.98rem; line-height:1.2}
+.flow .step span{font-size:.73rem; color:var(--ink-faint); line-height:1.35}
+.flow .arrow{align-self:center; color:var(--ink-faint); flex:0 0 auto}
+
+/* ── figure: horizontal bars with a threshold ────────────────────────── */
+.figure{margin-top:1.1rem}
+.figrow{display:grid; grid-template-columns:190px 1fr 120px; align-items:center;
+  gap:.9rem; padding:.42rem 0}
+.figrow .nm{font-size:.9rem; color:var(--ink); font-weight:500}
+.figrow .nm em{display:block; font-style:normal; font-size:.72rem; color:var(--ink-faint)}
+.track{position:relative; height:22px; background:var(--paper-2); border-radius:6px}
+.bar-fill{height:100%; border-radius:4px; background:var(--accent); width:0;
+  transition:width .8s cubic-bezier(.2,.7,.3,1) .15s}
+.bar-fill.hollow{background:repeating-linear-gradient(45deg,
+  color-mix(in srgb,var(--ink-faint) 34%,transparent) 0 5px, transparent 5px 10px);
+  border:1.5px solid color-mix(in srgb,var(--ink-faint) 45%,transparent)}
+.thresh{position:absolute; top:-7px; bottom:-7px; width:2px; background:var(--bad)}
+.thresh span{position:absolute; left:6px; top:-16px; font-family:var(--mono);
+  font-size:.66rem; color:var(--bad); white-space:nowrap; font-weight:600}
+.figrow .val{font-family:var(--mono); font-size:.88rem; color:var(--ink);
+  font-variant-numeric:tabular-nums}
+.figrow .val em{font-style:normal; color:var(--ink-faint); font-size:.74rem; display:block}
+
+/* ── figure: weighted stacked bar ────────────────────────────────────── */
+.stack{display:flex; height:40px; border-radius:9px; overflow:hidden; gap:2px;
+  background:var(--paper-2)}
+.stack .seg{width:0; transition:width .8s cubic-bezier(.2,.7,.3,1) .15s;
+  display:grid; place-items:center; font-family:var(--mono); font-size:.8rem;
+  font-weight:600; color:var(--accent-ink)}
+.stack .seg:nth-child(1){background:var(--accent)}
+.stack .seg:nth-child(2){background:var(--accent-2)}
+.stack .seg:nth-child(3){background:var(--accent-3)}
+.stack .seg:nth-child(4){background:var(--accent-4); color:var(--ink)}
+.stackkey{display:flex; gap:1.4rem; flex-wrap:wrap; margin-top:.6rem}
+.stackkey div{font-size:.8rem; color:var(--ink-soft)}
+.stackkey i{display:inline-block; width:10px; height:10px; border-radius:3px;
+  margin-right:.35rem; vertical-align:-1px}
+
+/* ── figure: the routing scale ───────────────────────────────────────── */
+.bands{display:flex; height:52px; border-radius:10px; overflow:hidden; margin-top:.5rem}
+.bands div{display:flex; flex-direction:column; justify-content:center;
+  padding:0 .9rem; font-size:.82rem; color:var(--ink)}
+.bands .b1{flex:60; background:var(--paper-2); color:var(--ink-soft)}
+.bands .b2{flex:25; background:var(--warn-soft)}
+.bands .b3{flex:15; background:var(--good-soft)}
+.bands b{font-family:var(--mono); font-size:.75rem; display:block; color:var(--ink-faint)}
+.bands .b2 b{color:var(--warn)} .bands .b3 b{color:var(--good)}
+
+/* ── figure: dot matrix ──────────────────────────────────────────────── */
+.dots{display:flex; flex-wrap:wrap; gap:7px; margin-top:.7rem; max-width:560px}
+.dots i{width:19px; height:19px; border-radius:5px; background:var(--accent); display:block}
+.dots i.miss{background:transparent; border:2px dashed var(--bad)}
+.dotkey{display:flex; gap:1.5rem; margin-top:.8rem; font-size:.83rem; color:var(--ink-soft)}
+.dotkey span{display:flex; align-items:center; gap:.4rem}
+.dotkey i{width:13px;height:13px;border-radius:4px;background:var(--accent)}
+.dotkey i.miss{background:transparent;border:2px dashed var(--bad)}
+
+/* ── figure: indicator pips ──────────────────────────────────────────── */
+.pips{display:flex; gap:4px}
+.pips i{width:16px; height:16px; border-radius:4px; background:var(--rule)}
+.pips i.on{background:var(--accent)}
+
+/* ── stat tiles ──────────────────────────────────────────────────────── */
+.stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:.85rem;
+  margin-top:1.2rem}
+.stat{padding:1rem 1.1rem; border-radius:13px; background:var(--panel);
+  border:1px solid var(--rule); box-shadow:var(--shadow)}
+.stat b{display:block; font-family:var(--mono); font-size:1.85rem; font-weight:600;
+  line-height:1.05; font-variant-numeric:tabular-nums}
+.stat span{font-size:.74rem; color:var(--ink-faint); line-height:1.35; display:block;
+  margin-top:.25rem}
+.stat.g b{color:var(--good)} .stat.w b{color:var(--warn)}
+
+/* ── callouts ────────────────────────────────────────────────────────── */
+.open,.win{margin-top:1.3rem; padding:.9rem 1.1rem; border-radius:12px; font-size:.9rem;
+  color:var(--ink-soft); line-height:1.55}
+.open{background:var(--warn-soft); border:1px solid color-mix(in srgb,var(--warn) 32%,transparent)}
+.open b{color:var(--warn)}
+.win{background:var(--good-soft); border:1px solid color-mix(in srgb,var(--good) 32%,transparent)}
+.win b{color:var(--good)}
+.quote{margin-top:1.3rem; padding:1.05rem 1.3rem; border-left:3px solid var(--accent);
+  background:var(--paper-2); border-radius:0 12px 12px 0; font-size:1.05rem;
+  color:var(--ink); line-height:1.6}
+.quote span{display:block; margin-top:.45rem; font-size:.85rem; color:var(--ink-faint)}
+
+/* ── tables ──────────────────────────────────────────────────────────── */
+.tblwrap{overflow-x:auto; margin-top:1rem}
+table{border-collapse:collapse; width:100%; font-size:.92rem}
+th,td{text-align:left; padding:.6rem .8rem; border-bottom:1px solid var(--rule-soft)}
+th{font-size:.69rem; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-faint);
+  font-weight:600; border-bottom:1px solid var(--rule)}
+td.num{font-family:var(--mono); text-align:right; font-variant-numeric:tabular-nums}
+tbody tr:hover{background:var(--paper-2)}
+
+/* ── the 12-pillar grid ──────────────────────────────────────────────── */
+.pillars{display:grid; grid-template-columns:repeat(12,1fr); gap:6px; margin-top:.9rem}
+@media (max-width:900px){ .pillars{grid-template-columns:repeat(6,1fr)} }
+.pillars div{aspect-ratio:1; border-radius:8px; background:var(--paper-2);
+  border:1px solid var(--rule); display:grid; place-items:center;
+  font-family:var(--mono); font-size:.85rem; color:var(--ink-faint)}
+.pillars div.on{background:var(--accent); border-color:var(--accent);
+  color:var(--accent-ink); font-weight:600; box-shadow:var(--shadow)}
+
+/* ── the silent-failure figure ───────────────────────────────────────── */
+.twin{display:grid; grid-template-columns:1fr auto 1fr; gap:1.3rem; align-items:center;
+  margin-top:1.3rem}
+@media (max-width:860px){ .twin{grid-template-columns:1fr} }
+.screen{border:1px solid var(--rule); border-radius:13px; background:var(--panel);
+  box-shadow:var(--shadow); overflow:hidden}
+.screen .top{padding:.5rem .9rem; background:var(--paper-2);
+  border-bottom:1px solid var(--rule); font-family:var(--mono); font-size:.72rem;
+  color:var(--ink-faint); display:flex; align-items:center; gap:.45rem}
+.screen .top i{width:7px;height:7px;border-radius:50%;background:var(--good)}
+.screen .body{padding:1.1rem 1.1rem 1.2rem}
+.screen .body b{display:block; font-size:1.02rem; margin-bottom:.3rem}
+.screen .body p{font-size:.85rem; color:var(--ink-soft); line-height:1.5}
+.eq{font-family:var(--mono); font-size:1.5rem; color:var(--bad); font-weight:600;
+  text-align:center}
+
+/* ── print: one slide per page ───────────────────────────────────────── */
+@media print{
+  body{overflow:visible}
+  .bar,.prog{display:none}
+  .deck{height:auto}
+  .slide{display:flex !important; flex-direction:column; position:static;
+    page-break-after:always; min-height:100vh; padding:2rem}
+  .reveal{opacity:1 !important; transform:none !important; animation:none !important}
+  .bar-fill,.seg{transition:none !important}
+}
+</style>
+</head>
+<body>
+
+<div class="prog" id="prog"></div>
+<div class="deck" id="deck">
+
+<!-- 1 ─ title -->
+<section class="slide on">
+  <div class="inner">
+    <div class="reveal eyebrow">UN ESCAP · KMITL Global Hackathon 2026</div>
+    <h1 class="reveal title">Tìm ra luật,<br>và chứng minh bằng chính điều khoản.</h1>
+    <p class="reveal lede">Đưa vào <b>một nền kinh tế</b> và <b>một chủ đề pháp lý</b>. Hệ thống
+      tự tìm trên cổng thông tin chính phủ — không được cho trước một URL nào — đọc tài liệu kể
+      cả bản scan, rồi gắn từng điều khoản vào đúng chỉ số RDTII, kèm nguyên văn trích dẫn.</p>
+    <div class="reveal" style="margin-top:2.4rem;font-size:.95rem;color:var(--ink-faint)">
+      <b style="color:var(--ink)">VeriTrade</b> · Team FTU · Trường Đại học Ngoại thương
+    </div>
+  </div>
+</section>
+
+<!-- 2 ─ ESCAP -->
+<section class="slide">
+  <div class="inner">
+    <div class="reveal eyebrow">Problem statement · 1 / 2</div>
+    <h2 class="reveal">ESCAP đo mức độ cởi mở của khu vực với thương mại số.</h2>
+    <div class="reveal g2" style="margin-top:1.4rem">
+      <div>
+        <div class="kick">RDTII là gì</div>
+        <ul>
+          <li><b>Regional Digital Trade Integration Index</b> — thước đo cách mỗi nền kinh tế
+            quản lý thương mại số.</li>
+          <li><b>12 pillars, 61 indicators.</b> Mỗi indicator là một câu hỏi pháp lý, và phải
+            trả lời bằng trích dẫn tới một điều khoản có thật.</li>
+          <li>Chính phủ dùng nó để biết luật của mình đứng ở đâu so với khu vực.</li>
+        </ul>
+        <div class="kick" style="margin-top:1.1rem">VeriTrade nhắm vào</div>
+        <div class="pillars">
+          <div>1</div><div>2</div><div>3</div><div>4</div><div>5</div>
+          <div class="on">6</div><div class="on">7</div>
+          <div>8</div><div>9</div><div>10</div><div>11</div><div>12</div>
+        </div>
+        <p class="note" style="margin-top:.6rem">Pillar 6 — dữ liệu có được rời khỏi lãnh thổ
+          không. Pillar 7 — bảo vệ dữ liệu và an ninh mạng trong nước. <b>9 indicators.</b></p>
+      </div>
+      <div>
+        <div class="kick">Hôm nay chỉ số này được dựng thế nào</div>
+        <ul>
+          <li><b>Hoàn toàn thủ công.</b> Chuyên viên vào từng cổng chính phủ, tìm, đọc luật, rồi
+            chép lại điều nào trả lời cho indicator nào.</li>
+          <li>Chậm, tốn kém, và <b>lạc hậu ngay khi một đạo luật được sửa đổi.</b></li>
+          <li>Phạm vi phủ bị chặn bởi số giờ công của chuyên viên, không phải bởi số luật tồn
+            tại.</li>
+        </ul>
+        <div class="quote">Chỉ số chỉ mới đến mức người cuối cùng đọc công báo.
+          <span>Đó chính là nút thắt mà hackathon này sinh ra để tháo.</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 ─ the ask -->
+<section class="slide">
+  <div class="inner">
+    <div class="reveal eyebrow">Problem statement · 2 / 2</div>
+    <h2 class="reveal">Đề bài: từ hai từ khoá, ra một trích dẫn kiểm chứng được.</h2>
+    <div class="reveal flow">
+      <div class="io"><b>Singapore</b><span>economy</span></div>
+      <div class="io"><b>Pillar 6</b><span>topic</span></div>
+      <div class="arrow" aria-hidden="true">
+        <svg width="30" height="18" viewBox="0 0 30 18" fill="none" stroke="currentColor"
+             stroke-width="1.6"><path d="M1 9h26m0 0-6-6m6 6-6 6"/></svg></div>
+      <div class="step" style="flex:2.4"><div class="n">hệ thống</div>
+        <b>tìm · đọc · gắn chỉ số</b><span>không ai chỉ cho nó biết phải tìm ở đâu</span></div>
+      <div class="arrow" aria-hidden="true">
+        <svg width="30" height="18" viewBox="0 0 30 18" fill="none" stroke="currentColor"
+             stroke-width="1.6"><path d="M1 9h26m0 0-6-6m6 6-6 6"/></svg></div>
+      <div class="io"><b>Submission CSV</b><span>luật · điều · trích dẫn · URL</span></div>
+    </div>
+    <div class="reveal g3" style="margin-top:1.8rem">
+      <div>
+        <div class="kick">Zone 1 — bắt buộc</div>
+        <p class="note"><b>Discovery.</b> Crawl trực tiếp cổng chính thức. Không seed URL, không
+          hardcode tên luật, không mang theo corpus dựng sẵn.</p>
+      </div>
+      <div>
+        <div class="kick">Zone 2 — bắt buộc</div>
+        <p class="note"><b>Extraction.</b> HTML, PDF có text layer, <em>và</em> PDF scan. Sai số
+          ký tự (CER) phải dưới <b>5%</b>.</p>
+      </div>
+      <div>
+        <div class="kick">Những luật ấy loại trừ điều gì</div>
+        <p class="note">Không được ship corpus thu sẵn. Không được có bảng tra
+          (economy, pillar) → đáp án. Không được bỏ qua tài liệu khó đọc.<br><br>
+          <b>Tóm lại: cấm cái lối tắt duy nhất chắc thắng — biết đáp án từ trước.</b></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 ─ nature of the problem -->
+<section class="slide">
+  <div class="inner">
+    <div class="reveal eyebrow">Bản chất vấn đề</div>
+    <h2 class="reveal">Đây không phải bài toán "đọc file PDF".</h2>
+    <div class="reveal g4">
+      <div class="card">
+        <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <circle cx="11" cy="11" r="7"/><path d="m20 20-4.3-4.3"/></svg></div>
+        <h3>Không biết luật nằm ở đâu</h3>
+        <p>Mỗi cổng là một cỗ máy khác nhau, và những cổng tốt thì Google gần như không đánh
+          chỉ mục.</p>
+      </div>
+      <div class="card">
+        <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
+        <h3>Cổng chủ động chặn</h3>
+        <p>Tường lửa bot, trang chỉ chạy bằng JavaScript, catalogue bị mã hoá, phân trang không
+          nghe theo số trang.</p>
+      </div>
+      <div class="card">
+        <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <path d="M5 4h14v16H5z"/><path d="M9 9h6M9 13h6M9 17h3"/></svg></div>
+        <h3>Đơn vị trả lời là điều khoản</h3>
+        <p>Một đạo luật 600 điều không phải câu trả lời. <b>Điều 26</b> mới là.</p>
+      </div>
+      <div class="card">
+        <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <path d="M12 3v18M5 8l7-5 7 5"/><path d="M3 17h6M15 17h6"/></svg></div>
+        <h3>"Liên quan" là một legal test</h3>
+        <p>Lệnh cấm và cho phép có điều kiện dùng gần như cùng bộ từ, nhưng nghĩa ngược nhau.</p>
+      </div>
+    </div>
+    <div class="reveal quote">Và mọi thất bại ở trên đều <b>im lặng</b>.
+      <span>Run chạy xong, báo cáo ghi "không tìm thấy điều khoản nào" — không cách nào phân
+      biệt với một nền kinh tế thật sự không có luật đó.</span></div>
+  </div>
+</section>
+
+<!-- 5 ─ silent failure -->
+<section class="slide">
+  <div class="inner">
+    <div class="reveal eyebrow">Cách tiếp cận</div>
+    <h2 class="reveal">Hai màn hình này giống hệt nhau. Chỉ một cái là sự thật.</h2>
+    <div class="reveal twin">
+      <div class="screen">
+        <div class="top"><i></i>run hoàn tất · 4 phút 51 giây</div>
+        <div class="body"><b>6.3 — Không tìm thấy điều khoản</b>
+          <p>Đã tìm trên cổng chính thức. Không có quy định nào bắt buộc đặt máy chủ trong
+            nước.</p></div>
+      </div>
+      <div class="eq" aria-hidden="true">≟</div>
+      <div class="screen">
+        <div class="top"><i></i>run hoàn tất · 4 phút 51 giây</div>
+        <div class="body"><b>6.3 — Không tìm thấy điều khoản</b>
+          <p>Bộ tách từ trả về <b>0 token</b> cho tiếng Trung. Mọi điều khoản đều được chấm 0.0.
+            Không có lỗi nào được ném ra.</p></div>
+      </div>
+    </div>
+    <div class="reveal g3" style="margin-top:1.6rem">
+      <div><div class="kick">Nguyên tắc 1</div><p class="note"><b>Có số đo thì mới được tuyên
+        bố.</b> Chỗ nào chưa đo, app ghi thẳng "chưa đo ở đây" thay vì đưa ra một con số nghe
+        cho hay.</p></div>
+      <div><div class="kick">Nguyên tắc 2</div><p class="note"><b>Bằng chứng là nguyên văn.</b>
+        Output mang theo đúng chữ của đạo luật và link nguồn, để người đọc có thể bác bỏ máy.</p></div>
+      <div><div class="kick">Nguyên tắc 3</div><p class="note"><b>Không chắc thì đưa ra, không
+        giấu đi.</b> Kết quả độ tin cậy thấp vào hàng chờ người kiểm, không lặng lẽ chui vào
+        file nộp.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 6 ─ pipeline -->
+<section class="slide">
+  <div class="inner">
+    <div class="reveal eyebrow">Giải pháp đề xuất</div>
+    <h2 class="reveal">Sáu bước. Mỗi bước có một kiểu hỏng riêng.</h2>
+    <div class="reveal flow">
+      <div class="io"><b>economy<br>+ pillar</b><span>input</span></div>
+      <div class="step"><div class="n">1</div><b>Discover</b><span>luật nào tồn tại</span></div>
+      <div class="step"><div class="n">2</div><b>Fetch</b><span>lấy được file về</span></div>
+      <div class="step"><div class="n">3</div><b>Read</b><span>thành text, kể cả scan</span></div>
+      <div class="step"><div class="n">4</div><b>Split</b><span>cắt thành điều khoản</span></div>
+      <div class="step"><div class="n">5</div><b>Match</b><span>đối chiếu legal test</span></div>
+      <div class="step"><div class="n">6</div><b>Score</b><span>chắc bao nhiêu, chặt cỡ nào</span></div>
+      <div class="io"><b>CSV<br>+ bằng chứng</b><span>output</span></div>
+    </div>
+    <div class="reveal g2" style="margin-top:1.7rem">
+      <div>
+        <div class="kick">Hình dạng dữ liệu đổi ở mỗi bước — số thật, run Trung Quốc · pillar 7</div>
+        <div style="display:flex;align-items:center;gap:1.1rem;margin-top:.7rem;flex-wrap:wrap">
+          <div class="stat" style="flex:1;min-width:120px"><b>17</b><span>tài liệu tìm được</span></div>
+          <div class="arrow" aria-hidden="true"><svg width="26" height="16" viewBox="0 0 26 16"
+            fill="none" stroke="var(--ink-faint)" stroke-width="1.6"><path d="M1 8h22m0 0-5-5m5 5-5 5"/></svg></div>
+          <div class="stat" style="flex:1;min-width:120px"><b>420</b><span>điều khoản tách ra</span></div>
+          <div class="arrow" aria-hidden="true"><svg width="26" height="16" viewBox="0 0 26 16"
+            fill="none" stroke="var(--ink-faint)" stroke-width="1.6"><path d="M1 8h22m0 0-5-5m5 5-5 5"/></svg></div>
+          <div class="stat g" style="flex:1;min-width:120px"><b>51</b><span>dòng được trích dẫn</span></div>
+        </div>
+      </div>
+      <div>
+        <p class="note" style="margin-top:1.4rem"><b>Đọc như một cái phễu.</b> Hàng nghìn tài
+          liệu ứng viên thành hàng chục nghìn điều khoản, rồi còn lại vài chục dòng có trích
+          dẫn. Bước nào cũng vứt bớt đi — và bước nào cũng có thể vứt nhầm đúng cái cần
+          giữ.<br><br>
+          <b>Sáu slide tiếp theo, mỗi slide một bước.</b> Thanh chỉ dẫn ở đầu mỗi slide cho biết
+          đang ở bước nào.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 7 ─ step 1 -->
+<section class="slide" data-step="1">
+  <div class="inner">
+    <div class="reveal eyebrow">Bước 1 / 6</div>
+    <h2 class="reveal">Discover — tìm ra luật mà không được chỉ chỗ.</h2>
+    <div class="reveal rail"></div>
+    <div class="reveal g23">
+      <div>
+        <div class="kick">Mục đích &amp; output</div>
+        <ul>
+          <li>Chỉ từ <b>(economy, pillar)</b>, sinh ra danh sách luật ứng viên.</li>
+          <li>Output: tên luật + URL chính thức, gắn nhãn <span class="mono">NEW</span> khi
+            crawl trực tiếp.</li>
+        </ul>
+        <div class="kick" style="margin-top:1.1rem">Cách làm</div>
+        <ul>
+          <li>Web search giới hạn theo <span class="mono">site:</span>, <b>cộng với adapter
+            riêng cho từng cổng</b> — mỗi cổng có code hiểu chỉ mục của chính nó.</li>
+          <li>491 English terms cho toàn bộ 61 indicators, cộng thuật ngữ pháp lý bản địa cho
+            tiếng Trung và tiếng Mông Cổ.</li>
+        </ul>
+      </div>
+      <div>
+        <div class="kick">Gặp gì — và xử lý ra sao</div>
+        <div class="card" style="margin-bottom:.7rem">
+          <h3 style="font-size:.94rem">Malaysia mã hoá AES catalogue JSON</h3>
+          <p>Adapter đang chạy lặng lẽ trả về <b>0 đạo luật</b>. Không lỗi, không cảnh báo.<br>
+            <span style="color:var(--accent)">→</span> Giải mã bằng chính khoá cổng đó công bố
+            trên trang của mình.</p>
+        </div>
+        <div class="card" style="margin-bottom:.7rem">
+          <h3 style="font-size:.94rem">Singapore bỏ qua tham số số trang</h3>
+          <p>Phân trang không bao giờ tiến.<br>
+            <span style="color:var(--accent)">→</span> Duyệt bằng hợp của nhiều cửa sổ sắp
+            xếp.</p>
+        </div>
+        <div class="card">
+          <h3 style="font-size:.94rem">API của Úc chỉ khớp tên đạo luật</h3>
+          <p>Không tìm trong nội dung.<br>
+            <span style="color:var(--accent)">→</span> Truy vấn bằng mảnh tên ngắn, bền với biến
+            thể tiêu đề.</p>
+        </div>
+      </div>
+      <div>
+        <div class="kick">Bộ từ khoá, đếm thật</div>
+        <div class="stats" style="margin-top:.3rem;grid-template-columns:1fr 1fr">
+          <div class="stat"><b>491</b><span>English terms · 61 indicators</span></div>
+          <div class="stat"><b>82</b><span>thuật ngữ bản địa · 2 ngôn ngữ</span></div>
+        </div>
+        <div class="open" style="margin-top:1rem"><b>Còn tồn đọng —</b> cái đuôi ngành dọc.
+          Đáp án của ban giám khảo trích cả văn bản về gọi xe công nghệ, cho vay, thông tin tín
+          dụng — <em>tên chúng không chứa một chữ nào về dữ liệu</em>. Không truy vấn nào về
+          "chuyển dữ liệu xuyên biên giới" chạm tới được. Cách sửa là quét theo ngành: thêm truy
+          vấn, không phải thêm cơ chế mới.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 8 ─ step 2 -->
+<section class="slide" data-step="2">
+  <div class="inner">
+    <div class="reveal eyebrow">Bước 2 / 6</div>
+    <h2 class="reveal">Fetch — lấy được file về, từ một cổng không muốn cho lấy.</h2>
+    <div class="reveal rail"></div>
+    <div class="reveal g23">
+      <div>
+        <div class="kick">Mục đích &amp; output</div>
+        <ul>
+          <li>Biến một URL thành nội dung tài liệu thật.</li>
+          <li>Output: bytes đã cache, khử trùng lặp theo hash nội dung.</li>
+        </ul>
+        <div class="kick" style="margin-top:1.1rem">Cách làm</div>
+        <ul>
+          <li>Client giả TLS fingerprint, chỉ leo thang lên <b>trình duyệt thật</b> khi phát
+            hiện trang chỉ chạy bằng JavaScript.</li>
+          <li>Nhận diện vỏ SPA và <b>chặn nó lại</b>, thay vì đem thanh điều hướng đi gắn chỉ số
+            như thể đó là luật.</li>
+        </ul>
+      </div>
+      <div>
+        <div class="kick">Gặp gì — và xử lý ra sao</div>
+        <div class="card" style="margin-bottom:.7rem">
+          <h3 style="font-size:.94rem">Úc xuất bản đạo luật lớn thành nhiều tập</h3>
+          <p>URL PDF một file trả về 404.<br>
+            <span style="color:var(--accent)">→</span> Phân giải từng tập, rồi tách theo
+            tập.</p>
+        </div>
+        <div class="card">
+          <h3 style="font-size:.94rem">Một cổng trả về <span class="mono">"download": 0</span></h3>
+          <p>Nhà vận hành nói không.<br>
+            <span style="color:var(--accent)">→</span> Chúng tôi không lách. Dùng nguồn khác
+            được phép, mang cùng các đạo luật đó.</p>
+        </div>
+      </div>
+      <div>
+        <div class="kick">Một bản vá đáng giá bao nhiêu</div>
+        <div class="figure">
+          <div class="figrow">
+            <div class="nm">Interception Act 1979<em>trước khi sửa</em></div>
+            <div class="track"><div class="bar-fill" data-w="0.2"></div></div>
+            <div class="val">1<em>điều khoản</em></div>
+          </div>
+          <div class="figrow">
+            <div class="nm">Interception Act 1979<em>sau khi sửa</em></div>
+            <div class="track"><div class="bar-fill" data-w="100"></div></div>
+            <div class="val">618<em>điều khoản</em></div>
+          </div>
+          <div class="figrow">
+            <div class="nm">Telecom Act 1997<em>trước → sau</em></div>
+            <div class="track"><div class="bar-fill" data-w="100"></div></div>
+            <div class="val">0 → 1.377</div>
+          </div>
+        </div>
+        <div class="win"><b>Và không có lỗi nào được ném ra.</b> Hai đạo luật gần như biến mất
+          khỏi kết quả, run vẫn báo thành công.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 9 ─ step 3 -->
+<section class="slide" data-step="3">
+  <div class="inner">
+    <div class="reveal eyebrow">Bước 3 / 6</div>
+    <h2 class="reveal">Read — đọc cả những tài liệu vốn chỉ là ảnh chụp chữ.</h2>
+    <div class="reveal rail"></div>
+    <div class="reveal g2" style="grid-template-columns:.8fr 1.2fr">
+      <div>
+        <div class="kick">Mục đích &amp; output</div>
+        <ul>
+          <li>Tài liệu → text sạch, <b>kèm sai số được đo</b>, không phải phỏng đoán.</li>
+          <li>Có text layer thật → chép ra. Không có → OCR raster.</li>
+          <li>Sáu engine, đổi ngay trên màn hình chính; mỗi thẻ ghi rõ giá, tốc độ, và
+            <b>tài liệu có rời khỏi máy không</b>.</li>
+        </ul>
+        <div class="open"><b>Bài học tốn một ngày —</b> MarkItDown thoạt đầu đạt <em>0.00%</em>
+          tuyệt đối. Nó không rút được gì từ file scan nên fallback sang đọc file transcript đi
+          kèm — <b>mà đó chính là đáp án dùng để chấm</b>. Benchmark phải chạy ở nơi không với
+          tới đáp án.</div>
+      </div>
+      <div>
+        <div class="kick">Đo trên bản scan thật · công báo ngân hàng trung ương · CER</div>
+        <div class="figure">
+          <div class="figrow">
+            <div class="nm">RapidOCR<em>mặc định · đóng gói sẵn</em></div>
+            <div class="track">
+              <div class="bar-fill" data-w="18.5"></div>
+              <div class="thresh" style="left:83.3%"><span>ngưỡng đề bài 5%</span></div>
+            </div>
+            <div class="val" style="color:var(--good)">1,11%<em>4 giây / trang</em></div>
+          </div>
+          <div class="figrow">
+            <div class="nm">PaddleOCR<em>tuỳ chọn · ~1 GB</em></div>
+            <div class="track">
+              <div class="bar-fill" data-w="0.6"></div>
+              <div class="thresh" style="left:83.3%"></div>
+            </div>
+            <div class="val" style="color:var(--good)">0,00%<em style="color:var(--warn)">10 phút / trang</em></div>
+          </div>
+        </div>
+        <p class="note" style="margin-top:.5rem">Trục ngang <b>0 – 6%</b>, nên khoảng cách tới
+          cột kẻ đỏ đọc được bằng mắt. Cả hai đều dưới ngưỡng; RapidOCR nhanh hơn
+          <b>140 lần</b> cho gần như cùng độ chính xác — đó là lý do nó là mặc định.</p>
+
+        <div class="kick" style="margin-top:1.3rem">Và một dòng không nằm chung trục được</div>
+        <div class="figure">
+          <div class="figrow">
+            <div class="nm">MarkItDown<em>chỉ đọc text layer</em></div>
+            <div class="track"><div class="bar-fill hollow" data-w="100"></div></div>
+            <div class="val">95,56%<em>không phải OCR</em></div>
+          </div>
+        </div>
+        <p class="note" style="margin-top:.5rem">Nó <b>không đọc được scan</b>. Đặt chung một
+          trục với hai engine trên là so hai thứ khác loại — nên tách ra, và con số 95,56% ở đây
+          chỉ nói đúng một điều: đừng dùng nó cho tài liệu scan.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 ─ step 4 -->
+<section class="slide" data-step="4">
+  <div class="inner">
+    <div class="reveal eyebrow">Bước 4 / 6</div>
+    <h2 class="reveal">Split — trích dẫn là một điều, không phải một tài liệu.</h2>
+    <div class="reveal rail"></div>
+    <div class="reveal g23">
+      <div>
+        <div class="kick">Mục đích &amp; output</div>
+        <ul>
+          <li>Cắt đạo luật thành đúng đơn vị mà indicator gắn vào.</li>
+          <li>Output: từng điều / khoản, <b>nguyên văn</b> — không bao giờ diễn giải lại, vì cột
+            trích dẫn <em>chính là</em> chữ của đạo luật.</li>
+        </ul>
+        <div class="kick" style="margin-top:1.1rem">Cách làm</div>
+        <ul>
+          <li><b>Bộ tách riêng cho từng nước.</b> Một regex dùng chung là ý tưởng sai: Singapore
+            đánh số điều, Úc đánh dấu bằng độ đậm của font.</li>
+          <li>Tách từ theo hệ chữ viết, để ngôn ngữ không có dấu cách vẫn lập được chỉ mục.</li>
+        </ul>
+      </div>
+      <div>
+        <div class="kick">Lỗi lớn nhất, và giá của nó</div>
+        <div class="card">
+          <h3 style="font-size:.94rem">Chỉ <b>luật</b> Mông Cổ mới đánh số điều
+            <span class="mono">N дүгээр зүйл</span></h3>
+          <p>Thông tư của bộ đánh số khoản kiểu <span class="mono">1.1.</span> — nên
+            <b>mọi văn bản dưới luật đều gộp thành đúng một điều khoản.</b><br>
+            <span style="color:var(--accent)">→</span> Nhận cả hai dạng đánh số.</p>
+        </div>
+        <div class="figure" style="margin-top:.9rem">
+          <div class="figrow" style="grid-template-columns:150px 1fr 110px">
+            <div class="nm">Quy tắc hải quan</div>
+            <div class="track"><div class="bar-fill" data-w="85"></div></div>
+            <div class="val">1 → 29</div>
+          </div>
+          <div class="figrow" style="grid-template-columns:150px 1fr 110px">
+            <div class="nm">Điều lệ</div>
+            <div class="track"><div class="bar-fill" data-w="100"></div></div>
+            <div class="val">1 → 34</div>
+          </div>
+          <div class="figrow" style="grid-template-columns:150px 1fr 110px">
+            <div class="nm">Quy tắc kiểm toán ATTT</div>
+            <div class="track"><div class="bar-fill" data-w="73"></div></div>
+            <div class="val">1 → 25</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="kick">Còn tồn đọng</div>
+        <p class="note">Một số văn bản <b>không đánh số gì cả</b> — kế hoạch hành động của một
+          chương trình quốc gia là bảng biện pháp, không có điều, không có khoản. Nó vẫn tách ra
+          thành một khối.</p>
+        <div class="open"><b>Nhưng cách sửa đúng có lẽ khác:</b> thứ đó về bản chất không phải
+          luật, và lẽ ra không nên lọt vào corpus ngay từ đầu. Chữa ở khâu discovery đúng hơn là
+          chữa ở khâu tách.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 11 ─ step 5 -->
+<section class="slide" data-step="5">
+  <div class="inner">
+    <div class="reveal eyebrow">Bước 5 / 6</div>
+    <h2 class="reveal">Match — quyết định một điều khoản có thoả legal test hay không.</h2>
+    <div class="reveal rail"></div>
+    <div class="reveal g23">
+      <div>
+        <div class="kick">Mục đích &amp; output</div>
+        <ul>
+          <li>Điều khoản → indicator, kèm lý do mà một luật sư có thể tranh luận lại.</li>
+          <li>Output: trích dẫn + số điều + rationale + URL nguồn.</li>
+        </ul>
+        <div class="kick" style="margin-top:1.1rem">Cách làm</div>
+        <ul>
+          <li><b>Hybrid retrieval</b> — lexical + multilingual embedding + rerank — để lọc từ
+            hàng chục nghìn điều khoản.</li>
+          <li>Model được cho xem <b>tất cả indicator anh em cùng lúc</b>, nên buộc phải chọn
+            giữa "cấm" và "cho phép có điều kiện" thay vì khớp mẫu.</li>
+          <li>Corpus nhỏ → <b>chấm hết</b>, để retrieval chỉ là tín hiệu, không phải cửa
+            chặn.</li>
+        </ul>
+      </div>
+      <div>
+        <div class="kick">Tham số là đo ra, không phải chỉnh theo cảm giác</div>
+        <div class="stats" style="margin-top:.3rem;grid-template-columns:1fr 1fr">
+          <div class="stat"><b>383</b><span>đạo luật trong bộ sweep</span></div>
+          <div class="stat"><b>36.590</b><span>điều khoản</span></div>
+        </div>
+        <div class="figure" style="margin-top:1rem">
+          <div class="kick">Provision recall — trước và sau khi sweep</div>
+          <div class="figrow" style="grid-template-columns:96px 1fr 74px">
+            <div class="nm">trước</div>
+            <div class="track"><div class="bar-fill" data-w="83.3"></div></div>
+            <div class="val">0,833</div>
+          </div>
+          <div class="figrow" style="grid-template-columns:96px 1fr 74px">
+            <div class="nm">sau</div>
+            <div class="track" style="background:var(--good-soft)">
+              <div class="bar-fill" data-w="100" style="background:var(--good)"></div></div>
+            <div class="val" style="color:var(--good)">1,000</div>
+          </div>
+        </div>
+        <p class="note" style="margin-top:.8rem">Hai kết quả phản trực giác, ghi lại để khỏi
+          tranh luận lại: <b>lọc trước theo cấp đạo luật làm recall tệ đi</b>, và lấy ba điều
+          khoản mỗi luật thì thành rộng mà nông.</p>
+      </div>
+      <div>
+        <div class="kick">Con bug dạy được nhiều nhất</div>
+        <div class="card">
+          <h3 style="font-size:.94rem">Bộ tách từ là
+            <span class="mono">[a-z0-9]+</span></h3>
+          <p>Với chữ Hán nó trả về <b>0 token</b>. Mọi điều khoản tiếng Trung đều được chấm
+            <b>0.0</b> ở nửa lexical — tức <b>65% của điểm xếp hạng</b>.</p>
+        </div>
+        <div class="open"><b>Không có lỗi nào được ném ra.</b> Run chạy xong, kết luận "không
+          tìm thấy điều khoản". Đây đúng là hình dạng của mọi lỗi trong dự án này — và là lý do
+          nguyên tắc "có đo mới được tuyên bố" tồn tại.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 12 ─ step 6 -->
+<section class="slide" data-step="6">
+  <div class="inner">
+    <div class="reveal eyebrow">Bước 6 / 6</div>
+    <h2 class="reveal">Score — nói mình chắc đến đâu, và không nói quá.</h2>
+    <div class="reveal rail"></div>
+    <div class="reveal g2" style="grid-template-columns:1.05fr .95fr">
+      <div>
+        <div class="kick">Bốn tín hiệu hợp thành một con số</div>
+        <div class="stack">
+          <div class="seg" data-w="40">0.40</div>
+          <div class="seg" data-w="25">0.25</div>
+          <div class="seg" data-w="20">0.20</div>
+          <div class="seg" data-w="15">0.15</div>
+        </div>
+        <div class="stackkey">
+          <div><i style="background:var(--accent)"></i>legal fit — có thoả test không</div>
+          <div><i style="background:var(--accent-2)"></i>search match</div>
+          <div><i style="background:var(--accent-3)"></i>quote grounding — trích dẫn có thật
+            trong văn bản không</div>
+          <div><i style="background:var(--accent-4)"></i>scope — quy định chung hay một
+            ngành</div>
+        </div>
+        <p class="note" style="margin-top:.9rem">Quy định đặc thù một ngành bị <b>chặn trần</b>,
+          không bao giờ được tự động chấp nhận như một quy định chung.</p>
+      </div>
+      <div>
+        <div class="kick">Con số đó dùng để làm gì</div>
+        <div class="bands">
+          <div class="b1"><b>&lt; 0,60</b>để riêng, vẫn hiển thị</div>
+          <div class="b2"><b>0,60 – 0,85</b>người kiểm tra</div>
+          <div class="b3"><b>≥ 0,85</b>vào file nộp</div>
+        </div>
+        <p class="note" style="margin-top:.9rem">Dòng "không tìm thấy điều khoản" được ghi
+          <b>tường minh</b>, kèm cổng đã tìm và từ khoá đã dùng. Một indicator không bao giờ bị
+          để trống — <b>vắng mặt cũng là một phát hiện</b>, và được chấm như một phát hiện.</p>
+        <div class="open"><b>Nói thẳng chỗ này —</b> bốn trọng số và hai mốc cắt là một
+          <b>phán đoán có lý lẽ, không phải một mô hình được fit</b>. Slide sau nói vì sao, và
+          cần gì để sửa.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 13 ─ results -->
+<section class="slide">
+  <div class="inner">
+    <div class="reveal eyebrow">Đang ở đâu</div>
+    <h2 class="reveal">Sáu nền kinh tế chạy trọn vẹn, không seed URL nào.</h2>
+    <p class="reveal note" style="margin-top:.7rem;font-size:.95rem">Ba nước vòng 1 —
+      Singapore, Australia, Malaysia — cộng ba nước dưới đây. Chỉ ba nước vòng 2 có số liệu
+      ghi ngày, nên bảng chỉ liệt kê những nước đó.</p>
+    <div class="reveal g2" style="grid-template-columns:1.25fr .75fr">
+      <div>
+        <div class="tblwrap"><table>
+          <thead><tr><th>Nền kinh tế · pillar</th><th class="num">Tài liệu</th>
+            <th class="num">Điều khoản</th><th class="num">Dòng CSV</th>
+            <th class="num">Thời gian</th><th class="num">Chi phí</th></tr></thead>
+          <tbody>
+            <tr><td>Trung Quốc · 7</td><td class="num">17</td><td class="num">420</td>
+              <td class="num">51</td><td class="num">244 s</td><td class="num">$0,14</td></tr>
+            <tr><td>Ấn Độ · 7</td><td class="num">18</td><td class="num">18</td>
+              <td class="num">8</td><td class="num">219 s</td><td class="num">$0,05</td></tr>
+            <tr><td>Mông Cổ · 7</td><td class="num">18</td><td class="num">76</td>
+              <td class="num">39</td><td class="num">262 s</td><td class="num">$0,21</td></tr>
+          </tbody>
+        </table></div>
+        <p class="note" style="margin-top:.9rem"><b>"Chạy trọn vẹn" nghĩa là gì —</b> đưa vào
+          economy và pillar; qua discovery, fetch, extraction, mapping; ra một CSV đúng định
+          dạng cột chính thức. Không URL nào được cung cấp. Còn <b>nội dung có đúng không</b> là
+          câu hỏi riêng, và được đo riêng.</p>
+      </div>
+      <div>
+        <div class="kick">Đối chiếu với đáp án của ban giám khảo · số indicator chạm tới / 9</div>
+        <div style="display:flex;flex-direction:column;gap:.8rem;margin-top:.6rem">
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:.88rem;margin-bottom:.3rem">
+              <span>Trung Quốc</span><span class="mono">7 / 9</span></div>
+            <div class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:.88rem;margin-bottom:.3rem">
+              <span>Mông Cổ</span><span class="mono">3 / 9</span></div>
+            <div class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:.88rem;margin-bottom:.3rem">
+              <span>Ấn Độ</span><span class="mono">3 / 9</span></div>
+            <div class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          </div>
+        </div>
+        <p class="note" style="margin-top:1rem">Trung Quốc chạm được hầu hết indicator nhưng ít
+          trích dẫn khớp, vì đáp án nêu ba đến năm văn bản <b>ngành dọc</b> cho mỗi indicator,
+          còn chúng tôi tìm ra đạo luật quốc gia bao trùm.</p>
+        <div class="open" style="margin-top:.9rem"><b>Mỗi con số ở đây là một lần chạy.</b> Cổng
+          thông tin thay đổi hằng ngày. Một số liệu từ một lần chạy là một <em>lần đọc</em>,
+          không phải một <em>tỷ lệ</em> — và chúng tôi trình bày nó đúng như vậy.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 14 ─ limitation 1 -->
+<section class="slide">
+  <div class="inner">
+    <div class="reveal eyebrow">Hạn chế · 1 / 4</div>
+    <h2 class="reveal">Confidence score chưa được calibrate. Và hiện chưa thể.</h2>
+    <div class="reveal g3">
+      <div>
+        <div class="kick">Sự thật là</div>
+        <ul>
+          <li>0.40 / 0.25 / 0.20 / 0.15 và hai mốc 0.85 / 0.60 là <b>một phán đoán được nêu
+            rõ</b>, không phải kết quả huấn luyện.</li>
+          <li>Con số này là <b>thứ tự tương đối</b>. Nó không phải xác suất, và chúng tôi không
+            bao giờ trình bày nó như xác suất.</li>
+        </ul>
+      </div>
+      <div>
+        <div class="kick">Vì sao chưa sửa được</div>
+        <ul>
+          <li><b>Không tồn tại bộ dữ liệu gán nhãn.</b> Database của ban giám khảo cho
+            <em>đáp án</em> — luật nào ứng với indicator nào. Nó <b>không</b> gán nhãn
+            <span class="mono">(provision, indicator) → đúng/sai</span>, mà đó mới là thứ bắt
+            buộc phải có để fit trọng số.</li>
+          <li>Tập kiểm còn cần <b>mẫu âm</b> — những điều khoản trông rất đúng mà thật ra sai.
+            Chưa ai công bố loại dữ liệu đó.</li>
+          <li>Tự sinh ra mẫu âm nghĩa là <b>hệ thống tự chấm bài của chính mình</b>.</li>
+        </ul>
+      </div>
+      <div>
+        <div class="kick">Không có gì để đối chiếu phương pháp</div>
+        <ul>
+          <li>Cũng <b>không có chương trình tương tự</b> nào để tham khảo cách xây trọng số —
+            RDTII xưa nay làm tay, không ai công bố một hệ số tối ưu.</li>
+        </ul>
+        <div class="win" style="margin-top:1rem"><b>Nên chúng tôi làm việc khác —</b> biến con
+          số thành thứ <b>kiểm chứng được</b> thay vì thứ có thẩm quyền. Mỗi dòng hiện đủ bốn
+          tín hiệu tách riêng, legal test dùng để phán, và nguyên văn trích dẫn — người kiểm bác
+          bỏ được trong vài giây. Và mặc định, mọi thứ dưới 0.85 đều đẩy sang người.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 15 ─ limitation 2 -->
+<section class="slide">
+  <div class="inner">
+    <div class="reveal eyebrow">Hạn chế · 2 / 4</div>
+    <h2 class="reveal">Không có baseline nào để so.</h2>
+    <div class="reveal g2" style="grid-template-columns:.95fr 1.05fr">
+      <div>
+        <div class="kick">Khoảng trống</div>
+        <ul>
+          <li>RDTII được biên soạn <b>thủ công</b>. Chưa có hệ thống tự động nào làm công việc
+            này được công bố.</li>
+          <li>Nên <b>không có điểm baseline</b>, không có bộ đánh giá dùng chung, không có số
+            liệu của đội khác để đặt cạnh.</li>
+        </ul>
+        <div style="display:flex;gap:1rem;margin-top:1.2rem;align-items:stretch">
+          <div class="stat g" style="flex:1"><b>1,000</b><span>provision recall của chúng
+            tôi</span></div>
+          <div class="stat" style="flex:1;border-style:dashed;box-shadow:none;
+            display:grid;place-items:center">
+            <b style="color:var(--ink-faint)">?</b>
+            <span style="text-align:center">chưa có con số nào<br>để đặt cạnh</span></div>
+        </div>
+        <p class="note" style="margin-top:.9rem">"Recall 1.000" — tốt so với <em>cái gì</em>?
+          Chúng tôi chỉ có thể nói nó tốt hơn cấu hình trước đó của chính mình.</p>
+      </div>
+      <div>
+        <div class="kick">Thứ chúng tôi dựng để thay thế</div>
+        <ul>
+          <li>Một bộ đánh giá chấm ngược lại <b>chính database của ban giám khảo</b>, khớp theo
+            URL cổng trước, tên văn bản sau.</li>
+          <li>Một vòng sweep tham số, để các lựa chọn <b>so được với nhau</b> ngay cả khi không
+            so được với ai bên ngoài.</li>
+        </ul>
+        <div class="card" style="margin-top:1.1rem">
+          <h3 style="font-size:.96rem">Một lỗi đo mà chúng tôi bắt được</h3>
+          <p>Mông Cổ ban đầu chấm <b>0 / 9</b>. Đáp án viết tên đạo luật bằng tiếng Anh; cổng
+            legalinfo.mn phục vụ bằng tiếng Mông Cổ. Không phép so chuỗi nào bắc được cầu đó.<br>
+            <span style="color:var(--accent)">→</span> <b>Bộ chấm sai, không phải run sai.</b>
+            Giờ khớp theo id trong URL trước — thứ không phụ thuộc ngôn ngữ.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 16 ─ limitation 3 -->
+<section class="slide">
+  <div class="inner">
+    <div class="reveal eyebrow">Hạn chế · 3 / 4</div>
+    <h2 class="reveal">Lỗ hổng lớn nhất là discovery, không phải trí thông minh.</h2>
+    <div class="reveal g2" style="grid-template-columns:1fr 1fr">
+      <div>
+        <div class="kick">Vòng 1 — tầng văn bản bị bỏ sót · 37 luật ban giám khảo trích</div>
+        <div class="dots">
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+          <i class="miss"></i><i class="miss"></i><i class="miss"></i><i class="miss"></i>
+          <i class="miss"></i><i class="miss"></i><i class="miss"></i><i class="miss"></i>
+          <i class="miss"></i><i class="miss"></i>
+        </div>
+        <div class="dotkey">
+          <span><i></i>27 nằm trong catalogue</span>
+          <span><i class="miss"></i>10 nằm ngoài</span>
+        </div>
+        <p class="note" style="margin-top:.9rem">Mười văn bản đó <b>không phải đạo luật</b>: là
+          hướng dẫn của cơ quan quản lý, một điều kiện giấy phép, một văn bản dưới luật, các bộ
+          quy tắc ứng xử ngành. Chúng tôi tìm trên cổng đạo luật — còn chúng không nằm ở cổng
+          đạo luật.</p>
+      </div>
+      <div>
+        <div class="kick">Vòng 2 — cùng một hình dạng</div>
+        <ul>
+          <li><b>Ấn Độ:</b> bằng chứng hầu hết là văn bản dưới luật — thông tư bộ và ngân hàng
+            trung ương, dạng PDF công báo. Chúng tôi <b>tìm đúng chỉ mục nhưng sai tầng</b>.</li>
+          <li><b>Mông Cổ:</b> catalogue chín phần giấy tờ hành chính, một phần là luật.</li>
+        </ul>
+        <div class="open"><b>Vì sao chưa sửa —</b> mỗi tầng cần một chỉ mục duyệt được của
+          riêng nó, mà phần lớn các chỉ mục đó <em>không tồn tại</em>. Không có API nào liệt kê
+          "mọi bộ quy tắc ứng xử mà một cơ quan quản lý ngành từng ban hành". Đóng lỗ hổng này
+          là chi phí kỹ thuật cho từng cổng, lặp lại cho từng nước — không phải chuyện model
+          phải thông minh hơn.</div>
+        <div class="quote">Một thuật ngữ tiếng Mông Cổ lấy từ từ điển thay vì lấy từ chính đạo
+          luật đã làm hỏng cả bộ tài liệu của một lần chạy.
+          <span>Mười hai trên mười bảy tài liệu hoá ra là quy định hải quan về gia công
+          <b>hàng hoá</b> ở nước ngoài. Từ khoá phải được đo trên chính chỉ mục của cổng trước
+          khi được tin.</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 17 ─ limitation 4 -->
+<section class="slide">
+  <div class="inner">
+    <div class="reveal eyebrow">Hạn chế · 4 / 4</div>
+    <h2 class="reveal">Những gì chưa đo, nói thẳng ra.</h2>
+    <div class="reveal g3">
+      <div class="card">
+        <h3>Tham số retrieval được sweep trên tiếng Anh</h3>
+        <p>Nửa lexical giờ chạy bằng character bigram cho hệ chữ không dấu cách. Việc tinh chỉnh
+          cũ còn đúng hay không thì <b>chưa biết</b> — và trả lời được bằng chính bộ sweep đã
+          có.</p>
+      </div>
+      <div class="card">
+        <h3>Cross-encoder đa ngữ chưa từng được benchmark</h3>
+        <p>Nó bị <b>tắt</b> với các nền kinh tế phi Latin, thay vì góp nhiễu vào điểm. An toàn
+          không đồng nghĩa với đã đo.</p>
+      </div>
+      <div class="card">
+        <h3>Không engine OCR nào ở đây đọc được Cyrillic hay tiếng Lào</h3>
+        <p>Chưa thành vấn đề — Trung Quốc, Ấn Độ, Mông Cổ đều là text. <b>Thái Lan</b> là nơi
+          nó bắt đầu thành vấn đề.</p>
+      </div>
+      <div class="card">
+        <h3>PaddleOCR mất 10 phút mỗi trang trên CPU</h3>
+        <p>Gấp <b>140 lần</b> RapidOCR cho cùng độ chính xác. Nó lại đúng là engine dự kiến dùng
+          cho chữ phi Latin — nên ở tốc độ đó, kế hoạch vòng chung kết không đứng được như đang
+          cấu hình.</p>
+      </div>
+      <div class="card">
+        <h3>52 / 61 indicators chưa từng được chấm</h3>
+        <p>Chúng chạy được. Nhưng chưa có gì kiểm tra xem định nghĩa của chúng có phân biệt được
+          các trường hợp hay không.</p>
+      </div>
+      <div class="card">
+        <h3>Chưa có gì được chạy lại vào một ngày khác</h3>
+        <p>Mọi con số trong bài này là <b>một lần đọc duy nhất</b>. Cổng thông tin sống thì thay
+          đổi.</p>
+      </div>
+    </div>
+    <div class="reveal win"><b>Vì sao lại tự liệt kê ra —</b> ban giám khảo sẽ tìm thấy chúng.
+      Tốt hơn là chúng tôi tìm ra trước, ghi lại, và nói được chính xác mỗi cái cần gì để
+      đóng.</div>
+  </div>
+</section>
+
+<!-- 18 ─ close -->
+<section class="slide">
+  <div class="inner">
+    <div class="reveal eyebrow">Tóm lại trong một câu</div>
+    <h1 class="reveal title" style="font-size:clamp(1.8rem,3.6vw,2.8rem)">Một công cụ mà nhà
+      nghiên cứu chính sách <em>bác bỏ được</em>.</h1>
+    <p class="reveal lede">Nó tự tìm ra luật mà không cần được chỉ chỗ, đọc được cả bản scan,
+      trích nguyên văn điều khoản, nêu rõ legal test đã dùng để phán, và nói mình chắc đến đâu —
+      để người ký duyệt chỉ số có thể <b>kiểm tra cái máy thay vì phải tin nó</b>.</p>
+    <div class="reveal stats">
+      <div class="stat g"><b>1,11%</b><span>sai số OCR · ngưỡng đề bài là 5%</span></div>
+      <div class="stat g"><b>1,000</b><span>provision recall sau khi sweep</span></div>
+      <div class="stat"><b>6</b><span>nền kinh tế chạy được · 3 có số liệu ghi ngày</span></div>
+      <div class="stat"><b>~$0,14</b><span>mỗi lần chạy economy · pillar</span></div>
+    </div>
+    <div class="reveal" style="margin-top:2rem;font-size:.9rem;color:var(--ink-faint)">
+      VeriTrade · Team FTU · <span class="mono">minhtc@ftu.edu.vn</span>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<nav class="bar" aria-label="Điều khiển slide">
+  <span class="mark"><i aria-hidden="true">V</i>VeriTrade</span>
+  <span class="sp"></span>
+  <button id="theme" aria-label="Đổi giao diện sáng hoặc tối">◐</button>
+  <button id="prev" aria-label="Slide trước">←</button>
+  <span class="count"><span id="cur">1</span> / <span id="tot">18</span></span>
+  <button id="next" aria-label="Slide sau">→</button>
+</nav>
+
+<script>
+/* ── the step rail, generated once per method slide ─────────────────────
+   Same six steps as the overview diagram, built from data rather than pasted
+   six times — which is how the two would drift apart. */
+var STEPS = ["Discover", "Fetch", "Read", "Split", "Match", "Score"];
+document.querySelectorAll(".slide[data-step]").forEach(function (s) {
+  var here = +s.dataset.step;
+  s.querySelector(".rail").innerHTML = STEPS.map(function (name, i) {
+    var n = i + 1, cls = n === here ? "now" : (n < here ? "done" : "");
+    return '<div class="st ' + cls + '"' + (n === here ? ' aria-current="step"' : '') + '>' +
+           '<div class="dot">' + n + '</div><div class="lbl">' + name + '</div></div>';
+  }).join("");
+});
+
+/* ── navigation ─────────────────────────────────────────────────────── */
+var slides = [].slice.call(document.querySelectorAll(".slide"));
+var i = 0;
+document.getElementById("tot").textContent = slides.length;
+
+/* Bars are drawn at width 0 and grown when their slide becomes visible, so the
+   figure animates in front of the audience instead of being finished before
+   they look at it. Resetting on exit means going back replays it. */
+function paint(slide, on) {
+  slide.querySelectorAll(".bar-fill,.seg").forEach(function (el) {
+    el.style.width = on ? el.dataset.w + "%" : "0";
+  });
+}
+
+function show(n) {
+  i = Math.max(0, Math.min(slides.length - 1, n));
+  slides.forEach(function (s, k) {
+    var active = k === i;
+    s.classList.toggle("on", active);
+    paint(s, active);
+  });
+  document.getElementById("cur").textContent = i + 1;
+  document.getElementById("prog").style.width = ((i + 1) / slides.length * 100) + "%";
+  slides[i].scrollTop = 0;
+  location.hash = i + 1;
+}
+document.getElementById("next").onclick = function (e) { e.stopPropagation(); show(i + 1); };
+document.getElementById("prev").onclick = function (e) { e.stopPropagation(); show(i - 1); };
+
+addEventListener("keydown", function (e) {
+  if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") { show(i + 1); e.preventDefault(); }
+  else if (e.key === "ArrowLeft" || e.key === "PageUp") { show(i - 1); e.preventDefault(); }
+  else if (e.key === "Home") { show(0); }
+  else if (e.key === "End") { show(slides.length - 1); }
+});
+document.getElementById("deck").addEventListener("click", function (e) {
+  if (e.target.closest("a,button")) return;
+  show(i + 1);
+});
+
+document.getElementById("theme").onclick = function (e) {
+  e.stopPropagation();
+  var r = document.documentElement, cur = r.getAttribute("data-theme");
+  if (!cur) cur = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  r.setAttribute("data-theme", cur === "dark" ? "light" : "dark");
+};
+
+show(parseInt(location.hash.slice(1), 10) - 1 || 0);
+</script>
+</body>
+</html>
