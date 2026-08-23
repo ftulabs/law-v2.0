@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Download VeriTrade</title>
+<meta name="description" content="Download VeriTrade for macOS, Windows and Linux." />
+<style>
+  :root {
+    --bg:#f6f7f9; --panel:#fff; --ink:#15181c; --muted:#5c6b7a; --line:#dde2e8;
+    --accent:#1f6feb; --accent-ink:#fff; --ok:#1a7f4b; --warn:#8a6100; --warn-bg:#fff6e0;
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#101316; --panel:#191d22; --ink:#e9ecef; --muted:#98a4b0; --line:#2a3037;
+      --accent:#6ea8ff; --accent-ink:#0b0f14; --ok:#4ec98a; --warn:#e3b34a; --warn-bg:#2a2313;
+    }
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--ink);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .wrap { max-width:840px; margin:0 auto; padding:56px 20px 80px; }
+  h1 { font-size:30px; letter-spacing:-0.02em; margin:0 0 8px; }
+  .lede { color:var(--muted); margin:0 0 36px; font-size:17px; }
+  .primary {
+    background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    padding:26px; margin-bottom:14px;
+  }
+  .detected { font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ok); margin-bottom:10px; }
+  .primary h2 { font-size:21px; margin:0 0 4px; }
+  .primary .file { color:var(--muted); font-size:14px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; word-break:break-all; }
+  a.btn {
+    display:inline-block; margin-top:18px; background:var(--accent); color:var(--accent-ink);
+    text-decoration:none; font-weight:650; padding:13px 22px; border-radius:9px; min-height:44px;
+  }
+  a.btn.ghost { background:transparent; color:var(--accent); border:1px solid var(--line); margin-left:8px; }
+  .note { background:var(--warn-bg); border:1px solid color-mix(in srgb, var(--warn) 35%, transparent);
+          border-radius:10px; padding:14px 16px; margin:18px 0 0; font-size:14.5px; }
+  .note b { color:var(--warn); }
+  code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13.5px; }
+  pre { background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:12px 14px; overflow-x:auto; margin:10px 0 0; }
+  h3 { font-size:15px; margin:34px 0 12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(228px,1fr)); gap:12px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:16px; }
+  .card h4 { margin:0 0 3px; font-size:15px; }
+  .card p { margin:0 0 10px; color:var(--muted); font-size:13px; }
+  .card a { color:var(--accent); text-decoration:none; font-weight:600; font-size:14px; }
+  footer { margin-top:44px; padding-top:22px; border-top:1px solid var(--line); color:var(--muted); font-size:13.5px; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Download VeriTrade</h1>
+  <p class="lede">
+    Finds digital-trade law on official government portals, reads it, and maps each
+    provision to a UN&nbsp;ESCAP RDTII&nbsp;2.1 indicator with a citation you can check.
+  </p>
+
+  <div class="primary" id="primary">
+    <div class="detected" id="detected">Detecting your system…</div>
+    <h2 id="title">All downloads</h2>
+    <div class="file" id="file"></div>
+    <a class="btn" id="download" href="https://github.com/ftulabs/law-v2.0/releases/latest">Go to downloads</a>
+    <a class="btn ghost" href="https://github.com/ftulabs/law-v2.0/releases/latest">All platforms</a>
+    <div class="note" id="firstrun" hidden></div>
+  </div>
+
+  <h3>Every platform</h3>
+  <div class="grid">
+    <div class="card">
+      <h4>macOS</h4>
+      <p>Apple silicon or Intel · .dmg</p>
+      <a href="https://github.com/ftulabs/law-v2.0/releases/latest">Download</a>
+    </div>
+    <div class="card">
+      <h4>Windows</h4>
+      <p>x64 or ARM64 · .msi</p>
+      <a href="https://github.com/ftulabs/law-v2.0/releases/latest">Download</a>
+    </div>
+    <div class="card">
+      <h4>Linux</h4>
+      <p>.deb for Ubuntu/Debian · .AppImage elsewhere</p>
+      <a href="https://github.com/ftulabs/law-v2.0/releases/latest">Download</a>
+    </div>
+    <div class="card">
+      <h4>iOS &amp; Android</h4>
+      <p>Not distributed yet — both build in CI but neither is signed.</p>
+      <a href="https://github.com/ftulabs/law-v2.0/blob/main/INSTALL.md#mobile">Why</a>
+    </div>
+  </div>
+
+  <h3>The app needs an engine</h3>
+  <p style="color:var(--muted); margin-top:0">
+    The desktop app is a client: it displays results, and the analysis runs in the
+    Python engine it expects at <code>127.0.0.1:8000</code>. Bundling that engine into
+    the installer is not done yet, so start it from a checkout:
+  </p>
+<pre>git clone https://github.com/ftulabs/law-v2.0 &amp;&amp; cd law-v2.0
+python3 -m venv .venv                      # Python 3.10-3.12
+.venv/bin/pip install -r requirements.txt
+cp .env.example .env                        # runs with no API key
+.venv/bin/python -m uvicorn backend.main:app --port 8000</pre>
+
+  <footer>
+    Nothing is code-signed yet, so every platform warns on first launch.
+    <a href="https://github.com/ftulabs/law-v2.0/blob/main/INSTALL.md">Full install notes</a> ·
+    <a href="https://github.com/ftulabs/law-v2.0/blob/main/apps/README.md">Build it yourself</a> ·
+    Apache-2.0
+  </footer>
+</div>
+
+<script>
+// Pick the build for whoever is reading, and say what the first launch will do.
+// The list is deliberately conservative: where the architecture cannot be known
+// from the browser (Windows, and Intel Macs under Rosetta) the safest build is
+// offered rather than a guess that fails to start.
+(function () {
+  var RELEASES = "https://github.com/ftulabs/law-v2.0/releases/latest";
+  var ua = navigator.userAgent || "";
+  var plat = (navigator.platform || "") + " " + ua;
+
+  function detect() {
+    if (/iPhone|iPad|iPod/.test(ua)) {
+      return { os: "iOS", title: "No iOS build yet",
+               file: "Both mobile builds compile in CI, but neither is signed for distribution.",
+               href: "https://github.com/ftulabs/law-v2.0/blob/main/INSTALL.md#mobile",
+               cta: "Read why", mobile: true };
+    }
+    if (/Android/.test(ua)) {
+      return { os: "Android", title: "No Android build yet",
+               file: "Both mobile builds compile in CI, but neither is signed for distribution.",
+               href: "https://github.com/ftulabs/law-v2.0/blob/main/INSTALL.md#mobile",
+               cta: "Read why", mobile: true };
+    }
+    if (/Mac|darwin/i.test(plat)) {
+      // An Apple-silicon Mac reports the same platform string as an Intel one,
+      // and the WebGL renderer name is the only tell a page reliably gets. When
+      // it is inconclusive both builds are offered rather than one guessed:
+      // an Intel build does run on Apple silicon under Rosetta, but slowly, and
+      // sending someone the slow one silently is worse than asking.
+      var chip = "unknown";
+      try {
+        var gl = document.createElement("canvas").getContext("webgl");
+        var dbg = gl && gl.getExtension("WEBGL_debug_renderer_info");
+        var r = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : "";
+        if (/Apple\s*M\d|Apple GPU/i.test(r)) chip = "apple";
+        else if (/Intel|AMD|Radeon/i.test(r)) chip = "intel";
+      } catch (e) { /* a blocked canvas is not a reason to fail */ }
+
+      var quarantine =
+        "<b>First launch:</b> macOS says the app \u201cis damaged\u201d. It is not \u2014 it is unsigned. " +
+        "Clear the quarantine flag:<pre>xattr -dr com.apple.quarantine /Applications/VeriTrade.app</pre>";
+
+      if (chip === "unknown") {
+        return { os: "macOS", title: "VeriTrade for Mac",
+                 file: "Apple silicon: VeriTrade_<version>_aarch64.dmg\u2003\u00b7\u2003Intel: VeriTrade_<version>_x64.dmg",
+                 href: RELEASES, cta: "Download for Mac",
+                 warn: "<b>Which one?</b> \uf8ff \u203a About This Mac names the chip \u2014 anything called " +
+                       "\u201cApple M\u2026\u201d takes the <code>aarch64</code> build.<br />" + quarantine };
+      }
+      return chip === "apple"
+        ? { os: "macOS \u00b7 Apple silicon", title: "VeriTrade for Mac", file: "VeriTrade_<version>_aarch64.dmg",
+            href: RELEASES, cta: "Download for Mac", warn: quarantine }
+        : { os: "macOS \u00b7 Intel", title: "VeriTrade for Mac", file: "VeriTrade_<version>_x64.dmg",
+            href: RELEASES, cta: "Download for Mac", warn: quarantine };
+    }
+
+    if (/Win/i.test(plat)) {
+      var arm = /ARM|aarch64/i.test(ua) ||
+                (navigator.userAgentData && /arm/i.test(navigator.userAgentData.platform || ""));
+      return { os: arm ? "Windows · ARM64" : "Windows · x64", title: "VeriTrade for Windows",
+               file: arm ? "VeriTrade_<version>_arm64_en-US.msi" : "VeriTrade_<version>_x64_en-US.msi",
+               href: RELEASES, cta: "Download for Windows",
+               warn: "<b>First launch:</b> SmartScreen says “Windows protected your PC”. " +
+                     "Choose <i>More info</i> → <i>Run anyway</i>; the installer is unsigned, so Windows " +
+                     "cannot name a publisher." };
+    }
+    if (/Linux|X11/i.test(plat)) {
+      return { os: "Linux · x64", title: "VeriTrade for Linux",
+               file: "veritrade_<version>_amd64.deb  ·  or the .AppImage",
+               href: RELEASES, cta: "Download for Linux",
+               warn: "<b>Ubuntu or Debian:</b><pre>sudo apt install ./veritrade_&lt;version&gt;_amd64.deb</pre>" +
+                     "Needs WebKitGTK 4.1, so Ubuntu 22.04 or newer. On any other distribution take the " +
+                     "AppImage:<pre>chmod +x VeriTrade_&lt;version&gt;_amd64.AppImage\n./VeriTrade_&lt;version&gt;_amd64.AppImage</pre>" };
+    }
+    return null;
+  }
+
+  var d = detect();
+  if (!d) { document.getElementById("detected").textContent = "Choose your platform"; return; }
+
+  document.getElementById("detected").textContent = d.mobile ? d.os : "Detected: " + d.os;
+  document.getElementById("title").textContent = d.title;
+  document.getElementById("file").textContent = d.file;
+  var btn = document.getElementById("download");
+  btn.textContent = d.cta;
+  btn.href = d.href;
+  if (d.warn) {
+    var n = document.getElementById("firstrun");
+    n.innerHTML = d.warn;
+    n.hidden = false;
+  }
+})();
+</script>
+</body>
+</html>

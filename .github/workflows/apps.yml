@@ -79,7 +79,11 @@ jobs:
           - os: macos-14
             target: aarch64-apple-darwin
             label: macos-arm64
-          - os: macos-13
+          # Intel is cross-compiled from an Apple-silicon runner: GitHub has
+          # retired the macos-13 Intel image, and a job requesting it queues
+          # forever rather than failing. Xcode targets both architectures, so
+          # the only cost is the extra rustup target.
+          - os: macos-14
             target: x86_64-apple-darwin
             label: macos-x64
           - os: ubuntu-22.04
