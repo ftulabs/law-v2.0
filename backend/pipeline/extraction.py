@@ -536,14 +536,28 @@ def _recover_law_name(text: str) -> str | None:
             # up into the jurisdiction/number header ("LAWS OF MALAYSIA", "Act 709").
             k = j - 1
             while k >= 0:
-                # Keep reaching up while the assembled head is still a bare instrument-type word
-                # ("REGULATIONS 2021") OR a parenthetical qualifier ("(Notification of Data
-                # Breaches)") that still needs its subject prefix ("PERSONAL DATA PROTECTION") OR
-                # carries an UNMATCHED closing paren ("FINANCING) RULES 2023") — the title's
-                # opening "(" wrapped to the line above ("TERRORISM (SUPPRESSION OF").
+                # Keep reaching up while the assembled name is still INCOMPLETE:
+                #   • it opens on a bare instrument-type word ("REGULATIONS 2021") and needs
+                #     its subject ("PERSONAL DATA PROTECTION");
+                #   • it opens on a parenthetical qualifier ("(CONFISCATION OF BENEFITS)");
+                #   • it carries an UNMATCHED closing paren — the opening "(" wrapped to a line
+                #     above;
+                #   • it opens on a conjunction. No statute is named "And Other Serious
+                #     Crimes …"; that is the middle of a title, not the start of one.
+                #
+                # Tested on the ASSEMBLED head, not on `block[0]`. A three-line title defeats
+                # the per-line test: ACCOUNTANTS (PREVENTION OF MONEY LAUNDERING, / TERRORISM
+                # FINANCING AND PROLIFERATION / FINANCING) RULES 2023 stops after two lines
+                # because the middle line has no bracket of its own — while the name so far
+                # still has one open. The Law Name column then read "TERRORISM FINANCING AND
+                # PROLIFERATION FINANCING) RULES 2023", which begins mid-word and closes a
+                # bracket it never opened.
+                head = " ".join(block)
                 if not (re.match(r"^(regulations?|rules|order|by[- ]?laws?|act|akta|code)\b",
-                                 block[0], re.I) or block[0].startswith("(")
-                        or block[0].count(")") > block[0].count("(")):
+                                 head, re.I)
+                        or re.match(r"^(and|or)\b", head, re.I)
+                        or head.startswith("(")
+                        or head.count(")") > head.count("(")):
                     break
                 prev = lines[k]
                 if prev and not _CITATION_RE.match(prev) and not _BOILERPLATE_RE.match(prev) \
@@ -689,7 +703,13 @@ def _law_name(doc: DiscoveredDoc, raw_text: str = "") -> str:
         # jurisdiction puts the words that decide whether the instrument counts:
         # （征求意见稿） (consultation draft), (Amendment), Repeal Act.
         recovered = _recover_truncated(title, raw_text) or _recover_law_name(raw_text)
-        if recovered and len(recovered) > len(cleaned):
+        # NO length comparison here, unlike the generic-title branch below. The ellipsis is
+        # proof that the title is incomplete, so a name read from the document's own header
+        # beats it whatever the two lengths are — and the lengths mislead: the search engine
+        # renders "Personal Data Protection Regulations 2021 - Singapore ..." at 57 characters
+        # while the correct name is 41, so `>` kept the stump AND its site branding in the Law
+        # Name column of the submission.
+        if recovered:
             return recovered
     if _is_generic_title(title) or not _LAW_TYPE_RE.search(cleaned):
         recovered = _recover_law_name(raw_text)

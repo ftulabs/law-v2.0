@@ -179,9 +179,21 @@ def _ocr_choice(code: str, lang: LangProfile) -> Choice:
                                  f"measured here", Evidence.DOCUMENTED)
 
 
-def profile_for(economy: str | None) -> EngineProfile:
+#: What `ocr` says when nobody asked the machine. Distinct from `Choice(None, ...)`, which is
+#: the answer "no engine here can read this script" — a real finding. This is "not asked".
+_OCR_NOT_PROBED = Choice(None, "engines were not probed for this call", Evidence.ASSUMED)
+
+
+def profile_for(economy: str | None, probe_ocr: bool = True) -> EngineProfile:
     """The resolved engine profile for an economy. Never raises; unknown codes get the Latin
-    default, which is also the safest thing to do with an economy we have not met."""
+    default, which is also the safest thing to do with an economy we have not met.
+
+    `probe_ocr=False` skips resolving the engine through the factory. That resolution
+    CONSTRUCTS the provider — which loads PP-OCRv5 detection and recognition weights — so a
+    caller that only wants the language, lane or reranker pays 1.3s per economy for a field it
+    never reads. The dashboard's readiness globe was doing exactly that for twelve economies
+    before it could paint: 15.7s measured, on a machine whose models were already downloaded.
+    """
     code = (economy or "").upper()
     lang = _lang(code)
     latin = is_latin_script(code)
@@ -203,7 +215,7 @@ def profile_for(economy: str | None) -> EngineProfile:
         language=lang.language,
         script=lang.script,
         lane=LANE_ENGLISH if english else LANE_NON_ENGLISH,
-        ocr=_ocr_choice(code, lang),
+        ocr=(_ocr_choice(code, lang) if probe_ocr else _OCR_NOT_PROBED),
         reranker=(Choice("cross-encoder/ms-marco-MiniLM-L-6-v2", _RERANK_ON_REASON,
                          Evidence.MEASURED) if english
                   else Choice(None, _RERANK_OFF_REASON, Evidence.MEASURED)),

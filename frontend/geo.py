@@ -83,7 +83,11 @@ def readiness() -> dict[str, dict]:
     try:
         sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
         from tools.readiness import rows                        # noqa: PLC0415
-        return {r["code"]: r for r in rows()}
+        # probe_engines=False: this map colours countries by `level`, which does not
+        # depend on the OCR engine — and resolving the engine CONSTRUCTS it, loading
+        # PP-OCRv5 weights per economy. Measured at 15.7s for twelve economies before
+        # the globe could paint, for a field this function never reads.
+        return {r["code"]: r for r in rows(probe_engines=False)}
     except Exception:                                           # noqa: BLE001
         return {}
 

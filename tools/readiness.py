@@ -32,7 +32,6 @@ import yaml                                                        # noqa: E402
 
 from backend.config import ROOT                                    # noqa: E402
 from backend.providers import engine_profile as EP                 # noqa: E402
-from backend.providers.ocr_factory import UnavailableOCR, get_ocr_provider  # noqa: E402
 from backend.schemas import ECONOMY_UN_NAME, LIVE_TEST_NINE, ROUND1_ECONOMIES  # noqa: E402
 
 DECLARED, REACHABLE, EXTRACTED, MEASURED = "declared", "reachable", "extracted", "measured"
@@ -126,14 +125,28 @@ def _primary(portals: list[dict]) -> str:
     return f"{host} (+{len(portals) - 1})" if len(portals) > 1 else host
 
 
-def rows() -> list[dict]:
+def rows(probe_engines: bool = True) -> list[dict]:
+    """One row per economy.
+
+    `probe_engines=False` reports "—" for the OCR column instead of resolving it. Resolving it
+    CONSTRUCTS the engine, and constructing PaddleOCR loads PP-OCRv5 detection and recognition
+    weights: measured at 15.7s for these twelve economies on a machine that already had the
+    models on disk. The dashboard's readiness globe paid that before it could paint a single
+    country, to colour them by a `level` that does not depend on the engine at all — it reads
+    only `level`, `portal`, `blocker` and `nine`.
+
+    The README table and the CLI keep the probe, because there the whole point is what this
+    machine can actually do. A caller that skips it gets "—", never a guess.
+    """
     src = _sources()
     order = list(LIVE_TEST_NINE) + [c for c in ROUND1_ECONOMIES]
     out = []
     for code in order:
         portals = src.get(code, [])
-        prof = EP.profile_for(code)
-        engine = get_ocr_provider(economy=code)
+        prof = EP.profile_for(code, probe_ocr=probe_engines)
+        # `profile_for` already resolved the engine when probing; asking the factory again
+        # built a SECOND copy of the same models, so twelve economies meant twenty-four loads.
+        engine = prof.ocr.value if probe_engines else None
         lvl = level(code, portals)
         out.append({
             "code": code,
@@ -143,7 +156,7 @@ def rows() -> list[dict]:
             "lane": prof.lane,
             "portal": _primary(portals),
             "portals": len(portals),
-            "ocr": "—" if isinstance(engine, UnavailableOCR) else engine.name,
+            "ocr": engine or "—",
             "reranker": prof.reranker.value or "off",
             "level": lvl,
             "blocker": blocker(code, portals, lvl),
