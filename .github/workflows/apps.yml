@@ -199,7 +199,9 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-          cache: gradle
+          # No gradle cache: the Android project does not exist until
+          # `tauri android init` runs below, and setup-java fails the job when
+          # its cache scan finds no build files rather than skipping.
 
       - uses: android-actions/setup-android@v3
         if: matrix.platform == 'android'
