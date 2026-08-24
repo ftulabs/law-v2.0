@@ -1,29 +1,55 @@
-% Every entry here was checked against the publisher's or arXiv's own record
-% before being written. That is not fastidiousness for its own sake: this paper
-% argues that evidence must be carried rather than generated, and a fabricated
-% citation in it would refute the argument more effectively than any reviewer.
+% Every entry was checked against arXiv's abstract page or the publisher's own
+% record before being written here. That is not fastidiousness: this paper argues
+% that evidence must be carried rather than generated, and a fabricated citation
+% in it would refute the argument more efficiently than any reviewer could.
+%
+% Two traps worth recording, because both are easy to get wrong from memory:
+%   * monoT5 has THREE authors on arXiv and FOUR in the published Findings
+%     version (Pradeep is added). The published form is used below.
+%   * MIRACL carries a different title on arXiv ("Making a MIRACL: ...") than in
+%     TACL. The TACL title and DOI are used below.
+
+% ---------------------------------------------------------------- legal IR --
+@article{goebel2023coliee,
+  title   = {Overview and Discussion of the Competition on Legal Information,
+             Extraction/Entailment ({COLIEE}) 2023},
+  author  = {Goebel, Randy and Kano, Yoshinobu and Kim, Mi-Young and Rabelo, Juliano
+             and Satoh, Ken and Yoshioka, Masaharu},
+  journal = {The Review of Socionetwork Strategies},
+  year    = {2024},
+  doi     = {10.1007/s12626-023-00152-0},
+}
 
 @inproceedings{chalkidis2022lexglue,
-  title     = {{LexGLUE}: A Benchmark Dataset for Legal Language Understanding in {E}nglish},
+  title     = {{LexGLUE}: A Benchmark Dataset for Legal Language Understanding in
+               {E}nglish},
   author    = {Chalkidis, Ilias and Jana, Abhik and Hartung, Dirk and Bommarito, Michael
                and Androutsopoulos, Ion and Katz, Daniel Martin and Aletras, Nikolaos},
   booktitle = {Proceedings of the 60th Annual Meeting of the Association for
-               Computational Linguistics (Volume 1: Long Papers)},
-  pages     = {4310--4330},
+               Computational Linguistics},
   year      = {2022},
-  publisher = {Association for Computational Linguistics},
+  note      = {arXiv:2110.00976},
 }
 
-@inproceedings{guha2023legalbench,
-  title     = {{LegalBench}: A Collaboratively Built Benchmark for Measuring Legal
-               Reasoning in Large Language Models},
-  author    = {Guha, Neel and Nyarko, Julian and Ho, Daniel E. and R{\'e}, Christopher
-               and Chilton, Adam and Narayana, Aditya and others},
-  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
-  year      = {2023},
-  note      = {Datasets and Benchmarks Track},
+@article{guha2023legalbench,
+  title   = {{LegalBench}: A Collaboratively Built Benchmark for Measuring Legal
+             Reasoning in Large Language Models},
+  author  = {Guha, Neel and Nyarko, Julian and Ho, Daniel E. and R{\'e}, Christopher
+             and Chilton, Adam and Narayana, Aditya and others},
+  journal = {arXiv preprint arXiv:2308.11462},
+  year    = {2023},
 }
 
+@inproceedings{louis2022bsard,
+  title     = {A Statutory Article Retrieval Dataset in {F}rench},
+  author    = {Louis, Antoine and Spanakis, Gerasimos},
+  booktitle = {Proceedings of the 60th Annual Meeting of the Association for
+               Computational Linguistics},
+  year      = {2022},
+  note      = {arXiv:2108.11792},
+}
+
+% ------------------------------------------------- reliability and grounding --
 @article{magesh2024hallucination,
   title   = {Hallucination-Free? Assessing the Reliability of Leading {AI} Legal
              Research Tools},
@@ -33,40 +59,26 @@
   year    = {2024},
 }
 
-@article{ogundepo2022whitespace,
-  title   = {Better Than Whitespace: Information Retrieval for Languages without
-             Custom Tokenizers},
-  author  = {Ogundepo, Odunayo and Zhang, Xinyu and Lin, Jimmy},
-  journal = {arXiv preprint arXiv:2210.05481},
-  year    = {2022},
+@article{dahl2024fictions,
+  title   = {Large Legal Fictions: Profiling Legal Hallucinations in Large Language
+             Models},
+  author  = {Dahl, Matthew and Magesh, Varun and Suzgun, Mirac and Ho, Daniel E.},
+  journal = {Journal of Legal Analysis},
+  volume  = {16},
+  number  = {1},
+  pages   = {64--93},
+  year    = {2024},
 }
 
-@inproceedings{zhang2021mrtydi,
-  title     = {{Mr. TyDi}: A Multi-lingual Benchmark for Dense Retrieval},
-  author    = {Zhang, Xinyu and Ma, Xueguang and Shi, Peng and Lin, Jimmy},
-  booktitle = {Proceedings of the 1st Workshop on Multilingual Representation
-               Learning at {EMNLP}},
-  year      = {2021},
+@inproceedings{liu2023verifiability,
+  title     = {Evaluating Verifiability in Generative Search Engines},
+  author    = {Liu, Nelson F. and Zhang, Tianyi and Liang, Percy},
+  booktitle = {Findings of the Association for Computational Linguistics: {EMNLP}},
+  year      = {2023},
+  note      = {arXiv:2304.09848},
 }
 
-@article{zhang2022miracl,
-  title   = {Making a {MIRACL}: Multilingual Information Retrieval Across a
-             Continuum of Languages},
-  author  = {Zhang, Xinyu and Thakur, Nandan and Ogundepo, Odunayo and Kamalloo, Ehsan
-             and Alfonso-Hermelo, David and Li, Xiaoguang and Liu, Qun
-             and Rezagholizadeh, Mehdi and Lin, Jimmy},
-  journal = {arXiv preprint arXiv:2210.09984},
-  year    = {2022},
-}
-
-@article{samuel2020provenance,
-  title   = {Machine Learning Pipelines: Provenance, Reproducibility and {FAIR}
-             Data Principles},
-  author  = {Samuel, Sheeba and L{\"o}ffler, Frank and K{\"o}nig-Ries, Birgitta},
-  journal = {arXiv preprint arXiv:2006.12117},
-  year    = {2020},
-}
-
+% ------------------------------------------------------------- retrieval ----
 @article{robertson2009bm25,
   title   = {The Probabilistic Relevance Framework: {BM25} and Beyond},
   author  = {Robertson, Stephen and Zaragoza, Hugo},
@@ -77,13 +89,158 @@
   year    = {2009},
 }
 
-@article{goebel2023coliee,
-  title   = {Overview and Discussion of the Competition on Legal Information,
-             Extraction/Entailment ({COLIEE}) 2023},
-  author  = {Goebel, Randy and Kano, Yoshinobu and Kim, Mi-Young and Rabelo, Juliano
-             and Satoh, Ken and Yoshioka, Masaharu},
-  journal = {The Review of Socionetwork Strategies},
+@inproceedings{cormack2009rrf,
+  title     = {Reciprocal Rank Fusion Outperforms Condorcet and Individual Rank
+               Learning Methods},
+  author    = {Cormack, Gordon V. and Clarke, Charles L. A. and Buettcher, Stefan},
+  booktitle = {Proceedings of the 32nd International {ACM} {SIGIR} Conference},
+  pages     = {758--759},
+  year      = {2009},
+}
+
+@inproceedings{karpukhin2020dpr,
+  title     = {Dense Passage Retrieval for Open-Domain Question Answering},
+  author    = {Karpukhin, Vladimir and O{\u{g}}uz, Barlas and Min, Sewon and
+               Lewis, Patrick and Wu, Ledell and Edunov, Sergey and Chen, Danqi
+               and Yih, Wen-tau},
+  booktitle = {Proceedings of the 2020 Conference on Empirical Methods in Natural
+               Language Processing},
+  year      = {2020},
+  note      = {arXiv:2004.04906},
+}
+
+@inproceedings{nogueira2020monot5,
+  title     = {Document Ranking with a Pretrained Sequence-to-Sequence Model},
+  author    = {Nogueira, Rodrigo and Jiang, Zhiying and Pradeep, Ronak and Lin, Jimmy},
+  booktitle = {Findings of the Association for Computational Linguistics: {EMNLP}},
+  pages     = {708--718},
+  year      = {2020},
+}
+
+@article{bruch2022fusion,
+  title   = {An Analysis of Fusion Functions for Hybrid Retrieval},
+  author  = {Bruch, Sebastian and Gai, Siyu and Ingber, Amir},
+  journal = {{ACM} Transactions on Information Systems},
   year    = {2023},
+  doi     = {10.1145/3596512},
+  note    = {arXiv:2210.11934},
+}
+
+% --------------------------------------------------------- multilingual IR --
+@inproceedings{zhang2021mrtydi,
+  title     = {{Mr. TyDi}: A Multi-lingual Benchmark for Dense Retrieval},
+  author    = {Zhang, Xinyu and Ma, Xueguang and Shi, Peng and Lin, Jimmy},
+  booktitle = {Proceedings of the 1st Workshop on Multilingual Representation
+               Learning at {EMNLP}},
+  year      = {2021},
+}
+
+@article{zhang2023miracl,
+  title   = {{MIRACL}: A Multilingual Retrieval Dataset Covering 18 Diverse Languages},
+  author  = {Zhang, Xinyu and Thakur, Nandan and Ogundepo, Odunayo and Kamalloo, Ehsan
+             and Alfonso-Hermelo, David and Li, Xiaoguang and Liu, Qun
+             and Rezagholizadeh, Mehdi and Lin, Jimmy},
+  journal = {Transactions of the Association for Computational Linguistics},
+  volume  = {11},
+  pages   = {1114--1131},
+  year    = {2023},
+  doi     = {10.1162/tacl_a_00595},
+}
+
+@article{ogundepo2022whitespace,
+  title   = {Better Than Whitespace: Information Retrieval for Languages without
+             Custom Tokenizers},
+  author  = {Ogundepo, Odunayo and Zhang, Xinyu and Lin, Jimmy},
+  journal = {arXiv preprint arXiv:2210.05481},
+  year    = {2022},
+}
+
+% ------------------------------------------- acquisition, RegTech, pipelines --
+@article{peskoff2026locus,
+  title   = {Freeing the Law with {LOCUS}: A Local Ordinance Corpus for the
+             United States},
+  author  = {Peskoff, Denis and Barrow, Joe and Vu, Christopher and Davenport, Diag},
+  journal = {arXiv preprint arXiv:2606.19334},
+  year    = {2026},
+}
+
+@inproceedings{henderson2022pileoflaw,
+  title     = {Pile of Law: Learning Responsible Data Filtering from the Law and a
+               256{GB} Open-Source Legal Dataset},
+  author    = {Henderson, Peter and Krass, Mark S. and Zheng, Lucia and Guha, Neel
+               and Manning, Christopher D. and Jurafsky, Dan and Ho, Daniel E.},
+  booktitle = {Advances in Neural Information Processing Systems, Datasets and
+               Benchmarks Track},
+  year      = {2022},
+  note      = {arXiv:2207.00220},
+}
+
+@article{ali2026regreact,
+  title   = {{REGREACT}: Self-Correcting Multi-Agent Pipelines for Structured
+             Regulatory Information Extraction},
+  author  = {Ali, Mohammed and Abdallah, Abdelrahman and Jatowt, Adam},
+  journal = {arXiv preprint arXiv:2604.12054},
+  year    = {2026},
+}
+
+@inproceedings{ford2026multijurisdictional,
+  title     = {Navigating Global {AI} Regulation: A Multi-Jurisdictional
+               Retrieval-Augmented Generation System},
+  author    = {Ford, Courtney and Rane, Ojas and Leavy, Susan},
+  booktitle = {Proceedings of the PoliticalNLP Workshop at {LREC}},
+  year      = {2026},
+  note      = {arXiv:2604.25448},
+}
+
+@article{liu2026legalagents,
+  title   = {{LLM} Agents in Law: Taxonomy, Applications, and Challenges},
+  author  = {Liu, Shuang and Zhang, Ruijia and Ma, Ruoyun and Deng, Yujia
+             and Zhu, Lanyi and Li, Jiayu and Li, Zelong and Shen, Zhibin
+             and Du, Mengnan},
+  journal = {arXiv preprint arXiv:2601.06216},
+  year    = {2026},
+}
+
+% ------------------------------------------------- documents, OCR, structure --
+@inproceedings{vanstrien2020ocr,
+  title     = {Assessing the Impact of {OCR} Quality on Downstream {NLP} Tasks},
+  author    = {van Strien, Daniel and Beelen, Kaspar and Coll Ardanuy, Mariona
+               and Hosseini, Kasra and McGillivray, Barbara and Colavizza, Giovanni},
+  booktitle = {Proceedings of the 12th International Conference on Agents and
+               Artificial Intelligence},
+  year      = {2020},
+}
+
+@inproceedings{aumiller2021segmentation,
+  title     = {Structural Text Segmentation of Legal Documents},
+  author    = {Aumiller, Dennis and Almasian, Satya and Lackner, Sebastian
+               and Gertz, Michael},
+  booktitle = {Proceedings of the 18th International Conference on Artificial
+               Intelligence and Law},
+  year      = {2021},
+  doi       = {10.1145/3462757.3466085},
+}
+
+% ------------------------------------------- calibration, provenance, index --
+@inproceedings{kamath2020selective,
+  title     = {Selective Question Answering under Domain Shift},
+  author    = {Kamath, Amita and Jia, Robin and Liang, Percy},
+  booktitle = {Proceedings of the 58th Annual Meeting of the Association for
+               Computational Linguistics},
+  year      = {2020},
+  note      = {arXiv:2006.09462},
+}
+
+@article{gebru2021datasheets,
+  title   = {Datasheets for Datasets},
+  author  = {Gebru, Timnit and Morgenstern, Jamie and Vecchione, Briana
+             and Wortman Vaughan, Jennifer and Wallach, Hanna and Daum{\'e} III, Hal
+             and Crawford, Kate},
+  journal = {Communications of the {ACM}},
+  volume  = {64},
+  number  = {12},
+  pages   = {86--92},
+  year    = {2021},
 }
 
 @techreport{escap2024rdtii,

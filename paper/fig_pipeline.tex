@@ -1,0 +1,57 @@
+%% Generated diagram fragment. The paper's preamble supplies tikz, amsmath
+%% and the libraries; this file is the picture only.
+\begin{tikzpicture}[
+  >=Stealth,
+  stage/.style={draw, rounded corners=2pt, fill=blue!7, minimum height=8.5mm,
+                minimum width=19mm, align=center, font=\small\bfseries},
+  art/.style={font=\scriptsize\itshape, text=black!58, align=center, inner sep=1.5pt},
+  fail/.style={font=\scriptsize, text=red!58!black, align=center, inner sep=1pt},
+  flow/.style={->, semithick, black!65},
+  io/.style={font=\scriptsize, align=center, inner sep=1.5pt},
+]
+
+% ===== row 1 ============================================================
+\node[stage] (s1) {Discover};
+\node[stage, right=13mm of s1] (s2) {Acquire};
+\node[stage, right=13mm of s2] (s3) {Extract};
+\node[stage, right=13mm of s3] (s4) {Segment};
+
+\draw[flow] (s1) -- node[art, above] {URLs}       (s2);
+\draw[flow] (s2) -- node[art, above] {PDF / HTML} (s3);
+\draw[flow] (s3) -- node[art, above] {plain text} (s4);
+
+\node[io, left=7mm of s1, text width=17mm]
+  {economy $+$ topic\\[1pt]\textbf{no seed URLs}};
+\draw[flow] ([xshift=-7mm]s1.west) -- (s1);
+
+\node[fail, below=3.5mm of s1, text width=22mm] {encrypted catalogue\\$\rightarrow$ 0 acts};
+\node[fail, below=3.5mm of s2, text width=22mm] {multi-volume PDF\\$\rightarrow$ 1 of 618};
+\node[fail, below=3.5mm of s3, text width=22mm] {image-only page\\$\rightarrow$ empty text};
+\node[fail, below=3.5mm of s4, text width=22mm] {unknown numbering\\$\rightarrow$ 1 provision};
+
+% ===== row 2 ============================================================
+\node[stage, below=29mm of s1] (s5) {Retrieve};
+\node[stage, right=13mm of s5] (s6) {Map};
+\node[stage, right=13mm of s6] (s7) {Score};
+
+\draw[flow] (s5) -- node[art, above] {shortlist} (s6);
+\draw[flow] (s6) -- node[art, above] {mappings}  (s7);
+
+% The wrap runs in a clear lane between the two rows: down past the failure
+% notes, left, then into Retrieve. Routed rather than direct so it crosses
+% nothing -- a connector drawn through a label is a connector nobody follows.
+\draw[flow] (s4.south) -- ++(0,-17mm)
+  node[art, pos=0.75, right, xshift=1mm] {provisions}
+  -| (s5.north);
+
+\node[io, right=7mm of s7, text width=20mm]
+  {indicator rows,\\verbatim citation,\\confidence};
+\draw[flow] (s7) -- ([xshift=7mm]s7.east);
+
+\node[fail, below=3.5mm of s5, text width=22mm] {unmatched script\\$\rightarrow$ score 0.0};
+\node[fail, below=3.5mm of s6, text width=22mm] {sibling indicator\\confusion};
+\node[fail, below=3.5mm of s7, text width=22mm] {uncalibrated\\threshold};
+
+\node[fail, below=13mm of s6, font=\small\itshape, text=red!55!black, text width=95mm]
+  {every one of these completes normally, exits zero,\\and reports ``no provision found''};
+\end{tikzpicture}

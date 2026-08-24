@@ -1,31 +1,30 @@
-% RDTII-Bench, in ICLR 2027 format.
+% VeriTrade, in ICLR 2027 format.
 %
-% Every number in this document comes from \lnum{} or \claim{}, both defined in
-% generated/, both derived from bench/out/metrics.json, which is derived from
-% bench/out/runs/. Nothing numeric here is typed by hand, and `ledger paper`
-% refuses to compile if any of it stops tracing back to a record.
+% Every number inside a strict region comes from \lnum{} or \claim{}, both
+% defined in generated/, both derived from bench/out/metrics.json, which is
+% derived from bench/out/runs/. `ledger paper` refuses to compile if any of them
+% stops tracing back to a record.
+%
+% System-level figures (document counts, wall-clock, CER) are single-run
+% measurements against live portals. They are reported as such, outside strict
+% regions, and Section 5.1 says plainly that they are readings rather than rates.
 %
 % Anonymity is the style file's job while \iclrfinalcopy stays commented out.
-% `ledger paper` fails the build if anyone uncomments it before acceptance.
 \documentclass{article}
 \usepackage{iclr2027_conference,times}
+\usepackage{amsmath}
 \usepackage{booktabs}
 \usepackage{graphicx}
 \usepackage{hyperref}
 \usepackage{url}
-% Charts are pgfplots rather than an included bitmap: `ledger figures` emits
-% them as LaTeX, so they are deterministic, diffable, and verified against the
-% metrics at build time like every other generated asset.
 \usepackage{pgfplots}
 \pgfplotsset{compat=1.16}
-\usetikzlibrary{arrows.meta, positioning, fit, backgrounds}
+\usetikzlibrary{arrows.meta, positioning, fit, backgrounds, calc}
 
 \input{generated/values.tex}
 \input{generated/claims.tex}
 
-% The break is placed by hand: the title is set in small caps, which is wide
-% enough that letting LaTeX choose hyphenates "Multilingual" across the line.
-\title{RDTII-Bench: An Auditable Harness\\for Multilingual Legal Evidence Extraction}
+\title{VeriTrade: An Auditable Harness for Autonomous\\Legal Evidence Retrieval}
 
 \author{Anonymous authors \\ Paper under double-blind review}
 
@@ -35,318 +34,431 @@
 \maketitle
 
 \begin{abstract}
-Automated extraction of regulatory evidence from primary law is increasingly
-deployed across jurisdictions, but it is almost never evaluated across the
-scripts those jurisdictions actually publish in. We present a harness that treats
-a legal-evidence pipeline the way an experiment is treated: every published
-number is carried from a recorded run rather than typed, and every stage refuses
-rather than guesses. We instantiate it on the RDTII 2.1 regulatory framework over
-six Asia-Pacific economies publishing in three writing systems, and use it to
-ablate a single design decision --- how text is tokenised for lexical retrieval
---- against the reference answers of the framework's own expert panel.
-\claim{C1} Both factors are necessary and neither is sufficient, and in three of
-the four configurations the failure is silent: the pipeline completes, raises
-nothing, and reports an absence of law that is indistinguishable from a genuine
-one. \claim{C2} \claim{C3} The harness, not the pipeline, is the contribution:
-its methodology is domain-general, and we describe what porting it to another
-body of law requires.
+Regulatory indices are compiled by hand: an analyst is given a jurisdiction and
+a legal question, searches official portals, reads statutes, and records which
+article answers it. Automating this is usually framed as a retrieval problem
+over a corpus that has already been assembled. We argue the corpus is the
+problem. We present VeriTrade, an end-to-end harness that is given a
+jurisdiction and a regulatory topic and \emph{no source URLs}, and which
+discovers statutes on official portals, acquires them against bot defences and
+encrypted catalogues, recovers text from scanned images, segments instruments
+into articles, retrieves candidate provisions with a script-aware hybrid ranker,
+maps each to a codified legal test with a model that may never author a
+citation, and emits a confidence with explicit routing to human review. It runs
+across six Asia-Pacific economies in three writing systems. Our central finding
+is that the failures introduced by this setting are silent: at every stage a
+plausible implementation returns a confident, empty answer that is
+indistinguishable from a jurisdiction with no such law. We demonstrate one such
+failure under controlled conditions. \claim{C1} Both fixes are necessary and
+neither is sufficient, and in three of the four configurations nothing in the
+pipeline raises, logs, or exits non-zero. \claim{C2} Every number in this paper
+is re-derived from run records at compile time.
 \end{abstract}
 
 \section{Introduction}
 
-Regulatory indices are built by hand. An analyst is given an economy and a topic,
-searches official portals, reads statutes, and records which provision satisfies
-which indicator. The ESCAP Regional Digital Trade Integration Index alone spans
-eleven thematic pillars over forty-four sub-pillars, each requiring a coder to
-locate and justify primary law in the jurisdiction's own language
-\citep{escap2024rdtii}. The work is slow, expensive and difficult to reproduce,
-and it is a natural target for automation: retrieve candidate provisions, ask a
-language model whether each satisfies a codified legal test, and export the
-accepted mappings with citations.
+The Regional Digital Trade Integration Index scores an economy's digital-trade
+regulation across twelve thematic pillars resolving to sixty-one legal
+questions \citep{escap2024rdtii}. Each question is answered not with a
+judgement but with an instrument, an article within it, and that article's text
+quoted verbatim. Coding one economy today is a person reading statutes.
 
-Systems of this shape are being built and sold. They are also, measurably, not
-yet trustworthy. In the first pre-registered evaluation of commercial
-AI legal-research tools, \citet{magesh2024hallucination} found that products
-from LexisNexis and Thomson Reuters --- retrieval-augmented, and marketed on
-their freedom from hallucination --- fabricated or misattributed authority
-between 17\% and 33\% of the time. The response from the research community has
-mostly been better benchmarks of legal \emph{reasoning}
-\citep{chalkidis2022lexglue, guha2023legalbench} and better legal
-\emph{retrieval} \citep{goebel2023coliee}. Those are necessary. They are also
-evaluations of the model, and the failures we describe here are not in the model.
+Automating this looks like retrieval, and the field has excellent benchmarks for
+it. COLIEE has run statute and case-law retrieval for over a decade
+\citep{goebel2023coliee}; LexGLUE assembles seven legal understanding tasks
+\citep{chalkidis2022lexglue}; LegalBench extends to legal reasoning
+\citep{guha2023legalbench}; BSARD poses exactly our question shape --- natural
+language in, statutory article out \citep{louis2022bsard}. In every one of
+them the corpus is handed to the system.
 
-Three failures recur in systems of this kind, and they compound:
+That is the right design for measuring a model, and it is why none of them can
+see the failures this paper is about. On the real task the corpus does not exist
+until the system builds it, and building it is where the difficulty is
+concentrated. Meanwhile the deployed systems that do attempt legal research are
+measurably unreliable: an audit of commercial tools from LexisNexis and Thomson
+Reuters, marketed on their freedom from hallucination, found fabricated or
+misattributed authority between roughly one in six and one in three responses
+\citep{magesh2024hallucination}, with higher rates on open-ended case questions
+\citep{dahl2024fictions}.
 
-\begin{itemize}
-\item \textbf{The model authors the evidence.} A generated citation, article
-number or quotation cannot be checked against anything. Once a model is permitted
-to write the text it is also citing, the output is unfalsifiable --- which is
-precisely the regime in which the hallucination rates above were measured.
-\item \textbf{The paper drifts from the run.} Numbers are copied into prose by
-hand, the experiment is re-run, and the prose is not. Surveys of machine-learning
-reproducibility find that no paper in a sample of four hundred documented
-everything needed to reproduce it, and that provenance over the artifacts of a
-pipeline --- data, code, environment, seeds --- is the missing discipline rather
-than an optional extra \citep{samuel2020provenance}. The abstract and the table
-disagree, and nobody notices because nothing checks.
-\item \textbf{The evaluation is monolingual.} The system is developed against
-English-language jurisdictions and shipped to others. Multilingual retrieval
-resources exist \citep{zhang2021mrtydi, zhang2022miracl}, but a system evaluated
-per language, on a corpus already in that language, never encounters the
-condition that actually breaks: one index, several scripts, one tokenisation
-rule. The failure that follows is not a crash; it is a quiet zero.
-\end{itemize}
+We take the constraint that follows as architectural rather than statistical.
+The model in our pipeline grades evidence; it never writes it. Law text,
+article numbers and URLs are carried forward from extraction, and the one field
+the model may propose --- a subsection reference --- is discarded unless it
+occurs literally in the retrieved snippet.
 
-This paper is about a harness that closes all three, and about what the harness
-found when it was pointed at its own pipeline.
-\subsection{Contributions}
-
+\paragraph{Contributions.}
 \begin{enumerate}
-\item \textbf{An auditable harness for legal evidence extraction.} One invariant
---- every number in a published artifact is carried from a recorded run, never
-typed by a human and never written by a model --- enforced by a checker that
-walks the paper source and fails the build on any value it cannot ground. To our
-knowledge this is the first application of run-level provenance enforcement to a
-legal-evidence pipeline, and it is the same rule the pipeline already applies to
-legal text, lifted one level up (Section~\ref{sec:harness}).
-\item \textbf{A multi-region, multi-script evaluation.} Six economies, three
-writing systems, nine indicators, graded against the reference answers recorded
-by the framework's own expert panel (Section~\ref{sec:setup}).
-\item \textbf{A measured account of a silent multilingual failure.} We show that
-a monolingual tokenisation assumption removes an entire economy from retrieval
-without raising anything, that fixing tokenisation alone does not recover it, and
-that the fix is not free for the languages that already worked
-(Section~\ref{sec:results}).
-\item \textbf{A portable methodology.} The harness couples to a project through a
-single manifest; we set out what a different body of law has to supply
-(Section~\ref{sec:extending}).
+\item \textbf{An end-to-end harness for autonomous legal evidence retrieval.}
+Seven stages from a bare jurisdiction-plus-topic input to cited, confidence-scored
+indicator rows, with no seed URLs at any point (Section~\ref{sec:method}). To our
+knowledge no prior published system combines autonomous source discovery with
+extraction and indicator mapping in one evaluated pipeline; we state that as a
+conjunction and discuss the closest prior work in Section~\ref{sec:related}.
+\item \textbf{A script-aware hybrid retrieval design}, and the measured
+consequences of each of its parts, including two counter-intuitive negative
+results that we record so they are not re-proposed (Section~\ref{sec:retrieval},
+Section~\ref{sec:sweep}).
+\item \textbf{A characterisation of silent failure} as the dominant failure mode
+of this task, with a controlled demonstration on six economies and three writing
+systems (Section~\ref{sec:ablation}).
+\item \textbf{A provenance harness.} Every number in this paper is re-derived
+from run records at build time, and the document does not compile if one stops
+resolving (Section~\ref{sec:provenance}).
 \end{enumerate}
 
-\section{The harness}
-\label{sec:harness}
+\section{Related work}
+\label{sec:related}
 
-\subsection{The invariant}
+\paragraph{Legal benchmarks assume the corpus.} COLIEE distributes a fixed Civil
+Code article set \citep{goebel2023coliee}; LexGLUE and LegalBench evaluate
+understanding and reasoning over supplied text
+\citep{chalkidis2022lexglue,guha2023legalbench}; BSARD pairs questions with
+22{,}600 pre-segmented Belgian articles \citep{louis2022bsard}. A benchmark whose
+corpus is given cannot expose a discovery or acquisition failure, because it has
+already paid the cost that dominates the task. A January 2026 survey of legal
+LLM agents \citep{liu2026legalagents} covers compliance and regulatory
+applications and describes no system that locates legal sources without seed
+URLs or a pre-built collection; its own framing is that agents delegate authority
+to legal databases and APIs, which assumes discovery away.
 
-The pipeline under study already runs on an anti-hallucination rule: legal text,
-citations and URLs are \emph{carried from extraction, never generated}. The model
-grades evidence; it never authors it. A cited snippet must be verifiably present
-in the source document before the mapping is trusted, which makes every mapping
-checkable against a document rather than against the model's confidence in
-itself.
+\paragraph{Acquisition at scale.} Pile of Law collects 256\,GB of US legal
+material from a known, enumerated set of sources \citep{henderson2022pileoflaw}.
+Closest to us is LOCUS \citep{peskoff2026locus}, which collects a US local
+ordinance corpus using browser automation against anti-bot defences, OCRs it,
+segments it into individual laws and classifies each segment --- four of our
+seven stages. It differs in that its targets are a known set of commercial
+code-hosting vendors rather than portals to be discovered, it covers one country
+and one language, and it reports no confidence calibration or review routing.
+Our differentiator against LOCUS is discovery, multi-script breadth, and
+calibrated routing --- not OCR and segmentation.
 
-The harness applies exactly that rule one level up:
+\paragraph{Structured regulatory extraction.} REGREACT extracts typed compliance
+criteria from regulation-length documents \citep{ali2026regreact}, and a
+multi-jurisdictional RAG system covers 242 documents across 68 jurisdictions
+\citep{ford2026multijurisdictional}. Both operate on document sets supplied as
+input. Generative-search audits show that fluent responses routinely carry
+unsupported or inaccurate citations \citep{liu2023verifiability}; our response is
+to make the citation a retrieval artifact the model cannot write.
 
-\begin{quote}
-Every number, table and figure in a published artifact is carried from a recorded
-run, never typed by a human and never written by a model.
-\end{quote}
+\paragraph{Retrieval.} We combine BM25 \citep{robertson2009bm25} with a dense
+bi-encoder \citep{karpukhin2020dpr} and a cross-encoder reranker
+\citep{nogueira2020monot5}, fused by convex combination rather than reciprocal
+rank fusion \citep{cormack2009rrf}; \citet{bruch2022fusion} analyse that choice
+and the score normalisation it requires. Multilingual retrieval is established
+by Mr.\ TyDi and MIRACL \citep{zhang2021mrtydi,zhang2023miracl}, but both
+evaluate \emph{per language} on a per-language index. The interference we report
+in Section~\ref{sec:ablation} arises only when several scripts share one index.
+\citet{ogundepo2022whitespace} show character $n$-grams substitute well for
+language-specific tokenizers in BM25; we take that as given and ask a different
+question --- what a deployed system \emph{reports} when it has the wrong one.
 
-Same function, different domain. The pipeline grounds legal snippets against
-source law; the harness grounds paper numbers against run records. No language
-model runs anywhere in the path that produces a number, a table or a claim --- the
-harness is a deterministic toolchain, and models run only \emph{inside} the
-experiments it schedules. This is what makes the reproducibility statement in
-this paper checkable rather than asserted.
+\paragraph{Documents and calibration.} OCR error degrades downstream NLP
+measurably \citep{vanstrien2020ocr}, which is why we treat recognition quality as
+a first-class variable. \citet{aumiller2021segmentation} segment legal documents
+by topical coherence; we must instead recover formal article boundaries across
+three drafting traditions. For routing, \citet{kamath2020selective} show that
+softmax confidence fails under domain shift --- directly load-bearing for a
+system crossing six jurisdictions. Our per-provision provenance record is a
+datasheet \citep{gebru2021datasheets} pushed down to the individual article.
 
-\subsection{Stages}
+\section{Problem formulation}
+\label{sec:problem}
 
-The harness is a set of commands with file inputs and file outputs, orchestrated
-by a makefile rather than a scheduler, so that any stage can be re-run alone and
-a broken stage never blocks the others. A project declares itself through one
-manifest; the harness never vendors project code, it imports the entry points the
-manifest names.
+Given a jurisdiction $j$ and indicators $I=\{i_1,\dots,i_k\}$, each carrying a
+codified legal test, the system must return tuples
+$\langle\,\text{instrument},\,\text{article},\,\text{verbatim snippet},\,
+\text{source URL},\,\text{confidence}\,\rangle$ such that the snippet occurs
+character-for-character in the document at that URL and the article's operative
+rule satisfies $i$'s test. Where no provision satisfies $i$ the system must say
+so explicitly and name where it looked: a blank is indistinguishable from a
+failure to search. Three constraints separate this from a retrieval benchmark.
+\textbf{No seed URLs} --- the system is told which official portals exist and
+nothing else; no document URL or instrument name may be embedded.
+\textbf{Scanned sources count} --- some instruments are published only as page
+images. \textbf{The answer may not be precomputed} --- evaluation is a live run.
 
-\begin{itemize}
-\item \texttt{spec} validates the manifest and resolves entry points.
-\item \texttt{run} executes the experiment grid, one record per point. A
-record's filename \emph{is} the hash of its task, its full configuration and its
-input data, so resume is correct rather than merely convenient: a record produced
-under a different configuration cannot land on the same name, and so cannot be
-silently reused.
-\item \texttt{metrics} collapses records into cells. The seed axes are aggregated
-away here and nowhere else, so by the time a number is visible to a figure or a
-claim it already carries its sample size, standard deviation, extremes and
-spread. A single lucky seed cannot be published as a fact.
-\item \texttt{figures} generates every asset the paper includes, deterministically.
-\item \texttt{verify} walks the paper source, resolves every cited value back
-through the metrics to the records behind it, and exits non-zero on anything it
-cannot ground.
-\item \texttt{paper} compiles the document, but runs \texttt{verify} first and
-refuses to produce a PDF if any number in the source is unbacked.
-\end{itemize}
+The difficulty concentrates in four places, and each is a place where a plausible
+implementation returns a confident empty answer. Statutes sit behind portal
+software written for human readers, so general web search surfaces commentary
+more readily than the statute. Portals resist automated collection. An
+instrument is not an answer: returning a 618-article Act restates the question,
+so segmentation must be reliable enough that the citation is checkable.
+Finally, neighbouring indicators share their vocabulary --- a prohibition on
+transferring data abroad and a permission to transfer it subject to safeguards
+are written in almost the same words, and retrieval correctly ranks both highly.
+
+\section{Method}
+\label{sec:method}
 
 \begin{figure}[t]
 \centering
-\begin{tikzpicture}[
-  >=Stealth, font=\scriptsize,
-  stage/.style={draw, rounded corners=2pt, fill=blue!8, minimum height=5.6mm,
-                minimum width=11mm, font=\scriptsize\ttfamily, inner xsep=2pt},
-  art/.style={font=\scriptsize\itshape, text=black!65, inner xsep=1pt},
-  gate/.style={draw, rounded corners=2pt, fill=red!8, minimum height=5.6mm,
-               minimum width=12mm, font=\scriptsize\ttfamily},
-  flow/.style={->, semithick, black!70},
-  check/.style={->, dashed, red!60!black, semithick},
-]
-% forward chain: artifacts and the stages between them
-\node[art]                        (man)    {project.yaml};
-\node[stage, right=3.2mm of man]  (spec)   {spec};
-\node[stage, right=3.2mm of spec] (run)    {run};
-\node[art,   right=3.2mm of run]  (recs)   {runs/};
-\node[stage, right=3.2mm of recs] (met)    {metrics};
-\node[art,   right=3.2mm of met]  (mj)     {metrics.json};
-\node[stage, right=3.2mm of mj]   (fig)    {figures};
-\node[art,   right=3.2mm of fig]  (assets) {assets};
-\foreach \a/\b in {man/spec, spec/run, run/recs, recs/met, met/mj, mj/fig, fig/assets}
-  \draw[flow] (\a) -- (\b);
-
-% the publishing row, 18mm below, with verify between prose and the compiler
-\node[art,   below=18mm of man]    (prose) {paper.tex};
-\node[gate,  right=3.2mm of prose] (ver)   {verify};
-\node[stage, right=3.2mm of ver]   (pap)   {paper};
-\node[art,   right=3.2mm of pap]   (pdf)   {paper.pdf};
-\draw[flow] (prose) -- (ver);
-\draw[flow] (ver) -- (pap);
-\draw[flow] (pap) -- (pdf);
-
-% verify walking backward. Three checks, drawn as a fan so no label sits on a
-% box: what each one re-derives is said in the caption instead.
-\draw[check] (ver.north) -- (recs.south);
-\draw[check] (ver.north) -- (mj.south);
-\draw[check] (ver.north) -- (assets.south);
-\node[font=\scriptsize\itshape, text=red!55!black, below=1.2mm of ver]
-  {re-derives every cited value; a failure blocks the compile};
-\end{tikzpicture}
-\caption{The harness. Solid arrows are artifacts flowing forward. Dashed arrows
-are \texttt{verify} walking backward from the prose to the records --- resolving
-each cited value through \texttt{metrics.json} to the runs that produced it, and
-checking that every generated asset still matches. Prose is the only hand-written
-input, and it is the one input that is checked. No language model appears
-anywhere on this diagram: models run \emph{inside} the experiments \texttt{run}
-schedules, never in the path that produces a number.}
-\label{fig:harness}
+\resizebox{\linewidth}{!}{\input{fig_pipeline.tex}}
+\caption{The seven stages, and the silent failure each can produce. Every one of
+these was observed in development; each completes normally, exits zero, and
+reports ``no provision found'' --- which is also the correct output for a
+jurisdiction that genuinely has no such law.}
+\label{fig:pipeline}
 \end{figure}
 
-\subsection{What refusal means}
+Figure~\ref{fig:pipeline} gives the pipeline. We describe each stage and the
+design decision that the multi-jurisdiction, multi-script setting forced.
 
-Three decisions are worth defending, because each is a place where the obvious
-implementation would have been to guess.
+\subsection{Discovery without seed URLs}
+\label{sec:discover}
 
-\textbf{An ambiguous selector raises.} A claim names a number by naming a
-condition. A condition matching two cells is an error, not a pick-the-first: a
-published number must not depend on dictionary ordering.
+The system is configured with one domain per economy and no document URLs.
+Queries are constructed from the indicators themselves, and split by sub-type:
+short law-title fragments, and descriptive obligation phrases. The distinction
+is operational --- Australia's register API matches against the Act title only,
+so obligation phrases fired at it can never return a hit and merely spend the
+query budget. Per-indicator terms are interleaved round-robin, so that
+truncating the query list starves no indicator.
 
-\textbf{One seed measures nothing about variability.} Where a cell has a single
-run, the standard deviation is reported as undefined rather than as zero. Zero
-would read as \emph{we measured stability and found it}.
+Portals then need portal-specific mechanisms, which we summarise here and detail
+in Appendix~\ref{app:portals}. Malaysia serves its catalogue as an AES-GCM
+payload whose key the page publishes for its own JavaScript; we decrypt exactly
+as the page does. Singapore's browse listing ignores its pagination parameter
+entirely, so the index is enumerated by unioning four sort windows. Australia
+exposes an OData register. India publishes one record per \emph{section} through
+a DSpace API, so provision boundaries are the publisher's own. Mongolia injects
+its body client-side, so the document is reached through the export endpoint its
+own toolbar calls.
 
-\textbf{A failed run is recorded as a failure.} It is never scored zero and never
-averaged in as though it were a measurement. A cell in which every run failed
-keeps its place in the output with no metrics attached, and any claim that cites
-it raises rather than quietly returning zero.
+\subsection{Acquisition}
+\label{sec:acquire}
 
-The same instinct governs the pipeline. An indicator with no supporting provision
-emits an explicit \emph{no evidence found} row rather than a blank, and instruments
-that are draft or repealed are dropped from the output rather than flagged in a
-notes column --- a warning nobody reads is not a control.
+Fetching escalates from a browser-impersonating HTTP client to a stealth browser
+only when a page proves to be an unrendered application shell. Bodies are
+content-addressed by SHA-256, so two URLs serving identical bytes occupy one
+file, and conditional requests avoid refetching.
 
-\section{Experimental setup}
-\label{sec:setup}
+Two decisions are worth stating. First, \texttt{robots.txt} is enforced with
+unknown treated as denial: a server that cannot tell us its rules has not granted
+permission. Second, where a portal states that its documents are not to be
+downloaded --- China's national database returns an explicit
+\texttt{download:\,0} permission block --- we stop rather than engineer around
+it, and use a different official portal that publishes the same national laws as
+ordinary pages. We record this because it is a design constraint with a coverage
+cost, not a limitation we discovered late.
 
-\subsection{Task}
+\subsection{Recognition and segmentation}
+\label{sec:ocr}
 
-RDTII 2.1 codifies nine indicators across two data-policy pillars --- cross-border
-data movement, and domestic data protection. Each indicator carries a legal test:
-the operative rule a provision must enact to satisfy it. The retrieval question
-is prior to and strictly harder than the grading question, because it bounds it:
-a provision that never reaches the shortlist cannot be graded, so it can never be
-answered. We therefore measure the retrieval floor.
+Documents are triaged per page, not per file, because a file can carry a text
+layer on some pages and images on others. Pages with a usable text layer are
+read directly; the rest are rendered at 300\,dpi and passed to OCR. Recognition
+language is selected per economy from a registry that records, for each engine,
+whether a model for that script exists at all --- and an engine with no model is
+not invoked. This matters because an engine can only emit characters in its
+output dictionary: an audit of the shipped recognition dictionaries found the
+Cyrillic model missing four Mongolian letters and sixteen of Kazakh's, and the
+Latin model missing all forty-five precomposed Vietnamese tone forms. A missing
+letter is not a low score; it is an impossibility that arrives as fluent text.
 
-\subsection{Corpus and gold}
+Segmentation recovers article boundaries per drafting tradition. Singapore and
+Malaysia number sections; Australia typesets them bold with no keyword; China
+uses an article marker that PDF extraction routinely splits with spaces; Mongolia numbers articles in laws but uses a
+decimal clause style in ministerial circulars. Snippets are preserved verbatim:
+page and heading sentinels are stripped from the snippet but retained in the
+source text, so a provision spanning a page break still verifies exactly.
 
-The evaluation corpus is built from two files, both checked into the repository,
-so that a run needs no network, no credentials and no language model, and can be
-re-derived by anyone who clones it.
+\subsection{Hybrid retrieval}
+\label{sec:retrieval}
 
-The reference set is the expert panel's own record: for each economy and
-indicator, the instrument the panel accepted as evidence. It covers six
-economies --- Singapore, Australia, Malaysia, India, China and Mongolia --- and
-yields \lnum{pairs_in} gold pairs for India, \lnum{pairs_cn} for China and
-\lnum{pairs_mn} for Mongolia, among others.
+\begin{figure}[t]
+\centering
+\resizebox{0.92\linewidth}{!}{\input{fig_retrieval.tex}}
+\caption{The retrieval stage. Retrieval is indicator-conditioned: the ranker runs
+once per indicator over the economy's whole provision set.}
+\label{fig:retrieval}
+\end{figure}
 
-\textbf{A document is the title as its own portal serves it.} This matters more
-than it sounds. The panel worked in English and recorded Chinese instruments
-bilingually, and Mongolian instruments under English names only. A crawler on a
-Chinese portal sees only the Chinese title; a crawler on the Mongolian portal
-sees only Mongolian. Indexing the panel's English glosses would measure the
-panel's spreadsheet rather than the corpus a system actually meets, and would
-conceal the failure this experiment exists to expose. We therefore keep the
-native title wherever the record carries one. For Mongolia, where it does not, we
-recover it by matching the numeric instrument identifier inside the source URL
-against the portal's own catalogue --- a language-independent join, and the same
-one the project adopted after discovering that scoring Mongolia at zero had been
-a measurement error rather than a result. This recovers \lnum{nonlatin_mn} of
-Mongolia's instruments into their own script; \lnum{nonlatin_cn} of China's are
-native by construction. Unresolved instruments keep their English name and are
-counted, so the extent to which the Mongolian arm is genuinely a Cyrillic task is
-a reported number rather than an assumption.
+Retrieval (Figure~\ref{fig:retrieval}) scores every provision against every
+indicator. For provision $i$ and indicator $q$ the fused score is
+\[
+  s_i \;=\; \tfrac12\Big[\max\big(0,\;
+      \alpha\,\tfrac{b_i}{\max_j b_j}
+      + (1-\alpha)\,\tfrac{\cos_i + 1}{2}
+      + \beta_i - \pi_i \big)\Big] \;+\; \tfrac12\,\sigma(c_i),
+\]
+with $\alpha=0.65$, $b$ the BM25 score max-normalised over the corpus, $\cos$ the
+cosine of a multilingual bi-encoder mapped to $[0,1]$, $\sigma$ the logistic, and
+$c$ the cross-encoder logit, defined as zero outside the rerank pool.
 
-Distractors are drawn from a harvested catalogue of Mongolian legal titles, which
-is exactly what a distractor pool should be: real legal titles in a real script,
-with no provision text, no indicator and no mapping. Each cell indexes the gold
-instruments of all six economies together with a seeded sample of that pool,
-giving \lnum{n_docs} documents. One pooled index rather than six is deliberate:
-it is the setting the claim is about, since a harness serving several regions
-holds them in one corpus, and the question is whether indexing Mongolia alongside
-Singapore degrades either.
+Three design choices carry the multi-script setting.
 
-\subsection{Conditions}
+\paragraph{Tokenisation is script-aware, and the ASCII path is invariant.} A run
+in a script without word spacing becomes overlapping character bigrams; spaced
+scripts tokenise as words; accented Latin shares a character class with ASCII
+rather than forming its own. The last point is not cosmetic: giving diacritics
+their own class shreds Vietnamese into one-letter fragments that match any
+document, returning plausible non-zero scores computed from noise. Critically,
+pure-ASCII input tokenises bit-identically to the original English-only rule ---
+pinned by regression test --- which is what licenses transferring parameters
+swept on English corpora to the multilingual system.
 
-The grid crosses economy with two binary treatments, repeated over
-\lnum{seeds_per_cell} seeded draws of the distractor pool.
+\paragraph{Lexical and dense stages see different text.} The BM25 corpus includes
+the law name for document-level discrimination through IDF; the embedded text
+excludes it, because the law name otherwise dominates the embedding and makes
+every section of a data-protection act look like a framework hit. Native-language
+query terms are added to the lexical query only: the bi-encoder is cross-lingual
+by construction, so an English question already reaches foreign text, while BM25
+without native terms scores a flat zero.
 
-\textbf{Tokenisation} is either \emph{monolingual} --- the original rule, which
-matches runs of ASCII letters and digits --- or \emph{script-aware}, which routes
-spaced scripts to word tokens and no-space scripts to character bigrams. The
-script-aware tokeniser is imported from the shipped system rather than
-reimplemented: a benchmark that measures a copy of the component under test
-measures the copy. The monolingual rule is reproduced as the control arm, and the
-shipped implementation holds its ASCII path byte-identical to it so that
-previously swept retrieval parameters continue to hold.
+\paragraph{The reranker is disabled rather than substituted.} The shipped
+cross-encoder is English-only, and its score is fused at the same weight as
+BM25 --- so an off-language reranker degrades the result rather than failing to
+help. Selection is keyed on \emph{language}, not script: Vietnamese and
+Indonesian are Latin-script and equally out of the English model's depth. Where
+no model covers the language the stage is switched off entirely: two good
+signals beat three when the third is arbitrary.
 
-\textbf{Vocabulary} is either the indicators' English query terms alone, or those
-terms plus native statutory phrases in the economy's own language. Native terms
-are added, never substituted, so that a wrong guess can only fail to match and
-can never displace a term that was working.
+Shortlist size is
+$k=\min(n,\,450,\,\max(40,\lceil 0.05n\rceil))$, except that a corpus of at most
+80 provisions is graded in full, which makes retrieval a signal rather than a
+gate --- our declared mitigation for economies whose retrieval parameters are
+unmeasured.
 
-\subsection{Metrics}
+\subsection{Indicator mapping}
+\label{sec:map}
 
-\begin{itemize}
-\item \textbf{Reachability} --- the share of an economy's gold pairs whose
-instrument receives a non-zero lexical score. This is the silent-failure metric.
-A zero here is not a ranking that went badly; it is a document the query cannot
-see at all.
-\item \textbf{recall@5} and \textbf{recall@10} --- the share whose instrument
-reaches the top five, and the top ten, of the pooled index. Two budgets rather
-than one, because the shortlist size is what the grader is billed for: five
-candidates cost half of ten, and the difference between the two is the price of
-the cheaper budget.
-\item \textbf{MRR} --- mean reciprocal rank over the full ranking, zero when
-unreachable. Ties are broken pessimistically: an instrument tied with fifty
-others ranks behind all of them.
-\end{itemize}
+Each candidate is graded independently, and the prompt shows the target indicator
+\emph{together with all of its siblings}, each with its own legal test. This
+forces the explicit choice between adjacent indicators that retrieval cannot
+make. The model returns structured fields --- operative rule, whether the target
+is satisfied, a better sibling if the target is a mislabel, a graded legal-match
+score, scope, and optionally a subsection --- and the contract is explicitly
+symmetric between over-assignment and miss.
 
-\section{Results}
-\label{sec:results}
+Two constraints define the anti-hallucination boundary. Non-English snippets are
+reasoned over as written and never translated, because the verbatim column
+\emph{is} the statute's text and a translation would make the citation false;
+only the model's English rationale is generated. And the sole field the model may
+contribute to the citation, a subsection reference, is kept only if it is
+well-formed \emph{and} occurs literally in the snippet. Everything else in the
+exported row is carried from extraction.
 
-\subsection{An economy can vanish without an error}
+\subsection{Confidence and routing}
+\label{sec:confidence}
+
+Confidence is a weighted sum of four signals: the grader's legal-match judgement
+(0.40), the fused retrieval score (0.25), snippet grounding (0.20), and scope
+alignment (0.15). Grounding is a self-check --- whether the quoted snippet is
+present in the source document --- and is the only signal computed without a
+model. Two hard caps then apply: a scope-mismatched mapping on the
+comprehensive-framework indicator is capped at 0.55, and a snippet sharing no
+concept vocabulary with the pillar is capped at 0.45. Rows route to auto-accept,
+human review, or quarantine. Indicators with no evidence receive an explicit
+``no provision found'' row naming the portal searched; a blank is never emitted.
+
+We state plainly that these six constants are hand-set. Fitting them needs
+thousands of labelled provision-question pairs including hard negatives, and the
+published answer key provides only final answers for three economies with no
+near-miss negatives. Generating negatives ourselves would be grading our own
+work. The design response is to surface all four signals and the verbatim
+snippet on every row so a reviewer can reject a mapping directly, rather than to
+present an uncalibrated number as a probability.
+
+\subsection{The provenance harness}
+\label{sec:provenance}
+
+The pipeline's rule for law --- evidence is carried, never generated --- is
+applied one level up to the paper. Experiments write one record per matrix point
+carrying a content hash of its configuration and inputs; metrics collapse
+records into cells, aggregating seed axes exactly once so no value reaches a
+figure without its spread; and a checker walks this document, resolves every
+cited value back to the records behind it, and fails the build on anything it
+cannot ground. A condition matching two cells is an error rather than a
+pick-the-first; a single-seed cell reports its spread as undefined rather than
+zero; a failed run is recorded as failed rather than scored zero.
+
+\section{Experiments}
+\label{sec:experiments}
+
+\subsection{System coverage}
+\label{sec:coverage}
+
+Table~\ref{tab:coverage} reports end-to-end runs across six economies.
+\textbf{These are single runs against live portals, on the dates shown.} They are
+readings, not rates: nothing has been run twice on different days, and portals
+change. We report them because they establish that the pipeline completes across
+three writing systems, and because the provisions-per-document column locates
+where it does not yet work.
+
+\begin{table}[h]
+\centering
+\caption{End-to-end single runs. Provisions per document is the diagnostic
+column: India's 423 documents yield 938 provisions because most are one- or
+two-page circulars whose numbering the segmenter does not yet recognise.}
+\label{tab:coverage}
+\small
+\begin{tabular}{llrrrrr}
+\toprule
+Economy & Pillar & Documents & Provisions & Prov./doc. & Rows & Wall clock \\
+\midrule
+Singapore & 7   & 22  & 5{,}237 & 238 & 107 & 13 min \\
+Malaysia  & 6+7 & 25  & 5{,}483 & 219 & 46  & 27 min \\
+Australia & 6+7 & 18  & 2{,}196 & 122 & 29  & 11 min \\
+China     & 7   & 18  & 559     & 31  & 51  & 8 min  \\
+Mongolia  & 7   & 18  & 272     & 15  & 40  & 5 min  \\
+India     & 7   & 423 & 938     & 2   & 44  & 7 min  \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Of thirty-seven instruments the expert panel cites, twenty-seven are within our
+catalogue and ten are not. Those ten are regulator guidance, licence conditions
+and industry codes of practice --- they are not statutes, and they are not
+published where statutes are published. We record this as a discovery gap rather
+than a retrieval one, because no reranking reaches a document that was never
+enumerated.
+
+\subsection{Retrieval parameters are measured, not chosen}
+\label{sec:sweep}
+
+Parameters were swept against the panel's own answer key on a stratified corpus
+of 383 laws and 36{,}590 provisions, scoring whether the specific provision the
+panel named reaches the shortlist. Raising the shortlist from 40 to 300
+candidates moved provision recall from 15/18 to 18/18. Fusion ablations at the
+chosen budget: $\alpha=0.65$ gives 18/18, $\alpha=0.50$ gives 17/18, and pure
+BM25 or pure dense each give 16/18 --- so both signals are load-bearing.
+Removing the cross-encoder costs a target; using it alone costs three.
+
+Two negative results are worth recording because both are tempting. A law-level
+prefilter is \emph{uniformly worse} at every budget: a law whose title is about
+something else still holds the one provision that answers the indicator, and a
+law-level gate discards it before any provision is considered. And reserving
+shortlist slots per law degenerates on a multi-hundred-law corpus into
+breadth-without-depth. Measured end-to-end on production code, the parameter
+change moved provision recall from 11/18 to 17/18, with Australia going from 1
+of 5 cited provisions retrieved to 5 of 5 --- and the shortlist got
+\emph{cleaner} as it got larger.
+
+\subsection{An economy can disappear without an error}
+\label{sec:ablation}
+
+The experiments above are single-configuration measurements against a live
+system. This one is controlled, reproducible offline, and re-derived from records
+at build time. We cross six economies with two binary treatments --- tokenisation
+(monolingual vs.\ script-aware) and query vocabulary (English vs.\ plus native
+statutory terms) --- over \lnum{seeds_per_cell} seeded draws of a distractor pool,
+indexing all economies' instruments together in one pooled index of
+\lnum{n_docs} documents. Instruments are rendered as their own portal serves
+them; Mongolia's are recovered into Cyrillic by matching the numeric instrument
+identifier inside the source URL, a language-independent join.
+
+We report \emph{reachability}: the share of the panel's cited instruments that
+receive any non-zero lexical score at all. A zero here is not a ranking that went
+badly; it is a document the query cannot see.
 
 \begin{table}[h]
 \centering
 \caption{Reachability by economy and condition. Latin-script economies are
 unaffected by either treatment, by construction. The two non-Latin economies are
-unreachable under three of four conditions --- and no configuration raises,
-logs or fails.}
+unreachable under three of four conditions, and no configuration raises or logs.}
 \label{tab:reach}
+\small
 \begin{tabular}{llrrrr}
 \toprule
 & & \multicolumn{2}{c}{English terms} & \multicolumn{2}{c}{{}+ native terms} \\
@@ -363,112 +475,22 @@ Mongolia  & Cyrillic & \lnum{reach_mn_ascii} & \lnum{reach_mn_script} & \lnum{re
 \end{tabular}
 \end{table}
 
-\begin{figure}[t]
-\centering
-\begin{tikzpicture}
-\begin{axis}[
-  ybar, width=\linewidth, height=5.4cm,
-  bar width=6.5pt, enlarge x limits=0.12,
-  ymin=0, ymax=1.0, ylabel={reachability}, ylabel style={font=\small},
-  symbolic x coords={Singapore, Australia, Malaysia, India, China, Mongolia},
-  xtick=data, x tick label style={font=\small},
-  y tick label style={font=\scriptsize},
-  grid=major, grid style={very thin, gray!25},
-  legend style={font=\scriptsize, at={(0.5,1.14)}, anchor=north, legend columns=4,
-                draw=none, /tikz/every even column/.append style={column sep=4pt}},
-  tick align=outside, tick pos=left,
-]
-\addplot[fill=gray!35, draw=gray!60!black] coordinates {
-  (Singapore,\lnum{reach_sg_ascii}) (Australia,\lnum{reach_au_ascii})
-  (Malaysia,\lnum{reach_my_ascii}) (India,\lnum{reach_in_ascii})
-  (China,\lnum{reach_cn_ascii}) (Mongolia,\lnum{reach_mn_ascii})};
-\addplot[fill=blue!30, draw=blue!60!black] coordinates {
-  (Singapore,\lnum{reach_sg_script}) (Australia,\lnum{reach_au_script})
-  (Malaysia,\lnum{reach_my_script}) (India,\lnum{reach_in_script})
-  (China,\lnum{reach_cn_script}) (Mongolia,\lnum{reach_mn_script})};
-\addplot[fill=orange!35, draw=orange!70!black] coordinates {
-  (Singapore,\lnum{reach_sg_ascii}) (Australia,\lnum{reach_au_ascii})
-  (Malaysia,\lnum{reach_my_ascii}) (India,\lnum{reach_in_ascii})
-  (China,\lnum{reach_cn_ascii_nat}) (Mongolia,\lnum{reach_mn_ascii})};
-\addplot[fill=green!45!black, draw=black] coordinates {
-  (Singapore,\lnum{reach_sg_script}) (Australia,\lnum{reach_au_script})
-  (Malaysia,\lnum{reach_my_script}) (India,\lnum{reach_in_script})
-  (China,\lnum{reach_cn_full}) (Mongolia,\lnum{reach_mn_full})};
-\legend{mono/EN, script/EN, mono/{+}native, script/{+}native}
-\end{axis}
-\end{tikzpicture}
-\caption{Reachability by economy under all four conditions. The four Latin-script
-economies are flat across every bar --- the treatments are no-ops where there is
-nothing to translate and nothing the monolingual rule cannot read. China and
-Mongolia move only on the fourth bar, where both treatments are applied together.
-Every value plotted here is a \texttt{\textbackslash lnum} macro resolved from the
-run records at compile time.}
-\label{fig:reach}
-\end{figure}
-
 % ledger:strict
 \claim{C1}
 % ledger:endstrict
 
-The structure of Table~\ref{tab:reach} and Figure~\ref{fig:reach} is the finding. Script-aware tokenisation
+The structure of Table~\ref{tab:reach} is the finding. Script-aware tokenisation
 is necessary and not sufficient: China stays at \lnum{reach_cn_script} once its
 text is tokenisable, because an English query and a Chinese statute share no
 tokens whatever the tokeniser does. Native vocabulary is likewise necessary and
-not sufficient: with the monolingual tokeniser, adding Chinese query phrases
-leaves China at \lnum{reach_cn_ascii_nat}, because those phrases tokenise to
-nothing on the way in. Only the two together recover anything.
+not sufficient: under the monolingual tokeniser, adding Chinese phrases leaves
+China at \lnum{reach_cn_ascii_nat}, because those phrases tokenise to nothing on
+the way in.
 
-\begin{figure}[t]
-\centering
-\begin{tikzpicture}[
-  >=Stealth, font=\footnotesize,
-  box/.style={draw, rounded corners=2pt, minimum height=6mm, inner xsep=4pt,
-              font=\scriptsize, align=center},
-  bad/.style={box, fill=red!10, draw=red!50!black},
-  ok/.style={box, fill=blue!8},
-  % `out` is a built-in TikZ key (to[out=45]); this style must not shadow it.
-  msgbox/.style={box, fill=black!6, font=\scriptsize\itshape},
-]
-\node[ok] (q) {English indicator\\vocabulary};
-\node[ok, below=7mm of q] (d) {Han-script\\provision};
-\node[box, right=9mm of q, yshift=-8mm] (tok) {tokeniser\\\texttt{[a-z0-9]+}};
-\node[ok, right=9mm of tok, yshift=8mm] (qt) {tokens\\\{shall, not, \ldots\}};
-\node[bad, right=9mm of tok, yshift=-8mm] (dt) {tokens\\$\emptyset$};
-\node[bad, right=9mm of qt, yshift=-8mm] (score) {BM25 $=0.0$\\every provision};
-\node[msgbox, right=8mm of score] (msg) {``No provision\\found''};
-
-\node[ok, below=17mm of d] (absent) {economy with\\no such law};
-\node[msgbox] at (msg |- absent) (msg2) {``No provision\\found''};
-
-\draw[->] (q.east) -- ++(3mm,0) |- (tok.west);
-\draw[->] (d.east) -- ++(3mm,0) |- (tok.west);
-\draw[->] (tok.east) -- ++(3mm,0) |- (qt.west);
-\draw[->] (tok.east) -- ++(3mm,0) |- (dt.west);
-\draw[->] (qt.east) -- ++(3mm,0) |- (score.west);
-\draw[->] (dt.east) -- ++(3mm,0) |- (score.west);
-\draw[->] (score) -- (msg);
-\draw[->] (absent) -- (msg2);
-\begin{scope}[on background layer]
-\node[draw=red!45!black, dashed, rounded corners=3pt, inner sep=5pt,
-      fit=(msg) (msg2)] (both) {};
-\end{scope}
-\node[right=1mm of both, font=\scriptsize\itshape, text=red!55!black, align=left]
-  {byte-identical\\output};
-\end{tikzpicture}
-\caption{Why the failure survives review. A tokenisation mismatch and a genuine
-regulatory absence produce the same output, and an absence is a legitimate and
-common answer in a regulatory index. Nothing raises, nothing logs, and the exit
-code is zero on both paths.}
-\label{fig:silent}
-\end{figure}
-
-The operational point is not the magnitude but the mode. Lexical scoring
-contributes the majority of the hybrid retrieval score in the deployed system, so
-an economy in this state contributes a uniform zero to ranking. No exception is
-raised, no log line is emitted, and the pipeline terminates normally, reporting
-that no provision was found. That output is indistinguishable from the output for
-an economy that genuinely has no such law --- which is a legitimate and common
-answer in a regulatory index, and is precisely why the failure survives review.
+The operational point is the mode, not the magnitude. Lexical scoring carries the
+majority of the fused score, so an economy in this state contributes a uniform
+zero to ranking, and the pipeline terminates normally reporting that no provision
+was found --- which is a legitimate and common answer in a regulatory index.
 
 \subsection{Widening the tokeniser is not free}
 
@@ -476,247 +498,234 @@ answer in a regulatory index, and is precisely why the failure survives review.
 \claim{C2}
 % ledger:endstrict
 
-Under the monolingual rule the Mongolian distractors tokenise to nothing: they
-occupy the index but can never score, and are effectively absent. Making the
-tokeniser script-aware admits them, which changes the document-frequency and
-length-normalisation statistics that BM25 shares across the whole collection \citep{robertson2009bm25}.
-Australia's recall@10 falls from \lnum{r10_au_ascii} to \lnum{r10_au_script}
-although not one byte of Australian tokenisation changed; Malaysia rises from
-\lnum{r10_my_ascii} to \lnum{r10_my_script} and India from \lnum{r10_in_ascii}
-to \lnum{r10_in_script}.
-
-\begin{figure}[t]
-\centering
-\begin{tikzpicture}
-\begin{axis}[
-  ybar, width=0.86\linewidth, height=4.8cm,
-  bar width=11pt, enlarge x limits=0.22,
-  ymin=0, ymax=0.45, ylabel={recall@10}, ylabel style={font=\small},
-  symbolic x coords={Australia, Malaysia, India},
-  xtick=data, x tick label style={font=\small},
-  y tick label style={font=\scriptsize},
-  grid=major, grid style={very thin, gray!25},
-  nodes near coords, nodes near coords style={font=\tiny, /pgf/number format/fixed,
-    /pgf/number format/precision=4},
-  legend style={font=\scriptsize, at={(0.5,1.16)}, anchor=north, legend columns=2,
-                draw=none},
-  tick align=outside, tick pos=left,
-]
-\addplot[fill=gray!35, draw=gray!60!black] coordinates {
-  (Australia,\lnum{r10_au_ascii}) (Malaysia,\lnum{r10_my_ascii})
-  (India,\lnum{r10_in_ascii})};
-\addplot[fill=blue!35, draw=blue!60!black] coordinates {
-  (Australia,\lnum{r10_au_script}) (Malaysia,\lnum{r10_my_script})
-  (India,\lnum{r10_in_script})};
-\legend{monolingual, script-aware}
-\end{axis}
-\end{tikzpicture}
-\caption{The cost of widening the tokeniser, on three economies whose own
-tokenisation did not change by a single byte. Admitting Cyrillic titles to the
-index alters the document-frequency and length-normalisation statistics that
-BM25 shares across the collection, and the ranking of Latin-script documents
-moves with them --- down for Australia, up for Malaysia and India.}
-\label{fig:cost}
-\end{figure}
-
-We report this because it is the kind of coupling that multi-region systems
-acquire silently. Reachability, being a per-document property, is unchanged for
-every Latin economy; only the rank-sensitive metrics move. A team measuring only
-reachability would have concluded the change was free, and a team measuring only
-recall on one economy would have concluded it was harmful.
-
-\subsection{The headline metric is stable}
+Under the monolingual rule the Cyrillic distractors tokenise to nothing: they
+occupy the index but can never score. Making the tokeniser script-aware admits
+them, which changes the document-frequency and length-normalisation statistics
+BM25 shares across the collection \citep{robertson2009bm25}. Australia's
+recall@10 falls from \lnum{r10_au_ascii} to \lnum{r10_au_script} although not one
+byte of Australian tokenisation changed, while Malaysia rises from
+\lnum{r10_my_ascii} to \lnum{r10_my_script}. Reachability, a per-document
+property, is unchanged for every Latin economy; only rank-sensitive metrics move.
+A team measuring only reachability would have concluded the change was free.
 
 % ledger:strict
-\claim{C3}
+\claim{C3} \claim{C4}
 % ledger:endstrict
 
-Reachability does not depend on which distractors were drawn, which is what one
-should expect of a property of the query vocabulary and the tokeniser, and is
-worth confirming rather than assuming. The rank-sensitive metrics do move with
-the draw, which is why the seed is an axis of the grid rather than a fixed
-constant, and why every cell in this paper carries its spread.
+\subsection{Recognition quality}
 
-\subsection{The cheaper shortlist is not cheaper everywhere}
+On the one bundled scanned instrument with a human-checked transcript, RapidOCR
+reaches 1.11\% character error at about 4\,s/page and PaddleOCR 0.00\% at
+585\,s/page, against a 5\% requirement. We report a third number because it is
+the more instructive one: MarkItDown initially measured 0.00\% error, and the
+measurement was an artifact --- extracting nothing from an image-only PDF, it
+fell back to reading the ground-truth transcript shipped beside the file and
+compared itself against the answer key. Measured on a copy in a directory
+without that sidecar, its true error is 95.56\%. The fix was to exclude
+sidecar-reading engines from measurement and to run the benchmark on an isolated
+copy.
 
-% ledger:strict
-\claim{C4}
-% ledger:endstrict
-
-Mongolia loses nothing because its one reachable instrument already ranks first;
-Malaysia loses two thirds of its recall because its instruments cluster just
-inside the tenth position. The operational reading is that a shortlist budget
-chosen on one jurisdiction's curve is the wrong budget for the others, and that
-the choice is a per-economy one --- which is exactly the kind of parameter a
-harness makes visible and an eyeball does not.
-
-\section{Extending to other domains of law}
-\label{sec:extending}
-
-Nothing in the harness is specific to trade regulation. A project couples to it
-through one manifest, and the manifest is the only coupling. Porting to a
-different body of law --- competition, environmental, labour, tax --- requires
-four things, and none of them are harness changes:
-
-\begin{enumerate}
-\item \textbf{A codified test per indicator.} The operative rule a provision must
-enact, written so that a disagreement between two graders is a disagreement about
-law rather than about wording. This is the expensive part, and it is legal work
-rather than engineering work.
-\item \textbf{A reference set.} Instrument-level answers from a source that is
-authoritative in the domain. Ours is the framework's own expert panel; a
-competition-law port might use a regulator's decisional practice.
-\item \textbf{An entry point.} Any callable that takes a configuration and returns
-metric names to numbers. The harness imports it; it never vendors the code.
-\item \textbf{Native vocabulary per language.} The result above says this is not
-optional in any multilingual jurisdiction, and that it cannot be substituted for
-by a better tokeniser.
-\end{enumerate}
-
-Two design properties do the portability work. Identity is content-addressed, so
-correctness of resume does not depend on remembering what was run. And the
-experiment grid is declared rather than coded, so adding a jurisdiction, a script
-or an ablation is a manifest edit.
-
-We would flag one boundary honestly. The harness guarantees that a published
-number traces to a recorded run; it does not guarantee that the run measured
-anything worth knowing. Choosing indicators, building the reference set and
-deciding what counts as a correct mapping remain domain expertise. What the
-harness removes is the class of error where the number in the abstract stopped
-matching the experiment behind it.
-
-\section{Related work}
-
-\paragraph{Legal NLP benchmarks.} LexGLUE assembles seven English legal
-understanding tasks \citep{chalkidis2022lexglue}; LegalBench extends the idea to
-162 tasks of legal \emph{reasoning}, built with practising lawyers
-\citep{guha2023legalbench}; COLIEE has run statute and case-law retrieval and
-entailment tasks for over a decade \citep{goebel2023coliee}. All three evaluate a
-model against a corpus that is given. Our object is the layer beneath: whether
-the pipeline that assembles the corpus can see the law at all. A benchmark whose
-corpus is handed to it cannot expose a discovery or tokenisation failure, because
-it has already been paid for.
-
-\paragraph{Reliability of legal retrieval systems.} \citet{magesh2024hallucination}
-is the closest work in spirit --- an audit of deployed systems rather than of
-models, finding 17--33\% hallucination in tools sold as hallucination-free. The
-difference is the failure mode. Their subject is a system that answers when it
-should not; ours is a system that \emph{declines} to answer when it should have,
-and does so in a form indistinguishable from a correct decline. A hallucination
-is visible to anyone who checks the citation. An unreachable jurisdiction is
-visible to nobody, because there is no citation to check.
-
-\paragraph{Multilingual retrieval.} Mr.\ TyDi \citep{zhang2021mrtydi} and MIRACL
-\citep{zhang2022miracl} established monolingual retrieval evaluation across
-typologically diverse languages, and MIRACL in particular covers eighteen. Both
-evaluate \emph{per language}: queries and corpus share a language, and each
-language is scored on its own index. That design is right for measuring a
-retriever and wrong for our question, which only arises when several scripts
-share one index and one tokenisation rule, and where --- as
-Section~\ref{sec:results} shows --- admitting one script changes the collection
-statistics that rank the others.
-
-Closest to our mechanism is \citet{ogundepo2022whitespace}, who show that
-character $n$-gram tokenisation is a strong general substitute for
-language-specific tokenizers in retrieval. We take that result as given and ask a
-different question: not which tokeniser scores best, but what a deployed system
-reports when it has the wrong one. The answer is not a lower score. It is a
-uniform zero that the pipeline reports as an absence of law.
-
-\paragraph{Attribution and grounding.} Retrieval-augmented generation with
-citation grounding checks that a generated statement is supported by retrieved
-text, and the pipeline studied here applies exactly that control: a mapping is
-rejected unless its quoted snippet is verifiably present in the source document.
-Such controls assume retrieval succeeded. Where an economy is unreachable, a
-grounding check has nothing to object to --- there is no unsupported claim, only
-an absence, and an absence is a valid and common answer in a regulatory index.
-Grounding is a guard on the answer; nothing in it guards the question.
-
-\paragraph{Provenance and reproducibility.} Experiment trackers, workflow engines
-and artifact stores record what was run, and provenance over a pipeline's
-artifacts is well understood as the missing discipline
-\citep{samuel2020provenance}. What none of that stack does is check what was
-\emph{written}: nothing objects when a number is typed into a manuscript and the
-experiment is then re-run. Our contribution to that literature is narrow and,
-we think, load-bearing --- extending provenance across the last hop, from the
-record to the sentence that cites it, and making the build fail rather than the
-reader guess.
 \section{Limitations}
 
-\textbf{This measures the lexical floor, not end-to-end accuracy.} The unit here
-is the instrument title as its portal serves it, not full provision text, and the
-metric is lexical reachability, not mapping F1. Provision-level extraction for
-China, India and Mongolia requires a built corpus that does not yet exist, and a
-live crawl is neither reproducible nor free. We report the layer we can measure
-reproducibly and decline to report the one we cannot; the harness makes that
-distinction visible rather than letting an unmeasured claim pass as a measured
-one.
+\textbf{Confidence is uncalibrated.} The four weights and two thresholds are
+hand-set; they order rows by reliability but are not probabilities
+(Section~\ref{sec:confidence}).
 
-\textbf{Reachability is a floor, not a ceiling.} A reachable instrument may still
-rank poorly, and a dense retrieval stage may recover documents that lexical
-scoring misses. The deployed system weights lexical scoring at the majority of
-its hybrid score, so a uniform zero there is materially damaging, but it is not
-the whole retrieval system.
+\textbf{There is no external baseline.} 18/18 target recall is good relative to
+our own previous configuration and to nothing else. We built a scorer against the
+panel's answer key to substitute, and it caught one of its own errors: Mongolia
+initially scored 0 of 9 because the key names instruments in English while the
+portal serves Mongolian, and no string comparison bridges that. The scorer was
+wrong, not the pipeline.
 
-\textbf{Reference sets are not exhaustive.} The panel recorded the instruments it
-accepted, not every instrument that would satisfy each test. A system may surface
-a legitimate instrument the panel did not record, which this evaluation scores as
-a miss. This biases all reported figures downward and biases them equally across
-conditions, so the comparisons hold even though the absolute levels understate.
+\textbf{Coverage is bounded by discovery, not ranking.} Ten of thirty-seven cited
+instruments are outside the catalogue because they are not statutes. Closing this
+needs a separately enumerable index per instrument type, and most do not exist.
 
-\textbf{The Mongolian native vocabulary is unvalidated.} It is a seed list of
-statutory stems, and Mongolian is agglutinative, so a lexical index may hold an
-inflected form that the stem never matches. The Mongolian recovery reported here
-should be read as a lower bound from an unaudited vocabulary.
+\textbf{Most of the framework is unscored.} Nine of sixty-one indicators have
+codified legal tests; the remaining fifty-two run but have never been checked
+for whether their definitions discriminate correctly.
+
+\textbf{Single runs.} Every system-level number in Section~\ref{sec:coverage} is
+one measurement against a live portal. Only Section~\ref{sec:ablation} is
+reproducible offline.
+
+\textbf{The controlled experiment measures the lexical floor.} It uses instrument
+titles as the unit and reachability as the metric, not full provision text and
+mapping F1. Provision-level corpora for three of the six economies do not yet
+exist, and a live crawl is neither reproducible nor free. We report the layer we
+can measure reproducibly and decline to report the one we cannot.
 
 \section{Conclusion}
 
-A legal-evidence pipeline that cannot be audited is a pipeline whose failures are
+A legal-evidence pipeline that cannot be audited is one whose failures are
 invisible, and the multilingual failures are the most invisible of all, because
 they present as the same output a correct system produces on a jurisdiction with
-no such law. We built a harness that refuses to publish a number it cannot trace
-to a run, pointed it at our own retrieval layer, and found an economy that had
-been silently absent under a tokenisation rule that was correct for every
-jurisdiction it was developed against.
-
-The finding is small and the discipline is not. Every number in this paper,
-including the ones in the abstract, was substituted from a record on disk at
-compile time, and the build fails if any of them stops resolving. That property
-is what we are proposing, more than the measurement it happens to carry.
+no such law. We built a harness that discovers its own sources, refuses to let a
+model author a citation, and refuses to publish a number it cannot trace to a
+run; pointed it at its own retrieval layer; and found an economy that had been
+silently absent under a tokenisation rule that was correct for every jurisdiction
+it was developed against. The measurement is small and the discipline is not.
 
 \label{ledger:endmain}
+
+% ICLR places both statements after the main text and before the references, and
+% neither counts toward the page limit. \label{ledger:endmain} above is what the
+% build measures the main text against, so they sit below it deliberately.
+
+\section*{Reproducibility Statement}
+
+The controlled experiment of Section~\ref{sec:ablation} runs offline with no
+network, no credentials and no language model: both of its inputs --- the expert
+panel's reference set and the harvested title catalogue --- are files in the
+repository, so its records can be re-derived by anyone who clones it. The full
+grid is \lnum{seeds_per_cell} seeds over the conditions of
+Table~\ref{tab:reach}, and the code under test is imported from the shipped
+system rather than reimplemented, because a benchmark that measures a copy of a
+tokeniser measures the copy.
+
+Every number in this paper that appears inside a verified region is a macro
+resolved at compile time from those records, through the aggregation described in
+Section~\ref{sec:provenance}; the document does not build if one stops resolving.
+Generated tables and charts carry the hash of the metrics file they came from and
+are re-checked against it at build time. Appendices~\ref{app:charts} and the
+cell listing give the per-cell means, spreads and sample sizes behind every
+figure.
+
+The system-level runs of Section~\ref{sec:coverage} are \emph{not} reproducible
+in this sense and we do not present them as though they were: they depend on
+live government portals whose contents change, and each is a single measurement
+on the date shown.
+
+\section*{Ethics Statement}
+
+This system retrieves public law from official government portals, and the manner
+of retrieval raises two issues we treat as design constraints rather than
+implementation details.
+
+\textbf{Collection.} Crawling is rate-limited per host and honours
+\texttt{robots.txt}, with an unreachable directive treated as denial rather than
+permission --- a server that cannot state its rules has not granted any. Where a
+portal declares that its documents are not to be downloaded we stop and use a
+different official source that publishes the same instruments, accepting the
+coverage cost (Section~\ref{sec:acquire}). One narrow, named exception relaxes
+certificate validation for two hosts serving public statutes with expired
+certificates; no credential is ever sent, and every fetched body is hashed so a
+substituted document is detectable after the fact.
+
+\textbf{Use.} The output feeds a regulatory index that informs policy, so a wrong
+citation is not a benign error. This motivates the architecture rather than
+sitting beside it: the model may not author a citation, every row carries the
+verbatim source text and all four confidence signals, and rows below threshold
+are routed to human review rather than published. We state explicitly in
+Section~\ref{sec:confidence} that the confidence score is uncalibrated and
+therefore orders rows by reliability without being a probability --- presenting
+it as one would invite exactly the misplaced trust the system is built to avoid.
 
 \bibliographystyle{iclr2027_conference}
 \bibliography{references}
 
 \appendix
 
-\section{Case studies}
+\section{Portal mechanisms}
+\label{app:portals}
+
+Each portal required a different mechanism, and in every case the naive approach
+returned a plausible empty result rather than an error. Dates are the days the
+behaviour was verified against the live site.
+
+\paragraph{Malaysia --- an encrypted catalogue.} The legislation portal answers
+its catalogue endpoint with \texttt{\{"encrypted": true, "data": "\ldots"\}}. The
+payload is AES-256-GCM laid out as a 12-byte IV, a 16-byte tag, then ciphertext,
+and the key is a 64-hex-character constant the page publishes in its own source
+so that its client-side JavaScript can decrypt it. We do exactly what that script
+does. This is a transport wrapper rather than an access control --- the plaintext
+is the same public catalogue of Malaysian legislation --- but a client that does
+not implement it reads \emph{zero} Acts and raises nothing. Two catalogues are
+enumerated, principal and amendment, because the principal one carries dated
+reprints into which a later amendment has not yet been folded.
+
+\paragraph{Singapore --- a pagination parameter that is ignored.} The browse
+listing accepts a page parameter and disregards it: pages one, two and three
+return byte-identical HTML at every page size, with or without the AJAX header
+(verified 2026-08-01). The index is therefore not walkable. What the portal does
+honour is sort order, so asking for the same list ascending and then descending
+returns its first and last windows, and their union is the whole index whenever
+the total is at most twice the page size. Four windows over two sort keys cover
+the 524 current Acts. They do \emph{not} cover the 5{,}843 subsidiary
+instruments, and the shortfall is logged as incomplete rather than passed over in
+silence. The same portal throttles a burst by answering HTTP 202 with an empty
+body rather than 429, so a naive client reads success and an empty page.
+
+\paragraph{Australia --- multi-volume compilations.} The register exposes an
+OData API whose filter matches against the Act \emph{title} only, so descriptive
+obligation phrases can never hit and are suppressed for this portal. Large Acts
+are published as multiple volumes, and for those the single-file PDF URL returns
+404 --- the volume number must be appended. Before this was handled the 404 was
+silent: the fetch failed, the pipeline fell back to the JavaScript landing page,
+and the Act contributed one junk provision instead of roughly eight hundred. It
+struck exactly the largest Acts, which is where retention and government-access
+provisions live. Volumes must also be extracted and segmented \emph{separately}
+before merging: concatenating them first makes the second volume's opening body
+look like a table of contents, which deleted an entire data-retention Part.
+
+\paragraph{India --- one record per section.} India Code exposes a DSpace API
+that publishes each \emph{section} as its own item, so provision boundaries are
+the publisher's rather than ours and no OCR or segmentation heuristic is
+involved. Two constraints are non-obvious. The API silently caps a page at 100
+items however many are requested, while reporting a page count computed as though
+it had returned the larger number --- so a client that trusts it loses most of a
+long Act with no error. And queries must be quoted phrases: the unquoted form of
+a cross-border data query returns the Commercial Courts Act, a highways rule and
+a police manual, with the actual data-protection statute absent.
+
+\paragraph{Mongolia --- a body that is not in the page.} The detail page injects
+its content client-side; the roughly twelve thousand Cyrillic characters in the
+served shell are navigation, a modal and a sector index. The document is reached
+through the export endpoint the page's own toolbar calls, which returns
+Word-flavoured HTML --- so no OCR and no binary parse. Titles are matched
+per-word rather than as phrases, because Mongolian word order differs from the
+answer key's and the portal's own filenames contain missing spaces; per-word
+matching also carries agglutination in the right direction, since a stem reaches
+its declined forms. One detail decided whether the economy worked at all:
+converting block-level elements to newlines \emph{before} stripping tags. Without
+it the law arrives as 34{,}196 characters of correct Mongolian on a single line,
+from which a line-anchored article pattern finds nothing --- and the run
+completes, extracts, maps and reports no provision found.
+
+\paragraph{China --- where we stop.} The national law database's own API returns
+a permission block containing \texttt{download:\,0}, and the document path
+resolves through a signed reader on an internal host. That is the operator
+stating the documents are not to be downloaded, so we do not engineer around it.
+The cyberspace administration's portal publishes the same national laws as
+ordinary server-rendered pages, and that is the lane used. The cost is real: the
+provincial tier remains reachable but is the wrong tier for national indicators.
+
+\section{Worked segmentation and retrieval examples}
 \label{app:cases}
 
-Three instruments, one per script, walked through the same code the benchmark
-measures. The aggregate result says an economy is unreachable; these show why,
-token by token. The Singaporean case is the control --- Latin script throughout,
-so no condition changes anything.
+Three instruments, one per script, walked through the same code the controlled
+experiment measures. The aggregate result of Section~\ref{sec:ablation} says an
+economy is unreachable; these show why, token by token. The Singaporean case is
+the control --- Latin script throughout, so no condition changes anything.
 
-The native titles are reproduced as images. This is not a stylistic choice: the
-TeX installation used for this build has no CJK package and no Cyrillic
-encoding, and transliteration is not available to us, because the pipeline's own
-rule is that statutory text is carried and never rewritten. What appears below is
-the statute's own text rather than a romanisation of it. Non-Latin tokens are
-counted rather than printed for the same reason, and counted separately from
-Latin ones so that a mixed-script query shows which half is doing the work.
+Native titles are reproduced as images. This is not a stylistic choice: the TeX
+installation used for this build has no CJK package and no Cyrillic encoding, and
+transliteration is not available to us, because the pipeline's own rule is that
+statutory text is carried and never rewritten. What appears below is the
+statute's own text rather than a romanisation of it. Non-Latin tokens are counted
+rather than printed for the same reason, and counted separately from Latin ones
+so that a mixed-script query shows which half is doing the work.
 
 \input{cases/cases.tex}
 
 \section{Generated charts}
 \label{app:charts}
 
-Emitted by the \texttt{figures} stage as pgfplots, from the same metrics file as
-every table below. Bars are cell means and whiskers run min to max across the
-seed axes; a cell measured at one seed draws no whisker, because a whisker of
-zero would read as a measured spread of zero. Condition labels are the full cell
-configuration.
+Emitted by the figures stage from the same metrics file as every table above.
+Bars are cell means; whiskers run min to max across the seed axes. A cell
+measured at one seed draws no whisker, because a whisker of zero would read as a
+measured spread of zero.
 
 \subsection{Reachability}
 \input{generated/figures/t_reach_reachable.tex}
@@ -727,14 +736,7 @@ configuration.
 \subsection{recall@10}
 \input{generated/figures/t_reach_recall_at_10.tex}
 
-\subsection{Mean reciprocal rank}
-\input{generated/figures/t_reach_mrr.tex}
-
 \section{Full cell listing}
-
-The tables below are generated from the metrics file and are not hand-edited; the
-harness verifies at build time that each matches what the current records
-produce.
 
 \subsection{Reachability}
 {\scriptsize\input{generated/tables/t_reach_reachable.tex}}
@@ -744,8 +746,5 @@ produce.
 
 \subsection{recall@10}
 {\scriptsize\input{generated/tables/t_reach_recall_at_10.tex}}
-
-\subsection{Mean reciprocal rank}
-{\scriptsize\input{generated/tables/t_reach_mrr.tex}}
 
 \end{document}
