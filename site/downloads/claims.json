@@ -260,12 +260,765 @@
         "mn_cost": 0.0,
         "my_cost": -0.2
       }
+    },
+    "C5": {
+      "bind": {
+        "cn20": "cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].recall_at_20",
+        "cn50": "cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].recall_at_50",
+        "in5": "cells[economy=IN,tokeniser=script_aware,terms=english_plus_native].recall_at_5",
+        "in50": "cells[economy=IN,tokeniser=script_aware,terms=english_plus_native].recall_at_50",
+        "mn_gain": "cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].recall_at_50 - cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].recall_at_5",
+        "my5": "cells[economy=MY,tokeniser=script_aware,terms=english_plus_native].recall_at_5",
+        "my50": "cells[economy=MY,tokeniser=script_aware,terms=english_plus_native].recall_at_50"
+      },
+      "deps": [
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_20",
+          "stat": "mean"
+        },
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_50",
+          "stat": "mean"
+        },
+        {
+          "filters": {
+            "economy": "IN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_5",
+          "stat": "mean"
+        },
+        {
+          "filters": {
+            "economy": "IN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_50",
+          "stat": "mean"
+        },
+        {
+          "filters": {
+            "economy": "MN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_50",
+          "stat": "mean"
+        },
+        {
+          "filters": {
+            "economy": "MN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_5",
+          "stat": "mean"
+        },
+        {
+          "filters": {
+            "economy": "MY",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_5",
+          "stat": "mean"
+        },
+        {
+          "filters": {
+            "economy": "MY",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_50",
+          "stat": "mean"
+        }
+      ],
+      "formatted": {
+        "cn20": "0.342",
+        "cn50": "0.342",
+        "in5": "0.122",
+        "in50": "0.755",
+        "mn_gain": "+0.083",
+        "my5": "0.143",
+        "my50": "0.760"
+      },
+      "template": "A single shortlist budget is wrong for every jurisdiction at once. Going from five candidates to fifty lifts Malaysia's recall from {my5} to {my50} and India's from {in5} to {in50}, but China saturates at twenty ({cn20} there, {cn50} at fifty) and Mongolia gains {mn_gain} across the whole range -- so the extra grading cost buys a great deal in one economy and nothing in another.",
+      "text": "A single shortlist budget is wrong for every jurisdiction at once. Going from five candidates to fifty lifts Malaysia's recall from 0.143 to 0.760 and India's from 0.122 to 0.755, but China saturates at twenty (0.342 there, 0.342 at fifty) and Mongolia gains +0.083 across the whole range -- so the extra grading cost buys a great deal in one economy and nothing in another.",
+      "values": {
+        "cn20": 0.34210526315789475,
+        "cn50": 0.34210526315789475,
+        "in5": 0.12244897959183673,
+        "in50": 0.7551020408163265,
+        "mn_gain": 0.08333333333333333,
+        "my5": 0.14285714285714285,
+        "my50": 0.76
+      }
+    },
+    "C6": {
+      "bind": {
+        "sg50": "cells[economy=SG,tokeniser=script_aware,terms=english_plus_native].recall_at_50",
+        "sg_ceil": "cells[economy=SG,tokeniser=script_aware,terms=english_plus_native].reachable"
+      },
+      "deps": [
+        {
+          "filters": {
+            "economy": "SG",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_50",
+          "stat": "mean"
+        },
+        {
+          "filters": {
+            "economy": "SG",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        }
+      ],
+      "formatted": {
+        "sg50": "0.6364",
+        "sg_ceil": "0.6364"
+      },
+      "template": "Reachability bounds recall, as it should: at the widest budget measured, Singapore's recall equals its reachability exactly ({sg50} against {sg_ceil}) and no economy exceeds its own ceiling. A provision the query cannot see is not recovered by grading more candidates.",
+      "text": "Reachability bounds recall, as it should: at the widest budget measured, Singapore's recall equals its reachability exactly (0.6364 against 0.6364) and no economy exceeds its own ceiling. A provision the query cannot see is not recovered by grading more candidates.",
+      "values": {
+        "sg50": 0.6363636363636364,
+        "sg_ceil": 0.6363636363636364
+      }
     }
   },
-  "metrics_hash": "b5fdec59632635dc756da355869cd18e032426e4b56f6af511b9bbb39e167c4c",
+  "metrics_hash": "d351a8cebeb5d18aa1285092829e27806d7dc4b48cfc503d92b92232212490ea",
   "project": "veritrade",
   "schema": "ledger/claims@1",
   "values": {
+    "ceil_au": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "AU",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=AU,tokeniser=script_aware,terms=english_plus_native].reachable",
+      "format": ".4f",
+      "formatted": "0.5263",
+      "value": 0.5263157894736842
+    },
+    "ceil_cn": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].reachable",
+      "format": ".4f",
+      "formatted": "0.3947",
+      "value": 0.39473684210526316
+    },
+    "ceil_in": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "IN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=IN,tokeniser=script_aware,terms=english_plus_native].reachable",
+      "format": ".4f",
+      "formatted": "0.7959",
+      "value": 0.7959183673469388
+    },
+    "ceil_mn": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "MN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].reachable",
+      "format": ".4f",
+      "formatted": "0.2500",
+      "value": 0.25
+    },
+    "ceil_my": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "MY",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=MY,tokeniser=script_aware,terms=english_plus_native].reachable",
+      "format": ".4f",
+      "formatted": "0.8000",
+      "value": 0.8
+    },
+    "ceil_sg": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "SG",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=SG,tokeniser=script_aware,terms=english_plus_native].reachable",
+      "format": ".4f",
+      "formatted": "0.6364",
+      "value": 0.6363636363636364
+    },
+    "curve_au_1": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "AU",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_1",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=AU,tokeniser=script_aware,terms=english_plus_native].recall_at_1",
+      "format": ".4f",
+      "formatted": "0.0000",
+      "value": 0.0
+    },
+    "curve_au_10": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "AU",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_10",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=AU,tokeniser=script_aware,terms=english_plus_native].recall_at_10",
+      "format": ".4f",
+      "formatted": "0.1579",
+      "value": 0.15789473684210525
+    },
+    "curve_au_20": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "AU",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_20",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=AU,tokeniser=script_aware,terms=english_plus_native].recall_at_20",
+      "format": ".4f",
+      "formatted": "0.2632",
+      "value": 0.2631578947368421
+    },
+    "curve_au_5": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "AU",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_5",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=AU,tokeniser=script_aware,terms=english_plus_native].recall_at_5",
+      "format": ".4f",
+      "formatted": "0.1053",
+      "value": 0.10526315789473684
+    },
+    "curve_au_50": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "AU",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_50",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=AU,tokeniser=script_aware,terms=english_plus_native].recall_at_50",
+      "format": ".4f",
+      "formatted": "0.5053",
+      "value": 0.5052631578947369
+    },
+    "curve_cn_1": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_1",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].recall_at_1",
+      "format": ".4f",
+      "formatted": "0.0526",
+      "value": 0.05263157894736842
+    },
+    "curve_cn_10": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_10",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].recall_at_10",
+      "format": ".4f",
+      "formatted": "0.2105",
+      "value": 0.21052631578947367
+    },
+    "curve_cn_20": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_20",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].recall_at_20",
+      "format": ".4f",
+      "formatted": "0.3421",
+      "value": 0.34210526315789475
+    },
+    "curve_cn_5": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_5",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].recall_at_5",
+      "format": ".4f",
+      "formatted": "0.1316",
+      "value": 0.13157894736842105
+    },
+    "curve_cn_50": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_50",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].recall_at_50",
+      "format": ".4f",
+      "formatted": "0.3421",
+      "value": 0.34210526315789475
+    },
+    "curve_in_1": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "IN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_1",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=IN,tokeniser=script_aware,terms=english_plus_native].recall_at_1",
+      "format": ".4f",
+      "formatted": "0.0204",
+      "value": 0.02040816326530612
+    },
+    "curve_in_10": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "IN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_10",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=IN,tokeniser=script_aware,terms=english_plus_native].recall_at_10",
+      "format": ".4f",
+      "formatted": "0.2245",
+      "value": 0.22448979591836732
+    },
+    "curve_in_20": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "IN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_20",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=IN,tokeniser=script_aware,terms=english_plus_native].recall_at_20",
+      "format": ".4f",
+      "formatted": "0.4286",
+      "value": 0.42857142857142855
+    },
+    "curve_in_5": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "IN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_5",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=IN,tokeniser=script_aware,terms=english_plus_native].recall_at_5",
+      "format": ".4f",
+      "formatted": "0.1224",
+      "value": 0.12244897959183673
+    },
+    "curve_in_50": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "IN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_50",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=IN,tokeniser=script_aware,terms=english_plus_native].recall_at_50",
+      "format": ".4f",
+      "formatted": "0.7551",
+      "value": 0.7551020408163265
+    },
+    "curve_mn_1": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "MN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_1",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].recall_at_1",
+      "format": ".4f",
+      "formatted": "0.0667",
+      "value": 0.06666666666666667
+    },
+    "curve_mn_10": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "MN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_10",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].recall_at_10",
+      "format": ".4f",
+      "formatted": "0.0833",
+      "value": 0.08333333333333333
+    },
+    "curve_mn_20": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "MN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_20",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].recall_at_20",
+      "format": ".4f",
+      "formatted": "0.0833",
+      "value": 0.08333333333333333
+    },
+    "curve_mn_5": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "MN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_5",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].recall_at_5",
+      "format": ".4f",
+      "formatted": "0.0833",
+      "value": 0.08333333333333333
+    },
+    "curve_mn_50": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "MN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_50",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].recall_at_50",
+      "format": ".4f",
+      "formatted": "0.1667",
+      "value": 0.16666666666666666
+    },
+    "curve_my_1": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "MY",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_1",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=MY,tokeniser=script_aware,terms=english_plus_native].recall_at_1",
+      "format": ".4f",
+      "formatted": "0.0000",
+      "value": 0.0
+    },
+    "curve_my_10": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "MY",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_10",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=MY,tokeniser=script_aware,terms=english_plus_native].recall_at_10",
+      "format": ".4f",
+      "formatted": "0.3429",
+      "value": 0.34285714285714286
+    },
+    "curve_my_20": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "MY",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_20",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=MY,tokeniser=script_aware,terms=english_plus_native].recall_at_20",
+      "format": ".4f",
+      "formatted": "0.4857",
+      "value": 0.48571428571428565
+    },
+    "curve_my_5": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "MY",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_5",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=MY,tokeniser=script_aware,terms=english_plus_native].recall_at_5",
+      "format": ".4f",
+      "formatted": "0.1429",
+      "value": 0.14285714285714285
+    },
+    "curve_my_50": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "MY",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_50",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=MY,tokeniser=script_aware,terms=english_plus_native].recall_at_50",
+      "format": ".4f",
+      "formatted": "0.7600",
+      "value": 0.76
+    },
+    "curve_sg_1": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "SG",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_1",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=SG,tokeniser=script_aware,terms=english_plus_native].recall_at_1",
+      "format": ".4f",
+      "formatted": "0.0909",
+      "value": 0.09090909090909091
+    },
+    "curve_sg_10": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "SG",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_10",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=SG,tokeniser=script_aware,terms=english_plus_native].recall_at_10",
+      "format": ".4f",
+      "formatted": "0.3636",
+      "value": 0.36363636363636365
+    },
+    "curve_sg_20": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "SG",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_20",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=SG,tokeniser=script_aware,terms=english_plus_native].recall_at_20",
+      "format": ".4f",
+      "formatted": "0.4091",
+      "value": 0.40909090909090906
+    },
+    "curve_sg_5": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "SG",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_5",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=SG,tokeniser=script_aware,terms=english_plus_native].recall_at_5",
+      "format": ".4f",
+      "formatted": "0.2727",
+      "value": 0.2727272727272727
+    },
+    "curve_sg_50": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "SG",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_50",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=SG,tokeniser=script_aware,terms=english_plus_native].recall_at_50",
+      "format": ".4f",
+      "formatted": "0.6364",
+      "value": 0.6363636363636364
+    },
     "mrr_cn_full": {
       "deps": [
         {

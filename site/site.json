@@ -2,19 +2,19 @@
   "artifacts": [
     {
       "path": "downloads/claims.json",
-      "sha256": "5a8bc48d301cc413d50e05162b540997fab34696e527699e14c840dda1bf7ce9"
+      "sha256": "df613f853ab2f5efad393990a7212bbef37e30ed0ccfecbc69ccf72edfbf4ddc"
     },
     {
       "path": "downloads/metrics.json",
-      "sha256": "84aa5c2fff6f4d1b70b29fae9f398109c779099323e3c6eee26993669ca7e680"
+      "sha256": "8313332895be91e769d13028e35665b917b32c5997c4a2976c671e3e8a057a95"
     },
     {
       "path": "downloads/paper.pdf",
-      "sha256": "ce0004d49010e1ab7e181ce2f2fbdd30f94441af3c7f273d48508f1ff6ecbe92"
+      "sha256": "6cb34fd0a13e080558d3806fb3d345357a629421ed655f948f84919e0bbe59c0"
     },
     {
       "path": "index.html",
-      "sha256": "11d377bb3928d2fd8622e98acdc4d683a92e346209e8af6c1e09cdaee4cc9286"
+      "sha256": "a2c467257a9dc9e6b786e5bf3f46ec95db6925766b9727df986b4519a82ec133"
     },
     {
       "path": "media/favicon.svg",
@@ -54,7 +54,7 @@
     }
   ],
   "base_url": "https://ftulabs.github.io/rdtii-bench",
-  "metrics_hash": "b5fdec59632635dc756da355869cd18e032426e4b56f6af511b9bbb39e167c4c",
+  "metrics_hash": "d351a8cebeb5d18aa1285092829e27806d7dc4b48cfc503d92b92232212490ea",
   "project": "veritrade",
   "schema": "ledger/site@1",
   "sections": [
