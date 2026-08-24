@@ -47,10 +47,31 @@ That direction is the right one anyway. Overleaf cannot run the pipeline, so
 anything it holds is a snapshot; making the repository the source of truth means
 the snapshot is never the thing a number is read from.
 
+### Pick one writer
+
+A project imported from GitHub stays linked to it, and this repository's CI
+pushes over Overleaf's *Git integration*. Those are two different mechanisms
+writing to one project. Nothing breaks while only one of them is used, but
+Overleaf resolves a genuine collision by pushing a dated branch into the GitHub
+repository, which is a mess to unpick.
+
+So choose, and configure only that half:
+
+| | Configure | How an update reaches Overleaf |
+|---|---|---|
+| **GitHub Sync** | `PAPER_REPO` + `PAPER_REPO_TOKEN` | CI updates `rdtii-bench-paper`; you press *Pull* in Overleaf |
+| **Git integration** | `OVERLEAF_PROJECT_ID` + `OVERLEAF_TOKEN` | automatic, no clicks |
+
+If you take Git integration — the automatic one — then **do not press Pull or
+Push in Overleaf's GitHub menu.** Unlinking GitHub Sync on the project removes
+the temptation entirely; the paper repository stays useful as a mirror and a
+backup either way.
+
 **Configure it** with a repository variable and a secret — never a file:
 
 ```
 gh variable set OVERLEAF_PROJECT_ID --body <the id in your Overleaf project URL>
+                                    # e.g. overleaf.com/project/<THIS PART>
 gh secret   set OVERLEAF_TOKEN      # paste an olp_... token from
                                     # Overleaf > Account Settings > Git integration
 ```
@@ -68,7 +89,14 @@ tools/overleaf.sh pull      # brings paper.tex back; leaves generated/ alone
 ```
 
 Overleaf's git remote has no branches and does not support Git LFS or symlinks,
-so keep the project to plain files on `master`.
+so keep the project to plain files on `master`. Credentials are username `git`
+and the token as the password.
+
+**There is no Overleaf API for creating a project.** `overleaf.com/devs`
+documents only *Open in Overleaf* (`overleaf.com/docs?snip_uri=…`), which is a
+browser handoff that produces a new unlinked project. Creating the project is a
+one-time manual step for anyone, with any tooling; everything after it is
+scriptable.
 
 ## Building locally
 
