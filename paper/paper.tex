@@ -35,74 +35,56 @@
 
 \begin{abstract}
 Regulatory indices are compiled by hand: an analyst is given a jurisdiction and a
-legal question, searches official portals, reads statutes, and records which
-article answers it. Automating this is usually framed as retrieval over a corpus
-that has already been assembled. Three problems make that framing insufficient.
-Generated citations hallucinate, and in law a fabricated authority is worse than
-no answer. Even a correct answer is hard to verify, because verification means
-returning to a source document the system never kept. And the law moves: an
-instrument is amended, repealed, or cut across by a neighbouring one, so an
-answer that was right is silently wrong later.
+legal question, searches official portals, and records which article answers it.
+Automating this is usually framed as retrieval over a corpus already assembled.
+That framing omits three problems --- generated citations hallucinate, a correct
+answer is hard to verify without the source it came from, and the law changes
+underneath both.
 
-We present \textbf{VeriTrade}, an end-to-end harness specialised for
-\textbf{digital trade regulation} and built on hybrid retrieval. It is given a
-jurisdiction and a regulatory topic and \textbf{\emph{no source URLs}}, and it
-discovers statutes on official portals, acquires them against bot defences and
-encrypted catalogues, recovers text from scanned images, segments instruments
-into articles, retrieves candidates with a script-aware hybrid ranker, maps each
-to a codified legal test with a model that may never author a citation, and
-emits a confidence with explicit routing to human review. It runs across six
-Asia-Pacific economies in three writing systems, and every instrument it stores
-carries a version identity so that a re-check against the portal is a query
-rather than a re-crawl.
+We present \textbf{VeriTrade}, an end-to-end harness for \textbf{digital trade
+regulation}. Given a jurisdiction, a topic, and \textbf{\emph{no source URLs}},
+it discovers statutes on official portals, acquires them against bot defences and
+encrypted catalogues, recovers text from scans, segments instruments into
+articles, retrieves candidates with a script-aware hybrid ranker, maps each to a
+codified legal test with a model that may never author a citation, and routes by
+confidence to human review. It covers six Asia-Pacific economies in three writing
+systems and stores every instrument with a version identity, so rechecking an
+answer is a query rather than a re-crawl.
 
-We contribute the system, its verifiability guarantee, an open implementation
-that runs on small models, and a reproducible benchmark for verifiable
-retrieval. On that benchmark, one tokenisation decision removes two entire
-economies. \claim{C1} Both fixes are necessary and neither is sufficient, and in
-three of the four configurations nothing raises, logs, or exits non-zero.
-\claim{C6} Every number in this paper is re-derived from run records at compile
-time, and the document does not build if one stops resolving.
+We contribute the system, an open implementation that runs on small models, and a
+reproducible benchmark for verifiable retrieval. On it, one tokenisation decision
+removes two economies without raising anything. \claim{C7} Every number in this
+paper is re-derived from run records at compile time.
 \end{abstract}
 
 \section{Introduction}
 
 The Regional Digital Trade Integration Index scores an economy's digital-trade
-regulation across twelve thematic pillars resolving to sixty-one legal
-questions \citep{escap2024rdtii}. Each question is answered not with a
-judgement but with an instrument, an article within it, and that article's text
-quoted verbatim. Coding one economy today is a person reading statutes.
+regulation across twelve pillars resolving to sixty-one legal questions
+\citep{escap2024rdtii}. Each is answered not with a judgement but with an
+instrument, an article within it, and that article quoted verbatim. Coding one
+economy today is a person reading statutes.
 
-Automating this looks like retrieval, and the field has excellent benchmarks for
-it. COLIEE has run statute and case-law retrieval for over a decade
-\citep{goebel2023coliee}; LexGLUE assembles seven legal understanding tasks
-\citep{chalkidis2022lexglue}; LegalBench extends to legal reasoning
-\citep{guha2023legalbench}; BSARD poses exactly our question shape --- natural
-language in, statutory article out \citep{louis2022bsard}. In every one of
-them the corpus is handed to the system.
+Automating this looks like retrieval, and the field has good benchmarks for it:
+COLIEE \citep{goebel2023coliee}, LexGLUE \citep{chalkidis2022lexglue}, LegalBench
+\citep{guha2023legalbench}, and BSARD \citep{louis2022bsard}, which poses exactly
+our question shape. In every one the corpus is handed to the system. That is the
+right design for measuring a model, and it is why none of them can see the three
+failures that define the real task.
 
-That is the right design for measuring a model, and it is why none of them can
-see the failures this paper is about. Three define the task.
-
-\textbf{Citations hallucinate.} An audit of commercial legal-research tools from
-LexisNexis and Thomson Reuters, sold on their freedom from hallucination, found
-fabricated or misattributed authority in between roughly one in six and one in
-three responses \citep{magesh2024hallucination}, with higher rates on open-ended
-case questions \citep{dahl2024fictions}. In law a fabricated authority is worse
-than no answer, because it is actionable. \textbf{Answers are hard to verify},
-because checking a legal claim means returning to a source document a system that
-assembled its evidence transiently cannot offer; generative-search audits find
-fluent answers routinely carrying unsupported citations
-\citep{liu2023verifiability}. And \textbf{the law moves} --- instruments are
-amended, repealed and cut across by neighbouring ones, so an answer that was
-correct becomes silently wrong and nothing in a static corpus notices.
-
-We treat the first as architectural rather than statistical: the model grades
-evidence and never writes it. Law text, article numbers and URLs are carried from
-extraction, and the one field the model may propose is discarded unless it occurs
-literally in the retrieved snippet. The second and third are answered by storing
-what was read --- every instrument carries a version identity and the portal
-signal it came from, so re-checking an answer is a query rather than a re-crawl
+\textbf{Citations hallucinate} --- an audit of commercial legal-research tools
+sold on their freedom from hallucination found fabricated or misattributed
+authority in between roughly one in six and one in three responses
+\citep{magesh2024hallucination,dahl2024fictions}, and in law a fabricated
+authority is worse than none because it is actionable. \textbf{Answers are hard
+to verify}, since checking a legal claim means returning to a source a system
+assembling evidence transiently cannot offer \citep{liu2023verifiability}. And
+\textbf{the law moves}: instruments are amended, repealed and cut across by
+neighbours, so a correct answer becomes silently wrong. We treat the first as
+architectural rather than statistical --- the model grades evidence and never
+writes it, and the one field it may propose is discarded unless it occurs
+literally in the retrieved snippet --- and answer the other two by storing what
+was read, so rechecking is a query rather than a re-crawl
 (Section~\ref{sec:freshness}).
 
 \paragraph{Contributions.}
@@ -143,49 +125,42 @@ regenerated from records on every build.
 \section{Related work}
 \label{sec:related}
 
-\paragraph{Legal benchmarks assume the corpus.} COLIEE distributes a fixed
-statute set \citep{goebel2023coliee}; LexGLUE and LegalBench evaluate
-understanding and reasoning over supplied text
+\paragraph{Benchmarks assume the corpus.} COLIEE distributes a fixed statute set
+\citep{goebel2023coliee}; LexGLUE and LegalBench evaluate over supplied text
 \citep{chalkidis2022lexglue,guha2023legalbench}; BSARD pairs questions with
-22{,}600 pre-segmented Belgian articles \citep{louis2022bsard}. A benchmark whose
-corpus is given cannot expose a discovery or acquisition failure, having already
-paid the cost that dominates the task. A 2026 survey of legal LLM agents
-\citep{liu2026legalagents} describes no system that locates sources without seed
-URLs or a pre-built collection: its framing is that agents delegate authority to
-legal databases and APIs, which assumes discovery away.
+22{,}600 pre-segmented articles \citep{louis2022bsard}. A benchmark whose corpus
+is given cannot expose a discovery failure, having already paid the cost that
+dominates the task. A 2026 survey of legal LLM agents \citep{liu2026legalagents}
+describes no system that locates sources without seed URLs: its framing is that
+agents delegate authority to legal databases, which assumes discovery away.
 
-\paragraph{Acquisition and regulatory pipelines.} Pile of Law collects 256\,GB of
-US legal material from an enumerated source list \citep{henderson2022pileoflaw}.
-Closest to us is LOCUS \citep{peskoff2026locus}: browser automation against
-anti-bot defences, OCR, segmentation into individual laws, per-segment
-classification --- four of our seven stages, but over a \emph{known} set of
-commercial vendors, in one country and one language, with no calibration or
-review routing. REGREACT extracts typed compliance criteria
-\citep{ali2026regreact}, ComplianceNLP monitors regulatory change end-to-end over
-a curated graph of 12{,}847 provisions \citep{guo2026compliancenlp}, and a
-multi-jurisdictional RAG system spans 68 jurisdictions and 242 documents
-\citep{ford2026multijurisdictional}. All operate on document sets supplied as
-input, which is the boundary this paper moves. On the multilingual side BLAD
-assembles a statutory corpus for a low-resource jurisdiction
+\paragraph{Acquisition and regulatory pipelines.} Pile of Law collects US legal
+material from an enumerated source list \citep{henderson2022pileoflaw}. Closest
+to us is LOCUS \citep{peskoff2026locus} --- browser automation against anti-bot
+defences, OCR, segmentation, per-segment classification, four of our seven
+stages, but over a \emph{known} vendor set, one country, one language, and with
+no calibration or review routing. REGREACT extracts typed compliance criteria
+\citep{ali2026regreact}, ComplianceNLP monitors regulatory change over a curated
+graph of 12{,}847 provisions \citep{guo2026compliancenlp}, and a
+multi-jurisdictional system spans 68 jurisdictions and 242 documents
+\citep{ford2026multijurisdictional}; all take their documents as input, which is
+the boundary this paper moves. BLAD assembles a low-resource statutory corpus
 \citep{sakhawat2026blad} and \citet{moran2026multilingual} ask whether regulatory
-auditing generalises beyond English; both take acquisition as given.
+auditing generalises beyond English --- both also assume acquisition.
 
-\paragraph{Retrieval and documents.} We combine BM25 \citep{robertson2009bm25}
-with a dense bi-encoder \citep{karpukhin2020dpr} and a cross-encoder
-\citep{nogueira2020monot5}, fused by convex combination rather than reciprocal
-rank fusion \citep{cormack2009rrf}; \citet{bruch2022fusion} analyse that choice
-and its normalisation. Mr.\ TyDi and MIRACL establish multilingual retrieval
-\citep{zhang2021mrtydi,zhang2023miracl} but evaluate \emph{per language} on a
-per-language index --- the interference in Section~\ref{sec:ablation} arises only
-when scripts share one index. \citet{ogundepo2022whitespace} show character
-$n$-grams substitute for language-specific tokenizers in BM25; we take that as
-given and ask what a deployed system \emph{reports} when it has the wrong one.
-OCR error degrades downstream NLP measurably \citep{vanstrien2020ocr};
-\citet{aumiller2021segmentation} segment legal text by topical coherence where we
-must recover formal article boundaries. For routing,
-\citet{kamath2020selective} show softmax confidence fails under domain shift ---
-load-bearing across six jurisdictions --- and our per-provision record is a
-datasheet \citep{gebru2021datasheets} pushed down to the article.
+\paragraph{Retrieval and documents.} We fuse BM25 \citep{robertson2009bm25}, a
+dense bi-encoder \citep{karpukhin2020dpr} and a cross-encoder
+\citep{nogueira2020monot5} by convex combination rather than reciprocal rank
+fusion \citep{cormack2009rrf}, following \citet{bruch2022fusion}. Mr.\ TyDi and
+MIRACL evaluate multilingual retrieval \emph{per language} on per-language
+indexes \citep{zhang2021mrtydi,zhang2023miracl}; the interference in
+Section~\ref{sec:ablation} arises only when scripts share one index.
+\citet{ogundepo2022whitespace} show character $n$-grams substitute for
+language-specific tokenizers; we ask instead what a system \emph{reports} with
+the wrong one. OCR error degrades downstream NLP \citep{vanstrien2020ocr};
+\citet{aumiller2021segmentation} segment by topical coherence where we recover
+formal article boundaries; \citet{kamath2020selective} show softmax confidence
+fails under domain shift, load-bearing across six jurisdictions.
 
 \section{Problem formulation}
 \label{sec:problem}
@@ -202,15 +177,14 @@ URLs} (the system is told which portals exist and nothing else; no document URL
 or instrument name may be embedded), \textbf{scanned sources count}, and
 \textbf{the answer may not be precomputed}, since evaluation is a live run.
 
-The difficulty concentrates in four places, each of which returns a confident
-empty answer when handled naively. Statutes sit behind portal software written
-for human readers, so web search surfaces commentary more readily than the
-statute. Portals resist automated collection. An instrument is not an answer:
-returning a 618-article Act restates the question, so segmentation must be
-reliable enough that the citation is checkable. And neighbouring indicators share
-their vocabulary --- a prohibition on transferring data abroad and a permission
-to transfer it subject to safeguards are written in almost the same words, and
-retrieval correctly ranks both highly.
+The difficulty concentrates in four places, each returning a confident empty
+answer when handled naively: statutes sit behind portal software written for
+human readers, so search surfaces commentary more readily than law; portals
+resist automated collection; an instrument is not an answer, so segmentation must
+make the citation checkable; and neighbouring indicators share their vocabulary
+--- a prohibition on transferring data abroad and a permission to transfer it
+subject to safeguards are written in almost the same words, and retrieval
+correctly ranks both highly.
 
 \section{Method}
 \label{sec:method}
@@ -376,13 +350,12 @@ concept vocabulary with the pillar is capped at 0.45. Rows route to auto-accept,
 human review, or quarantine. Indicators with no evidence receive an explicit
 ``no provision found'' row naming the portal searched; a blank is never emitted.
 
-We state plainly that these six constants are hand-set. Fitting them needs
-thousands of labelled provision-question pairs including hard negatives, and the
-published answer key provides only final answers for three economies with no
-near-miss negatives. Generating negatives ourselves would be grading our own
-work. The design response is to surface all four signals and the verbatim
-snippet on every row so a reviewer can reject a mapping directly, rather than to
-present an uncalibrated number as a probability.
+These six constants are hand-set. Fitting them needs thousands of labelled
+provision--question pairs including hard negatives, and the published answer key
+gives only final answers for three economies; generating negatives ourselves
+would be grading our own work. The response is to surface all four signals and
+the verbatim snippet on every row, so a reviewer can reject a mapping directly
+rather than trust an uncalibrated number.
 
 \subsection{Freshness: the law moves}
 \label{sec:freshness}
@@ -422,11 +395,10 @@ legal test, or does a sibling fit better --- against a fixed schema, with no
 long-context reasoning and no tool use. In a bake-off on 58 hand-read cases using
 the shipped prompt, a 24B open-weights model reached F1 0.903 against 0.812,
 0.800 and 0.786 for three larger hosted alternatives, the decisive difference
-being recall (0.688 to 0.875) at the same price and roughly four times the speed.
-We report the ranking cautiously: two of the four models reproduced exactly
-across two runs and two moved by about 0.05, so only the first place is a firm
-result. The operational claim is the weaker and more useful one --- the
-architecture does not require a frontier model, and a complete run costs cents.
+being recall (0.688 to 0.875) at the same price. Only first place is firm --- two
+models moved by about 0.05 across two runs --- but the useful claim is weaker
+anyway: the architecture does not require a frontier model, and a run costs
+cents.
 
 Porting to another body of law needs four things, none of them harness changes: a
 codified test per indicator, a reference set from a source authoritative in that
@@ -530,18 +502,15 @@ Mongolia  & Cyrillic & \lnum{reach_mn_ascii} & \lnum{reach_mn_script} & \lnum{re
 \claim{C1}
 % ledger:endstrict
 
-The structure of Table~\ref{tab:reach} is the finding. Script-aware tokenisation
-is necessary and not sufficient: China stays at \lnum{reach_cn_script} once its
-text is tokenisable, because an English query and a Chinese statute share no
-tokens whatever the tokeniser does. Native vocabulary is likewise necessary and
-not sufficient: under the monolingual tokeniser, adding Chinese phrases leaves
-China at \lnum{reach_cn_ascii_nat}, because those phrases tokenise to nothing on
-the way in.
-
-The operational point is the mode, not the magnitude. Lexical scoring carries the
-majority of the fused score, so an economy in this state contributes a uniform
-zero to ranking, and the pipeline terminates normally reporting that no provision
-was found --- which is a legitimate and common answer in a regulatory index.
+The structure of Table~\ref{tab:reach} is the finding. Each fix is necessary and
+neither is sufficient: China stays at \lnum{reach_cn_script} once its text is
+tokenisable, because an English query and a Chinese statute share no tokens
+whatever the tokeniser does, and at \lnum{reach_cn_ascii_nat} with Chinese
+phrases under the monolingual rule, because those phrases tokenise to nothing on
+the way in. The operational point is the mode rather than the magnitude: lexical
+scoring carries most of the fused score, so such an economy contributes a uniform
+zero and the pipeline terminates normally reporting no provision found --- a
+legitimate and common answer in a regulatory index.
 
 \subsection{Widening the tokeniser is not free}
 

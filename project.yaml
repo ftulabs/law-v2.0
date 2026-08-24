@@ -214,6 +214,18 @@ claims:
       in_cost: "+.4f"
       mn_cost: "+.4f"
 
+  - id: C7
+    template: >-
+      Under a monolingual tokeniser two of the six economies are wholly
+      unreachable, and only tokenisation and native vocabulary together recover
+      them, to {cn} and {mn}.
+    bind:
+      cn: cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].reachable
+      mn: cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].reachable
+    format:
+      cn: ".3f"
+      mn: ".3f"
+
   - id: C5
     template: >-
       A single shortlist budget is wrong for every jurisdiction at once. Going

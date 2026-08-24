@@ -2,7 +2,7 @@
   "artifacts": [
     {
       "path": "claims.tex",
-      "sha256": "2681fd7061b27a4cd0ff00f98e412908b1dcf1fd71daca0132715f4d7fb08abf"
+      "sha256": "ceb91b52f646ff1d92fadb78f6e173a71d9cac355801b6f354074d9f95e85cdc"
     },
     {
       "path": "figures/t_reach_mrr.svg",

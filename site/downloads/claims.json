@@ -401,6 +401,42 @@
         "sg50": 0.6363636363636364,
         "sg_ceil": 0.6363636363636364
       }
+    },
+    "C7": {
+      "bind": {
+        "cn": "cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].reachable",
+        "mn": "cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].reachable"
+      },
+      "deps": [
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        },
+        {
+          "filters": {
+            "economy": "MN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "reachable",
+          "stat": "mean"
+        }
+      ],
+      "formatted": {
+        "cn": "0.395",
+        "mn": "0.250"
+      },
+      "template": "Under a monolingual tokeniser two of the six economies are wholly unreachable, and only tokenisation and native vocabulary together recover them, to {cn} and {mn}.",
+      "text": "Under a monolingual tokeniser two of the six economies are wholly unreachable, and only tokenisation and native vocabulary together recover them, to 0.395 and 0.250.",
+      "values": {
+        "cn": 0.39473684210526316,
+        "mn": 0.25
+      }
     }
   },
   "metrics_hash": "d351a8cebeb5d18aa1285092829e27806d7dc4b48cfc503d92b92232212490ea",

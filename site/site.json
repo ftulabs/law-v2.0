@@ -2,7 +2,7 @@
   "artifacts": [
     {
       "path": "downloads/claims.json",
-      "sha256": "df613f853ab2f5efad393990a7212bbef37e30ed0ccfecbc69ccf72edfbf4ddc"
+      "sha256": "d3bd4c95ca34cc5989a1cbd678da12f5b9c65f80063b05bc3ffe5da769ced873"
     },
     {
       "path": "downloads/metrics.json",
@@ -10,11 +10,11 @@
     },
     {
       "path": "downloads/paper.pdf",
-      "sha256": "6cb34fd0a13e080558d3806fb3d345357a629421ed655f948f84919e0bbe59c0"
+      "sha256": "bdf50d0400a08a8259522877c5a662a995b22402b70603372a2c7f15cf1c4b5c"
     },
     {
       "path": "index.html",
-      "sha256": "a2c467257a9dc9e6b786e5bf3f46ec95db6925766b9727df986b4519a82ec133"
+      "sha256": "0c6f09dc0806308e6c499342d6c430300e7abd72634808bde8f58248332dac7c"
     },
     {
       "path": "media/favicon.svg",
