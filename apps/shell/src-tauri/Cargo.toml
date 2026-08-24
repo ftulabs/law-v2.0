@@ -2,7 +2,7 @@
 name = "veritrade"
 version = "0.1.0"
 description = "VeriTrade — auditable legal evidence extraction"
-authors = ["Team FTU"]
+authors = ["Team VeriTrade"]
 edition = "2021"
 rust-version = "1.77"
 

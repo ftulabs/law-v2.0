@@ -202,23 +202,38 @@ _LANDING_CSS = """
 
   /* Sign in / Create account as a segmented control: the ACTIVE tab is a filled accent
      pill with white text. Plain white text was the ask, but on the white card that is
-     1:1 contrast and invisible — the fill is what makes white legible (AA on #0369a1). */
-  [data-testid="stColumn"]:has(.vt-authcol) .stTabs [data-baseweb="tab-list"]{
+     1:1 contrast and invisible — the fill is what makes white legible (AA on #0369a1).
+
+     Keyed on ARIA ROLES, not on `data-baseweb`. Measured on the deployed instance: its
+     tabs carry role="tab", data-testid="stTab" and aria-selected, and `data-baseweb` is
+     NULL — so of the old rules only `[aria-selected]` matched, which is why the control
+     rendered as a square blue box on bare white with the two tabs at unequal widths and
+     no track around them. `role` is the one hook every Streamlit build emits, because the
+     control is a real ARIA tablist; `data-baseweb` is an internal that has already moved
+     once and will move again. */
+  [data-testid="stColumn"]:has(.vt-authcol) .stTabs [role="tablist"]{
     gap:.3rem;background:var(--paper-2);border:1px solid var(--rule);border-radius:10px;
-    padding:.25rem;border-bottom:none;}
-  [data-testid="stColumn"]:has(.vt-authcol) .stTabs [data-baseweb="tab"]{
-    flex:1;justify-content:center;border-radius:8px;padding:.45rem .6rem;
-    color:var(--ink-soft) !important;font-weight:600;}
-  [data-testid="stColumn"]:has(.vt-authcol) .stTabs [data-baseweb="tab"]:hover{
+    padding:.25rem;border-bottom:none !important;}
+  [data-testid="stColumn"]:has(.vt-authcol) .stTabs [role="tab"]{
+    flex:1 1 0 !important;justify-content:center;border-radius:8px !important;
+    padding:.55rem .6rem !important;min-height:44px;   /* AA pointer target */
+    color:var(--ink-soft) !important;font-weight:600;
+    transition:background .15s ease,color .15s ease;}
+  [data-testid="stColumn"]:has(.vt-authcol) .stTabs [role="tab"]:hover{
     background:var(--paper-3);}
-  [data-testid="stColumn"]:has(.vt-authcol) .stTabs [aria-selected="true"]{
-    background:var(--accent);}
-  [data-testid="stColumn"]:has(.vt-authcol) .stTabs [aria-selected="true"],
-  [data-testid="stColumn"]:has(.vt-authcol) .stTabs [aria-selected="true"] *{
+  [data-testid="stColumn"]:has(.vt-authcol) .stTabs [role="tab"]:focus-visible{
+    outline:2px solid var(--accent);outline-offset:2px;}
+  [data-testid="stColumn"]:has(.vt-authcol) .stTabs [role="tab"][aria-selected="true"]{
+    background:var(--accent) !important;}
+  [data-testid="stColumn"]:has(.vt-authcol) .stTabs [role="tab"][aria-selected="true"],
+  [data-testid="stColumn"]:has(.vt-authcol) .stTabs [role="tab"][aria-selected="true"] *{
     color:var(--accent-ink) !important;}
-  /* the underline indicator is redundant once the active tab is filled */
+  /* the underline indicator is redundant once the active tab is filled. The highlight is
+     the one part with no ARIA hook, so both spellings are listed. */
   [data-testid="stColumn"]:has(.vt-authcol) .stTabs [data-baseweb="tab-highlight"],
-  [data-testid="stColumn"]:has(.vt-authcol) .stTabs [data-baseweb="tab-border"]{display:none;}
+  [data-testid="stColumn"]:has(.vt-authcol) .stTabs [data-baseweb="tab-border"],
+  [data-testid="stColumn"]:has(.vt-authcol) .stTabs [role="tablist"] + div[class*="Highlight"],
+  [data-testid="stColumn"]:has(.vt-authcol) .stTabs [data-testid="stTabsHighlight"]{display:none;}
   .auth-or{display:flex;align-items:center;gap:.7rem;color:var(--ink-faint);font-size:.78rem;margin:.8rem 0 .4rem;}
   .auth-or::before,.auth-or::after{content:"";flex:1;height:1px;background:var(--rule);}
   .land-foot{color:var(--ink-faint);font-size:.82rem;margin-top:2.2rem;
@@ -237,7 +252,7 @@ def _landing_intro() -> None:
     # below the card's top edge and the two columns never looked level.
     st.markdown(
         '<div class="land-hero">'
-        '<div class="land-eyebrow">UN ESCAP · RDTII 2.1 · Team FTU</div>'
+        '<div class="land-eyebrow">UN ESCAP · RDTII 2.1 · Team VeriTrade</div>'
         '<div class="land-title">Find the law, <span class="accent">prove the clause</span></div>'
         '<p class="land-lede">VeriTrade searches official government websites, reads the documents '
         '(including scanned PDFs), and matches each provision to the right RDTII indicator — with the '
@@ -430,7 +445,9 @@ def require_user() -> auth.User:
     # hanging past it.
     _bar_l, _bar_r = st.columns([1.35, 1], gap="large", vertical_alignment="center")
     with _bar_l:
-        st.markdown(f'<div class="vt-brand">{theme.wordmark_html(46)}</div>',
+        # 42 on the TRIMMED wordmark is larger on screen than 46 was on the untrimmed file:
+        # that one was 77% empty canvas, so its "46px" rendered ~10px of lettering.
+        st.markdown(f'<div class="vt-brand">{theme.wordmark_html(42)}</div>',
                     unsafe_allow_html=True)
     with _bar_r:
         c_wp, c_src, c_th = st.columns([1.5, 1.1, 1.0])

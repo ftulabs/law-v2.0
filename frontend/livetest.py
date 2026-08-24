@@ -193,7 +193,7 @@ def _q(text: str) -> str:
 def run_record(state: dict) -> str:
     """The Run Record sheet, as CSV. Every field is read from the run, never typed."""
     b = state.get("brief", {})
-    lines = ['"Team","VeriTrade — Team FTU"',
+    lines = ['"Team","Team VeriTrade"',
              f'"Task as read out","{_q(b.get("task"))}"',
              f'"Economy","{_q(b.get("economy"))}"',
              f'"Pillar","{_q(b.get("pillar"))}"',
@@ -272,7 +272,7 @@ def short_note(state: dict) -> str:
     isolated = bool(bb) and bb.get("fetched") == 0
     out = [
         "# Live test — short note",
-        "Finale morning, 15 October 2026 · VeriTrade, Team FTU", "",
+        "Finale morning, 15 October 2026 · Team VeriTrade", "",
         "## 1 · The run", "",
         f"**The task as read out:** {b.get('task') or '—'}",
         f"**Economy:** {b.get('economy', '—')}  ·  **Pillar:** {b.get('pillar', '—')}",

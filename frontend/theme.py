@@ -156,7 +156,11 @@ def logo_data_uri() -> str | None:
 
 def wordmark_html(height: int = 60) -> str:
     """The VeriTrade wordmark: transparent PNG → brand SVG → text fallback."""
-    png = _asset("veritrade_logo.png", "veritrade_logo.webp")
+    # The trimmed wordmark FIRST. Measured on the brand file: the mark is 613x139 inside a
+    # 903x616 transparent canvas — 23% of the height — so `height:64px` rendered the actual
+    # lettering at about 15px and no amount of raising the box fixed that, it only grew the
+    # empty space around it. veritrade_wordmark.png is the same artwork cropped to its ink.
+    png = _asset("veritrade_wordmark.png", "veritrade_logo.png", "veritrade_logo.webp")
     if png:
         return (f'<img class="vt-logo" alt="VeriTrade" style="height:{height}px" '
                 f'src="data:image/{png.suffix[1:]};base64,{_b64(png)}"/>')
@@ -229,7 +233,8 @@ def inject_css() -> None:
               font-family:{BODY_STACK};
           }}
           [data-testid="stMarkdownContainer"], [data-testid="stWidgetLabel"],
-          .stTabs [data-baseweb="tab"], [data-baseweb="select"] {{ font-family:{BODY_STACK}; }}
+          .stTabs [role="tab"], .stTabs [data-baseweb="tab"],
+          [data-baseweb="select"] {{ font-family:{BODY_STACK}; }}
           /* restore the icon font, whatever else we set above */
           [data-testid="stIconMaterial"], span[data-testid="stIconMaterial"],
           .material-symbols-rounded, [class*="material-symbols"] {{
@@ -473,7 +478,7 @@ def site_footer() -> None:
         f'<div class="marks">{escap_logo_html(36)}{ftu_logo_html(32)}</div>'
         '<p class="about">VeriTrade finds digital-trade law on official government portals, '
         'reads it, and maps each provision to a UN ESCAP RDTII 2.1 indicator with a verbatim '
-        'citation you can check. Built by Team FTU for the UN ESCAP / KMITL Global Hackathon.</p>'
+        'citation you can check. Built by Team VeriTrade for the UN ESCAP / KMITL Global Hackathon.</p>'
         '</div>'
         '<div><h4>Product</h4>'
         f'<a href="{WHITEPAPER_URL}" target="_blank">White paper</a>'
@@ -488,7 +493,7 @@ def site_footer() -> None:
         '</div>'
         '</div>'
         '<div class="bar">'
-        f'<span>© {year} Team FTU · Foreign Trade University · Apache-2.0</span>'
+        f'<span>© {year} Team VeriTrade · Foreign Trade University · Apache-2.0</span>'
         # Counted, not typed. The hardcoded version read "Pillars 6 & 7 · SG · AU · MY" long
         # after the tool covered twelve of each, and a footer nobody reads is exactly where a
         # stale claim survives longest.

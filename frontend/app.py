@@ -119,7 +119,7 @@ def _img_b64(path: Path) -> str:
 
 def logo_html() -> str:
     """VeriTrade wordmark: prefer a transparent PNG, fall back to the brand SVG, then text."""
-    png = _asset("veritrade_logo.png", "veritrade_logo.webp")
+    png = _asset("veritrade_wordmark.png", "veritrade_logo.png", "veritrade_logo.webp")
     if png:
         return (f'<img class="vt-logo" alt="VeriTrade" '
                 f'src="data:image/{png.suffix[1:]};base64,{_img_b64(png)}"/>')
@@ -162,7 +162,7 @@ st.markdown(
         font-size: 16px;
       }}
       .vt-logo {{ line-height:0; margin:.1rem 0; }}
-      img.vt-logo, .vt-logo img, .vt-logo svg {{ height:68px !important; width:auto !important;
+      img.vt-logo, .vt-logo img, .vt-logo svg {{ height:40px !important; width:auto !important;
               max-width:420px; display:block; {LOGO_FX} }}
       .wordmark {{ font-size:2rem; font-weight:700; letter-spacing:-.02em; margin:0; }}
       .wordmark .mark {{ color:var(--accent); }}
@@ -253,8 +253,10 @@ st.markdown(
       .seal.s-none {{color:var(--ink-faint); border-color:var(--rule); background:transparent;}}
 
       /* ── tabs ── */
-      .stTabs [data-baseweb="tab-list"] {{gap:1.4rem; border-bottom:1px solid var(--rule);}}
-      .stTabs [data-baseweb="tab"] {{font-family:'Inter',sans-serif; font-size:.95rem; font-weight:600;
+      /* role-based: the deployed build emits role="tab" but NOT data-baseweb (measured),
+         so a baseweb-only rule leaves the tabs unstyled there. See auth_ui._LANDING_CSS. */
+      .stTabs [role="tablist"], .stTabs [data-baseweb="tab-list"] {{gap:1.4rem; border-bottom:1px solid var(--rule);}}
+      .stTabs [role="tab"], .stTabs [data-baseweb="tab"] {{font-family:'Inter',sans-serif; font-size:.95rem; font-weight:600;
               letter-spacing:0; text-transform:none; color:var(--ink-faint); padding:.5rem 0;}}
       .stTabs [aria-selected="true"] {{color:var(--accent) !important;}}
       .stTabs [data-baseweb="tab-highlight"] {{background:var(--accent);}}
