@@ -287,6 +287,33 @@ td.ratio div{display:flex; align-items:center; gap:.6rem}
   transition:width .85s cubic-bezier(.2,.7,.3,1) .15s}
 tr.r2 .mb{background:var(--bad)}
 
+/* ── timeline ────────────────────────────────────────────────────────────
+   The lane and the date row below it are two flex rows sharing ONE set of
+   flex ratios (days per phase, set inline). That is why the dates line up
+   under their phases; a separate grid would drift the moment a phase moved. */
+.lane{display:flex; height:64px; border-radius:12px; overflow:hidden; gap:2px}
+.lane div{display:grid; place-items:center; background:var(--accent-soft);
+  color:var(--accent); font-family:var(--mono); font-size:var(--small);
+  font-weight:600; min-width:0}
+.lane div.done{background:var(--paper-2); color:var(--ink-faint)}
+.lane div.now{background:var(--accent); color:var(--accent-ink)}
+.lane div.wait{background:transparent; border:2px dashed var(--rule);
+  color:var(--ink-faint); font-weight:500}
+.laned{display:flex; gap:2px; margin-top:.45rem}
+/* A date is the phase BOUNDARY, not its midpoint, so each label is flush left
+   under the segment it opens. Centred, "chốt 30/09" would float mid-gap. */
+.laned span{text-align:left; padding-left:.35rem; font-family:var(--mono);
+  font-size:var(--label); color:var(--ink-faint); min-width:0; overflow:hidden}
+.gates{display:grid; grid-template-columns:1fr 1fr; gap:.55rem 2.2rem; margin-top:1.4rem}
+.gates p{font-size:var(--small); color:var(--ink-soft); line-height:1.4}
+.gates p b{color:var(--ink); font-family:var(--mono); margin-right:.4rem}
+
+/* ── reference list ──────────────────────────────────────────────────── */
+.refs{display:grid; grid-template-columns:1fr 1fr; gap:1.1rem 2.6rem; margin-top:1.3rem}
+.refs p{font-size:var(--small); color:var(--ink-soft); line-height:1.4}
+.refs p b{color:var(--ink)}
+.refs p em{font-style:normal; color:var(--ink-faint)}
+
 /* ── 12-pillar grid ──────────────────────────────────────────────────── */
 .pillars{display:grid; grid-template-columns:repeat(12,1fr); gap:8px; margin-top:1.2rem;
   max-width:640px}
@@ -346,7 +373,8 @@ tr.r2 .mb{background:var(--bad)}
         <p class="sub">VeriTrade làm nhóm <b>6</b> và <b>7</b>, tức 9 trong 61 câu.</p>
       </div>
       <div>
-        <div class="quote">Bộ chỉ số chỉ mới bằng người cuối cùng ngồi đọc luật.
+        <div class="quote">Một chỉ số cho cả khu vực đang phụ thuộc vào việc có người
+          ngồi đọc hết từng đạo luật.
           <span>Chậm, tốn tiền, và lạc hậu ngay khi một đạo luật được sửa.</span></div>
       </div>
     </div>
@@ -376,8 +404,9 @@ tr.r2 .mb{background:var(--bad)}
         <p>Được cho danh sách trang web chính phủ. Không được cho link văn bản luật nào.</p></div>
       <div class="card"><h3>Đọc được cả ảnh scan</h3>
         <p>Sai không quá <b>5%</b> số ký tự.</p></div>
-      <div class="card"><h3>Không mang sẵn đáp án</h3>
-        <p>Cấm bảng tra cứu. Phải chạy thật vào lúc chấm.</p></div>
+      <div class="card"><h3>Không được cài sẵn kết quả</h3>
+        <p>Không nhúng tên luật hay danh sách link vào code. Đến giờ chấm là chạy thật,
+          tìm mới.</p></div>
     </div>
   </div>
 </section>
@@ -892,6 +921,125 @@ tr.r2 .mb{background:var(--bad)}
 <!-- 17 -->
 <section class="slide">
   <div class="inner">
+    <div class="reveal eyebrow">Đầu ra dự kiến</div>
+    <h2 class="reveal">Hai thứ, không phải một</h2>
+    <div class="reveal g2">
+      <div class="card">
+        <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+        <h3>Phần mềm dùng được</h3>
+        <p>Một hợp đồng API, sáu nền tảng: web, macOS, Windows, Linux, iOS, Android. Bản
+          desktop chạy backend ngay trong máy, không cần server.</p>
+        <div class="tools" style="margin-top:1rem"><span>đổi engine trên màn hình</span>
+          <span>màn duyệt lại kết quả</span><span>xuất CSV và xlsx</span>
+          <span>chi phí theo từng engine</span></div>
+      </div>
+      <div class="card">
+        <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg></div>
+        <h3>Một bài báo</h3>
+        <p><b>RDTII-Bench</b>: bộ khung đo tự kiểm chứng mọi con số in ra. Bản thảo đang viết,
+          nhắm hội nghị máy học. Slide sau nói đóng góp của nó.</p>
+        <div class="tools" style="margin-top:1rem"><span>6 nước · 3 hệ chữ</span>
+          <span>4 điều kiện · 5 seed</span><span>2.113 văn bản trong một index</span></div>
+      </div>
+    </div>
+    <p class="reveal sub">Phần mềm là thứ ban giám khảo chấm. Bài báo là thứ còn lại sau khi
+      cuộc thi kết thúc.</p>
+  </div>
+</section>
+
+<!-- 18 -->
+<section class="slide">
+  <div class="inner">
+    <div class="reveal eyebrow">Bài báo</div>
+    <h2 class="reveal">Đóng góp là bộ khung đo, không phải cái pipeline</h2>
+    <div class="reveal g2" style="grid-template-columns:1fr 1.15fr">
+      <div>
+        <div class="quote" style="margin-top:0">Mọi con số, bảng, hình trong bài đều lấy từ một
+          lần chạy có ghi lại. Không ai gõ tay, không model nào viết ra.
+          <span>Đúng cái luật pipeline đang áp cho văn bản luật, nâng lên một tầng: bài không
+            biên dịch được nếu có một con số không truy được về bản ghi.</span></div>
+        <ul style="margin-top:1.4rem;gap:.6rem">
+          <li>Một điều kiện chọn ra hai ô thì <b>báo lỗi</b>, không tự lấy ô đầu.</li>
+          <li>Chạy một seed thì độ lệch ghi là <b>không xác định</b>, không ghi 0.</li>
+          <li>Lần chạy thất bại ghi là <b>thất bại</b>, không tính thành điểm 0.</li>
+        </ul>
+      </div>
+      <div>
+        <div class="kick">Kết quả chính · tỷ lệ điều luật máy nhìn thấy được</div>
+        <div class="tblwrap" style="margin-top:.7rem"><table>
+          <thead><tr><th>Nước</th><th>Hệ chữ</th><th class="num">tách cũ<br>khoá EN</th>
+            <th class="num">tách mới<br>khoá EN</th><th class="num">tách cũ<br>+ bản ngữ</th>
+            <th class="num">tách mới<br>+ bản ngữ</th></tr></thead>
+          <tbody>
+            <tr><td><b>Trung Quốc</b></td><td>Hán</td><td class="num">0,000</td>
+              <td class="num">0,000</td><td class="num">0,000</td>
+              <td class="num" style="color:var(--good);font-weight:700">0,395</td></tr>
+            <tr><td><b>Mông Cổ</b></td><td>Kirin</td><td class="num">0,083</td>
+              <td class="num">0,083</td><td class="num">0,083</td>
+              <td class="num" style="color:var(--good);font-weight:700">0,250</td></tr>
+            <tr><td>Singapore</td><td>Latinh</td><td class="num">0,636</td>
+              <td class="num">0,636</td><td class="num">0,636</td><td class="num">0,636</td></tr>
+          </tbody>
+        </table></div>
+        <p class="sub">Cả hai cách sửa đều <b>cần</b>, không cách nào <b>đủ</b>. Ba trong bốn
+          cột là số 0 mà không có một dòng log nào.</p>
+        <div class="open"><b>Cái giá không ai đo:</b> mở rộng bộ tách từ làm recall@10 của Úc
+          <b>giảm 0,105</b>, dù không một byte nào của tiếng Anh đổi. Sáu nước dùng chung một
+          index, nên dùng chung một bộ thống kê BM25.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 19 -->
+<section class="slide">
+  <div class="inner">
+    <div class="reveal eyebrow">Kế hoạch</div>
+    <h2 class="reveal">Bảy giai đoạn, mỗi giai đoạn một cổng kiểm</h2>
+    <div class="reveal" style="margin-top:1.5rem">
+      <div class="lane">
+        <div class="done" style="flex:3">P0</div>
+        <div class="now" style="flex:7">P1</div>
+        <div style="flex:7">P2</div>
+        <div style="flex:7">P3</div>
+        <div style="flex:7">P4</div>
+        <div style="flex:7">P5</div>
+        <div style="flex:4">P6</div>
+        <div class="wait" style="flex:15">chung kết 15/10</div>
+      </div>
+      <div class="laned">
+        <span style="flex:3">20/08</span><span style="flex:7">23/08</span>
+        <span style="flex:7">30/08</span><span style="flex:7">06/09</span>
+        <span style="flex:7">13/09</span><span style="flex:7">20/09</span>
+        <span style="flex:4">27/09</span><span style="flex:15">chốt 30/09</span>
+      </div>
+    </div>
+    <div class="reveal gates">
+      <p><b>P0</b>Đo trước khi sửa. Có số nền cho sáu nước, và một lần chạy in ra được chi phí
+        thật bằng USD.</p>
+      <p><b>P1</b>Sửa đầu ra. Mã chỉ số thành <span class="mono">6.4</span>, thêm cột ngôn ngữ
+        nguồn, bỏ 23 dòng đang bị 0 điểm.</p>
+      <p><b>P2</b>Hai engine. Chạy trọn một lần bằng engine mở, không có key trả phí nào, và
+        đổi được ngay trên màn hình.</p>
+      <p><b>P3</b>Bộ hồ sơ nộp. Một buổi ngồi ra đủ bốn file, kèm sổ ghi mọi văn bản đã tải.</p>
+      <p><b>P4</b>Màn duyệt lại. Người ngoài nhóm làm được cả sáu việc của người kiểm mà không
+        cần ai chỉ.</p>
+      <p><b>P5</b>Chứng minh sáu nước. Sáu nước xanh trên CI, điểm so với đáp án viết thành
+        bảng.</p>
+      <p><b>P6</b>Bàn giao. Người lạ tự cài được từ tài liệu, bấm giờ, dưới 30 phút.</p>
+      <p style="color:var(--warn)"><b>Luật</b>Cổng nào sai hạn thì <b>không gia hạn</b>. Giai
+        đoạn sau vẫn khởi động, và cái sai được ghi lại.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 20 -->
+<section class="slide">
+  <div class="inner">
     <div class="reveal eyebrow">Tóm lại</div>
     <h1 class="reveal title" style="font-size:clamp(2rem,4vw,3.4rem)">Một công cụ mà người dùng
       <em>bác bỏ được</em>.</h1>
@@ -910,6 +1058,36 @@ tr.r2 .mb{background:var(--bad)}
   </div>
 </section>
 
+<!-- 21 -->
+<section class="slide">
+  <div class="inner">
+    <div class="reveal eyebrow">Tài liệu tham khảo</div>
+    <h2 class="reveal">Nhóm đứng trên cái gì</h2>
+    <div class="reveal refs">
+      <p><b>Magesh và cộng sự, 2024.</b> Kiểm định độc lập công cụ tra cứu luật của LexisNexis
+        và Thomson Reuters: <em>sai hoặc gán nhầm nguồn 17% đến 33%</em>, dù bán ra với nhãn
+        không bịa. Đây là lý do nhóm không cho model tự viết trích dẫn.</p>
+      <p><b>Robertson và Zaragoza, 2009.</b> BM25. Thống kê tần suất tài liệu dùng chung cho cả
+        tập, nên thêm một hệ chữ vào index thì thứ hạng của hệ chữ khác cũng đổi theo.</p>
+      <p><b>Chalkidis 2022</b> (LexGLUE) · <b>Guha 2023</b> (LegalBench) · <b>Goebel 2023</b>
+        (COLIEE). Ba bộ benchmark luật. Cả ba đo model trên một tập văn bản <em>được đưa
+        sẵn</em>, nên không thể lộ lỗi ở khâu tìm.</p>
+      <p><b>Ogundepo và cộng sự, 2022.</b> Tách từ theo n-gram ký tự thay được bộ tách từ riêng
+        cho từng thứ tiếng. Nhóm lấy kết quả này làm sẵn, và hỏi câu khác: <em>máy báo gì khi
+        dùng sai bộ tách từ.</em></p>
+      <p><b>Zhang 2021</b> (Mr. TyDi) · <b>2022</b> (MIRACL). Đo truy hồi đa ngữ, nhưng
+        <em>mỗi thứ tiếng một index riêng</em>. Lỗi nhóm gặp chỉ xuất hiện khi nhiều hệ chữ
+        nằm chung một index.</p>
+      <p><b>Samuel và cộng sự, 2020.</b> Truy vết nguồn gốc trong pipeline máy học. Không bài
+        nào trong bốn trăm bài ghi đủ để người khác chạy lại được.</p>
+      <p><b>UN ESCAP, 2024.</b> Hướng dẫn chỉ số RDTII bản 2.0. Định nghĩa chỉ số, và đáp án
+        của hội đồng chuyên gia mà nhóm đo ngược lại.</p>
+      <p style="color:var(--ink-faint)">Trích dẫn đầy đủ nằm trong bản thảo
+        <span class="mono">RDTII-Bench</span>.</p>
+    </div>
+  </div>
+</section>
+
 </div>
 
 <nav class="bar" aria-label="Điều khiển slide">
@@ -917,7 +1095,7 @@ tr.r2 .mb{background:var(--bad)}
   <span class="sp"></span>
   <button id="theme" aria-label="Đổi giao diện sáng hoặc tối">◐</button>
   <button id="prev" aria-label="Slide trước">←</button>
-  <span class="count"><span id="cur">1</span> / <span id="tot">17</span></span>
+  <span class="count"><span id="cur">1</span> / <span id="tot">21</span></span>
   <button id="next" aria-label="Slide sau">→</button>
 </nav>
 
