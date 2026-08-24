@@ -137,13 +137,38 @@ def _drop_instruments_with_no_force(mappings: list, log) -> list:
     return kept
 
 
-def _no_evidence_placeholders(run_id, economy, indicators, mappings, log) -> list:
-    """Explicit 'No evidence' row per indicator with no submittable mapping."""
+def _searched_laws(provisions, limit: int = 4) -> list[str]:
+    """The distinct law names actually read this run, longest-serving first.
+
+    Used to make a negative CHECKABLE. "No provision found" is a finding, not a failure, but
+    only if the reader can see the search reached the right instrument.
+    """
+    seen: dict[str, int] = {}
+    for p in provisions or []:
+        name = (getattr(p, "law_name", "") or "").strip()
+        if name:
+            seen[name] = seen.get(name, 0) + 1
+    return [n for n, _ in sorted(seen.items(), key=lambda kv: -kv[1])[:limit]]
+
+
+def _no_evidence_placeholders(run_id, economy, indicators, mappings, log,
+                              provisions=None) -> list:
+    """Explicit 'No evidence' row per indicator with no submittable mapping.
+
+    The Notes column names the laws that WERE read. Without that, a correct negative is
+    indistinguishable from a broken run: Singapore pillar 1 reads the Countervailing and
+    Anti-Dumping Duties Act 1996 and its 1997 Regulations, then correctly declines to cite
+    them — indicator 1.4 asks for a duty IMPOSED on an ICT good, and an enabling Act is not a
+    measure. The row said only "no active provision was identified", so the run looked like it
+    had found nothing at all.
+    """
     from ..schemas import DiscoveryTag, EvidenceMapping, ReviewStatus, SUBMITTABLE_STATUSES
     from .websearch import OFFICIAL_PORTAL
 
     covered = {m.indicator_id for m in mappings if m.review_status.value in SUBMITTABLE_STATUSES}
     portal = OFFICIAL_PORTAL.get(economy.value, "")
+    read = _searched_laws(provisions)
+    read_note = (" Laws read for this run: " + "; ".join(read) + "." if read else "")
     out = []
     for ind in indicators:
         if ind.indicator_id in covered:
@@ -162,7 +187,7 @@ def _no_evidence_placeholders(run_id, economy, indicators, mappings, log) -> lis
             confidence_score=0.0, discovery_tag=DiscoveryTag.NEW,
             coverage=None,
             notes=("No evidence — the pipeline searched the official portal for this indicator "
-                   "and found no active provision satisfying its legal test."),
+                   "and found no active provision satisfying its legal test." + read_note),
             review_status=ReviewStatus.AUTO_ACCEPTED,
             provision_id=f"no-evidence-{ind.indicator_id.lower()}",
         ))
@@ -475,7 +500,8 @@ def run_pipeline(
     mappings = _drop_instruments_with_no_force(mappings, log)
 
     # indicators with no evidence still need an explicit placeholder row (blank = penalty)
-    mappings.extend(_no_evidence_placeholders(run_id, economy, indicators, mappings, log))
+    mappings.extend(_no_evidence_placeholders(run_id, economy, indicators, mappings, log,
+                                              provisions))
 
     for m in mappings:
         db.save_mapping(m)
