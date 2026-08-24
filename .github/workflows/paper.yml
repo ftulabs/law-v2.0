@@ -103,7 +103,12 @@ jobs:
             echo "skipped: set the OVERLEAF_PROJECT_ID variable and the OVERLEAF_TOKEN secret."
             exit 0
           fi
-          # Overleaf's git remote has no branches; master is the only ref.
+          # Overleaf's git remote has no branching, but which single branch it
+          # serves depends on how the project was made: `master` for one created
+          # in Overleaf, `main` for one imported from a repository whose default
+          # branch is main. Push to whatever the clone checked out rather than
+          # guessing -- guessing produced `src refspec master does not match any`
+          # against a project that serves main.
           git clone --depth 1 \
             "https://git:${OVERLEAF_TOKEN}@git.overleaf.com/${OVERLEAF_PROJECT_ID}" overleaf
           rsync -a --delete --exclude '.git' paper/ overleaf/
@@ -115,7 +120,8 @@ jobs:
             echo "Overleaf is already up to date."
           else
             git commit -m "ledger: paper from ${GITHUB_SHA}"
-            git push origin master
+            branch="$(git rev-parse --abbrev-ref HEAD)"
+            git push origin "HEAD:${branch}"
             echo "pushed to Overleaf project ${OVERLEAF_PROJECT_ID}"
           fi
 

@@ -42,7 +42,8 @@ push)
   fi
   git -c user.name=ledger -c user.email=ledger@localhost \
       commit -q -m "ledger: paper from $(git -C "$ROOT" rev-parse --short HEAD)"
-  git push --quiet origin master
+  # Whichever single branch this project serves -- see the workflow note.
+  git push --quiet origin "HEAD:$(git rev-parse --abbrev-ref HEAD)"
   echo "pushed paper/ to Overleaf project ${OVERLEAF_PROJECT_ID}"
   ;;
 pull)
