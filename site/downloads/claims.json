@@ -185,9 +185,84 @@
         "reach_spread": 0.0,
         "seeds": 5.0
       }
+    },
+    "C4": {
+      "bind": {
+        "in_cost": "cells[economy=IN,tokeniser=script_aware,terms=english].recall_at_5 - cells[economy=IN,tokeniser=script_aware,terms=english].recall_at_10",
+        "mn_cost": "cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].recall_at_5 - cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].recall_at_10",
+        "my_cost": "cells[economy=MY,tokeniser=script_aware,terms=english].recall_at_5 - cells[economy=MY,tokeniser=script_aware,terms=english].recall_at_10"
+      },
+      "deps": [
+        {
+          "filters": {
+            "economy": "IN",
+            "terms": "english",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_5",
+          "stat": "mean"
+        },
+        {
+          "filters": {
+            "economy": "IN",
+            "terms": "english",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_10",
+          "stat": "mean"
+        },
+        {
+          "filters": {
+            "economy": "MN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_5",
+          "stat": "mean"
+        },
+        {
+          "filters": {
+            "economy": "MN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_10",
+          "stat": "mean"
+        },
+        {
+          "filters": {
+            "economy": "MY",
+            "terms": "english",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_5",
+          "stat": "mean"
+        },
+        {
+          "filters": {
+            "economy": "MY",
+            "terms": "english",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_10",
+          "stat": "mean"
+        }
+      ],
+      "formatted": {
+        "in_cost": "-0.1020",
+        "mn_cost": "+0.0000",
+        "my_cost": "-0.2000"
+      },
+      "template": "Halving the shortlist budget is not uniformly cheap: at five candidates instead of ten, Malaysia loses {my_cost} recall and India {in_cost}, while Mongolia loses {mn_cost} -- so a single global top-$k$ prices the grading budget wrongly for every economy at once.",
+      "text": "Halving the shortlist budget is not uniformly cheap: at five candidates instead of ten, Malaysia loses -0.2000 recall and India -0.1020, while Mongolia loses +0.0000 -- so a single global top-$k$ prices the grading budget wrongly for every economy at once.",
+      "values": {
+        "in_cost": -0.10204081632653059,
+        "mn_cost": 0.0,
+        "my_cost": -0.2
+      }
     }
   },
-  "metrics_hash": "53a2534632050563e91e74856e470557fe8b2df54f7c4514e6ed2c5985302d8d",
+  "metrics_hash": "b5fdec59632635dc756da355869cd18e032426e4b56f6af511b9bbb39e167c4c",
   "project": "veritrade",
   "schema": "ledger/claims@1",
   "values": {
@@ -445,6 +520,57 @@
       "format": ".4f",
       "formatted": "0.3429",
       "value": 0.34285714285714286
+    },
+    "r5_cn_full": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "CN",
+            "terms": "english_plus_native",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_5",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].recall_at_5",
+      "format": ".4f",
+      "formatted": "0.1316",
+      "value": 0.13157894736842105
+    },
+    "r5_my_script": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "MY",
+            "terms": "english",
+            "tokeniser": "script_aware"
+          },
+          "metric": "recall_at_5",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=MY,tokeniser=script_aware,terms=english].recall_at_5",
+      "format": ".4f",
+      "formatted": "0.1429",
+      "value": 0.14285714285714285
+    },
+    "r5_sg_ascii": {
+      "deps": [
+        {
+          "filters": {
+            "economy": "SG",
+            "terms": "english",
+            "tokeniser": "ascii_only"
+          },
+          "metric": "recall_at_5",
+          "stat": "mean"
+        }
+      ],
+      "expr": "cells[economy=SG,tokeniser=ascii_only,terms=english].recall_at_5",
+      "format": ".4f",
+      "formatted": "0.2818",
+      "value": 0.2818181818181818
     },
     "reach_au_ascii": {
       "deps": [
