@@ -26,6 +26,8 @@ Three metrics, and the first is the one that matters:
                  NON-ZERO score. This is the silent-failure metric: a zero here is
                  not a ranking that went badly, it is a document the query cannot
                  see.
+  recall_at_5    share whose instrument lands in the top five of the pooled
+                 index -- half the grading budget of the next line.
   recall_at_10   share whose instrument lands in the top ten of the pooled index.
   mrr            mean reciprocal rank over the full ranking, 0 when unreachable.
 """
@@ -55,7 +57,13 @@ from bench import corpus                                            # noqa: E402
 # is exactly the hole this pipeline exists to close.
 N_DISTRACTORS = 2000
 
-TOP_K = 10
+# Two shortlist budgets, not one. Ten was an arbitrary choice, and the shortlist
+# size is not a free parameter for this tenant: `backend/eval/harness.py` counts
+# `n_calls` precisely because "recall is meaningless without it -- anyone can hit
+# 100% recall by grading everything". A five-item shortlist is half the grading
+# cost of a ten-item one, so reporting both says what the cheaper budget costs in
+# recall rather than leaving it to be assumed.
+TOP_KS = (5, 10)
 
 # Round 1's tokeniser, verbatim. `retrieval.py` keeps the ASCII branch of `_TOKEN`
 # bit-identical to this so the swept retrieval parameters still hold, and
@@ -124,7 +132,7 @@ def run(config: "dict[str, Any]", ctx: Any) -> "dict[str, float]":
     by_indicator = {ind.indicator_id: ind for ind in get_indicators(None)}
 
     n_reachable = 0
-    n_at_k = 0
+    n_at_k = {k: 0 for k in TOP_KS}
     rr_total = 0.0
     empty_queries = 0
 
@@ -151,14 +159,16 @@ def run(config: "dict[str, Any]", ctx: Any) -> "dict[str, float]":
         # the result: a target tied with fifty others is ranked behind all of them.
         rank = 1 + sum(1 for s in scores if s > target_score)
         rr_total += 1.0 / rank
-        if rank <= TOP_K:
-            n_at_k += 1
+        for k in TOP_KS:
+            if rank <= k:
+                n_at_k[k] += 1
 
     n = len(pairs)
     n_native, n_instruments = corpus.native_share(economy)
     return {
         "reachable": n_reachable / n,
-        "recall_at_10": n_at_k / n,
+        "recall_at_5": n_at_k[5] / n,
+        "recall_at_10": n_at_k[10] / n,
         "mrr": rr_total / n,
         # Diagnostics. They travel with the record and are never aggregated,
         # because a count that reaches a figure is a number nobody meant to

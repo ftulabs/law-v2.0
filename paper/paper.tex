@@ -325,8 +325,11 @@ can never displace a term that was working.
 instrument receives a non-zero lexical score. This is the silent-failure metric.
 A zero here is not a ranking that went badly; it is a document the query cannot
 see at all.
-\item \textbf{recall@10} --- the share whose instrument reaches the top ten of the
-pooled index.
+\item \textbf{recall@5} and \textbf{recall@10} --- the share whose instrument
+reaches the top five, and the top ten, of the pooled index. Two budgets rather
+than one, because the shortlist size is what the grader is billed for: five
+candidates cost half of ten, and the difference between the two is the price of
+the cheaper budget.
 \item \textbf{MRR} --- mean reciprocal rank over the full ranking, zero when
 unreachable. Ties are broken pessimistically: an instrument tied with fifty
 others ranks behind all of them.
@@ -534,6 +537,19 @@ worth confirming rather than assuming. The rank-sensitive metrics do move with
 the draw, which is why the seed is an axis of the grid rather than a fixed
 constant, and why every cell in this paper carries its spread.
 
+\subsection{The cheaper shortlist is not cheaper everywhere}
+
+% ledger:strict
+\claim{C4}
+% ledger:endstrict
+
+Mongolia loses nothing because its one reachable instrument already ranks first;
+Malaysia loses two thirds of its recall because its instruments cluster just
+inside the tenth position. The operational reading is that a shortlist budget
+chosen on one jurisdiction's curve is the wrong budget for the others, and that
+the choice is a per-economy one --- which is exactly the kind of parameter a
+harness makes visible and an eyeball does not.
+
 \section{Extending to other domains of law}
 \label{sec:extending}
 
@@ -705,6 +721,9 @@ configuration.
 \subsection{Reachability}
 \input{generated/figures/t_reach_reachable.tex}
 
+\subsection{recall@5}
+\input{generated/figures/t_reach_recall_at_5.tex}
+
 \subsection{recall@10}
 \input{generated/figures/t_reach_recall_at_10.tex}
 
@@ -719,6 +738,9 @@ produce.
 
 \subsection{Reachability}
 {\scriptsize\input{generated/tables/t_reach_reachable.tex}}
+
+\subsection{recall@5}
+{\scriptsize\input{generated/tables/t_reach_recall_at_5.tex}}
 
 \subsection{recall@10}
 {\scriptsize\input{generated/tables/t_reach_recall_at_10.tex}}

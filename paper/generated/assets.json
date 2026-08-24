@@ -2,7 +2,7 @@
   "artifacts": [
     {
       "path": "claims.tex",
-      "sha256": "ce885398c47529e323b0069d0cce272523cc6570ba2132d99963b4893b5691ee"
+      "sha256": "b4d0cb67465e715e06706cfd7272afff30eb9b7b43d43828c78004e76eb9d85b"
     },
     {
       "path": "figures/t_reach_mrr.svg",
@@ -10,7 +10,7 @@
     },
     {
       "path": "figures/t_reach_mrr.tex",
-      "sha256": "49656c954127205bafc75dd23f31714ef64ae0ee02089c64d10b977bb01281ce"
+      "sha256": "1e12da4864ab2e4ed44f3b63c4162afd9394bc46f0b0985f6647b8c8d10a3475"
     },
     {
       "path": "figures/t_reach_n_docs.svg",
@@ -18,7 +18,7 @@
     },
     {
       "path": "figures/t_reach_n_docs.tex",
-      "sha256": "491be79f5a4515081565c6f212e812878e7e47b231933546e7ce62bcb57ca56a"
+      "sha256": "dbcf27fb619112a5508036f73bd1c60edb224cb0f6ea886ccbfa38c6a4440ad8"
     },
     {
       "path": "figures/t_reach_n_instruments_non_latin.svg",
@@ -26,7 +26,7 @@
     },
     {
       "path": "figures/t_reach_n_instruments_non_latin.tex",
-      "sha256": "4f77d4cb3b3d1f992484da804303b558f7881e2e314cd8763f37097c0fe02e29"
+      "sha256": "bd477c65ce4a3228b6b0e9fcd4a2930ea29dd7434deffa49325cb20f227ebc84"
     },
     {
       "path": "figures/t_reach_n_pairs.svg",
@@ -34,7 +34,7 @@
     },
     {
       "path": "figures/t_reach_n_pairs.tex",
-      "sha256": "780172cb5ad54fa1bc7a9e5376fea55d34038be7d773ab6899f9e61ebd4dcbf0"
+      "sha256": "375063e7c84983d264881e936151aa2a44e6b2085444f4491ccef462c0b5534f"
     },
     {
       "path": "figures/t_reach_reachable.svg",
@@ -42,7 +42,7 @@
     },
     {
       "path": "figures/t_reach_reachable.tex",
-      "sha256": "39f2ae0207b0f519894d177773ce5d5d07b54487e168acc5d05a905d84bef88f"
+      "sha256": "dd53eee6fb1d9c38e15a6de3afa92217c097b29a3ad6f1a89ea85bd39a3a238f"
     },
     {
       "path": "figures/t_reach_recall_at_10.svg",
@@ -50,38 +50,50 @@
     },
     {
       "path": "figures/t_reach_recall_at_10.tex",
-      "sha256": "f33609eb4c3dc5be7b8dcc374ace7c6a7b9128c3d614e7bed48fe9b5f3b27dba"
+      "sha256": "42f6d5494d77d6ccdc665eb4097371a40bda135eb9898871dd14f8c9dda93ce2"
+    },
+    {
+      "path": "figures/t_reach_recall_at_5.svg",
+      "sha256": "e4f772d6a2abaa334fe40282767d24ed81410219ad1468de65799a34c9d9d641"
+    },
+    {
+      "path": "figures/t_reach_recall_at_5.tex",
+      "sha256": "1a4d2142c369c5cabf7393e6226ab7855550eba76d212a3adcb70422480ca256"
     },
     {
       "path": "tables/t_reach_mrr.tex",
-      "sha256": "4db69a00cfa4462a35774a34cd2cb481e8dc0d7b4178bbb4aecd16ed2d2d2b69"
+      "sha256": "a5d0d3b5e2b56268bfd9f77311b44c8c28c4e46e628818e1352e1f5c0d66ea86"
     },
     {
       "path": "tables/t_reach_n_docs.tex",
-      "sha256": "7b1b60ecb89d79457487d116fcfe0e11beb0cd1ebae2c1f1c7a52bbf7e289f10"
+      "sha256": "975e4e97794885e15113e6a80fff80de0746fa4125ff5ecb7e82b9d6da50f753"
     },
     {
       "path": "tables/t_reach_n_instruments_non_latin.tex",
-      "sha256": "1e57c49a4654f08a91a5ca348ed74938b7a5525d0efcd1a9885cd528f9f72011"
+      "sha256": "16ab1bca49848e81cdda7184d2c7ea4e416037cb4d7855d525e21cddc24ad576"
     },
     {
       "path": "tables/t_reach_n_pairs.tex",
-      "sha256": "286a41d255abbe6b1f7b74cf774058b8f793097ba9b8b2ae3450cd0f5aae46f4"
+      "sha256": "9f1102fb271d4d0a13b9019e3dceb935993f6d12cf1d57c3cb1287098b3fa2bd"
     },
     {
       "path": "tables/t_reach_reachable.tex",
-      "sha256": "79091321b42ddbf11855fc29a9eea538a99418f2a18d7a8228b35bddc058a160"
+      "sha256": "07bec16a20a234810d9a0a79f424c74f45c538082cb2f98f3f24c4e75e6a4d52"
     },
     {
       "path": "tables/t_reach_recall_at_10.tex",
-      "sha256": "cfe4a1258d83ae29f97695fa22490175ea6524ce5e6753fa0a456de43452e02f"
+      "sha256": "3fed1ab744aaaf1657dbf1c8f978b342cadae3a6b4cff90c3f6909c66c89c6d3"
+    },
+    {
+      "path": "tables/t_reach_recall_at_5.tex",
+      "sha256": "3f9f826cd9d3e1e8cae873e90b2fe33108f57ca3b11317bfd873d893ddb56227"
     },
     {
       "path": "values.tex",
-      "sha256": "ff0c4305ee770e9e65b0bfac2001e41c6c24d43cc74c0259ebfc096c0d2848c0"
+      "sha256": "2fed7a0ac1aae79f4a6b3f704443a4506af54536118cd40088ab4c501c2e7a50"
     }
   ],
-  "metrics_hash": "53a2534632050563e91e74856e470557fe8b2df54f7c4514e6ed2c5985302d8d",
+  "metrics_hash": "b5fdec59632635dc756da355869cd18e032426e4b56f6af511b9bbb39e167c4c",
   "project": "veritrade",
   "schema": "ledger/assets@1"
 }

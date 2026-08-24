@@ -24,7 +24,7 @@ tasks:
     gold:
       - data/ground_truth/rdtii_reference_p67.csv
       - data/catalogues/MN_titles.json
-    metrics: [reachable, recall_at_10, mrr, n_pairs, n_docs, n_instruments_non_latin]
+    metrics: [reachable, recall_at_5, recall_at_10, mrr, n_pairs, n_docs, n_instruments_non_latin]
 
   # The end-to-end discovery and mapping tasks remain S0 work. They need a built
   # corpus (backend/corpus L0-L3) that does not exist for CN/IN/MN yet, and a
@@ -86,6 +86,12 @@ values:
   r10_in_ascii:        cells[economy=IN,tokeniser=ascii_only,terms=english].recall_at_10
   r10_in_script:       cells[economy=IN,tokeniser=script_aware,terms=english].recall_at_10
   r10_cn_full:         cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].recall_at_10
+
+  # What halving the shortlist costs. The budget matters as much as the recall:
+  # the grader is billed per shortlisted provision.
+  r5_cn_full:          cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].recall_at_5
+  r5_my_script:        cells[economy=MY,tokeniser=script_aware,terms=english].recall_at_5
+  r5_sg_ascii:         cells[economy=SG,tokeniser=ascii_only,terms=english].recall_at_5
   mrr_cn_full:         cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].mrr
 
   # Stability of the headline metric across seeded distractor draws.
@@ -150,6 +156,21 @@ claims:
     format:
       au_delta: "+.3f"
       my_delta: "+.3f"
+
+  - id: C4
+    template: >-
+      Halving the shortlist budget is not uniformly cheap: at five candidates
+      instead of ten, Malaysia loses {my_cost} recall and India {in_cost}, while
+      Mongolia loses {mn_cost} -- so a single global top-$k$ prices the grading
+      budget wrongly for every economy at once.
+    bind:
+      my_cost: cells[economy=MY,tokeniser=script_aware,terms=english].recall_at_5 - cells[economy=MY,tokeniser=script_aware,terms=english].recall_at_10
+      in_cost: cells[economy=IN,tokeniser=script_aware,terms=english].recall_at_5 - cells[economy=IN,tokeniser=script_aware,terms=english].recall_at_10
+      mn_cost: cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].recall_at_5 - cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].recall_at_10
+    format:
+      my_cost: "+.4f"
+      in_cost: "+.4f"
+      mn_cost: "+.4f"
 
   - id: C3
     template: >-
