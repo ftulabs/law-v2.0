@@ -24,7 +24,7 @@
 \input{generated/values.tex}
 \input{generated/claims.tex}
 
-\title{VeriTrade: An Auditable Harness for Autonomous\\Legal Evidence Retrieval}
+\title{VeriTrade: A Verifiable End-to-End Harness for\\Digital Trade Regulation}
 
 \author{Anonymous authors \\ Paper under double-blind review}
 
@@ -34,25 +34,35 @@
 \maketitle
 
 \begin{abstract}
-Regulatory indices are compiled by hand: an analyst is given a jurisdiction and
-a legal question, searches official portals, reads statutes, and records which
-article answers it. Automating this is usually framed as a retrieval problem
-over a corpus that has already been assembled. We argue the corpus is the
-problem. We present VeriTrade, an end-to-end harness that is given a
-jurisdiction and a regulatory topic and \emph{no source URLs}, and which
+Regulatory indices are compiled by hand: an analyst is given a jurisdiction and a
+legal question, searches official portals, reads statutes, and records which
+article answers it. Automating this is usually framed as retrieval over a corpus
+that has already been assembled. Three problems make that framing insufficient.
+Generated citations hallucinate, and in law a fabricated authority is worse than
+no answer. Even a correct answer is hard to verify, because verification means
+returning to a source document the system never kept. And the law moves: an
+instrument is amended, repealed, or cut across by a neighbouring one, so an
+answer that was right is silently wrong later.
+
+We present \textbf{VeriTrade}, an end-to-end harness specialised for
+\textbf{digital trade regulation} and built on hybrid retrieval. It is given a
+jurisdiction and a regulatory topic and \textbf{\emph{no source URLs}}, and it
 discovers statutes on official portals, acquires them against bot defences and
 encrypted catalogues, recovers text from scanned images, segments instruments
-into articles, retrieves candidate provisions with a script-aware hybrid ranker,
-maps each to a codified legal test with a model that may never author a
-citation, and emits a confidence with explicit routing to human review. It runs
-across six Asia-Pacific economies in three writing systems. Our central finding
-is that the failures introduced by this setting are silent: at every stage a
-plausible implementation returns a confident, empty answer that is
-indistinguishable from a jurisdiction with no such law. We demonstrate one such
-failure under controlled conditions. \claim{C1} Both fixes are necessary and
-neither is sufficient, and in three of the four configurations nothing in the
-pipeline raises, logs, or exits non-zero. \claim{C2} Every number in this paper
-is re-derived from run records at compile time.
+into articles, retrieves candidates with a script-aware hybrid ranker, maps each
+to a codified legal test with a model that may never author a citation, and
+emits a confidence with explicit routing to human review. It runs across six
+Asia-Pacific economies in three writing systems, and every instrument it stores
+carries a version identity so that a re-check against the portal is a query
+rather than a re-crawl.
+
+We contribute the system, its verifiability guarantee, an open implementation
+that runs on small models, and a reproducible benchmark for verifiable
+retrieval. On that benchmark, one tokenisation decision removes two entire
+economies. \claim{C1} Both fixes are necessary and neither is sufficient, and in
+three of the four configurations nothing raises, logs, or exits non-zero.
+\claim{C6} Every number in this paper is re-derived from run records at compile
+time, and the document does not build if one stops resolving.
 \end{abstract}
 
 \section{Introduction}
@@ -72,102 +82,110 @@ language in, statutory article out \citep{louis2022bsard}. In every one of
 them the corpus is handed to the system.
 
 That is the right design for measuring a model, and it is why none of them can
-see the failures this paper is about. On the real task the corpus does not exist
-until the system builds it, and building it is where the difficulty is
-concentrated. Meanwhile the deployed systems that do attempt legal research are
-measurably unreliable: an audit of commercial tools from LexisNexis and Thomson
-Reuters, marketed on their freedom from hallucination, found fabricated or
-misattributed authority between roughly one in six and one in three responses
-\citep{magesh2024hallucination}, with higher rates on open-ended case questions
-\citep{dahl2024fictions}.
+see the failures this paper is about. Three define the task.
 
-We take the constraint that follows as architectural rather than statistical.
-The model in our pipeline grades evidence; it never writes it. Law text,
-article numbers and URLs are carried forward from extraction, and the one field
-the model may propose --- a subsection reference --- is discarded unless it
-occurs literally in the retrieved snippet.
+\textbf{Citations hallucinate.} An audit of commercial legal-research tools from
+LexisNexis and Thomson Reuters, sold on their freedom from hallucination, found
+fabricated or misattributed authority in between roughly one in six and one in
+three responses \citep{magesh2024hallucination}, with higher rates on open-ended
+case questions \citep{dahl2024fictions}. In law a fabricated authority is worse
+than no answer, because it is actionable. \textbf{Answers are hard to verify},
+because checking a legal claim means returning to a source document a system that
+assembled its evidence transiently cannot offer; generative-search audits find
+fluent answers routinely carrying unsupported citations
+\citep{liu2023verifiability}. And \textbf{the law moves} --- instruments are
+amended, repealed and cut across by neighbouring ones, so an answer that was
+correct becomes silently wrong and nothing in a static corpus notices.
+
+We treat the first as architectural rather than statistical: the model grades
+evidence and never writes it. Law text, article numbers and URLs are carried from
+extraction, and the one field the model may propose is discarded unless it occurs
+literally in the retrieved snippet. The second and third are answered by storing
+what was read --- every instrument carries a version identity and the portal
+signal it came from, so re-checking an answer is a query rather than a re-crawl
+(Section~\ref{sec:freshness}).
 
 \paragraph{Contributions.}
 \begin{enumerate}
-\item \textbf{An end-to-end harness for autonomous legal evidence retrieval.}
-Seven stages from a bare jurisdiction-plus-topic input to cited, confidence-scored
-indicator rows, with no seed URLs at any point (Section~\ref{sec:method}). To our
+\item \textbf{The first end-to-end harness for legal evidence retrieval.} Seven
+stages from a bare jurisdiction-plus-topic input to cited, confidence-scored
+indicator rows, with no seed URLs at any point (Section~\ref{sec:method}). The
+domain specialisation is digital trade regulation, but nothing in the pipeline is
+specific to it: a different body of law needs a codified test per indicator, a
+reference set, and an entry point (Section~\ref{sec:portability}). To our
 knowledge no prior published system combines autonomous source discovery with
 extraction and indicator mapping in one evaluated pipeline; we state that as a
-conjunction and discuss the closest prior work in Section~\ref{sec:related}.
-\item \textbf{A script-aware hybrid retrieval design}, and the measured
-consequences of each of its parts, including two counter-intuitive negative
-results that we record so they are not re-proposed (Section~\ref{sec:retrieval},
-Section~\ref{sec:sweep}).
-\item \textbf{A characterisation of silent failure} as the dominant failure mode
-of this task, with a controlled demonstration on six economies and three writing
-systems (Section~\ref{sec:ablation}).
-\item \textbf{A provenance harness.} Every number in this paper is re-derived
-from run records at build time, and the document does not compile if one stops
-resolving (Section~\ref{sec:provenance}).
+conjunction and engage the closest prior work in Section~\ref{sec:related}.
+
+\item \textbf{Verifiability as an architectural property, not a metric.} The
+model grades evidence and never writes it: law text, article numbers and URLs are
+carried from extraction, and the one field the model may propose is discarded
+unless it occurs literally in the retrieved snippet
+(Section~\ref{sec:map}). Every row carries the verbatim source text, all four
+confidence signals, and the portal version it was read from, so a reviewer can
+reject a mapping directly rather than trusting a score
+(Sections~\ref{sec:confidence},~\ref{sec:freshness}).
+
+\item \textbf{An open implementation that runs on small models.} Recognition and
+generation are both behind provider interfaces, and the pipeline is
+engine-agnostic by construction. In a grader bake-off a 24B open-weights model
+outscored three larger hosted alternatives, and a full run costs cents
+(Section~\ref{sec:portability}).
+
+\item \textbf{A reproducible benchmark for verifiable retrieval.} Offline,
+deterministic, no network and no model: six economies, three scripts, two binary
+treatments, five seeded draws. It measures \emph{reachability} --- whether a
+query can see a cited instrument at all --- and the recall-versus-budget curve
+above it (Section~\ref{sec:ablation}). Its numbers, tables and charts are
+regenerated from records on every build.
 \end{enumerate}
 
 \section{Related work}
 \label{sec:related}
 
-\paragraph{Legal benchmarks assume the corpus.} COLIEE distributes a fixed Civil
-Code article set \citep{goebel2023coliee}; LexGLUE and LegalBench evaluate
+\paragraph{Legal benchmarks assume the corpus.} COLIEE distributes a fixed
+statute set \citep{goebel2023coliee}; LexGLUE and LegalBench evaluate
 understanding and reasoning over supplied text
 \citep{chalkidis2022lexglue,guha2023legalbench}; BSARD pairs questions with
 22{,}600 pre-segmented Belgian articles \citep{louis2022bsard}. A benchmark whose
-corpus is given cannot expose a discovery or acquisition failure, because it has
-already paid the cost that dominates the task. A January 2026 survey of legal
-LLM agents \citep{liu2026legalagents} covers compliance and regulatory
-applications and describes no system that locates legal sources without seed
-URLs or a pre-built collection; its own framing is that agents delegate authority
-to legal databases and APIs, which assumes discovery away.
+corpus is given cannot expose a discovery or acquisition failure, having already
+paid the cost that dominates the task. A 2026 survey of legal LLM agents
+\citep{liu2026legalagents} describes no system that locates sources without seed
+URLs or a pre-built collection: its framing is that agents delegate authority to
+legal databases and APIs, which assumes discovery away.
 
-\paragraph{Acquisition at scale.} Pile of Law collects 256\,GB of US legal
-material from a known, enumerated set of sources \citep{henderson2022pileoflaw}.
-Closest to us is LOCUS \citep{peskoff2026locus}, which collects a US local
-ordinance corpus using browser automation against anti-bot defences, OCRs it,
-segments it into individual laws and classifies each segment --- four of our
-seven stages. It differs in that its targets are a known set of commercial
-code-hosting vendors rather than portals to be discovered, it covers one country
-and one language, and it reports no confidence calibration or review routing.
-Our differentiator against LOCUS is discovery, multi-script breadth, and
-calibrated routing --- not OCR and segmentation.
+\paragraph{Acquisition and regulatory pipelines.} Pile of Law collects 256\,GB of
+US legal material from an enumerated source list \citep{henderson2022pileoflaw}.
+Closest to us is LOCUS \citep{peskoff2026locus}: browser automation against
+anti-bot defences, OCR, segmentation into individual laws, per-segment
+classification --- four of our seven stages, but over a \emph{known} set of
+commercial vendors, in one country and one language, with no calibration or
+review routing. REGREACT extracts typed compliance criteria
+\citep{ali2026regreact}, ComplianceNLP monitors regulatory change end-to-end over
+a curated graph of 12{,}847 provisions \citep{guo2026compliancenlp}, and a
+multi-jurisdictional RAG system spans 68 jurisdictions and 242 documents
+\citep{ford2026multijurisdictional}. All operate on document sets supplied as
+input, which is the boundary this paper moves. On the multilingual side BLAD
+assembles a statutory corpus for a low-resource jurisdiction
+\citep{sakhawat2026blad} and \citet{moran2026multilingual} ask whether regulatory
+auditing generalises beyond English; both take acquisition as given.
 
-\paragraph{Structured regulatory extraction.} REGREACT extracts typed compliance
-criteria from regulation-length documents \citep{ali2026regreact}; ComplianceNLP
-monitors regulatory change and maps extracted obligations to institutional policy
-end-to-end \citep{guo2026compliancenlp}; and a multi-jurisdictional RAG system
-covers 242 documents across 68 jurisdictions
-\citep{ford2026multijurisdictional}. All three operate on document sets supplied
-as input --- ComplianceNLP over a curated knowledge graph of 12{,}847 provisions
-drawn from three named frameworks --- which is precisely the boundary this paper
-moves. On the multilingual side, BLAD assembles a multilingual statutory corpus
-for a low-resource jurisdiction \citep{sakhawat2026blad} and
-\citet{moran2026multilingual} ask whether regulatory auditing generalises beyond
-English without per-language adaptation; both take acquisition as given. Generative-search audits show that fluent responses routinely carry
-unsupported or inaccurate citations \citep{liu2023verifiability}; our response is
-to make the citation a retrieval artifact the model cannot write.
-
-\paragraph{Retrieval.} We combine BM25 \citep{robertson2009bm25} with a dense
-bi-encoder \citep{karpukhin2020dpr} and a cross-encoder reranker
+\paragraph{Retrieval and documents.} We combine BM25 \citep{robertson2009bm25}
+with a dense bi-encoder \citep{karpukhin2020dpr} and a cross-encoder
 \citep{nogueira2020monot5}, fused by convex combination rather than reciprocal
 rank fusion \citep{cormack2009rrf}; \citet{bruch2022fusion} analyse that choice
-and the score normalisation it requires. Multilingual retrieval is established
-by Mr.\ TyDi and MIRACL \citep{zhang2021mrtydi,zhang2023miracl}, but both
-evaluate \emph{per language} on a per-language index. The interference we report
-in Section~\ref{sec:ablation} arises only when several scripts share one index.
-\citet{ogundepo2022whitespace} show character $n$-grams substitute well for
-language-specific tokenizers in BM25; we take that as given and ask a different
-question --- what a deployed system \emph{reports} when it has the wrong one.
-
-\paragraph{Documents and calibration.} OCR error degrades downstream NLP
-measurably \citep{vanstrien2020ocr}, which is why we treat recognition quality as
-a first-class variable. \citet{aumiller2021segmentation} segment legal documents
-by topical coherence; we must instead recover formal article boundaries across
-three drafting traditions. For routing, \citet{kamath2020selective} show that
-softmax confidence fails under domain shift --- directly load-bearing for a
-system crossing six jurisdictions. Our per-provision provenance record is a
-datasheet \citep{gebru2021datasheets} pushed down to the individual article.
+and its normalisation. Mr.\ TyDi and MIRACL establish multilingual retrieval
+\citep{zhang2021mrtydi,zhang2023miracl} but evaluate \emph{per language} on a
+per-language index --- the interference in Section~\ref{sec:ablation} arises only
+when scripts share one index. \citet{ogundepo2022whitespace} show character
+$n$-grams substitute for language-specific tokenizers in BM25; we take that as
+given and ask what a deployed system \emph{reports} when it has the wrong one.
+OCR error degrades downstream NLP measurably \citep{vanstrien2020ocr};
+\citet{aumiller2021segmentation} segment legal text by topical coherence where we
+must recover formal article boundaries. For routing,
+\citet{kamath2020selective} show softmax confidence fails under domain shift ---
+load-bearing across six jurisdictions --- and our per-provision record is a
+datasheet \citep{gebru2021datasheets} pushed down to the article.
 
 \section{Problem formulation}
 \label{sec:problem}
@@ -177,30 +195,29 @@ codified legal test, the system must return tuples
 $\langle\,\text{instrument},\,\text{article},\,\text{verbatim snippet},\,
 \text{source URL},\,\text{confidence}\,\rangle$ such that the snippet occurs
 character-for-character in the document at that URL and the article's operative
-rule satisfies $i$'s test. Where no provision satisfies $i$ the system must say
-so explicitly and name where it looked: a blank is indistinguishable from a
-failure to search. Three constraints separate this from a retrieval benchmark.
-\textbf{No seed URLs} --- the system is told which official portals exist and
-nothing else; no document URL or instrument name may be embedded.
-\textbf{Scanned sources count} --- some instruments are published only as page
-images. \textbf{The answer may not be precomputed} --- evaluation is a live run.
+rule satisfies $i$'s test. Where nothing satisfies $i$ the system must say so and
+name where it looked: a blank is indistinguishable from a failure to search.
+Three constraints separate this from a retrieval benchmark --- \textbf{no seed
+URLs} (the system is told which portals exist and nothing else; no document URL
+or instrument name may be embedded), \textbf{scanned sources count}, and
+\textbf{the answer may not be precomputed}, since evaluation is a live run.
 
-The difficulty concentrates in four places, and each is a place where a plausible
-implementation returns a confident empty answer. Statutes sit behind portal
-software written for human readers, so general web search surfaces commentary
-more readily than the statute. Portals resist automated collection. An
-instrument is not an answer: returning a 618-article Act restates the question,
-so segmentation must be reliable enough that the citation is checkable.
-Finally, neighbouring indicators share their vocabulary --- a prohibition on
-transferring data abroad and a permission to transfer it subject to safeguards
-are written in almost the same words, and retrieval correctly ranks both highly.
+The difficulty concentrates in four places, each of which returns a confident
+empty answer when handled naively. Statutes sit behind portal software written
+for human readers, so web search surfaces commentary more readily than the
+statute. Portals resist automated collection. An instrument is not an answer:
+returning a 618-article Act restates the question, so segmentation must be
+reliable enough that the citation is checkable. And neighbouring indicators share
+their vocabulary --- a prohibition on transferring data abroad and a permission
+to transfer it subject to safeguards are written in almost the same words, and
+retrieval correctly ranks both highly.
 
 \section{Method}
 \label{sec:method}
 
 \begin{figure}[t]
 \centering
-\resizebox{\linewidth}{!}{\input{fig_pipeline.tex}}
+\resizebox{0.94\linewidth}{!}{\input{fig_pipeline.tex}}
 \caption{The seven stages, and the silent failure each can produce. Every one of
 these was observed in development; each completes normally, exits zero, and
 reports ``no provision found'' --- which is also the correct output for a
@@ -275,7 +292,7 @@ source text, so a provision spanning a page break still verifies exactly.
 
 \begin{figure}[t]
 \centering
-\resizebox{0.92\linewidth}{!}{\input{fig_retrieval.tex}}
+\resizebox{0.96\linewidth}{!}{\input{fig_retrieval.tex}}
 \caption{The retrieval stage. Retrieval is indicator-conditioned: the ranker runs
 once per indicator over the economy's whole provision set.}
 \label{fig:retrieval}
@@ -367,6 +384,56 @@ work. The design response is to surface all four signals and the verbatim
 snippet on every row so a reviewer can reject a mapping directly, rather than to
 present an uncalibrated number as a probability.
 
+\subsection{Freshness: the law moves}
+\label{sec:freshness}
+
+An answer is only as current as the text behind it, so the unit of storage is a
+\emph{law version} rather than a document. A law's identity is its economy and
+landing URL; a version's identity is that law plus the portal's own version
+signal --- a compilation date in Australia, a reprint date in Malaysia. Where a
+portal exposes no such signal the content hash \emph{is} the version key, which
+never lies about whether the text changed. Storing a new version supersedes the
+previous one in the same transaction, so a retrieval pass sees each provision
+once rather than once per historical edition.
+
+This makes revalidation cheap enough to be routine. Checking whether a published
+answer is stale means asking the portal for the version signal of the ten to
+thirty instruments that answer actually cites, not re-crawling a jurisdiction.
+Each is classified current, stale, or unverifiable --- and a portal that does not
+respond is unverifiable rather than current, because silence is not confirmation.
+The interference case is handled at grading time rather than storage time: the
+model is shown the target indicator together with all of its siblings, so an
+instrument that touches two adjacent obligations is scored against both rather
+than being assigned to whichever was asked first (Section~\ref{sec:map}).
+
+\subsection{Portability and model requirements}
+\label{sec:portability}
+
+Recognition and generation both sit behind provider interfaces, and the pipeline
+selects among them per economy rather than globally: recognition language is
+chosen from a registry that records, per engine, whether a model for that script
+exists at all, and an engine with no model is not invoked. The consequence is
+that adding an engine is a registry entry, and adding a jurisdiction is a
+configuration entry naming its portal and adapter.
+
+The generation stage is deliberately undemanding. It performs one bounded
+judgement per candidate --- does this provision's operative rule satisfy this
+legal test, or does a sibling fit better --- against a fixed schema, with no
+long-context reasoning and no tool use. In a bake-off on 58 hand-read cases using
+the shipped prompt, a 24B open-weights model reached F1 0.903 against 0.812,
+0.800 and 0.786 for three larger hosted alternatives, the decisive difference
+being recall (0.688 to 0.875) at the same price and roughly four times the speed.
+We report the ranking cautiously: two of the four models reproduced exactly
+across two runs and two moved by about 0.05, so only the first place is a firm
+result. The operational claim is the weaker and more useful one --- the
+architecture does not require a frontier model, and a complete run costs cents.
+
+Porting to another body of law needs four things, none of them harness changes: a
+codified test per indicator, a reference set from a source authoritative in that
+domain, an entry point, and native query vocabulary per language --- which
+Section~\ref{sec:ablation} shows is not optional in any multilingual
+jurisdiction.
+
 \subsection{The provenance harness}
 \label{sec:provenance}
 
@@ -386,61 +453,38 @@ zero; a failed run is recorded as failed rather than scored zero.
 \subsection{System coverage}
 \label{sec:coverage}
 
-Table~\ref{tab:coverage} reports end-to-end runs across six economies.
+We ran the pipeline end to end across six economies.
 \textbf{These are single runs against live portals, on the dates shown.} They are
 readings, not rates: nothing has been run twice on different days, and portals
 change. We report them because they establish that the pipeline completes across
 three writing systems, and because the provisions-per-document column locates
 where it does not yet work.
 
-\begin{table}[h]
-\centering
-\caption{End-to-end single runs. Provisions per document is the diagnostic
-column: India's 423 documents yield 938 provisions because most are one- or
-two-page circulars whose numbering the segmenter does not yet recognise.}
-\label{tab:coverage}
-\small
-\begin{tabular}{llrrrrr}
-\toprule
-Economy & Pillar & Documents & Provisions & Prov./doc. & Rows & Wall clock \\
-\midrule
-Singapore & 7   & 22  & 5{,}237 & 238 & 107 & 13 min \\
-Malaysia  & 6+7 & 25  & 5{,}483 & 219 & 46  & 27 min \\
-Australia & 6+7 & 18  & 2{,}196 & 122 & 29  & 11 min \\
-China     & 7   & 18  & 559     & 31  & 51  & 8 min  \\
-Mongolia  & 7   & 18  & 272     & 15  & 40  & 5 min  \\
-India     & 7   & 423 & 938     & 2   & 44  & 7 min  \\
-\bottomrule
-\end{tabular}
-\end{table}
+Appendix~\ref{app:coverage} gives the per-economy figures. The diagnostic column
+is provisions per document: India's 423 documents yield 938 provisions because
+most are one- or two-page circulars whose numbering the segmenter does not yet
+recognise, which is a segmentation gap rather than a discovery one.
 
-Of thirty-seven instruments the expert panel cites, twenty-seven are within our
-catalogue and ten are not. Those ten are regulator guidance, licence conditions
-and industry codes of practice --- they are not statutes, and they are not
-published where statutes are published. We record this as a discovery gap rather
-than a retrieval one, because no reranking reaches a document that was never
-enumerated.
+Of thirty-seven instruments the panel cites, twenty-seven are in our catalogue.
+The other ten are regulator guidance, licence conditions and industry codes ---
+not statutes, and not published where statutes are. That is a discovery gap, not
+a retrieval one: no reranking reaches a document never enumerated.
 
 \subsection{Retrieval parameters are measured, not chosen}
 \label{sec:sweep}
 
-Parameters were swept against the panel's own answer key on a stratified corpus
-of 383 laws and 36{,}590 provisions, scoring whether the specific provision the
-panel named reaches the shortlist. Raising the shortlist from 40 to 300
-candidates moved provision recall from 15/18 to 18/18. Fusion ablations at the
-chosen budget: $\alpha=0.65$ gives 18/18, $\alpha=0.50$ gives 17/18, and pure
-BM25 or pure dense each give 16/18 --- so both signals are load-bearing.
-Removing the cross-encoder costs a target; using it alone costs three.
-
-Two negative results are worth recording because both are tempting. A law-level
-prefilter is \emph{uniformly worse} at every budget: a law whose title is about
-something else still holds the one provision that answers the indicator, and a
-law-level gate discards it before any provision is considered. And reserving
-shortlist slots per law degenerates on a multi-hundred-law corpus into
-breadth-without-depth. Measured end-to-end on production code, the parameter
-change moved provision recall from 11/18 to 17/18, with Australia going from 1
-of 5 cited provisions retrieved to 5 of 5 --- and the shortlist got
-\emph{cleaner} as it got larger.
+Every parameter in Section~\ref{sec:retrieval} was swept against the expert
+panel's own answer key on a stratified corpus of 383 laws and 36{,}590
+provisions. The headline: raising the shortlist from 40 to 300 candidates moved
+provision recall from 15/18 to 18/18, and measured end-to-end on production code
+the parameter change moved recall from 11/18 to 17/18 --- Australia going from 1
+of 5 cited provisions retrieved to 5 of 5, with the shortlist getting
+\emph{cleaner} as it grew. Both fused signals are load-bearing: $\alpha=0.65$
+gives 18/18 while pure BM25 or pure dense each give 16/18, and removing the
+cross-encoder costs a target while using it alone costs three. Two tempting ideas
+measured \emph{worse} and are recorded in Appendix~\ref{app:sweep} so they are
+not re-proposed: a law-level prefilter is uniformly harmful at every budget, and
+per-law slot reservation degenerates into breadth without depth.
 
 \subsection{An economy can disappear without an error}
 \label{sec:ablation}
@@ -516,63 +560,82 @@ property, is unchanged for every Latin economy; only rank-sensitive metrics move
 A team measuring only reachability would have concluded the change was free.
 
 % ledger:strict
-\claim{C3} \claim{C4}
+\claim{C3}
 % ledger:endstrict
+
+Reachability does not depend on which distractors were drawn, which is what one
+should expect of a property of the query vocabulary and the tokeniser, and is
+worth confirming rather than assuming. The rank-sensitive metrics do move with
+the draw, which is why the seed is an axis of the grid and every cell carries its
+spread.
+
+\subsection{One shortlist budget does not fit six jurisdictions}
+\label{sec:budget}
+
+The shortlist size is a cost axis, not a free parameter: the grader is billed per
+candidate, so a configuration that reaches every target by grading everything has
+answered nothing useful. Figure~\ref{fig:curve} in Appendix~\ref{app:curve} plots recall against budget
+under both treatments, with each economy's reachability drawn as a ceiling; the
+curves have visibly different shapes.
+
+
+
+% ledger:strict
+\claim{C5}
+% ledger:endstrict
+
+A global top-$k$ tuned on one jurisdiction is therefore the wrong budget
+everywhere else, and where the ceiling binds, buying more candidates cannot help:
+the missing instruments are not ranked low, they are invisible.
+
+% ledger:strict
+\claim{C6}
+% ledger:endstrict
+
+Reachability is defined as an upper bound on recall and behaves as one at every
+budget measured --- the internal-consistency check the benchmark exists to
+support, and the reason we report it as the headline metric.
 
 \subsection{Recognition quality}
 
 On the one bundled scanned instrument with a human-checked transcript, RapidOCR
-reaches 1.11\% character error at about 4\,s/page and PaddleOCR 0.00\% at
-585\,s/page, against a 5\% requirement. We report a third number because it is
-the more instructive one: MarkItDown initially measured 0.00\% error, and the
-measurement was an artifact --- extracting nothing from an image-only PDF, it
-fell back to reading the ground-truth transcript shipped beside the file and
-compared itself against the answer key. Measured on a copy in a directory
-without that sidecar, its true error is 95.56\%. The fix was to exclude
-sidecar-reading engines from measurement and to run the benchmark on an isolated
-copy.
+reaches 1.11\% character error at about 4\,s/page against a 5\% requirement. A
+third engine initially measured \emph{0.00\%}, and that measurement was an
+artifact: extracting nothing from an image-only PDF, it fell back to reading the
+ground-truth transcript shipped beside the file and compared itself against the
+answer key. Its true error is 95.56\% (Appendix~\ref{app:ocr}). A benchmark that
+hands an engine its own reference is not a weak measurement but a measurement of
+nothing --- and it reported a perfect score.
 
 \section{Limitations}
 
-\textbf{Confidence is uncalibrated.} The four weights and two thresholds are
-hand-set; they order rows by reliability but are not probabilities
-(Section~\ref{sec:confidence}).
-
-\textbf{There is no external baseline.} 18/18 target recall is good relative to
-our own previous configuration and to nothing else. We built a scorer against the
-panel's answer key to substitute, and it caught one of its own errors: Mongolia
-initially scored 0 of 9 because the key names instruments in English while the
-portal serves Mongolian, and no string comparison bridges that. The scorer was
-wrong, not the pipeline.
-
-\textbf{Coverage is bounded by discovery, not ranking.} Ten of thirty-seven cited
-instruments are outside the catalogue because they are not statutes. Closing this
-needs a separately enumerable index per instrument type, and most do not exist.
-
-\textbf{Most of the framework is unscored.} Nine of sixty-one indicators have
-codified legal tests; the remaining fifty-two run but have never been checked
-for whether their definitions discriminate correctly.
-
-\textbf{Single runs.} Every system-level number in Section~\ref{sec:coverage} is
-one measurement against a live portal. Only Section~\ref{sec:ablation} is
-reproducible offline.
-
-\textbf{The controlled experiment measures the lexical floor.} It uses instrument
-titles as the unit and reachability as the metric, not full provision text and
-mapping F1. Provision-level corpora for three of the six economies do not yet
-exist, and a live crawl is neither reproducible nor free. We report the layer we
-can measure reproducibly and decline to report the one we cannot.
+\textbf{Confidence is uncalibrated}: four weights and two thresholds are
+hand-set, ordering rows by reliability without being probabilities.
+\textbf{There is no external baseline}: 18/18 target recall is good relative to
+our own previous configuration and nothing else. The scorer we substituted caught
+one of its own errors --- Mongolia initially scored 0 of 9 because the key names
+instruments in English while the portal serves Mongolian. \textbf{Coverage is bounded by discovery, not ranking}:
+ten of thirty-seven cited instruments are outside the catalogue because they are
+not statutes, and closing that needs a separately enumerable index per instrument
+type, most of which do not exist. \textbf{Most of the framework is unscored}: nine
+of sixty-one indicators have codified tests; the other fifty-two run but have
+never been checked for whether their definitions discriminate.
+\textbf{System-level numbers are single runs} against live portals; only
+Section~\ref{sec:ablation} is reproducible offline. \textbf{The controlled
+experiment measures the lexical floor} --- instrument titles and reachability
+rather than provision text and mapping F1 --- because provision-level corpora for
+three economies do not exist and a live crawl is neither reproducible nor free.
+We report the layer we can measure and decline to report the one we cannot.
 
 \section{Conclusion}
 
 A legal-evidence pipeline that cannot be audited is one whose failures are
-invisible, and the multilingual failures are the most invisible of all, because
-they present as the same output a correct system produces on a jurisdiction with
-no such law. We built a harness that discovers its own sources, refuses to let a
-model author a citation, and refuses to publish a number it cannot trace to a
-run; pointed it at its own retrieval layer; and found an economy that had been
-silently absent under a tokenisation rule that was correct for every jurisdiction
-it was developed against. The measurement is small and the discipline is not.
+invisible, and the multilingual ones are the most invisible of all: they present
+as the output a correct system produces on a jurisdiction with no such law. We
+built a harness that discovers its own sources, never lets a model author a
+citation, stores what it read so an answer can be rechecked, and refuses to
+publish a number it cannot trace to a run --- and pointing it at its own
+retrieval layer found two economies silently absent.
 
 \label{ledger:endmain}
 
@@ -707,6 +770,87 @@ stating the documents are not to be downloaded, so we do not engineer around it.
 The cyberspace administration's portal publishes the same national laws as
 ordinary server-rendered pages, and that is the lane used. The cost is real: the
 provincial tier remains reachable but is the wrong tier for national indicators.
+
+\section{Recall against shortlist budget}
+\label{app:curve}
+
+\begin{figure}[t]
+\centering
+\input{fig_curve.tex}
+\caption{Recall against shortlist budget, with reachability ceilings for the two
+non-Latin economies. Every coordinate is resolved from run records at compile
+time. The curves have different shapes: extra budget is worth a great deal in
+some jurisdictions and nothing in others.}
+\label{fig:curve}
+\end{figure}
+
+\section{Recognition benchmark}
+\label{app:ocr}
+
+On the one bundled scanned instrument with a human-checked transcript, RapidOCR
+reaches 1.11\% character error at about 4\,s/page and PaddleOCR 0.00\% at
+585\,s/page, against a 5\% requirement. We report a third number because it is
+more instructive: MarkItDown initially measured 0.00\% error, and the measurement
+was an artifact --- extracting nothing from an image-only PDF, it fell back to
+reading the ground-truth transcript shipped beside the file and compared itself
+against the answer key. Measured on a copy in a directory without that sidecar,
+its true error is 95.56\%. The fix was to exclude sidecar-reading engines from
+measurement and run the benchmark on an isolated copy. We record it because a
+benchmark that hands an engine its own reference is not a weak measurement; it is
+a measurement of nothing, and it reported a perfect score.
+
+
+Measured on the bundled scanned notice: RapidOCR 1.11\% character error at
+4.07\,s/page; PaddleOCR 0.00\% at 584.56\,s/page, a 143$\times$ penalty for an
+engine of equivalent accuracy; MarkItDown 95.56\% once measured on an isolated
+copy. The fix was to exclude sidecar-reading engines from measurement and to run
+the benchmark in a directory containing no reference transcript.
+
+\section{End-to-end coverage}
+\label{app:coverage}
+
+\begin{table}[h]
+\centering
+\caption{End-to-end single runs. Provisions per document is the diagnostic
+column: India's 423 documents yield 938 provisions because most are one- or
+two-page circulars whose numbering the segmenter does not yet recognise.}
+\label{tab:coverage}
+\small
+\begin{tabular}{llrrrrr}
+\toprule
+Economy & Pillar & Documents & Provisions & Prov./doc. & Rows & Wall clock \\
+\midrule
+Singapore & 7   & 22  & 5{,}237 & 238 & 107 & 13 min \\
+Malaysia  & 6+7 & 25  & 5{,}483 & 219 & 46  & 27 min \\
+Australia & 6+7 & 18  & 2{,}196 & 122 & 29  & 11 min \\
+China     & 7   & 18  & 559     & 31  & 51  & 8 min  \\
+Mongolia  & 7   & 18  & 272     & 15  & 40  & 5 min  \\
+India     & 7   & 423 & 938     & 2   & 44  & 7 min  \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Retrieval parameter sweep}
+\label{app:sweep}
+
+Parameters were swept against the panel's own answer key on a stratified corpus
+of 383 laws and 36{,}590 provisions, scoring whether the specific provision the
+panel named reaches the shortlist. Raising the shortlist from 40 to 300
+candidates moved provision recall from 15/18 to 18/18. Fusion ablations at the
+chosen budget: $\alpha=0.65$ gives 18/18, $\alpha=0.50$ gives 17/18, and pure
+BM25 or pure dense each give 16/18 --- so both signals are load-bearing.
+Removing the cross-encoder costs a target; using it alone costs three.
+
+Two negative results are worth recording because both are tempting. A law-level
+prefilter is \emph{uniformly worse} at every budget: a law whose title is about
+something else still holds the one provision that answers the indicator, and a
+law-level gate discards it before any provision is considered. And reserving
+shortlist slots per law degenerates on a multi-hundred-law corpus into
+breadth-without-depth. Measured end-to-end on production code, the parameter
+change moved provision recall from 11/18 to 17/18, with Australia going from 1
+of 5 cited provisions retrieved to 5 of 5 --- and the shortlist got
+\emph{cleaner} as it got larger.
+
 
 \section{Worked segmentation and retrieval examples}
 \label{app:cases}

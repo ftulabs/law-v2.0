@@ -1,69 +1,57 @@
-%% Generated diagram fragment. The paper's preamble supplies tikz, amsmath
-%% and the libraries; this file is the picture only.
+%% Generated diagram fragment. The paper's preamble supplies tikz, amsmath and
+%% the libraries; this file is the picture only. Laid out landscape: the scoring
+%% stages run left to right so the figure costs width rather than page height.
 \begin{tikzpicture}[
   >=Stealth,
-  box/.style={draw, rounded corners=2pt, minimum height=8mm, align=center,
+  box/.style={draw, rounded corners=2pt, minimum height=7.5mm, align=center,
               font=\scriptsize, inner xsep=3pt},
-  scorer/.style={box, fill=blue!7, minimum width=33mm},
-  src/.style={box, fill=black!5, minimum width=40mm},
-  fuse/.style={box, fill=green!8, minimum width=44mm},
-  llm/.style={box, fill=orange!10, minimum width=62mm},
-  gate/.style={box, fill=red!8, minimum width=44mm},
+  scorer/.style={box, fill=blue!7, minimum width=27mm},
+  src/.style={box, fill=black!5, minimum width=32mm},
+  fuse/.style={box, fill=green!8, minimum width=30mm},
+  llm/.style={box, fill=orange!10, minimum width=30mm},
+  gate/.style={box, fill=red!8, minimum width=27mm},
   note/.style={font=\tiny\itshape, text=black!55, align=center, inner sep=1pt},
-  side/.style={font=\tiny\itshape, text=black!55, align=left, inner sep=1pt},
   flow/.style={->, semithick, black!65},
 ]
 
-% ===== inputs ===========================================================
+% ---- inputs, then the three scorers in parallel ------------------------
 \node[src] (corpus) {provisions of one economy};
-\node[src, right=12mm of corpus] (query)
-  {indicator query\\[-1pt] \scriptsize title $+$ English terms $+$ native terms};
+\node[src, below=3mm of corpus] (query)
+  {indicator query: title $+$ EN $+$ native terms};
 
-% ===== three scorers, in parallel =======================================
-\node[scorer, below=13mm of corpus, xshift=-20mm] (bm25)  {BM25};
-\node[scorer, right=5mm of bm25]                  (dense) {dense bi-encoder};
-\node[scorer, right=5mm of dense]                 (ce)    {cross-encoder};
-
-\node[note, below=1.5mm of bm25,  text width=33mm] {script-aware tokeniser:\\bigrams for no-space scripts};
-\node[note, below=1.5mm of dense, text width=33mm] {multilingual MiniLM,\\cross-lingual by construction};
-\node[note, below=1.5mm of ce,    text width=33mm] {English only; \emph{disabled}, never\\swapped, for other languages};
+\node[scorer, right=14mm of corpus, yshift=4mm]  (bm25)  {BM25};
+\node[scorer, below=2.5mm of bm25]               (dense) {dense bi-encoder};
+\node[scorer, below=2.5mm of dense]              (ce)    {cross-encoder};
 
 \foreach \t in {bm25, dense, ce} {
-  \draw[flow] (corpus.south) -- (\t.north);
-  \draw[flow] (query.south)  -- (\t.north);
+  \draw[flow] (corpus.east) -- (\t.west);
+  \draw[flow] (query.east)  -- (\t.west);
 }
+\node[note, right=1.5mm of bm25,  text width=26mm, align=left] {script-aware: bigrams for no-space scripts};
+\node[note, right=1.5mm of dense, text width=26mm, align=left] {cross-lingual by construction};
+\node[note, right=1.5mm of ce,    text width=26mm, align=left] {English only; \emph{disabled}, never swapped};
 
-% ===== fusion and shortlist =============================================
-\node[fuse, below=18mm of dense, minimum width=66mm] (fuse)
-  {$s_i=\tfrac12\!\left[\max\!\big(0,\;
-     \alpha\,\tfrac{b_i}{\max_j b_j}+(1{-}\alpha)\tfrac{\cos_i+1}{2}
-     +\beta_i-\pi_i\big)\right]+\tfrac12\,\sigma(c_i)$\\[1pt]
-   \scriptsize $\alpha=0.65$; \; $\beta\le 0.30$ phrase bonus; \;
-   $\pi\le 0.20$ sibling penalty};
-\foreach \t in {bm25, dense, ce} \draw[flow] (\t.south) ++(0,-7.5mm) -- (fuse.north);
+% ---- the chain, left to right ------------------------------------------
+\node[fuse, below=15mm of query.south east, anchor=west, xshift=-14mm] (fuse)
+  {weighted fusion};
+\node[fuse, right=7mm of fuse] (short) {shortlist $k$};
+\node[llm,  right=7mm of short] (llm)  {LLM grader};
+\node[gate, right=7mm of llm]   (conf) {confidence};
+\node[box, fill=black!4, right=7mm of conf, minimum width=42mm] (route)
+  {quarantine $\mid$ review $\mid$ accept};
 
-\node[fuse, below=6mm of fuse, minimum width=66mm] (short)
-  {$k=\min\!\big(n,\,450,\,\max(40,\lceil 0.05n\rceil)\big)$ \;---\; or grade all $n$ when $n\le 80$};
 \draw[flow] (fuse) -- (short);
-
-% ===== grading ==========================================================
-\node[llm, below=7mm of short] (llm)
-  {LLM grader --- target indicator shown \emph{together with all siblings}};
 \draw[flow] (short) -- (llm);
-\node[side, right=3mm of llm, text width=30mm]
-  {forces an explicit choice between adjacent indicators; grades evidence, never
-   authors a citation. A returned subsection is kept only if it occurs
-   literally in the snippet};
-
-% ===== confidence and routing ===========================================
-\node[gate, below=8mm of llm] (conf) {confidence: four weighted signals};
-\draw[flow] (llm) -- node[note, right, xshift=1.5mm, text width=34mm, align=left]
-  {structured JSON: operative rule,\\satisfies target, better sibling, subsection} (conf);
-\node[side, left=3mm of conf, text width=30mm, align=right]
-  {one signal is a self-check: is the quoted snippet literally present in the
-   source document?};
-
-\node[box, fill=black!4, below=6mm of conf, minimum width=62mm] (route)
-  {quarantine \quad$\mid$\quad human review \quad$\mid$\quad auto-accept};
+\draw[flow] (llm) -- (conf);
 \draw[flow] (conf) -- (route);
+\draw[flow] (dense.south) ++(0,-2mm) |- ([yshift=4mm]fuse.north) -- (fuse.north);
+
+\node[note, below=1.5mm of fuse,  text width=32mm]
+  {$\alpha=0.65$ lexical\,:\,dense,\\then $\tfrac12$ cross-encoder};
+\node[note, below=1.5mm of short, text width=32mm]
+  {$\min(n,450,\max(40,\lceil 0.05n\rceil))$;\\grade all when $n\le 80$};
+\node[note, below=1.5mm of llm,   text width=32mm]
+  {target shown with \emph{all} siblings;\\grades, never authors a citation};
+\node[note, below=1.5mm of conf,  text width=27mm]
+  {four weighted signals; one is a self-check};
 \end{tikzpicture}

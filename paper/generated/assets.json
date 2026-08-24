@@ -2,7 +2,7 @@
   "artifacts": [
     {
       "path": "claims.tex",
-      "sha256": "b4d0cb67465e715e06706cfd7272afff30eb9b7b43d43828c78004e76eb9d85b"
+      "sha256": "2681fd7061b27a4cd0ff00f98e412908b1dcf1fd71daca0132715f4d7fb08abf"
     },
     {
       "path": "figures/t_reach_mrr.svg",
@@ -10,7 +10,7 @@
     },
     {
       "path": "figures/t_reach_mrr.tex",
-      "sha256": "1e12da4864ab2e4ed44f3b63c4162afd9394bc46f0b0985f6647b8c8d10a3475"
+      "sha256": "fcada727f65f2420673863adf89e05a692615eecc30a695edafa9967af1b6213"
     },
     {
       "path": "figures/t_reach_n_docs.svg",
@@ -18,7 +18,7 @@
     },
     {
       "path": "figures/t_reach_n_docs.tex",
-      "sha256": "dbcf27fb619112a5508036f73bd1c60edb224cb0f6ea886ccbfa38c6a4440ad8"
+      "sha256": "8095053da4db181c5aa28139883ab81ce5d5ed3e307fbced8da13a436318625d"
     },
     {
       "path": "figures/t_reach_n_instruments_non_latin.svg",
@@ -26,7 +26,7 @@
     },
     {
       "path": "figures/t_reach_n_instruments_non_latin.tex",
-      "sha256": "bd477c65ce4a3228b6b0e9fcd4a2930ea29dd7434deffa49325cb20f227ebc84"
+      "sha256": "5f49f17bd530347573580c6edc502f5d4adddf1a63d4b755d2f6bf42b0f8bd13"
     },
     {
       "path": "figures/t_reach_n_pairs.svg",
@@ -34,7 +34,7 @@
     },
     {
       "path": "figures/t_reach_n_pairs.tex",
-      "sha256": "375063e7c84983d264881e936151aa2a44e6b2085444f4491ccef462c0b5534f"
+      "sha256": "d9a2d2244a0a00006714f06fd8c5e88878cb0d155ba2a4cae7120983dd55179a"
     },
     {
       "path": "figures/t_reach_reachable.svg",
@@ -42,7 +42,15 @@
     },
     {
       "path": "figures/t_reach_reachable.tex",
-      "sha256": "dd53eee6fb1d9c38e15a6de3afa92217c097b29a3ad6f1a89ea85bd39a3a238f"
+      "sha256": "4beeee13b5cad1f569262de6829f25ec30537f54ef23b9bbc4d75068d5094939"
+    },
+    {
+      "path": "figures/t_reach_recall_at_1.svg",
+      "sha256": "ce2b8049412511cfd567778eb1d79d43dc0acb1b51c13d4922f0a6b7e1733e90"
+    },
+    {
+      "path": "figures/t_reach_recall_at_1.tex",
+      "sha256": "b370a93932d448d37657528405f527c24ec2a0e1a5da109afc74322e08ebdc5a"
     },
     {
       "path": "figures/t_reach_recall_at_10.svg",
@@ -50,7 +58,15 @@
     },
     {
       "path": "figures/t_reach_recall_at_10.tex",
-      "sha256": "42f6d5494d77d6ccdc665eb4097371a40bda135eb9898871dd14f8c9dda93ce2"
+      "sha256": "edcccff353a3a5474c72ecf6910e85b436cef8c919e0be36c48ca697c7ba8976"
+    },
+    {
+      "path": "figures/t_reach_recall_at_20.svg",
+      "sha256": "3b4b6d76311c306666ebe7b076d2635115d5c9e32b9bd3b66df90d122aa7601b"
+    },
+    {
+      "path": "figures/t_reach_recall_at_20.tex",
+      "sha256": "a0f5200eaa5fd5a83c93d785a5bbc0fcff7d263ed9f590219f27fb79ba76c013"
     },
     {
       "path": "figures/t_reach_recall_at_5.svg",
@@ -58,42 +74,62 @@
     },
     {
       "path": "figures/t_reach_recall_at_5.tex",
-      "sha256": "1a4d2142c369c5cabf7393e6226ab7855550eba76d212a3adcb70422480ca256"
+      "sha256": "b3e98382e2dbbf381b038bac0d817cf768f25aee2fb7eeca109b9b8194f3d841"
+    },
+    {
+      "path": "figures/t_reach_recall_at_50.svg",
+      "sha256": "d3aa384cbe628cbc6958732dd5c4a7748826121d34f87888932e1a9cc73bb354"
+    },
+    {
+      "path": "figures/t_reach_recall_at_50.tex",
+      "sha256": "1ba7e8566a6b1152675c392d8b599713637cad6aebf6a66214ab5e63c058bee4"
     },
     {
       "path": "tables/t_reach_mrr.tex",
-      "sha256": "a5d0d3b5e2b56268bfd9f77311b44c8c28c4e46e628818e1352e1f5c0d66ea86"
+      "sha256": "814f7ac0dfc957e8d83bff434ce707a915982719af9f907e68505b25d78b2711"
     },
     {
       "path": "tables/t_reach_n_docs.tex",
-      "sha256": "975e4e97794885e15113e6a80fff80de0746fa4125ff5ecb7e82b9d6da50f753"
+      "sha256": "f0517e3e5ec129b4e213dbdf15fdbab40873dce0683fca18be7c55955c803a86"
     },
     {
       "path": "tables/t_reach_n_instruments_non_latin.tex",
-      "sha256": "16ab1bca49848e81cdda7184d2c7ea4e416037cb4d7855d525e21cddc24ad576"
+      "sha256": "57b3a3098cca83d063bba1d099eb81e3b1c771178513fc313ca254f9555f99e1"
     },
     {
       "path": "tables/t_reach_n_pairs.tex",
-      "sha256": "9f1102fb271d4d0a13b9019e3dceb935993f6d12cf1d57c3cb1287098b3fa2bd"
+      "sha256": "c1e9ff5605ba686cecd0fcbb92ecf61fb85d946c6dad2f1f597e39406eea531f"
     },
     {
       "path": "tables/t_reach_reachable.tex",
-      "sha256": "07bec16a20a234810d9a0a79f424c74f45c538082cb2f98f3f24c4e75e6a4d52"
+      "sha256": "36f93ba38cb7b165f28bdac59d93eb6f1e5b2ce1c657b77109c981ea1d781571"
+    },
+    {
+      "path": "tables/t_reach_recall_at_1.tex",
+      "sha256": "19a34e8301471b384d87c02b2aaec10494e85f0e6e099aad7e095ed59e91dede"
     },
     {
       "path": "tables/t_reach_recall_at_10.tex",
-      "sha256": "3fed1ab744aaaf1657dbf1c8f978b342cadae3a6b4cff90c3f6909c66c89c6d3"
+      "sha256": "6960ccea90edce89cab5cb00f8624b86ed892443991e6de38fac179bae5f1ce3"
+    },
+    {
+      "path": "tables/t_reach_recall_at_20.tex",
+      "sha256": "e2bab8dc54a13cc926f54ea4737a5e862e921a86ffd9a28ef580173f734e6144"
     },
     {
       "path": "tables/t_reach_recall_at_5.tex",
-      "sha256": "3f9f826cd9d3e1e8cae873e90b2fe33108f57ca3b11317bfd873d893ddb56227"
+      "sha256": "fbc51915fbd0b4d7fb7ca39f987d12cb1a91f22a0da1a4d37dcbdff94d6ef91a"
+    },
+    {
+      "path": "tables/t_reach_recall_at_50.tex",
+      "sha256": "90fe35ff028457803301cfb0b617e4011272c61585a09a9b268b9439be62cf4c"
     },
     {
       "path": "values.tex",
-      "sha256": "2fed7a0ac1aae79f4a6b3f704443a4506af54536118cd40088ab4c501c2e7a50"
+      "sha256": "fbf4c06f3a78d78ccf247e97c7f569015488116c05301b1fd4feba80d8d1fb87"
     }
   ],
-  "metrics_hash": "b5fdec59632635dc756da355869cd18e032426e4b56f6af511b9bbb39e167c4c",
+  "metrics_hash": "d351a8cebeb5d18aa1285092829e27806d7dc4b48cfc503d92b92232212490ea",
   "project": "veritrade",
   "schema": "ledger/assets@1"
 }

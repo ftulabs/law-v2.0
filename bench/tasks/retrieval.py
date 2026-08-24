@@ -26,9 +26,11 @@ Three metrics, and the first is the one that matters:
                  NON-ZERO score. This is the silent-failure metric: a zero here is
                  not a ranking that went badly, it is a document the query cannot
                  see.
-  recall_at_5    share whose instrument lands in the top five of the pooled
-                 index -- half the grading budget of the next line.
-  recall_at_10   share whose instrument lands in the top ten of the pooled index.
+  recall_at_k    share whose instrument lands in the top k of the pooled index,
+                 for k in 1, 5, 10, 20, 50. The grader is billed per shortlisted
+                 provision, so k is a cost axis and not a free parameter: the
+                 curve over k is what says whether a cheaper budget is affordable
+                 in a given jurisdiction.
   mrr            mean reciprocal rank over the full ranking, 0 when unreachable.
 """
 from __future__ import annotations
@@ -63,7 +65,7 @@ N_DISTRACTORS = 2000
 # 100% recall by grading everything". A five-item shortlist is half the grading
 # cost of a ten-item one, so reporting both says what the cheaper budget costs in
 # recall rather than leaving it to be assumed.
-TOP_KS = (5, 10)
+TOP_KS = (1, 5, 10, 20, 50)
 
 # Round 1's tokeniser, verbatim. `retrieval.py` keeps the ASCII branch of `_TOKEN`
 # bit-identical to this so the swept retrieval parameters still hold, and
@@ -167,8 +169,11 @@ def run(config: "dict[str, Any]", ctx: Any) -> "dict[str, float]":
     n_native, n_instruments = corpus.native_share(economy)
     return {
         "reachable": n_reachable / n,
+        "recall_at_1": n_at_k[1] / n,
         "recall_at_5": n_at_k[5] / n,
         "recall_at_10": n_at_k[10] / n,
+        "recall_at_20": n_at_k[20] / n,
+        "recall_at_50": n_at_k[50] / n,
         "mrr": rr_total / n,
         # Diagnostics. They travel with the record and are never aggregated,
         # because a count that reaches a figure is a number nobody meant to

@@ -1,0 +1,33 @@
+%% Recall against shortlist budget, both treatments applied. Every coordinate is
+%% an \lnum macro resolved from run records at compile time; the dashed lines are
+%% each economy's reachability ceiling from the same records.
+\begin{tikzpicture}
+\begin{axis}[
+  width=\linewidth, height=3.9cm,
+  xmode=log, log basis x=10,
+  xtick={1,5,10,20,50}, xticklabels={1,5,10,20,50},
+  xlabel={shortlist budget $k$ (candidates graded per indicator, log scale)},
+  ylabel={recall@$k$},
+  xlabel style={font=\small}, ylabel style={font=\small},
+  tick label style={font=\scriptsize},
+  ymin=0, ymax=0.85, xmin=0.85, xmax=60,
+  grid=major, grid style={very thin, gray!25},
+  legend style={font=\scriptsize, at={(0.02,0.98)}, anchor=north west,
+                draw=none, fill=white, fill opacity=0.85, text opacity=1,
+                legend columns=2, /tikz/every even column/.append style={column sep=5pt}},
+  tick align=outside, tick pos=left, mark size=1.7pt,
+]
+\addplot[thick, mark=*,        blue!65!black] coordinates {(1,\lnum{curve_sg_1}) (5,\lnum{curve_sg_5}) (10,\lnum{curve_sg_10}) (20,\lnum{curve_sg_20}) (50,\lnum{curve_sg_50})};
+\addplot[thick, mark=square*,  teal!70!black] coordinates {(1,\lnum{curve_au_1}) (5,\lnum{curve_au_5}) (10,\lnum{curve_au_10}) (20,\lnum{curve_au_20}) (50,\lnum{curve_au_50})};
+\addplot[thick, mark=triangle*,violet!70!black] coordinates {(1,\lnum{curve_my_1}) (5,\lnum{curve_my_5}) (10,\lnum{curve_my_10}) (20,\lnum{curve_my_20}) (50,\lnum{curve_my_50})};
+\addplot[thick, mark=diamond*, brown!70!black] coordinates {(1,\lnum{curve_in_1}) (5,\lnum{curve_in_5}) (10,\lnum{curve_in_10}) (20,\lnum{curve_in_20}) (50,\lnum{curve_in_50})};
+\addplot[thick, mark=pentagon*,red!65!black]  coordinates {(1,\lnum{curve_cn_1}) (5,\lnum{curve_cn_5}) (10,\lnum{curve_cn_10}) (20,\lnum{curve_cn_20}) (50,\lnum{curve_cn_50})};
+\addplot[thick, mark=o,        orange!85!black] coordinates {(1,\lnum{curve_mn_1}) (5,\lnum{curve_mn_5}) (10,\lnum{curve_mn_10}) (20,\lnum{curve_mn_20}) (50,\lnum{curve_mn_50})};
+\legend{Singapore, Australia, Malaysia, India, China (Han), Mongolia (Cyrillic)}
+% Ceilings: reachability is an upper bound on recall at any budget.
+\draw[dashed, red!55!black,   thin] (axis cs:0.85,\lnum{ceil_cn}) -- (axis cs:60,\lnum{ceil_cn});
+\draw[dashed, orange!75!black,thin] (axis cs:0.85,\lnum{ceil_mn}) -- (axis cs:60,\lnum{ceil_mn});
+\node[font=\tiny, text=red!55!black,    anchor=west] at (axis cs:22,0.435) {China ceiling};
+\node[font=\tiny, text=orange!75!black, anchor=west] at (axis cs:22,0.285) {Mongolia ceiling};
+\end{axis}
+\end{tikzpicture}

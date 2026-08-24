@@ -24,7 +24,8 @@ tasks:
     gold:
       - data/ground_truth/rdtii_reference_p67.csv
       - data/catalogues/MN_titles.json
-    metrics: [reachable, recall_at_5, recall_at_10, mrr, n_pairs, n_docs, n_instruments_non_latin]
+    metrics: [reachable, recall_at_1, recall_at_5, recall_at_10, recall_at_20,
+              recall_at_50, mrr, n_pairs, n_docs, n_instruments_non_latin]
 
   # The end-to-end discovery and mapping tasks remain S0 work. They need a built
   # corpus (backend/corpus L0-L3) that does not exist for CN/IN/MN yet, and a
@@ -93,6 +94,47 @@ values:
   r5_my_script:        cells[economy=MY,tokeniser=script_aware,terms=english].recall_at_5
   r5_sg_ascii:         cells[economy=SG,tokeniser=ascii_only,terms=english].recall_at_5
   mrr_cn_full:         cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].mrr
+
+  # The recall-vs-budget curve, under both treatments applied. The shortlist
+  # size is a cost axis -- the grader is billed per candidate -- so the shape
+  # of this curve is what says whether a cheaper budget is affordable, and it
+  # is not the same shape in every jurisdiction.
+  curve_sg_1: cells[economy=SG,tokeniser=script_aware,terms=english_plus_native].recall_at_1
+  curve_sg_5: cells[economy=SG,tokeniser=script_aware,terms=english_plus_native].recall_at_5
+  curve_sg_10: cells[economy=SG,tokeniser=script_aware,terms=english_plus_native].recall_at_10
+  curve_sg_20: cells[economy=SG,tokeniser=script_aware,terms=english_plus_native].recall_at_20
+  curve_sg_50: cells[economy=SG,tokeniser=script_aware,terms=english_plus_native].recall_at_50
+  ceil_sg: cells[economy=SG,tokeniser=script_aware,terms=english_plus_native].reachable
+  curve_au_1: cells[economy=AU,tokeniser=script_aware,terms=english_plus_native].recall_at_1
+  curve_au_5: cells[economy=AU,tokeniser=script_aware,terms=english_plus_native].recall_at_5
+  curve_au_10: cells[economy=AU,tokeniser=script_aware,terms=english_plus_native].recall_at_10
+  curve_au_20: cells[economy=AU,tokeniser=script_aware,terms=english_plus_native].recall_at_20
+  curve_au_50: cells[economy=AU,tokeniser=script_aware,terms=english_plus_native].recall_at_50
+  ceil_au: cells[economy=AU,tokeniser=script_aware,terms=english_plus_native].reachable
+  curve_my_1: cells[economy=MY,tokeniser=script_aware,terms=english_plus_native].recall_at_1
+  curve_my_5: cells[economy=MY,tokeniser=script_aware,terms=english_plus_native].recall_at_5
+  curve_my_10: cells[economy=MY,tokeniser=script_aware,terms=english_plus_native].recall_at_10
+  curve_my_20: cells[economy=MY,tokeniser=script_aware,terms=english_plus_native].recall_at_20
+  curve_my_50: cells[economy=MY,tokeniser=script_aware,terms=english_plus_native].recall_at_50
+  ceil_my: cells[economy=MY,tokeniser=script_aware,terms=english_plus_native].reachable
+  curve_in_1: cells[economy=IN,tokeniser=script_aware,terms=english_plus_native].recall_at_1
+  curve_in_5: cells[economy=IN,tokeniser=script_aware,terms=english_plus_native].recall_at_5
+  curve_in_10: cells[economy=IN,tokeniser=script_aware,terms=english_plus_native].recall_at_10
+  curve_in_20: cells[economy=IN,tokeniser=script_aware,terms=english_plus_native].recall_at_20
+  curve_in_50: cells[economy=IN,tokeniser=script_aware,terms=english_plus_native].recall_at_50
+  ceil_in: cells[economy=IN,tokeniser=script_aware,terms=english_plus_native].reachable
+  curve_cn_1: cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].recall_at_1
+  curve_cn_5: cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].recall_at_5
+  curve_cn_10: cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].recall_at_10
+  curve_cn_20: cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].recall_at_20
+  curve_cn_50: cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].recall_at_50
+  ceil_cn: cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].reachable
+  curve_mn_1: cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].recall_at_1
+  curve_mn_5: cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].recall_at_5
+  curve_mn_10: cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].recall_at_10
+  curve_mn_20: cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].recall_at_20
+  curve_mn_50: cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].recall_at_50
+  ceil_mn: cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].reachable
 
   # Stability of the headline metric across seeded distractor draws.
   reach_cn_spread:     cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].reachable.spread
@@ -171,6 +213,44 @@ claims:
       my_cost: "+.4f"
       in_cost: "+.4f"
       mn_cost: "+.4f"
+
+  - id: C5
+    template: >-
+      A single shortlist budget is wrong for every jurisdiction at once. Going
+      from five candidates to fifty lifts Malaysia's recall from {my5} to
+      {my50} and India's from {in5} to {in50}, but China saturates at twenty
+      ({cn20} there, {cn50} at fifty) and Mongolia gains {mn_gain} across the
+      whole range -- so the extra grading cost buys a great deal in one economy
+      and nothing in another.
+    bind:
+      my5:  cells[economy=MY,tokeniser=script_aware,terms=english_plus_native].recall_at_5
+      my50: cells[economy=MY,tokeniser=script_aware,terms=english_plus_native].recall_at_50
+      in5:  cells[economy=IN,tokeniser=script_aware,terms=english_plus_native].recall_at_5
+      in50: cells[economy=IN,tokeniser=script_aware,terms=english_plus_native].recall_at_50
+      cn20: cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].recall_at_20
+      cn50: cells[economy=CN,tokeniser=script_aware,terms=english_plus_native].recall_at_50
+      mn_gain: cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].recall_at_50 - cells[economy=MN,tokeniser=script_aware,terms=english_plus_native].recall_at_5
+    format:
+      my5: ".3f"
+      my50: ".3f"
+      in5: ".3f"
+      in50: ".3f"
+      cn20: ".3f"
+      cn50: ".3f"
+      mn_gain: "+.3f"
+
+  - id: C6
+    template: >-
+      Reachability bounds recall, as it should: at the widest budget measured,
+      Singapore's recall equals its reachability exactly ({sg50} against
+      {sg_ceil}) and no economy exceeds its own ceiling. A provision the query
+      cannot see is not recovered by grading more candidates.
+    bind:
+      sg50:     cells[economy=SG,tokeniser=script_aware,terms=english_plus_native].recall_at_50
+      sg_ceil:  cells[economy=SG,tokeniser=script_aware,terms=english_plus_native].reachable
+    format:
+      sg50: ".4f"
+      sg_ceil: ".4f"
 
   - id: C3
     template: >-
