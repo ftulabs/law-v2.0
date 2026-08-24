@@ -134,10 +134,17 @@ Our differentiator against LOCUS is discovery, multi-script breadth, and
 calibrated routing --- not OCR and segmentation.
 
 \paragraph{Structured regulatory extraction.} REGREACT extracts typed compliance
-criteria from regulation-length documents \citep{ali2026regreact}, and a
-multi-jurisdictional RAG system covers 242 documents across 68 jurisdictions
-\citep{ford2026multijurisdictional}. Both operate on document sets supplied as
-input. Generative-search audits show that fluent responses routinely carry
+criteria from regulation-length documents \citep{ali2026regreact}; ComplianceNLP
+monitors regulatory change and maps extracted obligations to institutional policy
+end-to-end \citep{guo2026compliancenlp}; and a multi-jurisdictional RAG system
+covers 242 documents across 68 jurisdictions
+\citep{ford2026multijurisdictional}. All three operate on document sets supplied
+as input --- ComplianceNLP over a curated knowledge graph of 12{,}847 provisions
+drawn from three named frameworks --- which is precisely the boundary this paper
+moves. On the multilingual side, BLAD assembles a multilingual statutory corpus
+for a low-resource jurisdiction \citep{sakhawat2026blad} and
+\citet{moran2026multilingual} ask whether regulatory auditing generalises beyond
+English without per-language adaptation; both take acquisition as given. Generative-search audits show that fluent responses routinely carry
 unsupported or inaccurate citations \citep{liu2023verifiability}; our response is
 to make the citation a retrieval artifact the model cannot write.
 
