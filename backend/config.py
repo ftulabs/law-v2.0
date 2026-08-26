@@ -13,7 +13,15 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # env_file is ABSOLUTE, not ".env". A relative path is resolved against the CURRENT
+    # WORKING DIRECTORY, so the file was found only when the process happened to start in the
+    # repo root. Launch from anywhere else — `cd frontend && streamlit run app.py`, a systemd
+    # unit, a scheduler, an IDE run-config — and pydantic-settings silently found no file:
+    # llm_provider fell back to its "mock" default and openrouter_api_key to "". The run then
+    # completed, with a lexical mock grader, and the only symptom was mappings that looked
+    # like a bad key. Nothing raised. ROOT is derived from __file__, so it is the same path
+    # whatever the cwd.
+    model_config = SettingsConfigDict(env_file=ROOT / ".env", extra="ignore")
 
     # providers
     # Default OCR engine, changed from "markitdown" (2026-08-14). MarkItDown does not do
