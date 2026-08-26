@@ -5,6 +5,59 @@ measured the row says so rather than estimating.
 
 ---
 
+## 0 · Re-measured 2026-08-25 — all six reference economies run live end to end
+
+Each economy below was re-run from zero seed URLs (`--live --fresh`), both pillars in one run,
+on the declared engines. "Rows" counts the 14-column submission CSV; every run addresses all
+nine indicators, either with evidence or with an explicit "No provision found" placeholder
+row — so the pillar-6+pillar-7 requirement is met structurally even where the evidence is thin.
+
+| Economy | Docs | Provisions | Rows | Wall clock | Cost | Answer-key reach |
+| :--- | ---: | ---: | ---: | ---: | ---: | :--- |
+| Singapore | 37 | 6,752 | 128 | 27 min | $1.08 | not scored here (Round-1 key) |
+| Australia | 30 | 4,948 | 128 | 29 min | $0.84 | not scored here (Round-1 key) |
+| Malaysia | 31 → **10 fetched** | 489 | 41 | 7 min | $0.20 | not scored here (Round-1 key) |
+| China | 40 → 12 fetched | 220 | 40 | 9 min | $0.18 | **6/9 indicators · 6/31 citations** |
+| India | 121 → 27 fetched | 983 | 44 | 26 min | $0.21 | **6/9 indicators · 7/43 citations** |
+| Mongolia | 22 | 535 | 55 | 6 min | $0.26 | **3/9 indicators · 3/11 citations** |
+
+Movement against the 2026-08-22 numbers: India improved 3/9 → **6/9** (its second source,
+`meity.gov.in`, now contributes the DPDP Rules 2025 — the operative cross-border instrument);
+China slipped 7/9 → 6/9 — see the two new blockers below, both are portal-state, not code
+regressions. Mongolia is unchanged at 3/9, and inspection shows part of that is the key citing
+different record versions of the same law (our Cybersecurity-Law and Banking-Law citations
+exist in the CSV under the same titles; the key's `lawId`s differ).
+
+**New blocker 1 — Malaysia's primary portal is currently PDF-less for us.**
+`lom.agc.gov.my/robots.txt` returns **HTTP 500** (measured twice on 2026-08-25). The fetch
+layer treats an unreadable robots file as "disallowed", so every statute PDF on the AGC
+portal was skipped — the run above survived only because `pdp.gov.my` (the PDP Commissioner's
+site) carried the PDPA Amendment Act 2024, the cross-border Guidelines 3/2025 and the DPIA
+guideline. The India lane already has the correct carve-out (RFC 9309 §2.3.1.4: a 5xx robots
+response is not a refusal — proceed); Malaysia needs the same one-line treatment.
+
+**New blocker 2 — China's principal statutes depend on network reachability.**
+`cac.gov.cn` (the mirror lane the horizontal laws ride on) **TLS-timed-out** from the test
+network on 2026-08-25, and `flk.npc.gov.cn` serves a JS shell with no static law text, so
+PIPL, the Cybersecurity Law and the Data Security Law did not enter this run's corpus at all.
+The 6/9 reach above was achieved on `moj.gov.cn` / `mee.gov.cn` mirrors (Network Data Security
+Regulation, Counter-Terrorism Law). If cac.gov.cn is reachable from the run network the
+horizontal laws return; the lesson is that CN needs either a rendered flk.npc.gov.cn lane or
+more mirrors, because one unreachable host currently decides whether China's most-cited law
+exists in the run.
+
+**The live-test six remain unready.** TH, VN, ID, KZ, LA and RU have only generic
+`websearch` lanes with zero portal-scoped queries and `verified: false` in `data/sources.yaml`.
+Measured 2026-08-25: TH and ID discovery timed out (the lanes hang on the DuckDuckGo HTML
+endpoint from this network), and VN returned 22 documents of pure noise — EU GDPR guidance,
+Canada's Digital Services Tax, India's Income Tax Act — because `OFFICIAL_PORTAL` has no VN
+entry so the queries run unscoped. KZ, LA and RU share the same lane shape (LA's gazette host
+does not resolve; RU's document path sits under a robots-disallowed `/File`). These six need
+per-portal adapters of the kind CN/IN/MN received; no amount of retrieval tuning substitutes
+for that.
+
+---
+
 ## 1 · The three economies that run end to end
 
 End to end here means what it says: from an economy and a pillar, with no seed URLs, through

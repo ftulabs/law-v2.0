@@ -75,6 +75,10 @@ class Settings(BaseSettings):
     # Five with jittered exponential backoff covers a burst from sixteen concurrent workers.
     # See llm_openrouter._is_rate_limited for why a rate limit must not trigger model failover.
     openrouter_rate_limit_retries: int = 5
+    # Upper bound (seconds) of one backoff step. The 8 s default was tuned for deepseek's
+    # burst limits; a busy free/stealth model can stay 429 for minutes, so raise it (env
+    # OPENROUTER_BACKOFF_CAP) rather than letting the call fall through to failover.
+    openrouter_backoff_cap: int = 8
     # Cross-model second opinion on borderline REJECTIONS. When the primary grader rejects a
     # provision while itself signalling legal closeness (it names a better_sibling, or scores
     # legal_match >= 0.3 despite rejecting), a DIFFERENT model re-grades the same prompt in a
@@ -367,7 +371,7 @@ class Settings(BaseSettings):
     # Impact, and emit the supplementary Database-shaped scored CSV. Off by default so the
     # mandatory flow stays lean (one extra LLM call per mapping); enable per run via the
     # dashboard toggle, the CLI --score flag, or SCORING_ENABLED=true. The score is NEVER
-    # written into the official 13-col submission CSV (see NOTES_FOR_JUDGES.md).
+    # written into the official 14-col submission CSV (see NOTES_FOR_JUDGES.md).
     scoring_enabled: bool = False
 
     @property

@@ -131,6 +131,19 @@ sources:
       - 应当在境内存储
       - 服务器 设在境内
       - 向境外提供个人信息
+      # Sector sweep (blocker close-out, 2026-08-25): the panel's 6.1/6.2/6.3 citations are
+      # sectoral measures whose titles carry no data vocabulary, so a concept query never
+      # reaches them. Name fragments like the FLK lane's second block — one per sector RDTII
+      # treats as in scope: ride-hailing, P2P lending, credit reporting, maps, publishing,
+      # e-mail, population-health info.
+      - 网络预约出租汽车经营服务管理暂行办法
+      - 网络借贷信息中介机构业务活动管理暂行办法
+      - 征信业管理条例
+      - 地图管理条例
+      - 网络出版服务管理规定
+      - 互联网电子邮件服务管理办法
+      - 人口健康信息管理办法
+      - 个人信息保护法
     queries_p7:
       - 中华人民共和国网络安全法
       - 中华人民共和国数据安全法
@@ -142,6 +155,11 @@ sources:
       - 网络安全审查办法
       - 反恐怖主义法 技术支持和协助
       - 互联网信息服务管理办法
+      # 6.1-ban/6.2-localisation instruments the panel cites: e-commerce law, generative-AI
+      # measures; also mirror name queries so PIPL/DSL survive cac.gov.cn being unreachable.
+      - 中华人民共和国电子商务法
+      - 生成式人工智能服务管理暂行办法
+      - 关键信息基础设施安全保护条例
     notes: >
       THE PRIMARY CHINA LANE — listed first because it is the one that actually yields statute
       text. cac.gov.cn publishes the national laws as ordinary server-rendered pages, so an
@@ -260,11 +278,55 @@ sources:
     pdf_only: true
     per_query: 10
     verified: false
+    queries_p6:                # the panel's own subordinate citations, on their home portal
+      - Information Technology Rules sensitive personal data
+      - CERT-In Directions 2022
+      - Digital Personal Data Protection Rules
+    queries_p7:
+      - Information Technology Rules sensitive personal data
+      - Information Technology Rules interception 2009
+      - CERT-In Directions 2022
+      - Digital Personal Data Protection Rules
     notes: >
       Much of India's P6/P7 evidence is subordinate legislation, not Acts: the IT (Reasonable
       Security Practices) Rules 2011, the IT (Procedure and Safeguards for Interception) Rules
       2009, and the DPDP Rules. Those are gazette PDFs on meity.gov.in, absent from India Code
       — the same structural gap that MY's pdp.gov.my lane exists to close.
+
+  - economy: IN
+    name: RBI (Master Directions / circulars)
+    base_url: https://www.rbi.org.in
+    adapter: websearch
+    site: rbi.org.in
+    pdf_only: true
+    per_query: 6
+    verified: false
+    queries_p6:                              # 6.2 storage-localisation lives in payment-system rules
+      - Master Direction storage of payment system data
+    queries_p7:
+      - Master Direction on Information Technology Governance   # the key's 7.1/7.2
+      - Master Direction Know Your Customer records             # 7.3 retention
+      - Master Direction Issuance Operation Prepaid Payment Instruments
+    notes: >
+      The answer key's 7.3 is 19 citations long and almost all RBI/SEBI/PMLA instruments. RBI is
+      the central bank — a government regulator and a trusted source by the rubric's own rule.
+      Discovery-only additions; every document is still fetched, extracted and graded live.
+      Its robots.txt serves a 418 error page, handled in pipeline/robots.UNREACHABLE_OVERRIDE.
+
+  - economy: IN
+    name: SEBI (regulations)
+    base_url: https://www.sebi.gov.in
+    adapter: websearch
+    site: sebi.gov.in
+    pdf_only: true
+    per_query: 6
+    verified: false
+    queries_p7:
+      - Listing Obligations Disclosure Requirements Regulations 2015
+    notes: >
+      SEBI's LODR Regulations 2015 (records/e-disclosure retention) are cited under 7.3.
+      robots.txt readable (2026-08-25): the wildcard group is granted; only /js and /css
+      are disallowed, neither of which this pipeline fetches.
 
   - economy: MN
     name: Unified Legal Information System (legalinfo.mn)

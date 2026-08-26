@@ -1,6 +1,6 @@
 """Zone-3 scored CSV — the RDTII *Database* shape (one row per scored measure).
 
-This is SEPARATE from the mandatory 13-column submission CSV (csv_export.py), which must
+This is SEPARATE from the mandatory 14-column submission CSV (csv_export.py), which must
 stay byte-for-byte on the official OUTPUT_TEMPLATE. Here we mirror the columns of the
 official answer-key Database's per-economy sheets so the scored output is directly
 comparable to how the judges record their own scores:

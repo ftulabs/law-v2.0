@@ -226,6 +226,26 @@ UNREACHABLE_OVERRIDE: dict[str, dict[str, str]] = {
                     "/server/api and cites /handle/ URLs. Six consecutive fetches of the new "
                     "host's robots.txt returned 502 (2026-08-22).",
     },
+    "lom.agc.gov.my": {
+        "since": "2026-08-25",
+        "reason": "robots.txt returns nginx HTTP 500 on every attempt; the MIME catalogue "
+                  "itself is served on the same host. A server error is not a refusal.",
+        "evidence": "The catalogue we read is public and the fetch layer requests only "
+                    "/ilims/upload/portal/akta/ document URLs — no listing/search paths. "
+                    "Three consecutive fetches of robots.txt returned the nginx 500 page "
+                    "(2026-08-25). The parent host www.agc.gov.my serves a readable "
+                    "robots.txt; its rules apply to that host only, not to this subdomain.",
+    },
+    "rbi.org.in": {
+        "since": "2026-08-25",
+        "reason": "robots.txt serves an HTTP 418 'Unauthorised Access' error page on every "
+                  "attempt while the site's document pages answer 200. An anti-scrape error "
+                  "page is not a Disallow rule.",
+        "evidence": "We request only the Master-Direction / circular document URLs discovery "
+                    "names — no listing paths. Measured 2026-08-25: / 200 (public home page, "
+                    "174 KB), /robots.txt 418. The error page names a support contact rather "
+                    "than a Disallow group, so there is no wildcard rule to violate.",
+    },
 }
 
 

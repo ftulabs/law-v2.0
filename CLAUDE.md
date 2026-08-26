@@ -13,7 +13,7 @@
 Automate the manual legal-data-collection workflow: **given an economy + regulatory topic → autonomously find and extract ALL relevant legal text** without anyone telling the system where to look.
 
 **Scoring pillar:** The judges test the app by giving it:
-- An economy (SG/AU/MY mandatory for Round 1; later: Thailand/China/India/Indonesia/Russia/Lao/Mongolia/Timor-Leste)
+- An economy (SG/AU/MY mandatory for Round 1; the sealed final-round live test draws from **nine**: Thailand, Viet Nam, Indonesia, China, India, Kazakhstan, Lao PDR, Mongolia, Russian Federation — see `LIVE_TEST_NINE` in `backend/schemas.py`)
 - A regulatory pillar (6 = Cross-border Data Policies; 7 = Domestic Data Protection and Privacy)
 
 The app must, with zero seed URLs:
@@ -33,7 +33,7 @@ Zone 3 (scoring/quality gates) is optional — and now IMPLEMENTED (Raw Score 0/
 
 ### Key Resources
 - **Official database:** `ESCAP-RDTII-2.1_ Round 1 Database.xlsx` (repo root) — source of truth for indicator definitions, verified answer key by economy
-- **Output template:** `OUTPUT_TEMPLATE_31MAY.xlsx` (repo root) — defines the 13-column CSV format (Economy, Law Name, Law Number/Ref, Last Amended, Indicator ID, Article/Section, Discovery Tag, Location Reference, Verbatim Snippet, Mapping Rationale, Source URL, Confidence, Notes)
+- **Output template:** `OUTPUT_TEMPLATE_31MAY.xlsx` (repo root) — Round-1 sheet defines 13 columns (Economy … Notes); the shipped CSV adds a **14th, "Language of Source"**, required by the Round-2 rules (`SUBMISSION_COLUMNS` in `backend/schemas.py`). A 15th "Pillar" column in the workbook is a formula — never write it
 - **Sample portals CSV:** a judges' reference document listing the official portals for each economy — judges use this to verify your discovery, not as a seed corpus for you to ship
 
 ---
@@ -126,7 +126,7 @@ Input: (economy, pillar)
   ↓ [mappings with confidence + verbatim snippets]
 ┌─────────────────────────────────────────────────┐
 │ Output Formatting & Review Routing              │
-│  • CSV (13 columns, official template)          │
+│  • CSV (14 columns, official template)          │
 │  • JSON (full trace, audit trail)               │
 │  • SQLite (review database)                     │
 │  • confidence < 0.85 → pending_review            │
@@ -145,7 +145,7 @@ Input: (economy, pillar)
 | **Mapping** | `backend/pipeline/mapping.py` | LLM decision logic (best-fit indicator + siblings) |
 | **Indicators** | `backend/rdtii/indicators.py` | RDTII definitions (legal_test, query_terms per indicator) |
 | **Confidence** | `backend/pipeline/confidence.py` | 4-signal scoring (model confidence, retrieval quality, rarity flag, scope flag) |
-| **Export** | `backend/export/csv_export.py`, `json_export.py` | Official CSV template (13 cols) + JSON trace |
+| **Export** | `backend/export/csv_export.py`, `json_export.py` | Official CSV template (14 cols) + JSON trace |
 | **Orchestrator** | `backend/pipeline/orchestrator.py` | End-to-end run, SQLite audit trail |
 | **Corpus (precompute)** | `backend/corpus/` | L0 catalogue → L1 fetch → L2 extract → L3 split, stored per LAW VERSION. `store.py` `catalogue.py` `build.py` `version.py` `cli.py`. Stops at L3 — candidate selection (L4) and grading (L5) are not wired yet. See `docs/precompute-corpus.md` |
 | **Evaluation** | `backend/eval/` | Labels from the judges' Database (`ground_truth.py`), law linkage, stratified eval corpus, retrieval metrics (`harness.py`), sweepable ranker (`rank_lab.py`), grader/confidence experiment (`grader_eval.py`). See `docs/retrieval-redesign.md` |
@@ -189,14 +189,15 @@ Register new providers in `backend/providers/llm_factory.py`.
 ✅ **CER measurement** — scanned PDF quality grading (< 5% pass)  
 ✅ **Discovery tagging** — KNOWN (sample) vs NEW (crawled) labels  
 ✅ **Confidence routing** — auto-accept (≥0.85) / review (0.60–0.85) / quarantine (<0.60)  
+✅ **Live end-to-end for the six reference economies (measured 2026-08-25)** — SG, AU, MY, CN, IN, MN each run `--live` from zero seed URLs through to a 14-column submission CSV on both pillars (all 9 indicators per run, evidence or explicit no-evidence row). Wall clock 6–29 min/run; $0.18–$1.08/run on the declared engines. Fresh outputs in `outputs/rt_check/`, scored against the panel's Round-2 database below.
 
 ### In Progress / Near-Complete
-⚠️ **Live crawling (Zone 1)** — web-search + Scrapling browser fetch functional; SG (token-AJAX) + MY (DataTables) need Playwright escalation testing  
 ⚠️ **Retriever selection** — hybrid (BM25 + dense + rerank) default; LightRAG fallback for large corpora (≥40 provisions) when LLM key is available  
-⚠️ **Multilingual retrieval** — embed = multilingual MiniLM; cross-encoder = English-only (mitigated by grade-all policy for small corpora)  
+⚠️ **Multilingual retrieval** — embed = multilingual MiniLM; cross-encoder = English-only (mitigated by grade-all policy for small corpora)
 
 ### Known Gaps
-❌ **Live crawl not wired to SG/MY portals yet** — discovery skeleton is ready; Playwright auto-escalation for JS-heavy sites (DataTables, token auth) needs QA  
+❌ **MY primary portal PDFs are robots-skipped (found 2026-08-25)** — `lom.agc.gov.my/robots.txt` returns **HTTP 500**; the fetch layer treats "robots unreadable" as disallowed, so every statute PDF on the AGC portal is skipped and a MY run survives only on the `pdp.gov.my` secondary lane. India has the RFC 9309 §2.3.1.4 carve-out for exactly this (server error ≠ refusal); MY needs the same.  
+❌ **CN principal statutes depend on network reachability (found 2026-08-25)** — `cac.gov.cn` (the mirror lane) TLS-times-out from some networks and `flk.npc.gov.cn` serves a JS shell with no static text, so PIPL/CSL/DSL can drop out of the corpus; the 2026-08-25 run still completed via `moj.gov.cn`/`mee.gov.cn` mirrors.  
 ✅ **Three portal defects found and fixed (2026-08-15)** — all were SILENT, all cost whole Acts:
   (1) `legislation.gov.au` publishes large Acts as **multi-volume** compilations and 404s on the
   single-file PDF URL — the Telecommunications (Interception and Access) Act 1979 was yielding
@@ -209,10 +210,10 @@ Register new providers in `backend/providers/llm_factory.py`.
   licence, AU's Telecommunications Regulations 2021 (an instrument, not an Act), MY sectoral
   Codes of Practice + PDP Standard 2015. **This is the largest remaining coverage gap, and it
   is a discovery problem, not a retrieval one.**  
-❌ **No real-world test on final 3 economies** — Thailand/China/India/Indonesia/Russia/Lao/Mongolia/Timor-Leste are for Finals; Round 1 is SG/AU/MY only  
+❌ **Live-test six (TH/VN/ID/KZ/LA/RU) are NOT end-to-end ready** — all six have only generic `websearch` lanes with zero portal-scoped queries and `verified: false` (`data/sources.yaml`). Measured 2026-08-25: TH and ID timed out (their lanes hang on the DuckDuckGo HTML endpoint), VN returned 22 documents of pure noise (no `site:` scope — `OFFICIAL_PORTAL` has no VN entry — so results were EU/Canadian/US pages). KZ/LA/RU share the same lane shape and are unproven; LA's gazette host does not even resolve. These six need per-portal adapters of the kind CN/IN/MN got, not tuning.  
 ❌ **Mock grader is lexical only** — can confuse closely-related indicators (P6-I1 vs P6-I4, P7-I1 vs P7-I2) without a real LLM  
 ❌ **Manual review UI** — confidence routing flags rows for review, but the review workflow is minimal (data structure exists, UI not built)  
-✅ **Scoring (Zone 3) is implemented** — each mapped measure gets an RDTII Raw Score (0/0.5/1) + Coverage + Impact per the official scoring criteria (`backend/rdtii/scoring_rubric.py`); a separate scored CSV mirrors the answer-key Database shape (the mandatory 13-col submission CSV is left untouched). ⚠ Polarity is INVERTED for 7.1/7.2 (a comprehensive/dedicated horizontal framework scores 0); indicator roll-up takes MIN for those, MAX otherwise. See `backend/pipeline/scoring.py`, toggle via `SCORING_ENABLED`.  
+✅ **Scoring (Zone 3) is implemented** — each mapped measure gets an RDTII Raw Score (0/0.5/1) + Coverage + Impact per the official scoring criteria (`backend/rdtii/scoring_rubric.py`); a separate scored CSV mirrors the answer-key Database shape (the mandatory 14-col submission CSV is left untouched). ⚠ Polarity is INVERTED for 7.1/7.2 (a comprehensive/dedicated horizontal framework scores 0); indicator roll-up takes MIN for those, MAX otherwise. See `backend/pipeline/scoring.py`, toggle via `SCORING_ENABLED`.  
 
 ---
 
@@ -398,7 +399,7 @@ When corpus ≤80 provisions, **every provision is graded by the LLM against eve
 
 The tool is built to be auditable, not hidden:
 
-1. **Live crawling** is functional but needs Playwright auto-escalation for SG/MY token-auth and JS-heavy sites (DataTables).
+1. **Live crawling** runs end-to-end for SG/AU/MY/CN/IN/MN (measured 2026-08-25). Two caveats: MY's primary portal (`lom.agc.gov.my`) serves a broken robots.txt (HTTP 500) so its statute PDFs are currently skipped — the run leans on `pdp.gov.my`; CN's principal statutes can vanish when `cac.gov.cn` is unreachable (JS-only `flk.npc.gov.cn` is the fallback). The six live-test economies TH/VN/ID/KZ/LA/RU have no working lane yet (generic websearch only, unverified portals).
 2. **Scanned/image PDFs** are handled by real raster OCR (RapidOCR/Paddle), measured CER on bundled sample is 1.11% (PASS <5%).
 3. **Mock grader** is lexical (offline) and can confuse P6-I1/P6-I4, P7-I1/P7-I2 without a real LLM → always use a real LLM (OpenRouter/Claude) for submission.
 4. **Indicator `legal_test`** are our interpretation of the RDTII methodology; review pending_review rows before submission.
@@ -415,14 +416,14 @@ Use this as if you're a judge reviewing VeriTrade for the RDTII hackathon:
 - [ ] **Zone 1 mandatory:** Autonomous discovery from live gov portal (no seed URLs), no hardcoded law names
   - [ ] SG: sso.agc.gov.sg works (token-AJAX or direct fetch)
   - [ ] AU: legislation.gov.au works (JSON API confirmed)
-  - [ ] MY: lom.agc.gov.my works (DataTables-AJAX, may need Playwright)
+  - [ ] MY: lom.agc.gov.my works (AES-GCM catalogue decrypts; ⚠ its robots.txt returns 500 so portal PDFs are skipped — pdp.gov.my carries the run)
   - [ ] Crawl is live, reproducible with current portal state, not a baked corpus
 - [ ] **Zone 2 mandatory:** OCR + extraction
   - [ ] Text-layer PDFs work (MarkItDown)
   - [ ] Scanned/image PDFs work (RapidOCR or Paddle, CER <5%)
   - [ ] Article/§ structural parsing preserves verbatim snippets and citations
 - [ ] **Both Pillars 6 & 7:** submitted CSV includes P6-I1..I4 and P7-I1..I5 mappings
-- [ ] **Output format:** CSV matches template exactly (13 columns, order, headers)
+- [ ] **Output format:** CSV matches template exactly (14 columns, order, headers)
 - [ ] **Indicators mapped correctly:** sample check against answer key (SG PDPA→7.1, Cybersecurity Act→7.2, etc.)
 
 ### **Robustness**
@@ -449,10 +450,12 @@ Use this as if you're a judge reviewing VeriTrade for the RDTII hackathon:
 ## 10. IMPROVEMENT PRIORITIES FOR FINALS (IF SHORTLISTED)
 
 ### High Priority (confidence for score boost)
-1. **Playwright auto-escalation for SG/MY** — ensure token-AJAX and DataTables sites resolve without manual intervention
-2. **Multilingual cross-encoder reranker** — swap to `BAAI/bge-reranker-v2-m3` for Finals (China, Russia, Lao, Mongolian text)
-3. **Manual review UI** — build the workflow.py skeleton into a functional reviewer dashboard (flag low-confidence, allow edit/accept/reject, export amended CSV)
-4. **CER calibration** — validate CER measurement on real gazette scans (not just the bundled sample) using Azure Document Intelligence as a ground-truth baseline
+1. **MY robots.txt carve-out** — treat `lom.agc.gov.my/robots.txt` HTTP 500 as "unreachable → proceed" (RFC 9309 §2.3.1.4), the same carve-out the India lane already has, so the primary portal's statute PDFs stop being silently skipped
+2. **Lanes for TH/VN/ID/KZ/LA/RU** — per-portal adapters + portal-scoped queries + native vocabulary, modelled on the CN/IN/MN lanes; today these six are generic-websearch-only and cannot produce a trustworthy run
+3. **CN principal-statute resilience** — PIPL/CSL/DSL must survive `cac.gov.cn` being unreachable: render `flk.npc.gov.cn` (browser lane) or add more mirrors
+4. **Multilingual cross-encoder reranker** — swap to `BAAI/bge-reranker-v2-m3` for Finals (China, Russia, Lao, Mongolian text)
+5. **Manual review UI** — build the workflow.py skeleton into a functional reviewer dashboard (flag low-confidence, allow edit/accept/reject, export amended CSV)
+6. **CER calibration** — validate CER measurement on real gazette scans (not just the bundled sample) using Azure Document Intelligence as a ground-truth baseline
 
 ### Medium Priority (robustness)
 5. **Batch job scheduler** — for judges to run multiple economies in one command with progress tracking
@@ -508,6 +511,7 @@ Use this as if you're a judge reviewing VeriTrade for the RDTII hackathon:
 ---
 
 ## Last Updated
+2026-08-25 — Live re-verification of all six reference economies (SG/AU/MY/CN/IN/MN) end-to-end on pillars 6+7; new blockers recorded (MY robots.txt 500, CN cac.gov.cn reachability, TH/VN/ID/KZ/LA/RU lanes absent); output format corrected to 14 columns. Outputs: `outputs/rt_check/`.
 2026-08-19 — Round-2 expansion (CN/IN/MN): multilingual retrieval, script-aware extraction, language-aware grading prompt. See `docs/round2-expansion.md`.
 2026-06-07  
 Claude Code auto-memory + consolidated from project memory files + README + code inspection.

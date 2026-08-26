@@ -21,7 +21,8 @@ def _row(m: EvidenceMapping) -> dict[str, str]:
     # Discovery Tag are "N/A" (neither NEW nor KNOWN applies, and 0.00 would read as a scored
     # mapping); Source URL stays the searched portal to prove Zone 1 ran.
     placeholder = m.law_name == "No provision found"
-    # EXACT official 13-column template. Pillar/Coverage/OCR/CER — and the Zone-3 RDTII
+    # EXACT official template: the Round-1 13 columns PLUS the Round-2 "Language of Source"
+    # (14 total, schemas.SUBMISSION_COLUMNS). Pillar/Coverage/OCR/CER — and the Zone-3 RDTII
     # raw_score — are deliberately NOT written here: the official template (Output Data sheet)
     # has NO score column, and per team decision (pending a judges' Q&A on where a Zone-3 score
     # belongs) we do NOT unilaterally inject it into the submission CSV — not even into Notes.

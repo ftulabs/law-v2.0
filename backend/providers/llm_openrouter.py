@@ -23,6 +23,20 @@ def _is_auth_error(e: Exception) -> bool:
     return code in (401, 403) or type(e).__name__ in ("AuthenticationError", "PermissionDeniedError")
 
 
+def _is_key_quota_exhausted(e: Exception) -> bool:
+    """A 403 that is really a LIMIT, not a dead key: 'Key limit exceeded (daily limit)'.
+
+    Measured on a shared hackathon key 2026-08-25: the paid pool answers 403 with this body
+    while free models on the SAME key answer 200 — the limit binds credits, not the key. So it
+    must not raise the 'your API key is invalid' panic below: the honest response is to stop
+    burning candidates (every paid model will say the same until the window resets) and let
+    the caller decide.
+    """
+    body = str(getattr(e, "body", None) or e)[:500].lower()
+    return ("key limit" in body or "daily limit" in body
+            or "credit limit" in body or "monthly limit" in body)
+
+
 def _is_rate_limited(e: Exception) -> bool:
     """A 429 from OpenRouter or the upstream provider.
 
@@ -116,13 +130,17 @@ class OpenRouterLLM(LLMProvider):
                             raise
                         # Jittered, so sixteen workers do not all retry on the same tick and
                         # rebuild the burst that caused the 429 in the first place.
-                        time.sleep(min(2 ** attempt, 8) * (1.0 + random.random()))
+                        time.sleep(min(2 ** attempt,
+                                       max(1, settings.openrouter_backoff_cap))
+                                   * (1.0 + random.random()))
             except Exception as e:  # noqa: BLE001 — this model is out; try the next one
                 last_err = e
                 # An AUTH failure (401/403) is the same for every model — the key itself is
                 # invalid/revoked/out-of-credit. Don't churn the whole pool per call; fail fast
                 # with a message that names the real cause (not "rate limits").
                 if _is_auth_error(e):
+                    if _is_key_quota_exhausted(e):
+                        break       # every remaining candidate is paid and will say the same
                     raise RuntimeError(
                         "OpenRouter rejected the API key (HTTP 401/403 — 'User not found' means "
                         "the key is invalid, revoked, or the account was removed). Set a valid "
