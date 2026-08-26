@@ -233,6 +233,21 @@ class Settings(BaseSettings):
     # Cost of the change is fetch and extraction, not grading: mapping is bounded by the
     # retrieval shortlist (`retrieve_max_top_k`) per indicator, not by corpus size.
     discovery_max_docs: int = 22
+
+    # ── working translation of the evidence (backend/pipeline/translate.py) ──
+    # On by default because the run it exists for — a non-English economy — is otherwise
+    # unverifiable by the people producing it, and because it costs NOTHING on an economy
+    # already in the target language: those are skipped without a call. Distinct law names are
+    # translated once each and every result is disk-cached by source text, so a re-run of the
+    # same economy spends nothing either.
+    translation_enabled: bool = True
+    #: The language the reviewer reads. English by default — it is what the panel reads and
+    #: what the mapping rationale is already written in — but set TRANSLATION_TARGET_LANG to
+    #: any language for an internal review pass.
+    translation_target_lang: str = "English"
+    #: Input cap per call. A snippet longer than this is a whole article the reviewer will
+    #: open the source URL for; the cell is marked truncated rather than silently cut.
+    translation_max_chars: int = 6000
     discovery_max_pages: int = 1               # search-result pages to walk per query
     # Web-search discovery breadth. Results are collected ROUND-ROBIN across queries — each
     # query's top hit before any query's 2nd — so a specific law-type query ("companies act")

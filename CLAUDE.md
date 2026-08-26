@@ -127,6 +127,7 @@ Input: (economy, pillar)
 ┌─────────────────────────────────────────────────┐
 │ Output Formatting & Review Routing              │
 │  • CSV (14 columns, official template)          │
+│  • +2 translation columns for non-English runs  │
 │  • JSON (full trace, audit trail)               │
 │  • SQLite (review database)                     │
 │  • confidence < 0.85 → pending_review            │
@@ -145,6 +146,7 @@ Input: (economy, pillar)
 | **Mapping** | `backend/pipeline/mapping.py` | LLM decision logic (best-fit indicator + siblings) |
 | **Indicators** | `backend/rdtii/indicators.py` | RDTII definitions (legal_test, query_terms per indicator) |
 | **Confidence** | `backend/pipeline/confidence.py` | 4-signal scoring (model confidence, retrieval quality, rarity flag, scope flag) |
+| **Translation** | `backend/pipeline/translate.py` | Working English translation of law name + snippet, for the six non-English live-test economies. Appends 2 columns AFTER the mandatory 14; NEVER overwrites `Verbatim Snippet`. Law names translated once per distinct name, everything disk-cached by source text; skipped without a call for EN economies. Toggle `TRANSLATION_ENABLED`, target `TRANSLATION_TARGET_LANG` |
 | **Export** | `backend/export/csv_export.py`, `json_export.py` | Official CSV template (14 cols) + JSON trace |
 | **Orchestrator** | `backend/pipeline/orchestrator.py` | End-to-end run, SQLite audit trail |
 | **Corpus (precompute)** | `backend/corpus/` | L0 catalogue → L1 fetch → L2 extract → L3 split, stored per LAW VERSION. `store.py` `catalogue.py` `build.py` `version.py` `cli.py`. Stops at L3 — candidate selection (L4) and grading (L5) are not wired yet. See `docs/precompute-corpus.md` |
@@ -420,6 +422,7 @@ The tool is built to be auditable, not hidden:
 4. **Indicator `legal_test`** are our interpretation of the RDTII methodology; review pending_review rows before submission.
 5. **Confidence scores** are relative, not calibrated probabilities.
 6. **Multilingual retrieval** is general-domain, not legal-domain; for non-English, rely on grade-all policy.
+7. **Translations are machine-made and are not the citation.** The two translation columns and the panel beside the quote exist so a reviewer who does not read Mongolian or Chinese can CHECK a mapping instead of trusting it. `Verbatim Snippet` and `Law Name` remain the statute's own words in every output — nothing in the pipeline can write a translation into them, and no grade, confidence or score is ever computed from a translation.
 
 ---
 
@@ -499,6 +502,7 @@ Use this as if you're a judge reviewing VeriTrade for the RDTII hackathon:
 | Change LLM | Edit `.env`: `LLM_PROVIDER=openrouter`, `OPENROUTER_API_KEY=...` |
 | Change OCR | Edit `.env`: `OCR_PROVIDER=rapidocr` or `paddle` |
 | Change retriever | Edit `.env`: `RETRIEVER=auto` (default) or `hybrid` or `lightrag` |
+| Turn translation off / retarget | Edit `.env`: `TRANSLATION_ENABLED=false`, or `TRANSLATION_TARGET_LANG=Vietnamese` |
 | Run tests | `pytest tests/` |
 | Enumerate an economy's whole corpus | `python -m backend.corpus.cli catalogue --economy MY` |
 | Fetch/extract/split it | `python -m backend.corpus.cli build --economy MY` |
@@ -526,6 +530,13 @@ Use this as if you're a judge reviewing VeriTrade for the RDTII hackathon:
 ---
 
 ## Last Updated
+2026-08-27 — (1) `.env` was loaded from a RELATIVE path, so launching from any cwd but the repo
+root silently downgraded the run to the mock provider and read as a dead API key
+(`backend/config.py`). (2) Three silent Mongolia discovery/extraction defects fixed — fleeting-vowel
+title matching, size-aware ranking over title length, and clause splitting without a required space;
+pillar 6 went from 4 documents (1 statute) to 22 with every relevant answer-key law ranked top.
+(3) Working-translation layer added (`backend/pipeline/translate.py`) — 2 CSV columns after the
+mandatory 14, plus the evidence panel, Details and Review surfaces. `tests/test_mn_discovery_and_translation.py`.
 2026-08-25 — Live re-verification of all six reference economies (SG/AU/MY/CN/IN/MN) end-to-end on pillars 6+7; new blockers recorded (MY robots.txt 500, CN cac.gov.cn reachability, TH/VN/ID/KZ/LA/RU lanes absent); output format corrected to 14 columns. Outputs: `outputs/rt_check/`.
 2026-08-19 — Round-2 expansion (CN/IN/MN): multilingual retrieval, script-aware extraction, language-aware grading prompt. See `docs/round2-expansion.md`.
 2026-06-07  

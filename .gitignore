@@ -19,6 +19,10 @@ logs/
 # Zone 1 downloaded law bodies — runtime, content-hashed, re-fetchable
 data/cache/
 
+# Working translations — runtime, keyed by a hash of the source text, re-derivable from the
+# statute at any time. Cheap to rebuild and stale the moment the target language changes.
+.cache/
+
 # OS / editor
 .DS_Store
 .vscode/

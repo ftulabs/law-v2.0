@@ -1,11 +1,12 @@
-"""Regressions for defects that failed SILENTLY.
+"""Regressions for three defects found on 2026-08-27, all of which failed SILENTLY.
 
-None of them raised, and none produced a short run or an error row. Each produced a CSV that
-looked like a completed analysis and was wrong, which is why they are pinned here rather than
-left to the end-to-end run to notice.
+None of them raised, and none of them produced a short run or an error row. Each produced a
+CSV that looked like a completed analysis and was wrong, which is why they are pinned here
+rather than left to the end-to-end run to notice.
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,7 @@ from backend.pipeline.adapter_mongolia import (
     _AMENDING_TITLE, _is_principal, _matches, _query_parts, _relevance, _title_key,
     _word_variants, load_catalogue)
 from backend.pipeline.extraction import _CLAUSE_RE_MN
+from backend.schemas import SUBMISSION_COLUMNS, TRANSLATION_COLUMNS
 
 
 # ─────────────────────────── 1. the .env path ───────────────────────────
@@ -152,3 +154,92 @@ def test_clause_split_still_rejects_dates_cross_references_and_sub_clauses():
     # "2.1.1." is a SUB-clause: splitting there shatters article 2.1 into fragments and
     # destroys the surrounding context the grader reads.
     assert not _CLAUSE_RE_MN.match("2.1.1. ил тод байх;")
+
+
+# ─────────────────────────── 4. translations ───────────────────────────
+def _mapping(economy, **kw):
+    from backend.schemas import DiscoveryTag, Economy, EvidenceMapping, ReviewStatus
+    base = dict(
+        mapping_id="m", run_id="r", economy=Economy(economy), pillar=6, indicator_id="P6-I4",
+        law_name="ХҮНИЙ ХУВИЙН МЭДЭЭЛЭЛ ХАМГААЛАХ ТУХАЙ", article_section="14 дүгээр зүйл",
+        verbatim_snippet="14.1.Хүний хувийн мэдээллийг гадаад улсад дамжуулахыг хориглоно.",
+        source_url="https://legalinfo.mn/mn/detail?lawId=16390288615991",
+        mapping_rationale="x", confidence_score=0.9, discovery_tag=DiscoveryTag.NEW,
+        review_status=ReviewStatus.AUTO_ACCEPTED, provision_id="p")
+    base.update(kw)
+    return EvidenceMapping(**base)
+
+
+def test_translation_columns_come_after_every_mandatory_column():
+    """The judges validate the template programmatically. Extra columns are permitted (the
+    Q&A's own example is RDTII_Raw_Score) but only AFTER the mandatory ones."""
+    from backend.export.csv_export import csv_text
+    m = _mapping("MN", law_name_translated="LAW ON PROTECTION OF PERSONAL DATA",
+                 snippet_translated="14.1. Transfer of personal data abroad is prohibited.",
+                 translation_target="English")
+    header = csv_text([m]).splitlines()[0]
+    cols = [c.strip('"') for c in header.split(",")]
+    assert cols[:len(SUBMISSION_COLUMNS)] == SUBMISSION_COLUMNS
+    assert cols[len(SUBMISSION_COLUMNS):] == TRANSLATION_COLUMNS
+
+
+def test_an_untranslated_run_keeps_the_exact_template_width():
+    """Singapore legislates in English, so the translator is skipped without a call. Two
+    always-blank columns would still change the width of a file the judges validate."""
+    from backend.export.csv_export import csv_text
+    header = csv_text([_mapping("SG")]).splitlines()[0]
+    cols = [c.strip('"') for c in header.split(",")]
+    assert cols == SUBMISSION_COLUMNS
+
+
+def test_the_verbatim_column_is_never_the_translation():
+    """`Verbatim Snippet` IS the statute's text — it is what the panel checks the citation
+    against — so a translated snippet written into it would be a false citation."""
+    from backend.export.csv_export import csv_text
+    original = "14.1.Хүний хувийн мэдээллийг гадаад улсад дамжуулахыг хориглоно."
+    m = _mapping("MN", verbatim_snippet=original,
+                 snippet_translated="14.1. Transfer of personal data abroad is prohibited.",
+                 law_name_translated="LAW ON PROTECTION OF PERSONAL DATA")
+    body = csv_text([m]).splitlines()[1]
+    assert original in body
+    assert "14.1. Transfer of personal data abroad is prohibited." in body
+
+
+def test_english_economies_are_skipped_without_a_call():
+    """The translator must not spend a call to return its own input."""
+    from backend.pipeline.translate import needs_translation
+    for eco in ("SG", "AU", "MY", "IN"):
+        assert not needs_translation(eco, "English")
+    for eco in ("MN", "CN", "RU", "TH", "LA", "KZ", "ID", "VN"):
+        assert needs_translation(eco, "English")
+
+
+def test_placeholder_rows_are_not_translated():
+    """A "No provision found" row's snippet is a fixed English phrase we wrote ourselves."""
+    from backend.pipeline import translate
+    calls = []
+
+    class _Spy:
+        def complete_json(self, system, user):
+            calls.append(user)
+            return {"translation": "should not happen"}
+
+    m = _mapping("MN", law_name=translate.PLACEHOLDER_LAW,
+                 verbatim_snippet="No evidence found for this indicator.")
+    translate.translate_mappings([m], llm=_Spy())
+    assert calls == []
+    assert not m.snippet_translated
+
+
+def test_the_prompt_forbids_transliteration():
+    """Measured on the 2026-08-27 MN pillar-6 run: one of eight rows came back ROMANISED —
+    "27 duugaar zuil. Niitiin medeeleliin san" — because the earlier rule 3 invited
+    transliteration for terms with no equivalent and the model applied it to the whole
+    passage. A romanised snippet is the same sentence the reviewer could not read, and it is
+    worse than an empty cell because it looks like an answer. This is a tripwire, not a
+    quality check: the rule is cheap to delete by accident when the prompt is next edited.
+    """
+    from backend.pipeline.translate import TRANSLATE_SYSTEM
+    body = TRANSLATE_SYSTEM.format(target="English").lower()
+    assert "never transliterate" in body
+    assert "romanis" in body

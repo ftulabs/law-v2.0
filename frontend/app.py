@@ -495,6 +495,19 @@ _EVIDENCE_CSS = """
     border:1px solid var(--rule);font-size:.87rem;line-height:1.62;color:var(--ink);}
   .evp blockquote::before{content:"C";font-size:1.6rem;color:var(--accent);line-height:0;
     vertical-align:-.35rem;margin-right:2px;}
+  /* Working translation. Deliberately SUBORDINATE to the quote above it: the quote is the
+     citation the panel checks, this is a reading aid. The difference is carried by a DASHED
+     rule, a recessed background and the label's own words — never by colour alone, and never
+     by the traffic-light palette, which means confidence on this screen and would read as a
+     quality score for the translation. */
+  .evp .xlat{margin:.45rem 0 0;padding:.7rem .95rem;border-radius:10px;background:var(--paper-2);
+    border:1px dashed var(--rule);font-size:.83rem;line-height:1.62;color:var(--ink-soft);
+    overflow-wrap:anywhere;}
+  .evp .xlat b{display:block;font-size:.66rem;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--ink-faint);margin-bottom:.25rem;font-weight:600;}
+  /* The translated law name sits under the original heading, not in place of it — the row's
+     identity in the submission file is the statute's own name. */
+  .evp .xname{font-size:.8rem;line-height:1.45;color:var(--ink-soft);margin:.15rem 0 .1rem;}
   .evp .why{font-size:.78rem;color:var(--ink-soft);margin:.75rem 0 0;}
   .evp .why b{color:var(--ink);}
   .evp .bars{margin:.95rem 0 0;display:flex;flex-direction:column;gap:.35rem;}
@@ -819,6 +832,33 @@ def _ocr_language_note(economy_code, ocr_name: str) -> str:
 
 
 
+def _source_lang_tag(economy: str) -> str:
+    """A BCP-47 `lang` attribute for the statute's own text, or "" when unknown.
+
+    Read from the same language registry the OCR engine, the reranker and the CSV's "Language
+    of Source" column already read, so the language a screen reader is told cannot disagree
+    with the language the pipeline assumed while processing the document.
+    """
+    from backend.providers.ocr_languages import profile_for
+    return f' lang="{profile_for(economy).azure}"' if profile_for(economy).azure else ""
+
+
+def translation_html(m) -> str:
+    """The working translation of one mapping's snippet, or "" when there is none.
+
+    Shown EXPANDED, not behind a disclosure control. Progressive disclosure is the right
+    default on this dashboard and is used everywhere else on it, but it inverts here: for a
+    Mongolian or Chinese result the translation is the only part of the panel the reviewer can
+    actually read, so hiding it puts a click in front of the content and leaves the visible
+    surface unreadable. The original stays first and stays whole — it is the citation.
+    """
+    if not getattr(m, "snippet_translated", None):
+        return ""
+    target = getattr(m, "translation_target", None) or "English"
+    return (f'<div class="xlat"><b>Working {target} translation · machine-made, '
+            f'not the citation</b>{_esc(m.snippet_translated)}</div>')
+
+
 def evidence_panel_html(cell_key: str | None, mappings) -> str:
     """The evidence for one matrix cell, rendered beside the matrix.
 
@@ -872,12 +912,15 @@ def evidence_panel_html(cell_key: str | None, mappings) -> str:
             if m.scope_flag else "")
     return (
         f'<div class="evp">{head}'
-        f'<h4>{_esc(m.law_name)}</h4>'
+        f'<h4{_source_lang_tag(m.economy.value)}>{_esc(m.law_name)}</h4>'
+        + (f'<div class="xname">{_esc(m.law_name_translated)}</div>'
+           if getattr(m, "law_name_translated", None) else "") +
         f'<div class="evcite">{_esc(m.article_section)} · {_esc(m.law_number or m.economy.value)}'
         f' · {_host(m.source_url)}</div>'
         f'<div class="test"><b>{matrix.num(m.indicator_id)} {_esc(ind.title) if ind else ""}'
         f' — the legal test</b>{_esc(ind.legal_test) if ind else ""}</div>'
-        f'<blockquote>{_esc(m.verbatim_snippet)}</blockquote>'
+        f'<blockquote{_source_lang_tag(m.economy.value)}>{_esc(m.verbatim_snippet)}</blockquote>'
+        + translation_html(m) +
         f'<p class="why"><b>Why this mapping.</b> {_esc(m.mapping_rationale)}</p>{flag}'
         f'<div class="bars">{bars}</div>'
         f'<div style="margin-top:.7rem">{score}</div>'
@@ -1012,6 +1055,7 @@ llm_key = st.session_state.get("llm_key")
 use_samples = st.session_state.get("use_samples", False)
 fresh_run = st.session_state.get("fresh_run", False)
 scoring_on = st.session_state.get("scoring_on", settings.scoring_enabled)
+translate_on = st.session_state.get("translate_on", settings.translation_enabled)
 top_k = 5   # grade-all ignores top_k on small corpora; large crawls scale it internally
 
 # The Run button sets a flag and reruns rather than running inline: the controls must have
@@ -1063,7 +1107,8 @@ if run_clicked and pillars:
                 Economy(economy), pillars, use_samples=use_samples, top_k=top_k, log=log,
                 ocr_provider=ocr_choice, llm_provider=llm_choice,
                 llm_model=llm_model or None, llm_api_key=llm_key or None,
-                scoring_enabled=scoring_on, use_result_cache=not fresh_run,
+                scoring_enabled=scoring_on, translation_enabled=translate_on,
+                use_result_cache=not fresh_run,
                 # The live test's second pass: the same documents, a different engine, and no
                 # portal contacted. `must be 0` in the organisers' own comparison table.
                 reuse_documents=st.session_state.get("lt_reuse"))
@@ -1145,11 +1190,13 @@ if not run_id:
             economy=economy, pillar=pillar,
             ocr_label=enginebench.short_name("ocr", ocr_choice),
             llm_label=enginebench.short_name("llm", llm_choice),
-            use_samples=use_samples, fresh=fresh_run, scoring=scoring_on)
+            use_samples=use_samples, fresh=fresh_run, scoring=scoring_on,
+            translate=translate_on)
         # The screen reports; the session is written here and only here.
         st.session_state["use_samples"] = _choice["use_samples"]
         st.session_state["fresh_run"] = _choice["fresh"]
         st.session_state["scoring_on"] = _choice["scoring"]
+        st.session_state["translate_on"] = _choice.get("translate", translate_on)
         if _choice.get("economy") and _choice["economy"] != economy:
             st.session_state["economy"] = _choice["economy"]
             st.rerun()
@@ -1340,8 +1387,14 @@ with tab_review:
                 f'<div style="display:flex;gap:1rem;align-items:center;margin:.4rem 0 .2rem">'
                 f'<div style="max-width:300px;flex:1">{verdict_html(m.confidence_score)}</div>'
                 f'{score_stamp_html(m.raw_score, mini=True)}</div>'
-                f'<div class="quote">{m.verbatim_snippet}</div>'
-                f'<div class="cite">Why this mapping · {m.mapping_rationale}</div>'
+                f'<div class="quote"{_source_lang_tag(m.economy.value)}>{m.verbatim_snippet}</div>'
+                # The reviewer is being asked to approve or reject THIS row, so a snippet they
+                # cannot read is the one place a translation matters most.
+                + (f'<div class="cite" style="margin:.35rem 0 .2rem">Working '
+                   f'{m.translation_target or "English"} translation — machine-made, not the '
+                   f'citation</div><div class="quote">{m.snippet_translated}</div>'
+                   if m.snippet_translated else "")
+                + f'<div class="cite">Why this mapping · {m.mapping_rationale}</div>'
                 + (f'<div class="cite">Impact · {m.impact}</div>' if m.impact else ""),
                 unsafe_allow_html=True,
             )
@@ -1379,8 +1432,19 @@ with tab_audit:
             st.markdown(f"### {m.indicator_id} — {m.law_name}")
             st.markdown(f'<div class="cite">{m.article_section} &middot; {m.economy.value} &middot; Pillar {m.pillar} '
                         f'&middot; {m.discovery_tag.value}</div>', unsafe_allow_html=True)
+            if m.law_name_translated:
+                st.markdown(f'<div class="cite">{m.law_name_translated}</div>',
+                            unsafe_allow_html=True)
             st.markdown('<div class="kicker" style="margin-top:.8rem">Exact quote</div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="quote">{m.verbatim_snippet}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="quote"{_source_lang_tag(m.economy.value)}>{m.verbatim_snippet}</div>',
+                        unsafe_allow_html=True)
+            if m.snippet_translated:
+                _target = m.translation_target or "English"
+                st.markdown(f'<div class="kicker" style="margin-top:.8rem">Working {_target} '
+                            f'translation — machine-made, not the citation</div>',
+                            unsafe_allow_html=True)
+                st.markdown(f'<div class="quote">{m.snippet_translated}</div>',
+                            unsafe_allow_html=True)
             st.markdown(f'<div class="srcurl">Source · <a href="{m.source_url}">{m.source_url}</a></div>',
                         unsafe_allow_html=True)
             st.markdown(f'<div class="cite" style="margin-top:.6rem">Why this mapping · {m.mapping_rationale}</div>',

@@ -140,8 +140,22 @@ def _economy_head(code: str) -> None:
         unsafe_allow_html=True)
 
 
+def translate_needed(economy: str) -> bool:
+    """Whether a run on this economy would produce any translation at all.
+
+    Asks the translator itself rather than keeping a second list of English-speaking
+    economies here — two lists is how the control ends up offering a translation the
+    pipeline then skips.
+    """
+    try:
+        from backend.pipeline.translate import needs_translation
+        return needs_translation(economy)
+    except Exception:                       # noqa: BLE001 — a control must not break the screen
+        return True
+
+
 def render(*, economy: str, pillar: int, ocr_label: str, llm_label: str,
-           use_samples: bool, fresh: bool, scoring: bool) -> dict:
+           use_samples: bool, fresh: bool, scoring: bool, translate: bool = True) -> dict:
     """Draw the Run screen. Returns what the user changed, for app.py to commit.
 
     Nothing is written to `st.session_state` here: the caller owns that, so a control can
@@ -172,7 +186,7 @@ def render(*, economy: str, pillar: int, ocr_label: str, llm_label: str,
                  "are a reproducible fallback for when a portal is down.")
         out["use_samples"] = (where == _SAMPLE)
 
-        opt = st.columns(2, gap="small")
+        opt = st.columns(3, gap="small")
         with opt[0]:
             out["fresh"] = st.checkbox("Search again", value=fresh,
                                        help="Identical inputs normally return the saved "
@@ -182,6 +196,18 @@ def render(*, economy: str, pillar: int, ocr_label: str, llm_label: str,
                                          help="Adds the RDTII raw score (0 / 0.5 / 1) per "
                                               "law. One extra AI call each. Never written to "
                                               "the submission file.")
+        with opt[2]:
+            # Shown DISABLED rather than hidden when the country already legislates in the
+            # target language. A control that silently vanishes reads as a missing feature;
+            # one that is present and explains itself answers the question instead.
+            _needs = translate_needed(out.get("economy") or economy)
+            out["translate"] = st.checkbox(
+                "Translate results", value=(translate and _needs), disabled=not _needs,
+                help=("Adds an English translation of each law name and quote, beside the "
+                      "original. The original text is never replaced — it is the citation."
+                      if _needs else
+                      "This country's laws are already published in English, so there is "
+                      "nothing to translate."))
 
         out["run"] = st.button("Run analysis", type="primary", width="stretch", key="run_home")
         st.markdown(f'<p class="runsum">{out.get("economy") or economy} · pillar '

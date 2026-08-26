@@ -256,6 +256,18 @@ class EvidenceMapping(BaseModel):
     raw_score: Optional[float] = None
     impact: Optional[str] = None
 
+    # ── working translation (reviewer aid, never a citation) ──
+    # Six of the nine live-test economies legislate in a script the reviewer cannot read, and
+    # the two columns carrying the finding — Law Name and Verbatim Snippet — are the statute's
+    # own words by definition. These hold a machine translation of each, so the result can be
+    # CHECKED rather than trusted. They are separate fields on purpose: `verbatim_snippet` is
+    # what the panel verifies the citation against, so a translation written into it would be
+    # a false citation. `translation_target` records the language actually produced, because a
+    # cell whose language is inferred from the economy is wrong the moment the target changes.
+    law_name_translated: Optional[str] = None
+    snippet_translated: Optional[str] = None
+    translation_target: Optional[str] = None
+
     # technical / audit extras (JSON export, not CSV)
     provision_id: str
     source_pdf_path: Optional[str] = None         # local retrieved file
@@ -348,6 +360,16 @@ SUBMISSION_COLUMNS = [
     "Confidence",
     "Notes",
     "Language of Source",
+]
+
+#: Reviewer-facing translation columns, appended AFTER the mandatory ones. The judges' Q&A
+#: permits extra columns in that position (it is the same allowance MASTER_EXTRA_COLUMNS uses
+#: for RDTII_Raw_Score), so the first 14 columns still match the template exactly, by name and
+#: by position. The headers say MACHINE TRANSLATION in full: a reviewer must never mistake one
+#: of these cells for the statute's own words, which is what the Verbatim Snippet column is.
+TRANSLATION_COLUMNS = [
+    "Law Name (machine translation)",
+    "Verbatim Snippet (machine translation)",
 ]
 
 # Statuses that belong in a submission (exclude rejected/quarantined by default)

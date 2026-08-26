@@ -13,7 +13,8 @@ from pathlib import Path
 
 from ..config import settings
 from ..rdtii import codes, instrument
-from ..schemas import ECONOMY_UN_NAME, SUBMISSION_COLUMNS, SUBMITTABLE_STATUSES, EvidenceMapping
+from ..schemas import (ECONOMY_UN_NAME, SUBMISSION_COLUMNS, SUBMITTABLE_STATUSES,
+                       TRANSLATION_COLUMNS, EvidenceMapping)
 
 
 def _row(m: EvidenceMapping) -> dict[str, str]:
@@ -70,6 +71,26 @@ def _notes(m: EvidenceMapping) -> str:
     return "  ".join(parts)
 
 
+def _translation_cells(m: EvidenceMapping) -> dict[str, str]:
+    """The two reviewer-facing translation cells for a row."""
+    return {
+        TRANSLATION_COLUMNS[0]: m.law_name_translated or "",
+        TRANSLATION_COLUMNS[1]: m.snippet_translated or "",
+    }
+
+
+def _with_translations(mappings: list[EvidenceMapping]) -> bool:
+    """Write the translation columns only when this run actually produced one.
+
+    An economy that already legislates in the target language is skipped by the translator
+    without a call, so every cell would be empty. Two always-blank columns on a Singapore
+    submission are not a neutral default — they read as a feature that ran and found nothing,
+    and they change the width of a file the judges validate. So the columns appear when there
+    is something in them and are absent otherwise.
+    """
+    return any(m.law_name_translated or m.snippet_translated for m in mappings)
+
+
 def csv_text(mappings: list[EvidenceMapping], submission_only: bool = True) -> str:
     """The submission CSV as a string, for a caller that has nowhere to put a file.
 
@@ -82,11 +103,16 @@ def csv_text(mappings: list[EvidenceMapping], submission_only: bool = True) -> s
     rows = [m for m in mappings
             if (not submission_only or m.review_status.value in SUBMITTABLE_STATUSES)]
     buf = io.StringIO()
-    writer = csv.DictWriter(buf, fieldnames=SUBMISSION_COLUMNS, quoting=csv.QUOTE_ALL,
+    translated = _with_translations(rows)
+    cols = SUBMISSION_COLUMNS + (TRANSLATION_COLUMNS if translated else [])
+    writer = csv.DictWriter(buf, fieldnames=cols, quoting=csv.QUOTE_ALL,
                             lineterminator="\r\n")
     writer.writeheader()
     for m in rows:
-        writer.writerow(_row(m))
+        row = _row(m)
+        if translated:
+            row.update(_translation_cells(m))
+        writer.writerow(row)
     return buf.getvalue()
 
 
@@ -111,8 +137,10 @@ def export_master_csv(mappings: list[EvidenceMapping], out_dir: Path | None = No
     rows.sort(key=lambda m: (m.economy.value, m.pillar, m.indicator_id, m.law_name or "~"))
     path = Path(out_dir) / f"{out_stem}.csv"
     with path.open("w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=SUBMISSION_COLUMNS + MASTER_EXTRA_COLUMNS,
-                                quoting=csv.QUOTE_ALL)
+        translated = _with_translations(rows)
+        cols = SUBMISSION_COLUMNS + MASTER_EXTRA_COLUMNS + (
+            TRANSLATION_COLUMNS if translated else [])
+        writer = csv.DictWriter(f, fieldnames=cols, quoting=csv.QUOTE_ALL)
         writer.writeheader()
         for m in rows:
             r = _row(m)
@@ -120,5 +148,7 @@ def export_master_csv(mappings: list[EvidenceMapping], out_dir: Path | None = No
             r["RDTII_Raw_Score"] = ("" if m.raw_score is None
                                     else f"{m.raw_score:g}")
             r["Coverage"] = m.coverage or ""
+            if translated:
+                r.update(_translation_cells(m))
             writer.writerow(r)
     return path

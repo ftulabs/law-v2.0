@@ -17,7 +17,7 @@ from ..providers import get_llm_provider, get_ocr_provider
 from ..rdtii import get_indicators
 from ..schemas import Economy, OCRReport, RunMeta, RunResult
 from ..storage import db
-from . import discovery, extraction, mapping, scoring
+from . import discovery, extraction, mapping, scoring, translate
 from .ocr import get_document_text
 
 
@@ -256,6 +256,7 @@ def run_pipeline(
     llm_api_key: str | None = None,
     pdf_path: str | None = None,
     scoring_enabled: bool | None = None,
+    translation_enabled: bool | None = None,
     use_result_cache: bool = True,
     reuse_documents: list | None = None,
 ) -> RunResult:
@@ -502,6 +503,18 @@ def run_pipeline(
     # indicators with no evidence still need an explicit placeholder row (blank = penalty)
     mappings.extend(_no_evidence_placeholders(run_id, economy, indicators, mappings, log,
                                               provisions))
+
+    # Working translation of Law Name + Verbatim Snippet, for a reviewer who does not read the
+    # statute language. LAST, and after the placeholders, on purpose: it reads the final row
+    # set and writes only its own two fields, so nothing that decided a mapping, a confidence
+    # or a score ever saw a translation. Skipped without a call when the economy already
+    # legislates in the target language. See pipeline/translate.py.
+    do_translate = (settings.translation_enabled if translation_enabled is None
+                    else translation_enabled)
+    if do_translate and mappings:
+        _t = time.perf_counter()
+        translate.translate_mappings(mappings, llm=llm, log=log)
+        log(f"[timing] translation {time.perf_counter() - _t:.1f}s")
 
     for m in mappings:
         db.save_mapping(m)
