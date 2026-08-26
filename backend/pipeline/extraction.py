@@ -107,7 +107,21 @@ _STRUCT_RE_MN = re.compile(
 # line, with no зүйл anywhere. Two digits at most on each side: "1.1." is a clause,
 # "2016.05.12" is a date and "125-131" a cross-reference, and both start lines in these
 # documents. The trailing dot is required for the same reason.
-_CLAUSE_RE_MN = re.compile(r"(?m)^[ 	]*(\d{1,2}\.\d{1,2})\.[ 	]+(?=[^\d])")
+#
+# The space after that dot is OPTIONAL, and this was measured, not guessed. legalinfo.mn's
+# Word export runs the number straight into the text — "1.1.Энэхүү журмын", no space —
+# so `[ 	]+` matched nothing at all. The document it failed on is the Minister of Digital
+# Development order A/90 (lawId=16760452348261), which is the panel's OWN citation for
+# Mongolia's 6.3: 3,755 characters of clean clause-numbered text that yielded ZERO
+# provisions and reached the grader as a single "(document)" block. With the space optional
+# the same file yields 9. Nothing raised either way — the run just reported no evidence.
+#
+# Making it optional costs nothing on the guards, because they are carried by the line
+# anchor and the lookahead, not by the space: "2016.05.12" fails (`\d{1,2}` cannot reach a
+# dot from "2016"), "125-131" fails (no dot), and the sub-clause "2.1.1." fails because the
+# lookahead after "2.1." sees a digit — which is what keeps 2.1 whole instead of shattering
+# it into 2.1.1, 2.1.2, …
+_CLAUSE_RE_MN = re.compile(r"(?m)^[ 	]*(\d{1,2}\.\d{1,2})\.[ 	]*(?=[^\d])")
 
 # Trailing site furniture, for the LAST provision only. Every other provision ends where the
 # next one begins; the last one runs to the end of the text, so whatever the page puts after

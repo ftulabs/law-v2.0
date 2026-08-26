@@ -211,6 +211,21 @@ Register new providers in `backend/providers/llm_factory.py`.
   Codes of Practice + PDP Standard 2015. **This is the largest remaining coverage gap, and it
   is a discovery problem, not a retrieval one.**  
 ❌ **Live-test six (TH/VN/ID/KZ/LA/RU) are NOT end-to-end ready** — all six have only generic `websearch` lanes with zero portal-scoped queries and `verified: false` (`data/sources.yaml`). Measured 2026-08-25: TH and ID timed out (their lanes hang on the DuckDuckGo HTML endpoint), VN returned 22 documents of pure noise (no `site:` scope — `OFFICIAL_PORTAL` has no VN entry — so results were EU/Canadian/US pages). KZ/LA/RU share the same lane shape and are unproven; LA's gazette host does not even resolve. These six need per-portal adapters of the kind CN/IN/MN got, not tuning.  
+✅ **Three Mongolia defects found and fixed (2026-08-27)** — all SILENT, all cost the run its
+  document set. A pillar-6 run returned FOUR documents, of which one was a statute.
+  (1) `_matches` assumed a Mongolian stem reaches its declined form by substring, using
+  "мэдээлэл inside мэдээллийн" as its worked example — **that is False**: the fleeting vowel
+  DROPS. So no query carrying мэдээлэл could reach НИЙТИЙН МЭДЭЭЛЛИЙН ИЛ ТОД БАЙДЛЫН ТУХАЙ,
+  the panel's own citation for 6.3. (2) Candidates were ranked by TITLE LENGTH, which inverts
+  on legalinfo.mn: lawId=100956 and lawId=523 share the title ХАРИЛЦАА ХОЛБООНЫ ТУХАЙ but the
+  first is a 9,867-byte amendment yielding 458 characters and the second is the 251,215-byte
+  Act. The catalogue's `bytes` field was present and unused; ranking is now
+  (principal-statute, size) and amending instruments are dropped. (3) `_CLAUSE_RE_MN` required
+  a space after the clause number, but the portal's Word export writes "1.1.Энэхүү" with none —
+  so the Minister's order A/90 (the key's other 6.3 citation) produced ZERO provisions and
+  reached the grader as one "(document)" block; it now yields 9. Measured after: pillar 6
+  returns 22 documents with all five relevant answer-key laws in the top rank band.
+  Regressions in `tests/test_mn_discovery_and_translation.py`.
 ❌ **Mock grader is lexical only** — can confuse closely-related indicators (P6-I1 vs P6-I4, P7-I1 vs P7-I2) without a real LLM  
 ❌ **Manual review UI** — confidence routing flags rows for review, but the review workflow is minimal (data structure exists, UI not built)  
 ✅ **Scoring (Zone 3) is implemented** — each mapped measure gets an RDTII Raw Score (0/0.5/1) + Coverage + Impact per the official scoring criteria (`backend/rdtii/scoring_rubric.py`); a separate scored CSV mirrors the answer-key Database shape (the mandatory 14-col submission CSV is left untouched). ⚠ Polarity is INVERTED for 7.1/7.2 (a comprehensive/dedicated horizontal framework scores 0); indicator roll-up takes MIN for those, MAX otherwise. See `backend/pipeline/scoring.py`, toggle via `SCORING_ENABLED`.  

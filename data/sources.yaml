@@ -354,10 +354,25 @@ sources:
     # Counts are the number of TITLES in data/catalogues/MN_titles.json each term matches,
     # measured — not guessed. Anything in the hundreds is a term that will bury the statute
     # under its own implementing paperwork even with MN_MAX_PER_QUERY.
+    # Counts below are DISTINCT in-force instruments after the repealed/amending filters,
+    # re-measured 2026-08-27 against the fleeting-vowel matcher. The previous counts were
+    # taken with the plain-substring matcher and understated every term carrying
+    # мэдээлэл, because that word cannot reach its own genitive мэдээллийн by substring.
     queries_p6:
-      - хүний хувийн мэдээлэл      # 2 — the Personal Data Protection Law and its amendment
-      - мэдээлэл хамгаалах         # 3
-      - нийтийн мэдээлэл           # 2 — Transparency of Public Information (the key's 6.3)
+      - хүний хувийн мэдээлэл      # 1 — Personal Data Protection Law (the key's 6.1, 6.2, 6.4)
+      - мэдээлэл хамгаалах         # 5
+      - нийтийн мэдээлэл           # 6 — Transparency of Public Information (the key's 6.3)
+      # The key's OTHER 6.3 citation is a ministerial order, not an Act: the Minister of
+      # Digital Development's A/90 regulation on processing sensitive, genetic and biometric
+      # data. No term above reaches it — its title leads with ЭМЗЭГ, which appears in
+      # neither of the two Acts — so a pillar-6 run could not cite what the panel cites.
+      - эмзэг мэдээлэл               # 2 — the A/90 sensitive-data regulation (the key's 6.3)
+      # Pillar 6 is about where data may go and what must be in place before it goes. Both
+      # sit in these two as well as in the data-protection Act: the Cybersecurity Law carries
+      # the infrastructure duties 6.3 asks about, and the Communications Law is where a
+      # localisation or facility condition on a licensed operator would be written.
+      - кибер аюулгүй                # 4 — Кибер аюулгүй байдлын тухай
+      - '"харилцаа холбоо" тухай'  # 21 — Communications Law. QUOTED: see _query_parts —
     # `мэдээллийн аюулгүй` (information security) is a PILLAR-7 concept and is listed only
     # there. In the pillar-6 set it pulled in a drug-safety information report and a civil
     # aviation confidentiality rule — 200-word approving resolutions that are neither about
@@ -366,13 +381,17 @@ sources:
       - хүний хувийн мэдээлэл      # 2
       - мэдээлэл хамгаалах         # 3
       - кибер аюулгүй              # 6 — Кибер аюулгүй байдлын тухай (the key's 7.2)
-      - мэдээллийн аюулгүй         # 15
-      - нийтийн мэдээлэл           # 2
-      - цахим гарын                # 10 — Electronic Signature Law
-      - төрийн нууц                # 37 — State Secrets (7.5)
-      - архивын                    # 77 — Law on Archives (retention, 7.3)
-      - харилцаа холбооны тухай    # 53 — Communications Law (the key's 7.3, sectoral)
-      - банкны тухай               # 193 — Banking Law (the key's 7.5); the broadest term here
+      - мэдээллийн аюулгүй         # 10
+      - нийтийн мэдээлэл           # 6
+      - эмзэг мэдээлэл               # 2 — A/90 sensitive-data regulation (DPO duties, 7.4)
+      - цахим гарын                # 3 — Electronic Signature Law
+      - төрийн нууц                # 15 — State Secrets (7.5)
+      - архивын                    # 43 — Law on Archives (retention, 7.3)
+      - '"харилцаа холбоо" тухай'  # 21 — Communications Law (the key's 7.3, sectoral).
+      # QUOTED so холбоо must sit next to харилцаа: unquoted it also means "federation",
+      # and Mongolia has one treaty Act per recognised state ("… Холбооны Улстай дипломат
+      # харилцаа тогтоох тухай"), each of which matched all three words as a principal Act.
+      - банкны тухай               # 84 — Banking Law (the key's 7.5); the broadest term here
     note: >-
       Discovery is the sitemap; titles come from data/catalogues/MN_titles.json, built once by
       tools/build_mn_catalogue.py because legalinfo.mn's listing pages render their rows in the

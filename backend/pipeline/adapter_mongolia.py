@@ -48,6 +48,7 @@ keeps producing.
 """
 from __future__ import annotations
 
+import html
 import json
 import re
 import urllib.parse
@@ -82,6 +83,12 @@ _LAW_ID = re.compile(r"lawId=(\d+)")
 _FILENAME = re.compile(r'filename="([^"]*)"')
 _TAG = re.compile(r"<[^>]+>")
 _WS = re.compile(r"\s+")
+#: Title carries the repeal flag. legalinfo.mn has no in-force field, but it names a repealed
+#: instrument "... ХҮЧИНГҮЙ" ("… no longer in force") and a repeal declaration "… ХҮЧИНГҮЙ
+#: БОЛСОНД ТООЦОХ ТУХАЙ" — both contain хүчингүй. Citing either scores zero however well the
+#: text reads (India drops them on dc.identifier.repealed; Mongolia drops them on the title,
+#: measured on lawId=16758861545771).
+_REPEALED_TITLE = re.compile(r"хүчингүй", re.I)
 #: Word's HTML export wraps every paragraph, so these are where the line breaks the article
 #: pattern needs actually live. `<br>` is included because the export uses it inside a
 #: paragraph for a numbered clause.
@@ -161,7 +168,106 @@ def load_catalogue() -> list[dict]:
         data = json.loads(CATALOGUE.read_text(encoding="utf-8"))
     except Exception:                               # noqa: BLE001 — a corrupt index is not fatal
         return []
-    return data.get("laws", []) if isinstance(data, dict) else data
+    rows = data.get("laws", []) if isinstance(data, dict) else data
+    # Titles come from Content-Disposition and reach the catalogue still HTML-escaped, so a
+    # law whose short title is quoted arrives as `&quot;…&quot;` and is carried straight into
+    # the Law Name column of the submission CSV. Unescape once, here, rather than at each of
+    # the places that read a title.
+    for r in rows:
+        t = r.get("title")
+        if t and "&" in t:
+            r["title"] = html.unescape(t)
+    return rows
+
+
+#: Mongolian FLEETING VOWEL. The docstring below used to claim a stem reaches its declined
+#: form by plain substring, with "мэдээлэл inside мэдээллийн" as the worked example. That example is
+#: FALSE, and it is checkable in one line: the second э is not kept, it is DROPPED before the
+#: suffix, so мэдээлэл → мэдээлл-ийн and `"мэдээлэл" in "мэдээллийн"` is False. Every
+#: query carrying that word could therefore never reach a title carrying its genitive.
+#:
+#: What that cost, measured against the panel's own Mongolia key: the query "нийтийн
+#: мэдээлэл" could not match НИЙТИЙН МЭДЭЭЛЛИЙН ИЛ ТОД БАЙДЛЫН ТУХАЙ — the Law on
+#: Transparency of Public Information, which is the key's citation for 6.3 and for 8.2. A
+#: pillar-6 run returned four documents, of which one was a statute.
+#:
+#: So a query word also matches with its final syllable's vowel elided. Restricted to words of
+#: six characters or more, where an elision is a real morphological alternation rather than a
+#: coincidental three-letter prefix.
+_MN_VOWELS = "аэиоөуүяеёюы"
+
+
+def _word_variants(word: str) -> set[str]:
+    """The query word, plus its fleeting-vowel form when the language allows one."""
+    out = {word}
+    if len(word) >= 6 and word[-2] in _MN_VOWELS:
+        out.add(word[:-2] + word[-1])
+    return out
+
+
+#: An AMENDING instrument — "… ХУУЛЬД НЭМЭЛТ ОРУУЛАХ ТУХАЙ" ("on making additions to the Law
+#: on …"). Its body is a DIFF, not a law: a few hundred characters saying which sentence of
+#: another Act changes. It cites beautifully and means nothing, and because legalinfo.mn often
+#: files it under the PARENT Act's own title it outranked the parent whenever the parent's
+#: title was one character longer. Repeals are caught by _REPEALED_TITLE; this is the other half.
+_AMENDING_TITLE = re.compile(r"(н[эе]м[эе]лт|өөрчл[өе]лт).{0,40}оруулах", re.I)
+
+#: Two rows are the SAME instrument when their titles agree once the qualifier is stripped
+#: ("АРХИВЫН ТУХАЙ" and "АРХИВЫН ТУХАЙ /Шинэчилсэн найруулга/").
+_TITLE_QUALIFIER = re.compile(r"\s*[/(].*$")
+
+
+def _size(row: dict) -> int:
+    """Byte size of the instrument's export, as recorded in the catalogue (0 if absent)."""
+    try:
+        return int(row.get("bytes") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _title_key(title: str) -> str:
+    return _TITLE_QUALIFIER.sub("", title).strip().lower()
+
+
+def _is_principal(title: str) -> bool:
+    """A principal statute, as opposed to something made under one.
+
+    Mongolia names an Act "<subject> тухай" and names an instrument made under it
+    "<type> БАТЛАХ ТУХАЙ (<subject>)" — "on approving the <type>". Both end in тухай,
+    so the батлах is what separates them.
+    """
+    base = _title_key(title)
+    return base.endswith("тухай") and "батлах" not in base
+
+
+#: A query may quote a group of words to require them ADJACENT: '"харилцаа холбоо" тухай'.
+#:
+#: Order-independent per-word matching is right for most of Mongolian — it is what reaches
+#: ХҮНИЙ ХУВИЙН МЭДЭЭЛЭЛ from a query written in the English name's order — but it has one
+#: expensive false friend. холбоо is "communication" in харилцаа холбоо (telecommunications)
+#: and "union/federation" in Холбооны Улс (Federal Republic). Mongolia has a treaty Act for
+#: every country it recognises, each titled "… Холбооны Улстай дипломат харилцаа тогтоох
+#: тухай", which carries all three words of "харилцаа холбооны тухай" and is a principal Act,
+#: so it outranked genuine subordinate telecom instruments. Three of the 22 pillar-6 slots
+#: went to establishing diplomatic relations with Comoros, Micronesia and Saint Kitts.
+_QUOTED = re.compile(r'"([^"]+)"')
+
+
+def _query_parts(query: str) -> list[tuple[str, bool]]:
+    """(term, is_phrase) for each part of the query, quoted groups kept whole."""
+    q = query.strip().lower()
+    parts: list[tuple[str, bool]] = []
+    pos = 0
+    for m in _QUOTED.finditer(q):
+        for w in q[pos:m.start()].split():
+            parts.append((w, False))
+        phrase = _WS.sub(" ", m.group(1).strip())
+        if phrase:
+            parts.append((phrase, True))
+        pos = m.end()
+    for w in q[pos:].split():
+        parts.append((w, False))
+    return parts
 
 
 def _matches(title: str, query: str) -> bool:
@@ -182,18 +288,45 @@ def _matches(title: str, query: str) -> bool:
     query still will not match a bare stem. Write queries as stems and check them with
     `tools/audit_native_terms.py --economy MN`.
     """
-    hay = title.lower()
-    words = [w for w in query.strip().lower().split() if w]
-    return bool(words) and all(w in hay for w in words)
+    hay = _WS.sub(" ", title.lower())
+    parts = _query_parts(query)
+    if not parts:
+        return False
+    for part, is_phrase in parts:
+        if is_phrase:
+            # A quoted group must appear CONTIGUOUSLY. See _query_parts.
+            if part not in hay:
+                return False
+        elif not any(v in hay for v in _word_variants(part)):
+            return False
+    return True
 
 
-def _doc(law_id: str, title: str, economy: Economy, portal: str) -> DiscoveredDoc:
+def _relevance(title: str, size: int) -> float:
+    """How much of the 22-document discovery budget this instrument deserves.
+
+    Every MN document used to be scored a flat 1.0, which made `discovery._cap` arbitrary:
+    it trims to `discovery_max_docs` in score order, and with no spread the order it trimmed
+    on was whichever query happened to run first. Pillar 7 alone offers ~77 candidates for
+    22 slots, so the flat score was deciding, silently, that a Government resolution about an
+    education database outranked the Banking Law.
+
+    Principal statutes take the top band, subordinate instruments the lower one, and size
+    orders within each — the same two signals the shortlist itself is built on, so a document
+    cannot be ranked one way for selection and another way for the budget.
+    """
+    base = 0.90 if _is_principal(title) else 0.60
+    return round(min(0.99, base + min(0.09, size / 6_000_000)), 4)
+
+
+def _doc(law_id: str, title: str, economy: Economy, portal: str,
+         size: int = 0) -> DiscoveredDoc:
     return DiscoveredDoc(
         doc_id=f"MN:{law_id}", economy=economy, title=title[:200], law_name=title[:200],
         # The citable page a reviewer can open — not the POST export they cannot.
         source_url=DETAIL.format(id=law_id),
         portal=portal, fmt=DocFormat.HTML,
-        relevance_score=1.0, discovery_tag=DiscoveryTag.NEW)
+        relevance_score=_relevance(title, size), discovery_tag=DiscoveryTag.NEW)
 
 
 def _search_mn_legalinfo(client, src: dict, query: str, economy: Economy, indicators,
@@ -207,20 +340,47 @@ def _search_mn_legalinfo(client, src: dict, query: str, economy: Economy, indica
     """
     portal = src.get("name", "Unified Legal Information System")
     catalogue = load_catalogue()
-    hits: list[tuple[str, str]] = []
+    hits: list[tuple[str, str, int]] = []
 
     if catalogue:
-        found = [(str(r["id"]), r["title"]) for r in catalogue
-                 if _matches(r.get("title", ""), query)]
-        # Shortest title first. Mongolian names a principal Act "<subject> тухай" and names
-        # everything made under it by its own instrument type with the subject in parentheses
-        # — "ЖУРАМ БАТЛАХ ТУХАЙ (Кибер аюулгүй байдлын зөвлөл)". So title length is a good
-        # proxy for tier, and it puts "БАНКНЫ ТУХАЙ" ahead of its 192 subordinate instruments.
-        found.sort(key=lambda t: (len(t[1]), t[1]))
+        rows = [r for r in catalogue if _matches(r.get("title", ""), query)]
+
+        # Repealed instruments are not evidence (the panel scores them zero). The portal has
+        # no in-force flag, but the TITLE marks them, and an AMENDING act is dropped for the
+        # same reason: its body is the diff, not the law.
+        kept = [r for r in rows
+                if not _REPEALED_TITLE.search(r.get("title", ""))
+                and not _AMENDING_TITLE.search(r.get("title", ""))]
+        if len(kept) < len(rows):
+            log(f"[discovery] legalinfo.mn: dropped {len(rows) - len(kept)} repealed/amending "
+                f"for {query!r}")
+
+        # One row per instrument, keeping the LARGEST. legalinfo.mn files the same statute
+        # several times under one title, and the small ones are stubs: lawId=100956 is
+        # "XAPИЛЦAA XOЛБOOHЫ TУXAЙ /Шинэчилсэн найруулга/" at 9,867 bytes whose body opens
+        # "...ХУУЛЬД НЭМЭЛТ ОРУУЛАХ ТУХАЙ" and yields 458 characters, against lawId=523 at
+        # 251,215 bytes and 55,972 characters for the Act itself. Same for АРХИВЫН ТУХАЙ
+        # (100518 vs 13,717) and ТӨРИЙН НУУЦЫН ТУХАЙ (83,163 vs 8,039).
+        best: dict[str, dict] = {}
+        for r in kept:
+            k = _title_key(r.get("title", ""))
+            if k not in best or _size(r) > _size(best[k]):
+                best[k] = r
+
+        # Principal statutes first, then by SIZE, and the size half is the correction.
+        # Ordering by title length was a proxy for "principal instrument" that inverts on the
+        # documents above: the stub and the Act share a title, so the tie broke on a trailing
+        # qualifier and the 458-character diff won. Byte size is the portal's own measure of
+        # how much instrument is behind an id, it is already in the catalogue, and it puts
+        # БАНКНЫ ТУХАЙ (545,709) ahead of its 192 subordinate instruments the same way the
+        # length rule was meant to.
+        found = sorted(best.values(),
+                       key=lambda r: (0 if _is_principal(r.get("title", "")) else 1,
+                                      -_size(r), r.get("title", "")))
         if len(found) > MN_MAX_PER_QUERY:
             log(f"[discovery] legalinfo.mn: {len(found)} titles match {query!r}; taking the "
-                f"{MN_MAX_PER_QUERY} shortest-titled (principal instruments first)")
-        hits.extend(found[:MN_MAX_PER_QUERY])
+                f"{MN_MAX_PER_QUERY} largest principal instruments first")
+        hits.extend((str(r["id"]), r["title"], _size(r)) for r in found[:MN_MAX_PER_QUERY])
     else:
         log(f"[discovery] MN catalogue missing — probing the sitemap live, capped at "
             f"{MN_MAX_PROBE} instruments. Build it with tools/build_mn_catalogue.py.")
@@ -232,10 +392,15 @@ def _search_mn_legalinfo(client, src: dict, query: str, economy: Economy, indica
         for law_id in ids[:MN_MAX_PROBE]:
             title, _ = export_law(client, law_id)
             if title and _matches(title, query):
-                hits.append((law_id, title))
+                hits.append((law_id, title, 0))
 
     out: list[DiscoveredDoc] = []
-    for law_id, title in hits:
+    for law_id, title, size in hits:
+        # The no-catalogue path discovers titles one export at a time; apply the same
+        # repealed-title gate in both paths so a probe cannot smuggle in what the catalogue
+        # already dropped.
+        if _REPEALED_TITLE.search(title):
+            continue
         try:
             _, body = export_law(client, law_id)
         except Exception as exc:                    # noqa: BLE001
@@ -248,7 +413,7 @@ def _search_mn_legalinfo(client, src: dict, query: str, economy: Economy, indica
             seed_cache(DETAIL.format(id=law_id), body, "text/html", log=lambda _m: None)
         except Exception as exc:                    # noqa: BLE001 — discovery still stands
             log(f"[discovery] could not seed MN lawId={law_id}: {type(exc).__name__}")
-        out.append(_doc(law_id, title, economy, portal))
+        out.append(_doc(law_id, title, economy, portal, size))
 
     log(f"[discovery] legalinfo.mn: {len(out)} instruments for {query!r}")
     return out
