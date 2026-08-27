@@ -147,14 +147,7 @@ class Settings(BaseSettings):
     #: members (gemini-2.5-flash, gpt-4o-mini) were closed.
     crosscheck_model: str = "qwen/qwen3-30b-a3b-instruct-2507"
     crosscheck_tiebreak_model: str = "openai/gpt-oss-120b"
-    #: Raised from 40 because the panel now votes in BOTH directions. A pillar-6 Mongolia run
-    #: puts ~20 verdicts in the borderline band, each costing one or two extra calls, against
-    #: 160 primary calls — so this is a ceiling, not a budget the run expects to spend.
-    crosscheck_max_calls: int = 120
-    #: An acceptance at or above this legal_match is confident enough to stand on one call.
-    #: Below it the panel votes. 0.9 is where repeated sampling stopped flipping verdicts in
-    #: the probe; lower it to vote more (costlier, steadier), raise it to vote less.
-    crosscheck_accept_floor: float = 0.9
+    crosscheck_max_calls: int = 40           # per-run cap on extra opinion calls
     # Google Gemini (OpenAI-compatible endpoint). Key from env/.env/secrets — never commit.
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.0-flash"
