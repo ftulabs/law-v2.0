@@ -243,3 +243,40 @@ def test_the_prompt_forbids_transliteration():
     body = TRANSLATE_SYSTEM.format(target="English").lower()
     assert "never transliterate" in body
     assert "romanis" in body
+
+
+# ─────────────────── 5. doubly-encoded Word exports ───────────────────
+def test_escaped_markup_is_not_resurrected_by_the_unescape():
+    """Strip-then-unescape, once, inverts on a DOUBLY encoded export.
+
+    lawId=16759949645981 pastes an HTML fragment into the Word document as escaped TEXT —
+    11,597 `&lt;` — so it survives the tag strip untouched and the unescape then turns it back
+    into live markup. The function returned 458,472 characters opening
+    `<meta http-equiv="Content-Type"…`, no article pattern matched any of it, and the whole
+    file became ONE provision whose 20,000-character head (MAX_SNIPPET) was markup: a garbage
+    citation in the CSV and ~12,000 prompt tokens of it in every grading call it reached.
+    """
+    from backend.pipeline.adapter_mongolia import export_text
+    body = ('<html><body><p>&lt;meta http-equiv="Content-Type"&gt;'
+            '&lt;div class="x"&gt;</p><p>1 дүгээр зүйл.Нийтлэг үндэслэл</p>'
+            '<p>&lt;/div&gt;</p></body></html>').encode("utf-8")
+    out = export_text(body)
+    assert "<meta" not in out and "<div" not in out and "</div" not in out
+    assert "1 дүгээр зүйл" in out, "the statute text itself must survive both passes"
+
+
+def test_a_bare_less_than_is_not_treated_as_a_tag():
+    """`<[^>]+>` also matched "хугацаа < 30 хоног > бол" and ate the text between. Latent
+    while this only saw the portal's own markup; not latent once the loop can run over text an
+    unescape produced."""
+    from backend.pipeline.adapter_mongolia import export_text
+    out = export_text('<p>хугацаа &lt; 30 хоног &gt; бол устгана</p>'.encode("utf-8"))
+    assert "30 хоног" in out
+    assert "устгана" in out
+
+
+def test_export_text_leaves_ordinary_markup_alone():
+    """The single-pass case must be unchanged — this is the shape every other MN law has."""
+    from backend.pipeline.adapter_mongolia import export_text
+    out = export_text('<p>1 дүгээр зүйл.Зорилт</p><p>1.1.Энэ хууль</p>'.encode("utf-8"))
+    assert out.splitlines() == ["1 дүгээр зүйл.Зорилт", "1.1.Энэ хууль"]

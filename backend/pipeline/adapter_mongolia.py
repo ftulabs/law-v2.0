@@ -81,7 +81,11 @@ MN_MAX_PER_QUERY = 12
 
 _LAW_ID = re.compile(r"lawId=(\d+)")
 _FILENAME = re.compile(r'filename="([^"]*)"')
-_TAG = re.compile(r"<[^>]+>")
+#: A tag needs a NAME (or a `!`/`?` declaration) after the "<". `<[^>]+>` also matched
+#: "хугацаа < 30 хоног > бол" and swallowed the text between. That was latent while this only
+#: ever saw the portal's own markup; it stops being latent now that the loop in `export_text`
+#: can run over text an unescape produced.
+_TAG = re.compile(r"</?[a-zA-Z][^>]*>|<[!?][^>]*>")
 _WS = re.compile(r"\s+")
 #: Title carries the repeal flag. legalinfo.mn has no in-force field, but it names a repealed
 #: instrument "... ХҮЧИНГҮЙ" ("… no longer in force") and a repeal declaration "… ХҮЧИНГҮЙ
@@ -123,7 +127,10 @@ def export_law(client, law_id: str) -> tuple[str, bytes]:
     if r.status_code != 200:
         return "", b""
     m = _FILENAME.search(r.headers.get("content-disposition", ""))
-    title = urllib.parse.unquote(m.group(1)) if m else ""
+    # Unescaped for the same reason `load_catalogue` does it: the portal writes a quoted short
+    # title as `&quot;…&quot;` and it is carried straight into the Law Name column. This is the
+    # no-catalogue probe path, so without it the two paths disagree about a law's own name.
+    title = html.unescape(urllib.parse.unquote(m.group(1))) if m else ""
     title = re.sub(r"\.docx?$", "", title.strip(), flags=re.I).strip()
     if not title and len(r.content) < _EMPTY_EXPORT:
         return "", b""
@@ -146,15 +153,36 @@ def export_text(body: bytes) -> str:
     before the tags are dropped rather than after.
     """
     try:
-        html = body.decode("utf-8")
+        markup = body.decode("utf-8")
     except UnicodeDecodeError:
-        html = body.decode("cp1251", errors="replace")
-    html = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", html, flags=re.S | re.I)
-    html = _BLOCK_END.sub("\n", html)
-    text = _TAG.sub(" ", html)
-    text = (text.replace("&nbsp;", " ").replace("&amp;", "&")
-                .replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"'))
-    text = text.replace("{worksheet}", " ")
+        markup = body.decode("cp1251", errors="replace")
+
+    # Strip, unescape, and REPEAT while the unescaping revealed more markup.
+    #
+    # The order used to be strip-then-unescape, once, and that inverts on a doubly-encoded
+    # export. lawId=16759949645981 carries 11,597 `&lt;` — an HTML fragment pasted into the
+    # Word document as escaped TEXT, so it survives the strip untouched and the unescape then
+    # turns it back into 11,597 live tags. The function returned 458,472 characters beginning
+    # `<meta http-equiv="Content-Type"…`, no article pattern could match any of it, and the
+    # whole file became ONE provision whose 20,000-character head was markup. That is a
+    # garbage citation in the CSV and, on a grade-all run, twenty thousand characters of
+    # Cyrillic markup in every prompt for every indicator — which is what a run reports as an
+    # LLM failure rather than as a bad document.
+    #
+    # Unescaping FIRST is the other obvious order and is worse: a statute writing a genuine
+    # "<" would have everything up to the next ">" eaten. Looping is what actually matches the
+    # input — one pass per level of encoding — and it stops as soon as no real markup is left,
+    # so a stray "<" costs nothing. Three is a stop, not a target; nothing seen needs over two.
+    for _ in range(3):
+        markup = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", markup, flags=re.S | re.I)
+        markup = _BLOCK_END.sub("\n", markup)
+        unescaped = html.unescape(_TAG.sub(" ", markup))
+        if unescaped == markup:
+            break
+        markup = unescaped
+        if not _TAG.search(markup):
+            break
+    text = markup.replace("{worksheet}", " ")
     text = re.sub(r"[ \t ]+", " ", text)
     text = re.sub(r" *\n\s*", "\n", text)
     return re.sub(r"\n{3,}", "\n\n", text).strip()
