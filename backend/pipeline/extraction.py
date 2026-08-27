@@ -104,9 +104,16 @@ _STRUCT_RE_MN = re.compile(
     r"(?:\d{1,3}|(?:[А-ЯӨҮЁа-яөүё]+[ 	]+){0,1}[А-ЯӨҮЁа-яөүё]+)"
     r"[ 	]*(?:д[үу]г[эа]{0,2}р|дэх|дахь)[ 	]+з[үу]йл)(?![а-яөүё])")
 # Mongolian SUBORDINATE legislation numbers its clauses "1.1.", "2.3." at the head of a
-# line, with no зүйл anywhere. Two digits at most on each side: "1.1." is a clause,
-# "2016.05.12" is a date and "125-131" a cross-reference, and both start lines in these
-# documents. The trailing dot is required for the same reason.
+# line, with no зүйл anywhere. "2016.05.12" is a date and "125-131" a cross-reference, and
+# both start lines in these documents, so the trailing dot is required and the second group
+# stays at two digits.
+#
+# THREE digits on the left, not two, because a ministerial rule numbers its clauses from the
+# rule's own number rather than from one: Civil Aviation Rule 191 (lawId=205434) heads its
+# clauses "191.1.", "191.3.". At `\d{1,2}` that document matched NOTHING and arrived as a
+# single 5,244-character block; at `\d{1,3}` it yields 14. The guards do not depend on the
+# width: "2016.05.12" still fails because `\d{1,3}` cannot reach a dot from "2016" by any
+# backtracking, and "2.1.1." still fails on the lookahead.
 #
 # The space after that dot is OPTIONAL, and this was measured, not guessed. legalinfo.mn's
 # Word export runs the number straight into the text — "1.1.Энэхүү журмын", no space —
@@ -117,11 +124,39 @@ _STRUCT_RE_MN = re.compile(
 # the same file yields 9. Nothing raised either way — the run just reported no evidence.
 #
 # Making it optional costs nothing on the guards, because they are carried by the line
-# anchor and the lookahead, not by the space: "2016.05.12" fails (`\d{1,2}` cannot reach a
-# dot from "2016"), "125-131" fails (no dot), and the sub-clause "2.1.1." fails because the
+# anchor and the lookahead, not by the space: "2016.05.12" fails (the left group cannot reach
+# a dot from "2016"), "125-131" fails (no dot), and the sub-clause "2.1.1." fails because the
 # lookahead after "2.1." sees a digit — which is what keeps 2.1 whole instead of shattering
 # it into 2.1.1, 2.1.2, …
-_CLAUSE_RE_MN = re.compile(r"(?m)^[ 	]*(\d{1,2}\.\d{1,2})\.[ 	]*(?=[^\d])")
+_CLAUSE_RE_MN = re.compile(r"(?m)^[ 	]*(\d{1,3}\.\d{1,2})\.[ 	]*(?=[^\d])")
+
+# A Mongolian RESOLUTION (тогтоол) numbers its operative points at ONE level — "1.", "2.",
+# "3." — and that is the whole document: a recital naming the enabling provision, then the
+# points, then the signatures.
+#
+# Nothing matched them. They carry no зүйл, so _STRUCT_RE_MN finds nothing; they carry no
+# "N.N.", so _CLAUSE_RE_MN finds nothing; SECTION_RE below is English. Every Government and
+# CRC resolution therefore arrived as ONE provision — fourteen of the twenty-two documents in
+# a Mongolia pillar-6 run, including "ҮНДЭСНИЙ СТРАТЕГИ БАТЛАХ ТУХАЙ (Кибер аюулгүй байдал)".
+# These are exactly the instruments the panel's own key cites for Mongolia's 6.3, and a
+# resolution that reaches the grader whole is a resolution whose operative point cannot be
+# quoted or cited.
+#
+# The pattern is deliberately the LAST thing tried, because a bare "N." is the weakest
+# structural claim in this file and inside a law it would be a list item. It is only reached
+# when the two law-shaped patterns have already found nothing.
+#
+# Guards, all carried by the anchor and the lookahead: "1996 оны 4 дүгээр" has no dot after
+# the digits; "2016.05.12" is rejected because the lookahead after "2016." — unreachable
+# anyway at two digits — would see a digit; "Дугаар 15" is not at the line start; and a bare
+# number alone on its own line fails because `\s` is excluded, so a numbered heading with its
+# text on the next line is not mistaken for a clause.
+_RESOLUTION_RE_MN = re.compile(r"(?m)^[ 	]*(\d{1,2})\.[ 	]*(?=[^\d\s])")
+
+#: A resolution is normally three to five points, and two is an ordinary short one, so the
+#: floor is lower than the three the law-shaped patterns use. A single match is not structure
+#: — it is one numbered line in an appendix — and leaves the document whole.
+_RESOLUTION_MIN = 2
 
 # Trailing site furniture, for the LAST provision only. Every other provision ends where the
 # next one begins; the last one runs to the end of the text, so whatever the page puts after
@@ -813,6 +848,18 @@ def _boundaries(text: str, economy=None) -> list[tuple]:
                 # An English translation ("Article 1."), or something with no numbering at all.
                 alt = [(m.start(), m.end(), m.group(2) or m.group(1), bool(m.group(1)))
                        for m in SECTION_RE.finditer(text)]
+            if len(alt) < 3:
+                # A RESOLUTION (тогтоол): one level of numbering and nothing else. Tried last
+                # because a bare "N." is the weakest structural claim here — see
+                # _RESOLUTION_RE_MN — and reached only when both law-shaped patterns and the
+                # English one have already found nothing. Admitting these documents at all was
+                # a discovery decision (the panel cites resolutions for Mongolia's 6.3); having
+                # admitted them, handing the grader the whole file is not an honest reading of
+                # a document that numbers its own operative points.
+                resol = [(m.start(), m.end(), m.group(1), False)
+                         for m in _RESOLUTION_RE_MN.finditer(text)]
+                if len(resol) >= _RESOLUTION_MIN:
+                    alt = resol
             if len(alt) > len(out):
                 out = alt
     elif economy in (Economy.SG, Economy.MY, Economy.IN):

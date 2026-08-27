@@ -280,3 +280,65 @@ def test_export_text_leaves_ordinary_markup_alone():
     from backend.pipeline.adapter_mongolia import export_text
     out = export_text('<p>1 дүгээр зүйл.Зорилт</p><p>1.1.Энэ хууль</p>'.encode("utf-8"))
     assert out.splitlines() == ["1 дүгээр зүйл.Зорилт", "1.1.Энэ хууль"]
+
+
+# ─────────────── 6. resolutions and rule-numbered clauses ───────────────
+def test_a_resolution_splits_on_its_own_numbered_points():
+    """A Mongolian тогтоол numbers its operative points at ONE level and carries nothing else.
+
+    It has no зүйл, so _STRUCT_RE_MN found nothing; no "N.N.", so _CLAUSE_RE_MN found nothing;
+    SECTION_RE is English. Every Government and CRC resolution therefore reached the grader as
+    a single block — fourteen of the twenty-two documents in a Mongolia pillar-6 run. Having
+    ADMITTED these documents (the panel cites resolutions for 6.3), handing over the whole file
+    means the operative point can be neither quoted nor cited.
+    """
+    from backend.pipeline.extraction import _RESOLUTION_RE_MN
+    body = (
+        "МОНГОЛ УЛСЫН ЗАСГИЙН ГАЗРЫН ТОГТООЛ\n"
+        "2022 оны 12 дугаар сарын 28-ны өдөр\n"
+        "Дугаар 493\n"
+        "Кибер аюулгүй байдлын тухай хуулийн 10.1.1-д заасныг үндэслэн ТОГТООХ нь:\n"
+        '1."Кибер аюулгүй байдлын үндэсний стратеги"-ийг хавсралт ёсоор баталсугай.\n'
+        "2. Хэрэгжилтийг хангаж ажиллахыг сайдад үүрэг болгосугай.\n"
+        "3. Шаардагдах хөрөнгийг улсын төсөвт тусгах арга хэмжээ авахыг даалгасугай.\n")
+    assert len(_RESOLUTION_RE_MN.findall(body)) == 3
+
+
+def test_resolution_pattern_rejects_dates_document_numbers_and_bare_numbers():
+    """A bare "N." is the weakest structural claim in the file, so its guards carry the weight."""
+    from backend.pipeline.extraction import _RESOLUTION_RE_MN as R
+    assert not R.match("1996 оны 4 дүгээр сарын 30-ны өдөр")   # no dot after the digits
+    assert not R.match("2016.05.12 өдөр")                      # a date
+    assert not R.match("Дугаар 15")                            # not at the line start
+    assert not R.match("4.\n")            # a number alone on its line is not a clause head
+    assert R.match("1. Харилцаа холбооны зохицуулах хороог байгуулж")
+    assert R.match('1."Кибер аюулгүй байдлын үндэсний стратеги"-ийг')
+
+
+def test_a_ministerial_rule_numbers_clauses_from_its_own_rule_number():
+    r"""Civil Aviation Rule 191 heads its clauses "191.1.", "191.3." — three digits on the left.
+
+    At `\d{1,2}` lawId=205434 matched nothing and arrived as one 5,244-character block; at
+    `\d{1,3}` it yields 14 provisions.
+    """
+    from backend.pipeline.extraction import _CLAUSE_RE_MN
+    assert _CLAUSE_RE_MN.match("191.1. Ерөнхий зүйл")
+    assert _CLAUSE_RE_MN.match("191.3.Нууц баримт мэдээлэл")
+    # …and widening the left group must not cost the date guard, which is what it protects.
+    assert not _CLAUSE_RE_MN.match("2016.05.12 өдөр")
+    assert not _CLAUSE_RE_MN.match("2.1.1. ил тод байх;")
+
+
+def test_the_resolution_pattern_is_the_last_resort_not_the_first():
+    """Inside a LAW a bare "N." is a list item. The зүйл and N.N. patterns must win outright,
+    or an Act would shatter on its own enumerations."""
+    from backend.pipeline.adapter_mongolia import _doc
+    from backend.pipeline.extraction import extract_provisions
+    from backend.schemas import Economy, OCRMetrics
+    law = ("1 дүгээр зүйл.Хуулийн зорилт\n"
+           "1.1.Энэ хуулийн зорилт нь дараах харилцааг зохицуулна:\n"
+           "1. эхний хэсэг;\n2. хоёр дахь хэсэг;\n3. гурав дахь хэсэг;\n"
+           "2 дугаар зүйл.Хууль тогтоомж\n2.1.Хууль тогтоомж дараах байна.\n"
+           "3 дугаар зүйл.Нэр томьёо\n3.1.Нэр томьёог дараах утгаар ойлгоно.\n")
+    ps = extract_provisions(_doc("x", "ТУХАЙ", Economy.MN, "p", 1000), law, OCRMetrics())
+    assert [p.article_section for p in ps] == ["1 дүгээр зүйл", "2 дугаар зүйл", "3 дугаар зүйл"]
