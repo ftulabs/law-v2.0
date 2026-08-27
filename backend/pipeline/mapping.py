@@ -372,27 +372,53 @@ def _borderline_rejection(graded: dict) -> bool:
     return bool(graded.get("better_sibling")) or float(graded.get("legal_match") or 0.0) >= 0.3
 
 
-def _crosscheck_rejection(ind, prov, xc, log) -> dict | None:
-    """Independent cross-model panel for a borderline rejection. Each call is a fresh,
-    context-free request (the model never sees the primary's answer or ours — no anchoring),
-    so this is majority voting over independent judgments, not persuading one model. Returns
-    the ACCEPTING model's full graded response when the panel overturns (2-1 across primary/
-    second/tiebreak), else None (rejection stands). Conservative on any doubt: budget spent,
-    call error, or a failover landing the 'independent' vote on the primary model all keep
-    the rejection (a precise miss beats a wrong over-assign)."""
+def _borderline_acceptance(graded: dict) -> bool:
+    """An acceptance that one sampling of one model should not be allowed to decide alone.
+
+    The panel below used to run on borderline REJECTIONS only, and that asymmetry is where the
+    run-to-run instability lived. Measured 2026-08-27 on Mongolia pillar 6: three runs on the
+    same corpus returned 8, 2 and 6 evidence rows, with every failure being a provision one
+    call accepted and the next rejected. An acceptance is a ROW IN THE SUBMISSION; letting a
+    single call cast it while every rejection gets a panel means the output is stable only in
+    the direction that produces nothing.
+
+    Confident acceptances are left alone. `legal_match >= 0.9` was the band where repeated
+    sampling never flipped a verdict in the probe (see tools/probe_provider_determinism.py);
+    below it, and whenever the grader itself hesitated by naming a sibling, the panel votes.
+    """
+    if graded.get("better_sibling"):
+        return True
+    return float(graded.get("legal_match") or 0.0) < settings.crosscheck_accept_floor
+
+
+def _crosscheck(ind, prov, xc, log, primary_relevant: bool) -> dict | None:
+    """Independent cross-model panel on a borderline verdict, in EITHER direction.
+
+    Each call is a fresh, context-free request — the model never sees the primary's answer or
+    ours — so this is majority voting over independent judgments, not persuading one model.
+    Returns the OVERTURNING model's full graded response when the panel goes 2-1 against the
+    primary, else None (the primary verdict stands).
+
+    Conservative on any doubt in BOTH directions: budget spent, call error, or a failover
+    landing the "independent" vote back on the primary model all leave the primary verdict
+    alone. That is deliberately not symmetric in effect — an unresolved borderline acceptance
+    stays a row and an unresolved borderline rejection stays absent — because the alternative
+    is letting an infrastructure failure silently change the submission.
+    """
     second, tiebreak, primary_model, budget = xc
     if second is None or budget is None or not budget.take():
         return None
+    verdict = "acceptance" if primary_relevant else "rejection"
     user = _user_prompt(ind, prov)
     try:
         g2 = second.complete_json(SYSTEM, user)
     except Exception:  # noqa: BLE001 — an opinion call must never crash the run
         return None
     if not g2 or g2.get("_parse_error") or second.model_version == primary_model:
-        return None                      # no usable INDEPENDENT vote → rejection stands
-    if not _relevant(g2):
-        log(f"[crosscheck] {ind.indicator_id} | {prov.article_section}: second model agrees — "
-            f"rejected 2-0")
+        return None                      # no usable INDEPENDENT vote → primary stands
+    if _relevant(g2) == primary_relevant:
+        log(f"[crosscheck] {ind.indicator_id} | {prov.article_section}: second model agrees "
+            f"— {verdict} upheld 2-0")
         return None
     # 1-1 split → a third, distinct model decides
     if tiebreak is None or not budget.take():
@@ -404,14 +430,18 @@ def _crosscheck_rejection(ind, prov, xc, log) -> dict | None:
     if not g3 or g3.get("_parse_error") or tiebreak.model_version in (primary_model,
                                                                       second.model_version):
         return None
-    if _relevant(g3):
-        log(f"[crosscheck] {ind.indicator_id} | {prov.article_section}: overturned 2-1 "
-            f"({second.model_version} + {tiebreak.model_version} vs {primary_model})")
-        g2["_crosscheck_note"] = ("Accepted by cross-model majority (2-1): the primary grader "
-                                  "rejected, two independent models satisfied the legal test.")
-        return g2
-    log(f"[crosscheck] {ind.indicator_id} | {prov.article_section}: rejection upheld 2-1")
-    return None
+    if _relevant(g3) == primary_relevant:
+        log(f"[crosscheck] {ind.indicator_id} | {prov.article_section}: {verdict} upheld 2-1")
+        return None
+    log(f"[crosscheck] {ind.indicator_id} | {prov.article_section}: {verdict} OVERTURNED 2-1 "
+        f"({second.model_version} + {tiebreak.model_version} vs {primary_model})")
+    g2["_crosscheck_note"] = (
+        "Rejected by cross-model majority (2-1): the primary grader accepted, two independent "
+        "models did not satisfy the legal test."
+        if primary_relevant else
+        "Accepted by cross-model majority (2-1): the primary grader rejected, two independent "
+        "models satisfied the legal test.")
+    return g2
 
 
 def _mapping_id(run_id: str, indicator_id: str, provision_id: str) -> str:
@@ -508,15 +538,19 @@ def map_provisions(
         # relevant = satisfies the target AND not a mislabel for a better sibling. Prefer the
         # model's explicit `relevant`; else derive it (real LLMs return satisfies_target/
         # better_sibling; the offline mock returns `relevant` directly).
+        # Borderline verdicts get an independent cross-model panel in BOTH directions (see
+        # _crosscheck). An overturn replaces `graded` with the winning model's response, so a
+        # rejection can become a row and an acceptance can stop being one. Voting only on
+        # rejections is what let one sampling of one model decide whether a row existed.
+        primary_relevant = _relevant(graded)
+        borderline = (_borderline_acceptance(graded) if primary_relevant
+                      else _borderline_rejection(graded))
+        if borderline:
+            overturned = _crosscheck(ind, prov, crosscheck, log, primary_relevant)
+            if overturned is not None:
+                graded = overturned
         if not _relevant(graded):
-            # Borderline rejections get an independent cross-model panel (see
-            # _crosscheck_rejection) — overturn replaces `graded` with the accepting
-            # model's response; otherwise the rejection stands.
-            overturned = (_crosscheck_rejection(ind, prov, crosscheck, log)
-                          if _borderline_rejection(graded) else None)
-            if overturned is None:
-                return None
-            graded = overturned
+            return None
 
         legal_match = float(graded.get("legal_match", 0.0) or 0.0)
         scope_alignment = float(graded.get("scope_alignment", 0.0) or 0.0)

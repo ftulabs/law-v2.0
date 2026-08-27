@@ -281,6 +281,14 @@ def run_pipeline(
     ocr = _resolve_ocr(ocr_provider, log, economy)
     llm = _resolve_llm(llm_provider, llm_model, llm_api_key, log)
     log(f"[providers] OCR={ocr.name} LLM={llm.name} ({llm.model_version})")
+    # The upstream provider is part of the engine declaration, not a routing detail: on
+    # OpenRouter one model id is served by a dozen companies and which one answers decides
+    # borderline verdicts, so a run that does not name it cannot be reproduced from its log.
+    _pin = getattr(llm, "_provider_pin", None)
+    if callable(_pin) and _pin():
+        log(f"[providers] upstream pinned to {settings.openrouter_provider_order} "
+            f"(fallbacks={'on' if settings.openrouter_allow_fallbacks else 'off'}) "
+            f"— required for a reproducible run")
 
     # full-result cache: identical inputs → return the stored result, no live run
     do_score = settings.scoring_enabled if scoring_enabled is None else scoring_enabled
@@ -447,6 +455,13 @@ def run_pipeline(
         log=log,
     )
     log(f"[timing] mapping total {time.perf_counter() - _t:.1f}s")
+    # A run that had to leave the pinned provider is still a valid run, but it is no longer a
+    # REPRODUCIBLE one, and that is exactly the kind of fact this project does not let pass in
+    # silence — re-running it can legitimately produce a different set of rows.
+    if getattr(llm, "_pin_lost", False):
+        log("[warn] the pinned upstream provider refused at least one call and the run fell "
+            "back to OpenRouter's default routing — these results are NOT reproducible; "
+            "re-run when it is available before submitting")
     # ── Discovery Tag, decided PER PROVISION against the panel's 2025 baseline ──────────
     #
     # The template defines NEW as "your tool found it and it is not in the 2025 baseline you

@@ -72,6 +72,43 @@ class OpenRouterLLM(LLMProvider):
         )
         self._chosen = model
         self.model_version = model
+        #: Set when a call had to leave the pinned provider. Read by the orchestrator so a run
+        #: that lost reproducibility says so in its own log rather than looking like any other.
+        self._pin_lost = False
+
+    def _provider_pin(self) -> dict[str, Any] | None:
+        """OpenRouter's `provider` routing block, or None when the pin is switched off."""
+        order = [p.strip() for p in settings.openrouter_provider_order.split(",") if p.strip()]
+        if not order:
+            return None
+        return {"order": order, "allow_fallbacks": settings.openrouter_allow_fallbacks}
+
+    def _call(self, model: str, sys_msg: str, user: str, cap: int):
+        """One request, routed to a PINNED upstream provider — see config.openrouter_provider_order.
+
+        The pin is what makes a run reproducible: the same model id on OpenRouter is served by
+        a dozen companies, and which one answers decides the verdict on a borderline provision.
+
+        If every pinned provider refuses the model, the call is retried once WITHOUT the pin.
+        That keeps a demo alive on a bad afternoon, and it says so: a run that fell back is a
+        run whose answers cannot be reproduced, and silence there would be the worst of both.
+        """
+        msgs = [{"role": "system", "content": sys_msg}, {"role": "user", "content": user}]
+        pin = self._provider_pin()
+        try:
+            return self._client.chat.completions.create(
+                model=model, temperature=0, max_tokens=cap, messages=msgs,
+                **({"extra_body": {"provider": pin}} if pin else {}),
+            )
+        except Exception as e:                     # noqa: BLE001 — classified right here
+            # Only a ROUTING refusal is worth un-pinning for. A 429 is the pinned provider
+            # working and busy (the caller already backs off and retries), and an auth error
+            # or a bad request would fail identically anywhere.
+            if not pin or _is_rate_limited(e) or _is_auth_error(e):
+                raise
+            self._pin_lost = True
+            return self._client.chat.completions.create(
+                model=model, temperature=0, max_tokens=cap, messages=msgs)
 
     def _ask(self, model: str, sys_msg: str, user: str) -> dict[str, Any]:
         """One model, one answer. Raises on any transport failure so the caller classifies it.
@@ -85,11 +122,7 @@ class OpenRouterLLM(LLMProvider):
         parsed: dict[str, Any] = {}
         for cap in (settings.openrouter_max_tokens, settings.openrouter_max_tokens * 4):
             t0 = time.monotonic()
-            resp = self._client.chat.completions.create(
-                model=model, temperature=0, max_tokens=cap,
-                messages=[{"role": "system", "content": sys_msg},
-                          {"role": "user", "content": user}],
-            )
+            resp = self._call(model, sys_msg, user, cap)
             self.model_version = model      # record the model that actually answered
             choice = resp.choices[0]
             # Metered here rather than at the call site: this is the only place that sees the

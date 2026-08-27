@@ -87,6 +87,48 @@ class Settings(BaseSettings):
     # burst limits; a busy free/stealth model can stay 429 for minutes, so raise it (env
     # OPENROUTER_BACKOFF_CAP) rather than letting the call fall through to failover.
     openrouter_backoff_cap: int = 8
+    # ── which UPSTREAM provider serves the model, and why it is pinned ──
+    #
+    # OpenRouter is a router: one model id is served by a dozen different companies on
+    # different hardware, quantisations and kernels. Measured 2026-08-27, eight identical
+    # calls were answered by SIX different providers — and that is not a billing detail, it
+    # decides the answer. On one borderline Mongolian provision, six unpinned calls returned
+    # three different verdicts.
+    #
+    # temperature=0 does NOT fix this and never could: it makes sampling greedy, but the
+    # logits it is greedy over come from whichever machine answered. Nor is it purely a
+    # cross-provider effect — four of those calls were served by the SAME provider and still
+    # split two-two, because continuous batching changes the numerics per request.
+    #
+    # So the provider is pinned, and pinned to one MEASURED to be reproducible rather than to
+    # a preference. Same prompt, four calls each:
+    #
+    #   DeepInfra     4/4 identical      ~2.4 s     <- pinned
+    #   SiliconFlow   3 verdicts         ~65 s
+    #   Parasail      2 verdicts         ~12 s
+    #   DigitalOcean  3 verdicts         ~37 s
+    #   Alibaba       4 verdicts         ~13 s
+    #   StreamLake    1 verdict, 3 errors ~21 s
+    #
+    # Re-measure with tools/probe_provider_determinism.py before changing this list; the
+    # ranking is a property of their serving stacks and will drift.
+    # EMPTY by default, and that is a deliberate reversal. Pinning does work — two pinned runs
+    # returned the same eight rows where three unpinned runs returned eight, two and six — but
+    # hard-coding one company as the answer is the wrong shape for this project: provider
+    # swappability is a scored property, and a pin buys stability by removing the very
+    # substitutability it is supposed to demonstrate. The panel above is the determinism
+    # mechanism instead, and it is provider- and model-agnostic by construction.
+    #
+    # The pin stays available as a second lever for a submission run that must be bit-exact.
+    # Set OPENROUTER_PROVIDER_ORDER=DeepInfra (measured reproducible, ~2.4 s) after re-checking
+    # with tools/probe_provider_determinism.py — the ranking is a property of their serving
+    # stacks and drifts.
+    openrouter_provider_order: str = ""
+    # Fallbacks OFF by default. Falling through to an unpinned provider would keep the run
+    # alive at the cost of the property this setting exists for, silently. When every pinned
+    # provider refuses, llm_openrouter retries once WITHOUT the pin and logs that the run is
+    # no longer reproducible — degraded loudly rather than quietly.
+    openrouter_allow_fallbacks: bool = False
     # Cross-model second opinion on borderline REJECTIONS. When the primary grader rejects a
     # provision while itself signalling legal closeness (it names a better_sibling, or scores
     # legal_match >= 0.3 despite rejecting), a DIFFERENT model re-grades the same prompt in a
@@ -97,9 +139,22 @@ class Settings(BaseSettings):
     # behind one gateway); a failover that lands the "second" opinion on the primary model
     # voids that vote (independence guard).
     crosscheck_enabled: bool = True
-    crosscheck_model: str = "google/gemini-2.5-flash"
-    crosscheck_tiebreak_model: str = "openai/gpt-4o-mini"
-    crosscheck_max_calls: int = 40           # per-run cap on extra opinion calls
+    #: The panel is THREE DISTINCT OPEN-WEIGHT FAMILIES — DeepSeek (primary), Qwen, GPT-OSS.
+    #: Distinct families matter more than size: two models that share a lineage share their
+    #: blind spots, and a panel of clones is a panel of one. Open weight matters because the
+    #: submission has to be reproducible by someone who does not hold our API keys, and a
+    #: closed model can be retired or silently revised under its own name. Both previous
+    #: members (gemini-2.5-flash, gpt-4o-mini) were closed.
+    crosscheck_model: str = "qwen/qwen3-30b-a3b-instruct-2507"
+    crosscheck_tiebreak_model: str = "openai/gpt-oss-120b"
+    #: Raised from 40 because the panel now votes in BOTH directions. A pillar-6 Mongolia run
+    #: puts ~20 verdicts in the borderline band, each costing one or two extra calls, against
+    #: 160 primary calls — so this is a ceiling, not a budget the run expects to spend.
+    crosscheck_max_calls: int = 120
+    #: An acceptance at or above this legal_match is confident enough to stand on one call.
+    #: Below it the panel votes. 0.9 is where repeated sampling stopped flipping verdicts in
+    #: the probe; lower it to vote more (costlier, steadier), raise it to vote less.
+    crosscheck_accept_floor: float = 0.9
     # Google Gemini (OpenAI-compatible endpoint). Key from env/.env/secrets — never commit.
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.0-flash"
