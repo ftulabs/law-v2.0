@@ -64,15 +64,16 @@ C4a handover 8 · C4b no vendor lock-in 7 · C5 live test 10 (discovery 6 + engi
 
 | Economy | Lane | Corpus built | Labels | Budget measured | End-to-end |
 |---|---|---|---|---|---|
-| SG | portal adapter, verified | yes (14,610 prov) | yes | **cap 80** (prov+law recall 1.000 from k=40) | 2026-08-25 |
-| AU | portal adapter, verified | yes (18,262) | yes | **cap 450** — genuinely needs the depth (1.000 only from k=300) | 2026-08-25 |
-| MY | portal adapter, verified | yes (14,903) | yes | **cap 150** (law recall 1.000 from k=80; prov flat 0.875 at every k) | 2026-08-25 ⚠ robots 500 |
+| SG | portal adapter, verified | yes (14,610 prov) | yes | **cap 80** (prov+law recall 1.000 from k=40) | 2026-08-28 · 7/7 answer-key indicators at 760 calls |
+| AU | portal adapter, verified | yes (18,262) | yes | **cap 450** — genuinely needs the depth (1.000 only from k=300) | 2026-08-28 · 8/8 answer-key indicators |
+| MY | portal adapter, verified | yes (14,903) | yes | **cap 150** (law recall 1.000 from k=80; prov flat 0.875 at every k) | 2026-08-28 · robots carve-out landed: 489 → 5,931 provisions |
 | CN | 2 portal lanes, unverified | **no** | yes | no | 2026-08-25 (fragile) |
 | IN | 5 lanes, unverified | **no** | yes | no | 2026-08-25 |
 | MN | 1 lane, unverified | **no** | yes | no | 2026-08-27 |
-| TH · ID · LA · RU | generic websearch only | **no** | yes | no | **no** |
-| **TL** | **nothing** | no | **impossible** (no database sheet) | no | no |
-| VN · KZ | lanes exist | no | **no** (in no database) | no | no |
+| TH · ID · LA | generic websearch only | **no** | yes | no | **no** |
+| **TL** | gazette lane, unverified | no | **impossible** (no database sheet) | no | reachable only |
+| RU | body route solved, discovery open | **no** | yes | no | no |
+| VN · KZ | lanes exist, **not on the panel's list** | no | **no** (in no database) | no | no |
 
 "Labels" = rows parsed from the panel's own databases by `backend/eval/ground_truth.py`
 (223 rows / 10 economies / 90 indicator-pairs as of 2026-08-27). Labels alone do not enable
@@ -92,17 +93,35 @@ Priority order. `[ ]` not started · `[~]` in progress · `[x]` done (move to §
        query terms and a gazette lane (`mj.gov.tl/jornal`, probed 2026-08-28: HTTP 200,
        server-rendered, no WAF). Readiness now rates it **reachable**.
 2. [~] **Committed set for 30 Sep: SG · MY · AU + China · India · Mongolia** (decided
-       2026-08-28), **plus Russia if it can be made to work** — RU today has one unverified
-       `pravo.gov.ru` lane and no corpus, so it needs a portal adapter of the kind CN/IN/MN
-       have before it can be declared. Six is the minimum; RU would make seven.
-       Route is already known: robots.txt disallows /Search AND /File (where the bodies are)
-       but offers a sitemap, which is permitted — build the lane on the sitemap.
-3. [ ] **Re-validate the per-economy budget on real output, not just retrieval recall.** What
-       is measured today is whether the panel's cited law/provision reaches the shortlist —
-       the ceiling on everything the grader can get right, and it needs no LLM call. What is
-       NOT yet measured is the finished CSV at the new caps: run SG/MY/AU live on both
-       pillars and diff the rows against the answer key, so the saving is proven at the
-       output and not only at the shortlist.
+       2026-08-28), **plus Russia if it can be made to work**. Six is the minimum; RU is seven.
+       RU status after probing 2026-08-28 — **fetch solved, discovery open**:
+       · `pravo.gov.ru` robots.txt forbids NOTHING, and its IPS returns whole documents at
+         `?doc_itself=&nd=<id>&page=1&rdk=0` (13.8k chars measured). Encoding is **cp1251**,
+         including the query string; `?docbody=&nd=<id>` is a frameset holding 586 chars of
+         chrome, so the obvious URL looks fine and contains no law.
+       · `publication.pravo.gov.ru` is a DEAD END for bodies, and the old "build the lane on
+         the sitemap" plan is wrong: the sitemap lists only index/calendar pages, and
+         `/Document/View/<id>` carries metadata only (854 chars). Bodies are under `/File`,
+         which that host's robots.txt disallows.
+       · **Open:** the IPS search reports a result count but injects rows client-side — plain
+         HTTP and a default browser render both yield zero `nd=` ids. Try the list frame's own
+         XHR, or the rubricator browse. Do NOT chase the answer key's URLs: 24 of the panel's
+         28 Russian references are commercial mirrors (garant, consultant), one is official.
+3. [x] **Budget re-validated on real output** (2026-08-28), `tools/compare_to_key.py`.
+       Live SG/MY/AU, both pillars, exported CSV diffed against the panel's own laws:
+
+       | | provisions | LLM calls | cost | minutes | rows | answer-key indicators |
+       |---|---|---|---|---|---|---|
+       | SG | 6,752 → 6,752 | **3,083 → 760** | $1.08 → **$0.25** | 27 → 11 | 129 → 183 | **7/7 → 7/7** |
+       | AU | 4,948 → 4,948 | 2,272 → 2,272 | $0.84 → $0.76 | 29 → 25 | 139 → 344 | 6/8 → 8/8 |
+       | MY | 489 → 5,931 | 400 → 1,390 | $0.20 → $0.46 | 7 → 10 | 47 → 313 | 1/8 → 8/8 |
+
+       **Only SG is a test of the budget.** Same corpus both times, three quarters of the
+       calls removed, answer-key coverage unchanged and 42% more rows exported. AU's cap does
+       not bind at its corpus size, so it ran the *same* 2,272 calls — its 6/8 → 8/8 is
+       somebody else's improvement, not this one. MY's corpus went from 489 provisions to
+       5,931 when the `lom.agc.gov.my` robots carve-out landed, so its jump is the carve-out.
+       Attributing either to the budget would be taking credit for another change.
 
 ### Decisions owed by the team (blocking)
 - [ ] **Which further economies**, if any, beyond the six committed above. Timor-Leste carries
@@ -191,6 +210,16 @@ Priority order. `[ ]` not started · `[~]` in progress · `[x]` done (move to §
 
 ## §5 Recently done
 
+- **2026-08-28** The deployed site could not judge a single provision: its key lives in a file
+  on the Sager box, hand-edited and re-checked by nothing, and it had been revoked. Keys now
+  come from the repository secrets, the deploy proves one real call inside the running
+  container, and `rotate-key.yml` replaces a credential without queueing behind the suite.
+- **2026-08-28** Country list corrected to the panel's eight; Timor-Leste now exists in the
+  codebase (code, UN name, aliases, Portuguese profile, seed query terms, gazette lane, map).
+- **2026-08-28** Budget validated on exported CSVs (see §3.3). Two defects found doing it: a
+  non-reentrant lock in the circuit breaker that deadlocked the run and hung CI for two hours,
+  and `openpyxl` never declared in requirements, so a clean clone could not read the panel's
+  workbooks at all.
 - **2026-08-27** Round-2 labels: `ground_truth.py` reads both Database workbooks; added
   `_ARTICLE_RE`, because Round-2 economies cite "Article N" and every such row previously
   parsed to zero targets — silently. 223 label rows across 10 economies.
