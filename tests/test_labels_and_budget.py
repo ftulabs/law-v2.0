@@ -181,3 +181,48 @@ def test_a_silent_mock_substitution_is_impossible():
         joined = "\n".join(lines)
         assert any(m.startswith("[error]") for m in lines), "the substitution must be an error"
         assert "OFFLINE STAND-IN" in joined and "NOT evidence" in joined
+
+
+def test_the_breaker_does_not_deadlock_when_it_trips_under_the_lock():
+    """The counting paths hold the breaker's lock and then call _trip(), which takes it again.
+    With a non-reentrant Lock the 25th consecutive failure froze the worker holding it and
+    every worker queued behind — a silent hang, which is a worse failure than the one the
+    breaker exists to report. Fails by timing out if the lock stops being reentrant."""
+    import threading
+
+    from backend.pipeline import mapping
+    from backend.pipeline.retrieval import Retrieved
+    from backend.providers.llm_base import LLMProvider
+    from backend.rdtii import get_indicators
+    from backend.schemas import Economy, Provision
+
+    class AlwaysBroken(LLMProvider):
+        name, model_version = "broken", "broken-1"
+
+        def complete_json(self, system, user):
+            raise RuntimeError("upstream is having a bad day")
+
+    provisions = [
+        Provision(provision_id=f"p{i}", doc_id="d1", economy=Economy.SG,
+                  law_name="Test Act", article_section=f"Section {i}",
+                  verbatim_snippet="Personal data shall be stored within Singapore.",
+                  source_url="https://example.gov")
+        for i in range(70)
+    ]
+    orig = mapping.retrieve
+    mapping.retrieve = lambda _i, provs, top_k=5: [
+        Retrieved(provision=p, score=0.5, raw_context=p.verbatim_snippet, log=[])
+        for p in provs[:top_k]]
+    done = threading.Event()
+    result: list = []
+    try:
+        t = threading.Thread(
+            target=lambda: (result.append(mapping.map_provisions(
+                "run-d", provisions, 6, get_indicators(6), llm=AlwaysBroken(),
+                log=lambda *_: None)), done.set()),
+            daemon=True)
+        t.start()
+        assert done.wait(90), "map_provisions deadlocked when the breaker tripped"
+        assert result[0] == []
+    finally:
+        mapping.retrieve = orig

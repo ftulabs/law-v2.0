@@ -1,7 +1,7 @@
 """What can this tool actually do, per economy — generated, not asserted.
 
 The final-round README asks for a "Supported Economies and Portals" table with a column that
-reads "Run end to end?", and the Instructions sheet says of the nine live-test economies:
+reads "Run end to end?", and the Instructions sheet says of the listed economies:
 "State honestly which of these your tool has actually been run against." Those two sentences
 are the same request, and a table typed by hand answers it from memory. This one is derived
 from the registries the pipeline actually reads, so it cannot claim a capability the code does
@@ -32,7 +32,8 @@ import yaml                                                        # noqa: E402
 
 from backend.config import ROOT                                    # noqa: E402
 from backend.providers import engine_profile as EP                 # noqa: E402
-from backend.schemas import ECONOMY_UN_NAME, LIVE_TEST_NINE, ROUND1_ECONOMIES  # noqa: E402
+from backend.schemas import (ECONOMY_UN_NAME, FINAL_ROUND_LIST,  # noqa: E402
+                             LIVE_TEST_POOL, ROUND1_ECONOMIES)
 
 DECLARED, REACHABLE, EXTRACTED, MEASURED = "declared", "reachable", "extracted", "measured"
 
@@ -78,10 +79,23 @@ def level(code: str, portals: list[dict]) -> str:
     # Not run, so the ceiling is whatever the portals demonstrated.
     if any(p.get("verified") is True for p in portals):
         return REACHABLE
-    if any("HTTP 200" in (p.get("reachable") or "") and "JS shell" not in (p.get("reachable") or "")
+    if any("HTTP 200" in (p.get("reachable") or "") and not _is_js_shell(p.get("reachable"))
            for p in portals):
         return REACHABLE
     return DECLARED
+
+
+def _is_js_shell(note: str | None) -> bool:
+    """Does this probe note report a JS shell?
+
+    Substring-matching "JS shell" also matches "no JS shell" and "not a JS shell", which is
+    how a portal recorded as server-rendered was demoted to `declared` and told to fix a
+    problem the note said it did not have. Read the negations first.
+    """
+    r = (note or "").lower()
+    if "no js shell" in r or "not a js shell" in r or "not js shell" in r:
+        return False
+    return "js shell" in r
 
 
 def blocker(code: str, portals: list[dict], lvl: str) -> str:
@@ -98,7 +112,7 @@ def blocker(code: str, portals: list[dict], lvl: str) -> str:
     if not reasons:
         return "portal never probed"
     for r in reasons:                       # report the most actionable failure, not the first
-        if "JS shell" in r:
+        if _is_js_shell(r):
             return "portal is a JS shell — 200 with no statute text in the body"
         if "404" in r:
             return "reachable, document path unknown (404 on every path tried)"
@@ -133,13 +147,13 @@ def rows(probe_engines: bool = True) -> list[dict]:
     weights: measured at 15.7s for these twelve economies on a machine that already had the
     models on disk. The dashboard's readiness globe paid that before it could paint a single
     country, to colour them by a `level` that does not depend on the engine at all — it reads
-    only `level`, `portal`, `blocker` and `nine`.
+    only `level`, `portal`, `blocker` and `listed`.
 
     The README table and the CLI keep the probe, because there the whole point is what this
     machine can actually do. A caller that skips it gets "—", never a guess.
     """
     src = _sources()
-    order = list(LIVE_TEST_NINE) + [c for c in ROUND1_ECONOMIES]
+    order = list(LIVE_TEST_POOL)
     out = []
     for code in order:
         portals = src.get(code, [])
@@ -151,7 +165,7 @@ def rows(probe_engines: bool = True) -> list[dict]:
         out.append({
             "code": code,
             "economy": ECONOMY_UN_NAME.get(code, code),
-            "nine": code in LIVE_TEST_NINE,
+            "listed": code in FINAL_ROUND_LIST,
             "language": prof.language_of_source,
             "lane": prof.lane,
             "portal": _primary(portals),
@@ -167,25 +181,25 @@ def rows(probe_engines: bool = True) -> list[dict]:
 def render(markdown: bool) -> str:
     data = rows()
     if markdown:
-        head = ("| Economy | Live-test nine | Language of source | Portal | Lane | OCR | "
+        head = ("| Economy | On the panel's list | Language of source | Portal | Lane | OCR | "
                 "Reranker | Run end to end? | Next blocker |")
         lines = [head, "| :--- | :---: | :--- | :--- | :--- | :--- | :--- | :--- | :--- |"]
         for r in data:
             lines.append(
-                f"| {r['economy']} | {'yes' if r['nine'] else '—'} | {r['language']} | "
+                f"| {r['economy']} | {'yes' if r['listed'] else '—'} | {r['language']} | "
                 f"{r['portal']} | {r['lane']} | {r['ocr']} | {r['reranker']} | "
                 f"**{r['level']}** | {r['blocker']} |")
         return "\n".join(lines)
     w = max(len(r["economy"]) for r in data)
     lines = []
     for r in data:
-        flag = "9" if r["nine"] else " "
+        flag = "*" if r["listed"] else " "
         lines.append(f"{flag} {r['economy']:<{w}}  {r['language']:<12} {r['lane']:<11} "
                      f"{r['ocr']:<9} {r['level']:<9}  {r['blocker']}")
-    counts = {lv: sum(1 for r in data if r["level"] == lv and r["nine"])
+    counts = {lv: sum(1 for r in data if r["level"] == lv and r["listed"])
               for lv in (MEASURED, EXTRACTED, REACHABLE, DECLARED)}
     lines.append("")
-    lines.append("of the nine live-test economies: " +
+    lines.append("of the eight economies on the panel's list: " +
                  " · ".join(f"{v} {k}" for k, v in counts.items()))
     return "\n".join(lines)
 

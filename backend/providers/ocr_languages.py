@@ -276,6 +276,15 @@ PROFILES: dict[str, LangProfile] = {
               "confusable in the 18.0 beta (2026-08-06), so tools on 17.0 will not detect the "
               "substitution. A citation matcher must treat n.º / nº / n.o / n.° / no alike."),
         unicode_ranges=((0x0020, 0x024F),),
+        # Without this the Latin default applies and `language` stays "English" — which is
+        # right about the alphabet and wrong about the statute. Language of Source is the
+        # column criterion C1c is marked on, and it would have reported every Timorese law as
+        # English; the grading prompt would also have been told the wrong snippet language.
+        # Both official languages are used for legislation, often for the same instrument
+        # (mj.gov.tl ships the Constitution as ConstituicaoRDTL_Portugues.pdf AND
+        # ConstituicaoRDTL_tetum.pdf), so detection must run per document. Portuguese is named
+        # here because that is what the operative text is drafted in.
+        language="Portuguese",
     ),
     "LA": LangProfile(
         script="Lao", rapidocr=None, paddle=None, tesseract="lao", azure=None,

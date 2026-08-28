@@ -34,6 +34,11 @@ ECONOMY_QUERY_LANG: dict[str, str | None] = {
     "MN": "mn",
     # staged for later finals, unvalidated
     "TH": "th", "RU": "ru", "ID": "id",
+    # Timor-Leste legislates in Portuguese and Tetum, often publishing the same instrument in
+    # both. Portuguese is mapped because that is what the operative text is drafted in; a
+    # Tetum block would be additive on the lexical side and is not written yet, so a
+    # Tetum-only instrument currently retrieves on the dense stage alone.
+    "TL": "pt",
 }
 
 NATIVE_QUERY_TERMS: dict[str, dict[str, list[str]]] = {
@@ -71,6 +76,39 @@ NATIVE_QUERY_TERMS: dict[str, dict[str, list[str]]] = {
         "P7-I4": ["эрсдэлийн үнэлгээ", "мэдээлэл хамгаалах ажилтан", "үнэлгээ хийх"],
         "P7-I5": ["эрх бүхий байгууллага", "төрийн байгууллага", "шаардах эрхтэй",
                   "хууль сахиулах байгууллага"],
+    },
+    "pt": {
+        # SEED vocabulary — see PROVENANCE above. Portuguese, as used in Timor-Leste's own
+        # legal drafting (European Portuguese forms, not Brazilian: "protecção"/"proteção"
+        # both occur in the gazette because the 1990 orthographic agreement was adopted
+        # unevenly, so BOTH spellings are listed where they differ).
+        #
+        # Two things make Portuguese cheap to add and easy to get wrong. Cheap: it is Latin
+        # script, so BM25 tokenises it as words with no segmenter. Easy to get wrong: article
+        # references are written "Artigo 1.º" with U+00BA, and NFKC rewrites that to "1.o" —
+        # see the TL note in providers/ocr_languages.py. Nothing here depends on that, but a
+        # citation matcher does.
+        "P6-I1": ["é proibida a transferência", "proibida a transferência internacional",
+                  "não podem ser transferidos", "tratados em território nacional",
+                  "tratamento em território nacional"],
+        "P6-I2": ["armazenados em território nacional", "conservados em território nacional",
+                  "armazenamento em território nacional", "manter em território nacional",
+                  "base de dados localizada"],
+        "P6-I3": ["servidores localizados em território nacional", "centro de dados",
+                  "infra-estrutura", "infraestrutura", "servidor localizado"],
+        "P6-I4": ["transferência internacional de dados", "consentimento do titular",
+                  "nível adequado de protecção", "nível adequado de proteção",
+                  "autorização prévia", "cláusulas contratuais"],
+        "P7-I1": ["protecção de dados pessoais", "proteção de dados pessoais",
+                  "tratamento de dados pessoais", "titular dos dados", "dados pessoais"],
+        "P7-I2": ["segurança cibernética", "cibersegurança", "segurança da informação",
+                  "incidente de segurança"],
+        "P7-I3": ["prazo de conservação", "conservados pelo prazo", "prazo mínimo",
+                  "período de conservação"],
+        "P7-I4": ["encarregado de protecção de dados", "encarregado de proteção de dados",
+                  "avaliação de impacto", "avaliação de impacto sobre a protecção de dados"],
+        "P7-I5": ["autoridade judiciária", "autoridades competentes",
+                  "acesso pelas autoridades", "investigação criminal", "ordem judicial"],
     },
 }
 

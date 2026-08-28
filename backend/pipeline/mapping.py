@@ -448,7 +448,12 @@ def map_provisions(
     # systemic; workers that have not started yet return immediately instead of repeating a
     # doomed call. Without this, an exhausted key produced 968 identical 403s and a run that
     # looked like "the economy has no such law".
-    breaker = {"stop": threading.Event(), "lock": threading.Lock(),
+    # RLock, not Lock, and the difference is a hang: the failure paths below count under the
+    # lock and then call _trip(), which takes it again. A plain Lock is not reentrant, so the
+    # 25th consecutive failure deadlocked the worker holding it and every worker behind it —
+    # the run stopped dead with no error, which is a worse failure than the one this whole
+    # mechanism exists to report.
+    breaker = {"stop": threading.Event(), "lock": threading.RLock(),
                "ok": 0, "bad": 0, "skipped": 0, "reason": "", "hint": "", "kind": ""}
 
     def _trip(reason: str, kind: str, hint: str) -> None:

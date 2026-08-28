@@ -47,14 +47,16 @@ Read them before trusting any restatement, including this one.
 consistency 10 · C2b citation fidelity 10 · C3a audit / human-in-the-loop 10 · C3b UI+export 5 ·
 C4a handover 8 · C4b no vendor lock-in 7 · C5 live test 10 (discovery 6 + engine swap 4).
 
-> **Correction pending in code.** `LIVE_TEST_NINE` in `backend/schemas.py` lists nine
-> economies including **Viet Nam and Kazakhstan, which are on no list the panel published**,
-> and omits **Timor-Leste, which is**. The "final-round instructions" quoted in that file's
-> comment appear in no document in this repo. The two artefacts we *do* hold agree with the
-> slides, not with the code: `ESCAP-RDTII-2.1_ Round 2 Database.xlsx` has 7 sheets (the 8
-> minus Timor-Leste) and the team's own country survey covers the same 7.
-> VN and KZ already carry portal lanes, language profiles and OCR notes; TL carries nothing.
-> **Decision owed — see §3.**
+> **Corrected in code 2026-08-28.** `LIVE_TEST_NINE` listed nine economies including **Viet Nam
+> and Kazakhstan, which are on no list the panel published**, and omitted **Timor-Leste, which
+> is on it and carries the bonus**. The "final-round instructions" quoted in that constant's
+> comment appear in no document in this repo; the orientation material is gitignored, so it was
+> never opened and the list was inferred instead. It is now `FINAL_ROUND_LIST` (the panel's 8)
+> and `LIVE_TEST_POOL` (those 8 + the mandatory 3 = what the assignment can name).
+> VN and KZ stay **resolvable** — their lanes work and a user typing "Vietnam" should not get a
+> stack trace — but are listed in `NOT_ON_PANEL_LIST` and are no longer offered as live-test
+> economies. Timor-Leste now has an economy code, UN name, aliases, a Portuguese language
+> profile, Portuguese seed query terms and a gazette lane.
 
 ---
 
@@ -83,16 +85,18 @@ measurement: `harness.load_provisions()` needs a **built corpus**, and only SG/A
 Priority order. `[ ]` not started · `[~]` in progress · `[x]` done (move to §5 and prune).
 
 ### Owed right now — asked for on 2026-08-28, not yet done
-1. [ ] **Correct `LIVE_TEST_NINE`** in `backend/schemas.py` to the panel's published EIGHT:
-       drop Viet Nam and Kazakhstan (on no list the panel published — the "final-round
-       instructions" quoted in that file's comment exist in no document, see §1), add
-       **Timor-Leste**. Then follow the enum through: `ECONOMY_UN_NAME`, aliases,
-       `data/sources.yaml`, `ocr_languages.py`, `query_terms_i18n.py`, `tools/readiness.py`,
-       `tests/test_final_round.py`, `tests/test_livetest.py`.
-2. [ ] **Committed set for 30 Sep: SG · MY · AU + China · India · Mongolia** (decided
+1. [x] **Country list corrected** (2026-08-28) — `FINAL_ROUND_LIST` / `LIVE_TEST_POOL` /
+       `NOT_ON_PANEL_LIST` in `backend/schemas.py`, followed through `ECONOMY_UN_NAME`,
+       aliases, `frontend/livetest.py`, `tools/readiness.py` and both test files.
+       Timor-Leste gained a UN name, aliases, a Portuguese language profile, Portuguese seed
+       query terms and a gazette lane (`mj.gov.tl/jornal`, probed 2026-08-28: HTTP 200,
+       server-rendered, no WAF). Readiness now rates it **reachable**.
+2. [~] **Committed set for 30 Sep: SG · MY · AU + China · India · Mongolia** (decided
        2026-08-28), **plus Russia if it can be made to work** — RU today has one unverified
        `pravo.gov.ru` lane and no corpus, so it needs a portal adapter of the kind CN/IN/MN
        have before it can be declared. Six is the minimum; RU would make seven.
+       Route is already known: robots.txt disallows /Search AND /File (where the bodies are)
+       but offers a sitemap, which is permitted — build the lane on the sitemap.
 3. [ ] **Re-validate the per-economy budget on real output, not just retrieval recall.** What
        is measured today is whether the panel's cited law/provision reaches the shortlist —
        the ceiling on everything the grader can get right, and it needs no LLM call. What is

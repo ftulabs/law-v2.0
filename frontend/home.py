@@ -233,7 +233,7 @@ def coverage_screen() -> None:
     st.dataframe(
         pd.DataFrame([{
             "Economy": r["economy"],
-            "Live-test nine": "yes" if r["nine"] else "—",
+            "On the panel's list": "yes" if r["listed"] else "—",
             "Reached": LEVEL_WORD.get(r["level"], r["level"]),
             "Language of source": r["language"],
             "Portal": r["portal"],

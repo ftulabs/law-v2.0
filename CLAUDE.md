@@ -22,9 +22,10 @@ Automate the manual legal-data-collection workflow: **given an economy + regulat
   **eight**: China, India, Indonesia, Lao PDR, Mongolia, Russian Federation, Thailand,
   **Timor-Leste** (verified 2026-08-27 against `Finalist Orientation/Finalist Orientation_Slide.pdf`
   and `Meeting notes.docx`) — pick at least three; Timor-Leste carries a bonus. The sealed live
-  test on 15 Oct draws from any listed economy, so **eleven** are possible.
-  ⚠ `LIVE_TEST_NINE` in `backend/schemas.py` does NOT match this list — it names Viet Nam and
-  Kazakhstan, which are on no published list, and omits Timor-Leste. See `PROJECT_STATE.md` §1.
+  test on 15 Oct draws from any listed economy, so **eleven** are possible:
+  `FINAL_ROUND_LIST` and `LIVE_TEST_POOL` in `backend/schemas.py`.
+  Committed set for 30 Sep: **SG · MY · AU + China · India · Mongolia**, plus Russia if its
+  portal adapter lands in time.
 - A regulatory pillar (6 = Cross-border Data Policies; 7 = Domestic Data Protection and Privacy)
 
 The app must, with zero seed URLs:

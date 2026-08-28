@@ -41,6 +41,7 @@ import streamlit as st
 
 from backend.config import settings
 from backend.providers import registry as reg
+from backend.schemas import LIVE_TEST_POOL
 
 from .home import MEASURED_PILLARS, PILLAR_SHORT
 
@@ -51,11 +52,16 @@ STEPS = [
     ("Hand in", "Evidence, comparison, note"),
 ]
 
-#: The nine the panel's 2025 database covers, listed FIRST in the picker because the brief says
-#: the assignment draws from them. An ordering, not a restriction — the instruction on the day
-#: is "any listed country", and a picker that could not accept one would fail at the only
-#: moment it exists for.
-LIVE_TEST_ORDER = ("TH", "VN", "ID", "CN", "IN", "KZ", "LA", "MN", "RU")
+#: What the assignment can name, listed FIRST in the picker: the panel's eight published
+#: countries and the three mandatory ones — eleven, because the instruction on the day is
+#: "draw from the listed economies (any pillar)" and the mandatory three are listed too.
+#: An ordering, not a restriction; a picker that could not accept an economy would fail at
+#: the only moment it exists for.
+#:
+#: It used to name nine, including Viet Nam and Kazakhstan, which appear on no list the panel
+#: published, and to omit Timor-Leste, which does appear and carries a bonus. See
+#: backend/schemas.LIVE_TEST_POOL for where that came from.
+LIVE_TEST_ORDER = LIVE_TEST_POOL
 
 #: Which way is better, per comparison row. Used to mark the winner rather than leaving the
 #: reader to work out whether more minutes is good news.
@@ -83,9 +89,9 @@ def new_state() -> dict:
 
 
 def economy_order(codes) -> list[str]:
-    """Every declared economy, the live-test nine first, then the rest."""
-    nine = [c for c in LIVE_TEST_ORDER if c in codes]
-    return nine + [c for c in codes if c not in nine]
+    """Every declared economy, the ones the live test can name first, then the rest."""
+    listed = [c for c in LIVE_TEST_ORDER if c in codes]
+    return listed + [c for c in codes if c not in listed]
 
 
 # ── step indicator ───────────────────────────────────────────────────────────────────

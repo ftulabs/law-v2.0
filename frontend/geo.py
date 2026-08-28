@@ -47,6 +47,7 @@ LATLON: dict[str, tuple[float, float]] = {
     "CN": (35.86, 104.19), "IN": (20.59, 78.96), "MN": (46.86, 103.85),
     "TH": (15.87, 100.99), "VN": (14.06, 108.28), "ID": (-2.55, 118.02),
     "KZ": (48.02, 66.92), "LA": (19.86, 102.50), "RU": (61.52, 105.32),
+    "TL": (-8.87, 125.73),
 }
 
 #: Shorter than the UN name where the UN name would wrap a chip onto two lines.
@@ -107,7 +108,7 @@ def economies() -> list[dict]:
             "level": row.get("level", "declared"),
             "portal": row.get("portal", "—"),
             "blocker": row.get("blocker", ""),
-            "nine": bool(row.get("nine")),
+            "listed": bool(row.get("listed")),
         })
     return out
 

@@ -15,34 +15,52 @@ from pydantic import BaseModel, Field
 
 # ─────────────────────────── enums ───────────────────────────
 class Economy(str, Enum):
-    SG = "SG"   # Singapore      — Round 1 (mandatory)
-    AU = "AU"   # Australia      — Round 1 (mandatory)
-    MY = "MY"   # Malaysia       — Round 1 (mandatory)
-    CN = "CN"   # China          — live-test nine
-    IN = "IN"   # India          — live-test nine
-    MN = "MN"   # Mongolia       — live-test nine
-    TH = "TH"   # Thailand       — live-test nine
-    VN = "VN"   # Viet Nam       — live-test nine
-    ID = "ID"   # Indonesia      — live-test nine
-    KZ = "KZ"   # Kazakhstan     — live-test nine
-    LA = "LA"   # Lao PDR        — live-test nine
-    RU = "RU"   # Russian Fed.   — live-test nine
+    SG = "SG"   # Singapore      — mandatory, every round
+    AU = "AU"   # Australia      — mandatory, every round
+    MY = "MY"   # Malaysia       — mandatory, every round
+    CN = "CN"   # China          — final-round list
+    IN = "IN"   # India          — final-round list
+    ID = "ID"   # Indonesia      — final-round list
+    LA = "LA"   # Lao PDR        — final-round list
+    MN = "MN"   # Mongolia       — final-round list
+    RU = "RU"   # Russian Fed.   — final-round list
+    TH = "TH"   # Thailand       — final-round list
+    TL = "TL"   # Timor-Leste    — final-round list (carries the difficulty bonus)
+    VN = "VN"   # Viet Nam       — NOT on the panel's list; see below
+    KZ = "KZ"   # Kazakhstan     — NOT on the panel's list; see below
 
 
-# The sealed live test on 15 October draws from exactly these nine, named in the final-round
-# instructions: "the nine economies whose 2025 RDTII database you hold — Thailand, Viet Nam,
-# Indonesia, China, India, Kazakhstan, Lao PDR, Mongolia, the Russian Federation … You do not
-# submit a list of jurisdictions to be tested from. Be ready for any of the nine."
-#
-# So an economy being DECLARABLE and an economy being READY are different claims, and the
-# README asks us to state which is which per economy. Declaring it here buys resolvability,
-# a language profile and an OCR path; it does not buy a verified portal or a measured run.
-# `backend/providers/engine_profile.py` reports the difference rather than papering over it.
-LIVE_TEST_NINE = ("TH", "VN", "ID", "CN", "IN", "KZ", "LA", "MN", "RU")
+# The panel's published country list, verified 2026-08-27 against
+# `Finalist Orientation/Finalist Orientation_Slide.pdf` ("Final Round Countries list — Select
+# at least 3 from 8 countries above, in addition to 3 mandatory countries: Australia Malaysia
+# Singapore") and `Meeting notes.docx` ("Teams choose at least 3 from 8 newly listed countries
+# … Timor-Leste carries a small bonus if covered, due to its added difficulty").
+FINAL_ROUND_LIST = ("CN", "IN", "ID", "LA", "MN", "RU", "TH", "TL")
 
-# Round-1 economies. Not in the live-test nine — the panel holds no 2025 database for them —
-# but they are our deepest corpora and stay in the submission workbook.
+# Mandatory in every round, and NOT part of the choice above.
 ROUND1_ECONOMIES = ("SG", "AU", "MY")
+
+# What the sealed live test on 15 October can actually name: "Draw from the listed economies
+# (any pillar) — announced at the start of the hour", so the mandatory three are in scope too.
+# Eleven, not nine.
+LIVE_TEST_POOL = ROUND1_ECONOMIES + FINAL_ROUND_LIST
+
+# Viet Nam and Kazakhstan appear on NO list the panel published, and have no sheet in either
+# RDTII database. They were added on 2026-08-21 by a `LIVE_TEST_NINE` constant whose comment
+# quoted "final-round instructions" that exist in no document in this repo — the orientation
+# material is gitignored, so it was never opened, and the list was inferred instead. That cost
+# both of them a portal lane, a language profile and an OCR entry, while Timor-Leste — which IS
+# on the list, and carries a bonus — had none of the three.
+#
+# They stay resolvable rather than being deleted: the lanes work, someone may still want to run
+# them, and a user typing "Vietnam" should get Viet Nam and not a stack trace. What they must
+# never be again is ADVERTISED as economies the live test can name.
+NOT_ON_PANEL_LIST = ("VN", "KZ")
+
+# An economy being DECLARABLE and an economy being READY are different claims, and the README
+# asks us to state which is which per economy. Appearing above buys resolvability, a language
+# profile and an OCR path; it does not buy a verified portal or a measured run.
+# `backend/providers/engine_profile.py` reports the difference rather than papering over it.
 
 # Official UN member-state names required by the submission template
 # (https://www.unescap.org/about/member-states). The CSV must use these, not codes.
@@ -52,7 +70,7 @@ ECONOMY_UN_NAME = {"SG": "Singapore", "AU": "Australia", "MY": "Malaysia",
                    "CN": "China", "IN": "India", "MN": "Mongolia",
                    "TH": "Thailand", "VN": "Viet Nam", "ID": "Indonesia",
                    "KZ": "Kazakhstan", "LA": "Lao People's Democratic Republic",
-                   "RU": "Russian Federation"}
+                   "RU": "Russian Federation", "TL": "Timor-Leste"}
 
 # value the user may type → Economy. Includes codes, UN names and common variants.
 # NOTE "in"/"cn"/"mn" are 2-letter keys matched EXACTLY; the substring fallback in
@@ -82,6 +100,12 @@ _ECONOMY_ALIASES = {
     "lao peoples democratic republic": Economy.LA, "lao pdr.": Economy.LA,
     "ru": Economy.RU, "russia": Economy.RU, "rus": Economy.RU,
     "russian federation": Economy.RU, "the russian federation": Economy.RU,
+    # Timor-Leste answers to three names in practice: its own (Portuguese) form, the
+    # Tetum/Indonesian "Timor Leste" without the hyphen, and the English "East Timor".
+    "tl": Economy.TL, "timor-leste": Economy.TL, "timor leste": Economy.TL,
+    "tls": Economy.TL, "east timor": Economy.TL, "timor": Economy.TL,
+    "democratic republic of timor-leste": Economy.TL,
+    "republica democratica de timor-leste": Economy.TL,
 }
 
 _SUPPORTED = ", ".join(ECONOMY_UN_NAME.values())

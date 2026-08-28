@@ -509,6 +509,27 @@ sources:
       Build the RU lane on the sitemap. paddle lang "ru" reads the script (verified against the
       model dictionary), so OCR is not the risk here; the access route is.
 
+  - economy: TL
+    name: Jornal da República (Ministério da Justiça) — official gazette
+    base_url: https://mj.gov.tl/jornal
+    adapter: websearch
+    verified: false
+    reachable: "2026-08-28: HTTP 200 over plain HTTPS, 18.8k chars server-rendered, no WAF, no JS shell"
+    robots_read: "2026-08-28"
+    note: >-
+      Timor-Leste is on the panel's published list and carries the difficulty bonus, and until
+      2026-08-28 it had no lane, no language profile and no OCR entry — the effort went to
+      Viet Nam and Kazakhstan, which are on no list the panel published. This is the gazette:
+      Drupal, server-rendered, answers a plain client first try. robots.txt is the Drupal
+      default (Crawl-delay 10, disallows /admin/ /search/ /includes/ /modules/ and the install
+      files) and does NOT disallow the document paths — statute PDFs sit at /jornal/files/ and
+      /jornal/public/docs/ (e.g. Codigo_Penal.pdf, ConstituicaoRDTL_Portugues.pdf), with an
+      index at /jornal/lawsTL/ and an RSS feed at /jornal/?q=rss.xml. Honour the crawl delay.
+      Bilingual: the same instrument is published in Portuguese and in Tetum (the Constitution
+      ships as both ConstituicaoRDTL_Portugues.pdf and ConstituicaoRDTL_tetum.pdf), so language
+      detection must run PER DOCUMENT, not per economy. Not yet verified end to end: no corpus
+      has been built and no CER measured on a Timorese scan.
+
 regulators:
   SG:
     - host: www.pdpc.gov.sg          # Personal Data Protection Commission

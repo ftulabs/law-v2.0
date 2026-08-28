@@ -12,12 +12,12 @@ import pytest
 from backend.providers import engine_profile as EP
 from backend.providers.ocr_languages import PROFILES, is_english_text, is_latin_script, profile_for
 from backend.rdtii import codes, instrument
-from backend.schemas import (ECONOMY_UN_NAME, LIVE_TEST_NINE, SUBMISSION_COLUMNS, Economy,
+from backend.schemas import (ECONOMY_UN_NAME, LIVE_TEST_POOL, SUBMISSION_COLUMNS, Economy,
                              resolve_economy)
 
 
 # ── the nine ─────────────────────────────────────────────────────────────────────────
-@pytest.mark.parametrize("code", LIVE_TEST_NINE)
+@pytest.mark.parametrize("code", LIVE_TEST_POOL)
 def test_every_live_test_economy_is_declarable(code):
     """"Be ready for any of the nine." An economy that cannot even be named is not a thin
     pass, it is a zero, and six of the nine were undeclared until now."""
@@ -41,7 +41,7 @@ def test_un_names_match_the_instructions_exactly():
     assert ECONOMY_UN_NAME["LA"] == "Lao People's Democratic Republic"
 
 
-@pytest.mark.parametrize("code", LIVE_TEST_NINE)
+@pytest.mark.parametrize("code", LIVE_TEST_POOL)
 def test_every_live_test_economy_has_its_own_language_profile(code):
     """Kazakhstan had no entry, so profile_for("KZ") returned the Latin default: Cyrillic text
     would have been called Latin script, handed to an English cross-encoder, and reported as
@@ -66,7 +66,7 @@ def test_latin_script_but_not_english_takes_the_non_english_lane(code):
     assert ranking._ce_model_for(code) is None
 
 
-@pytest.mark.parametrize("code", LIVE_TEST_NINE)
+@pytest.mark.parametrize("code", LIVE_TEST_POOL)
 def test_no_economy_reports_a_language_it_does_not_speak(code):
     """Language of Source is a REQUIRED column driving criterion C1c. Indonesia inherited the
     Latin default, whose language field says "English"."""
@@ -79,7 +79,7 @@ def test_no_economy_reports_a_language_it_does_not_speak(code):
 
 
 # ── OCR: no script may be a dead end ─────────────────────────────────────────────────
-@pytest.mark.parametrize("code", LIVE_TEST_NINE)
+@pytest.mark.parametrize("code", LIVE_TEST_POOL)
 def test_every_live_test_economy_resolves_a_real_ocr_engine(code):
     """"No installed engine can read this script" is honest and useless: the live test names
     one economy of nine and gives an hour. A vision model has no per-script dictionary, so it

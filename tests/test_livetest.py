@@ -137,11 +137,17 @@ def test_the_current_step_is_not_signalled_by_colour_alone():
     assert "✓" in html and "lt-now" in html and "lt-todo" in html
 
 
-def test_only_the_nine_live_test_economies_are_offered():
+def test_the_picker_offers_exactly_what_the_assignment_can_name():
     """Being able to NAME an economy and being ready for it are different claims, and this is
-    the one screen where the difference is decided against a clock."""
-    from backend.schemas import LIVE_TEST_NINE
-    assert set(livetest.LIVE_TEST_ORDER) == set(LIVE_TEST_NINE)
+    the one screen where the difference is decided against a clock.
+
+    Eleven, not nine: the panel publishes eight countries and the assignment "draws from the
+    listed economies", which includes the mandatory three. Viet Nam and Kazakhstan are on no
+    published list; Timor-Leste is, and carries the bonus."""
+    from backend.schemas import FINAL_ROUND_LIST, LIVE_TEST_POOL, NOT_ON_PANEL_LIST
+    assert set(livetest.LIVE_TEST_ORDER) == set(LIVE_TEST_POOL)
+    assert "TL" in FINAL_ROUND_LIST, "Timor-Leste is on the list and carries a bonus"
+    assert not set(NOT_ON_PANEL_LIST) & set(LIVE_TEST_POOL), "VN/KZ are on no published list"
 
 
 # ── what the organisers' own template requires, and this file used to get wrong ──────
