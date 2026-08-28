@@ -1,6 +1,6 @@
-"""Labelled evaluation set derived from the judges' own RDTII 2.1 Round-1 Database.
+"""Labelled evaluation set derived from the judges' own RDTII 2.1 Databases.
 
-The hackathon ships no labelled training data, but the Database workbook IS a label set:
+The hackathon ships no labelled training data, but the Database workbooks ARE a label set:
 for every (economy, indicator) the panel recorded the Act(s) they accepted as evidence, a
 prose justification that almost always names the exact provision ("According to Section 199,
 every company must retain accounting records for 5 years…"), and the Raw Score.
@@ -16,6 +16,17 @@ against the Database without that distinction would reward exactly the wrong beh
 
 Nothing here is used by the pipeline at runtime — it exists so retrieval changes can be
 measured instead of argued about.
+
+TWO workbooks, ten economies. Round 1 labels SG/AU/MY; Round 2 labels the seven final-round
+economies the panel scored — CN, IN, ID, LA, MN, RU, TH. Both sheets have the identical
+column layout, so the same parser reads both; what differs is HOW the panel writes a citation.
+Round 1 says "Section 199", Round 2 says "Article 27" / "Article 12.7" / "Article 20(2)", and
+until `_ARTICLE_RE` existed every Round-2 row parsed to zero provision targets — not an error,
+just a label set that silently measured nothing.
+
+Timor-Leste is on the final-round country list and has NO sheet in either workbook, so it
+cannot be labelled here and cannot be measured. That is a fact about the panel's data, not a
+gap to paper over: an unlabelled economy must keep the conservative retrieval budget.
 """
 from __future__ import annotations
 
@@ -27,7 +38,13 @@ from pathlib import Path
 from ..config import ROOT
 
 DATABASE_XLSX = "ESCAP-RDTII-2.1_ Round 1 Database.xlsx"
+ROUND2_XLSX = "ESCAP-RDTII-2.1_ Round 2 Database.xlsx"
 SHEET_ECONOMY = {"Singapore": "SG", "Australia": "AU", "Malaysia": "MY"}
+SHEET_ECONOMY_R2 = {"China": "CN", "India": "IN", "Indonesia": "ID", "Lao PDR": "LA",
+                    "Mongolia": "MN", "Russian Federation": "RU", "Thailand": "TH"}
+# (workbook, sheet→economy). A workbook that is not present is skipped, not an error: the
+# Round-2 database arrived later than the Round-1 one and a clone may hold only one of them.
+DATABASES = ((DATABASE_XLSX, SHEET_ECONOMY), (ROUND2_XLSX, SHEET_ECONOMY_R2))
 OUT_JSON = ROOT / "data" / "ground_truth" / "rdtii_p67_labels.json"
 
 _IND_RE = re.compile(r"^([67])\.(\d+)$")
@@ -43,6 +60,20 @@ _SECTION_RE = re.compile(
     re.I)
 _APP_RE = re.compile(r"\b(?:australian\s+privacy\s+principle|APP)\s*(\d+(?:\.\d+)?)", re.I)
 _BARE_PAREN_RE = re.compile(r"\((\d{2,3}[A-Z]{1,2})\)")          # "(187C)"
+
+# Round-2 economies are civil-law drafted and the panel cites them by ARTICLE:
+#   "Article 27" / "Articles 25 and 26" / "Art. 5"
+#   "Article 12.7" / "Article 10.1.3" — RU and MN number clause-wise, which is exactly how
+#                                       the extractor labels those provisions
+#   "Article 20(2)" / "Article 7.1.3, part (d)"
+# Deliberately NOT extended to "Chapter N", which several Round-2 justifications also cite:
+# harness.section_key() returns None for structural headings, so a Chapter label could never
+# match any provision and would only inflate prov_expected with unreachable targets — that
+# depresses measured recall without any pipeline being at fault.
+_ARTICLE_RE = re.compile(
+    r"\b(?:articles?|art\.)\s*(\d{1,3}[A-Za-z]{0,2}(?:\.\d+){0,3}(?:\([^)]{1,8}\))*)"
+    r"(?:\s*(?:and|,|&)\s*(\d{1,3}[A-Za-z]{0,2}(?:\.\d+){0,3}(?:\([^)]{1,8}\))*))?",
+    re.I)
 
 # Justifications that record an ABSENCE rather than a provision.
 _ABSENCE_RE = re.compile(
@@ -97,7 +128,13 @@ def _split_urls(cells) -> tuple[list[str], list[str]]:
     (official-portal urls, everything else) — the panel frequently cites a third-party mirror
     (mohre.um.edu.my, cyrilla.org) for a law that IS on the official portal, so a URL match is
     not a usable target; the law NAME is."""
-    portal_pat = re.compile(r"(sso\.agc\.gov\.sg|legislation\.gov\.au|lom\.agc\.gov\.my|pdp\.gov\.my)", re.I)
+    portal_pat = re.compile(
+        r"(sso\.agc\.gov\.sg|legislation\.gov\.au|lom\.agc\.gov\.my|pdp\.gov\.my"
+        # Round-2 official portals and the ministry/regulator hosts the panel cites as primary
+        r"|flk\.npc\.gov\.cn|(?:^|\.)gov\.cn|cac\.gov\.cn|indiacode\.nic\.in|meity\.gov\.in"
+        r"|peraturan\.go\.id|peraturan\.bpk\.go\.id|jdihn\.go\.id"
+        r"|laoofficialgazette\.gov\.la|legalinfo\.mn"
+        r"|pravo\.gov\.ru|krisdika\.go\.th|ratchakitcha\.soc\.go\.th)", re.I)
     official, other = [], []
     for c in cells:
         for u in re.findall(r"https?://[^\s;,\"'\]]+", str(c or "")):
@@ -110,10 +147,11 @@ def _sections(text: str) -> list[str]:
     """Provision refs named in the panel's justification, normalised to bare labels
     ('199', '11(3)', 'APP 8', '3.1.1')."""
     out: list[str] = []
-    for m in _SECTION_RE.finditer(text or ""):
-        for g in m.groups():
-            if g:
-                out.append(g.strip())
+    for rx in (_SECTION_RE, _ARTICLE_RE):
+        for m in rx.finditer(text or ""):
+            for g in m.groups():
+                if g:
+                    out.append(g.strip(" ."))
     for m in _APP_RE.finditer(text or ""):
         out.append(f"APP {m.group(1)}")
     for m in _BARE_PAREN_RE.finditer(text or ""):
@@ -136,13 +174,11 @@ def _kind(impact: str, sections: list[str]) -> str:
     return "absence" if _ABSENCE_RE.search(impact or "") else "provision"
 
 
-def load_labels(xlsx: str | Path | None = None) -> list[LabelRow]:
-    """Parse the Database workbook into label rows for pillars 6 and 7."""
+def _load_workbook_labels(path: Path, sheet_economy: dict[str, str]) -> list[LabelRow]:
     import openpyxl
-    path = Path(xlsx) if xlsx else (ROOT / DATABASE_XLSX)
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
     rows: list[LabelRow] = []
-    for sheet, econ in SHEET_ECONOMY.items():
+    for sheet, econ in sheet_economy.items():
         if sheet not in wb.sheetnames:
             continue
         for r in wb[sheet].iter_rows(values_only=True):
@@ -163,7 +199,30 @@ def load_labels(xlsx: str | Path | None = None) -> list[LabelRow]:
                 laws=_split_laws(str(r[3] or "")), sections=secs,
                 portal_urls=official, other_urls=other, impact=impact,
             ))
+    wb.close()
     return rows
+
+
+def load_labels(xlsx: str | Path | None = None) -> list[LabelRow]:
+    """Parse the Database workbooks into label rows for pillars 6 and 7.
+
+    `xlsx` reads ONE workbook (Round-1 sheet map) and is kept for callers that want to pin a
+    single file; the default reads every workbook in DATABASES that is present on disk.
+    """
+    if xlsx is not None:
+        return _load_workbook_labels(Path(xlsx), SHEET_ECONOMY)
+    rows: list[LabelRow] = []
+    for name, sheets in DATABASES:
+        path = ROOT / name
+        if path.exists():
+            rows.extend(_load_workbook_labels(path, sheets))
+    return rows
+
+
+def labelled_economies() -> set[str]:
+    """Economies the panel's own databases actually score — the only ones a retrieval budget
+    can be MEASURED for. Everything else must keep the conservative default."""
+    return {e for _, sheets in DATABASES for e in sheets.values()}
 
 
 def export(path: Path | None = None) -> Path:

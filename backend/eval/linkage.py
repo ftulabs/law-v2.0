@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 
 from ..corpus import store
 
@@ -193,13 +194,26 @@ def link_law(economy: str, label_law: str, catalogue: list[dict],
                 round(best_score, 3), "none")
 
 
+@lru_cache(maxsize=8)
 def link_all(min_score: float = 0.62) -> dict[str, list[Link]]:
-    """Link every law named anywhere in the label set. Returns {economy: [Link, …]}."""
+    """Link every law named anywhere in the label set. Returns {economy: [Link, …]}.
+
+    Cached: this is a pure function of two files that do not change inside a process, and it
+    costs ~38s (every cited name scored against a 29k-row catalogue). Every sweep re-derives
+    targets per configuration, so an uncached call multiplied that cost by the ladder length —
+    ten minutes of a budget measurement was this function alone.
+    """
     from .ground_truth import load_labels
     labels = load_labels()
     out: dict[str, list[Link]] = {}
-    for econ in ("SG", "AU", "MY"):
+    # Economies come from the LABELS, not a hardcoded triple: the Round-2 database labels
+    # seven more. An economy whose corpus has not been built yet has an empty catalogue and
+    # is skipped — reporting "0 laws linked" for it would read as a linkage failure when the
+    # real state is "no corpus to link against yet".
+    for econ in sorted({r.economy for r in labels}):
         catalogue = store.list_laws(econ)
+        if not catalogue:
+            continue
         urls_by_name: dict[str, list[str]] = {}
         for r in labels:
             if r.economy != econ:
