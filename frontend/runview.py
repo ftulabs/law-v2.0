@@ -46,7 +46,13 @@ _ICONS = (
 
 def new_state() -> dict:
     return {"stage": 0, "docs": [], "hits": [], "provisions": 0, "pages": 0,
-            "now": "Starting up", "sub": "warming the pipeline", "done": False}
+            "now": "Starting up", "sub": "warming the pipeline", "done": False,
+            # A run that broke for a KNOWABLE reason used to look exactly like a run that
+            # found nothing: same five stages, same counters, same zero. The reason was
+            # written — into the collapsed raw log, where the person who needs it never
+            # looks. `problem` is (what went wrong, what to do about it); the second half
+            # is not optional, because an error with no recovery path is a dead end.
+            "problem": None}
 
 
 def _esc(s) -> str:
@@ -124,6 +130,19 @@ def absorb(st_: dict, msg: str) -> None:
         st_["now"] = "Rating how restrictive each law is"
         st_["sub"] = rest[:110]
 
+    elif tag == "error":
+        # The pipeline emits these in pairs: what happened, then what to do. Keep the first
+        # as the headline and let the second replace the advice, so the panel always ends on
+        # an action rather than on a diagnosis.
+        what, advice = st_["problem"] or ("", "")
+        if rest.lower().startswith("what to do:"):
+            advice = rest.split(":", 1)[1].strip()
+        elif what:
+            advice = advice or rest
+        else:
+            what = rest
+        st_["problem"] = (what, advice)
+
     elif tag == "done":
         st_["done"] = True
         st_["now"] = "Finished"
@@ -152,11 +171,26 @@ def track_html(st_: dict) -> str:
         for lab, n, cls in counters)
 
     spin = "" if done else '<span class="rvspin" aria-hidden="true"></span>'
-    return (
-        f'<div class="rvtrack">{nodes}</div>'
-        f'<div class="rvnow{" fin" if done else ""}" role="status" aria-live="polite">{spin}'
-        f'<div><b>{_esc(st_["now"])}</b><div class="rvsub">{_esc(st_["sub"])}</div></div></div>'
-        f'<div class="rvcounters">{cells}</div>')
+
+    # A problem outranks the live sentence: while one is showing, "Testing every provision
+    # against the indicators" is not what the run is doing. It is announced with role="alert"
+    # (a status region is for progress, not for a stop), and it is marked by a word and a
+    # symbol as well as by colour, so it survives a colourblind reader and a greyscale print.
+    if st_["problem"]:
+        what, advice = st_["problem"]
+        body = (f'<div class="rvbad" role="alert">'
+                f'<span class="rvbadge" aria-hidden="true">!</span>'
+                f'<div><b>This run could not finish properly</b>'
+                f'<div class="rvsub">{_esc(what)}</div>'
+                + (f'<div class="rvfix"><b>What to do:</b> {_esc(advice)}</div>' if advice else "")
+                + '</div></div>')
+    else:
+        body = (f'<div class="rvnow{" fin" if done else ""}" role="status" aria-live="polite">'
+                f'{spin}<div><b>{_esc(st_["now"])}</b>'
+                f'<div class="rvsub">{_esc(st_["sub"])}</div></div></div>')
+
+    return (f'<div class="rvtrack">{nodes}</div>{body}'
+            f'<div class="rvcounters">{cells}</div>')
 
 
 def streams_html(st_: dict) -> str:
@@ -214,6 +248,16 @@ CSS = """
   .rvnow b{font-size:.85rem;color:var(--ink);}
   .rvsub{font-family:var(--mono);font-size:.72rem;color:var(--ink-soft);
     overflow-wrap:anywhere;}
+  /* Blocked run. Same shape as .rvnow so the eye lands in the same place, in the palette's
+     existing "set aside" red — the one already documented as an exception to one-accent. */
+  .rvbad{display:flex;align-items:flex-start;gap:.7rem;padding:.85rem 1.1rem;margin-top:.75rem;
+    border-radius:12px;background:var(--bad-soft);
+    border:1px solid color-mix(in srgb,var(--bad) 34%,transparent);}
+  .rvbad b{font-size:.85rem;color:var(--ink);}
+  .rvbadge{flex:none;width:20px;height:20px;border-radius:50%;background:var(--bad);
+    color:#fff;font-weight:700;font-size:.78rem;line-height:20px;text-align:center;}
+  .rvfix{margin-top:.45rem;font-size:.78rem;color:var(--ink);overflow-wrap:anywhere;}
+  .rvfix b{font-size:.78rem;}
   .rvspin{width:15px;height:15px;border-radius:50%;flex:none;
     border:2px solid color-mix(in srgb,var(--accent) 35%,transparent);
     border-top-color:var(--accent);animation:rvsp .8s linear infinite;}

@@ -227,10 +227,28 @@ def _resolve_ocr(name, log, economy=None):
 
 
 def _resolve_llm(name, model, api_key, log):
+    """The grader the run will actually use — and, when that is not the one that was asked
+    for, a line nobody can miss.
+
+    The fallback itself is right: a judge experimenting must not crash a run. What was wrong
+    was its VOLUME. A deployment with no `OPENROUTER_API_KEY` in its environment took this
+    path on every run, wrote one `[warn]` into a collapsed expander, and then completed
+    normally — with every provision judged by the offline lexical stand-in. On screen that is
+    indistinguishable from a real run: same stages, same counters, same CSV. Someone testing
+    the deployed app sees a finished analysis and no reason to doubt it.
+
+    So the substitution is now announced as an `[error]`, it names the cause, and the run's
+    own log carries a standing banner that its results are NOT model judgments.
+    """
     try:
         return get_llm_provider(name, model=model, api_key=api_key) if name else get_llm_provider()
     except Exception as e:  # noqa: BLE001
-        log(f"[warn] LLM provider '{name}' unavailable ({e}); falling back to mock")
+        why = str(e) or type(e).__name__
+        log(f"[error] the '{name or settings.llm_provider}' grader could not be started: {why}")
+        log("[error] this run fell back to the OFFLINE STAND-IN grader (mock). It is lexical, "
+            "not a model: it cannot tell P6-I1 from P6-I4, and its rows are NOT evidence. "
+            "Set the provider's API key — in the environment, or paste one on the Engines "
+            "screen — and run again.")
         return get_llm_provider("mock")
 
 

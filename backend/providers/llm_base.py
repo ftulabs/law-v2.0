@@ -12,6 +12,24 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 
+class LLMTerminalError(RuntimeError):
+    """A failure that the NEXT call will hit too, so retrying the rest of the work-list is
+    pure waste — a dead key, a revoked key, a spend cap reached.
+
+    This exists because the distinction was being thrown away. The OpenRouter provider could
+    already tell "key limit exceeded (daily limit)" from "user not found", then re-raised both
+    as the same opaque "All OpenRouter models failed", so the mapper labelled a spend cap as
+    "check the LLM key/provider" — sending the operator to rotate a perfectly valid key — and
+    fired 967 more doomed calls behind it. `kind` carries the classification through; `hint`
+    is what the operator should actually do about it.
+    """
+
+    def __init__(self, message: str, kind: str = "terminal", hint: str = ""):
+        super().__init__(message)
+        self.kind = kind          # "quota" | "auth" | "terminal"
+        self.hint = hint
+
+
 class LLMProvider(ABC):
     name: str = "base"
     model_version: str = "unknown"

@@ -11,7 +11,7 @@ from typing import Any
 
 from ..config import settings
 from .. import metering
-from .llm_base import LLMProvider
+from .llm_base import LLMProvider, LLMTerminalError
 
 BASE_URL = "https://openrouter.ai/api/v1"
 
@@ -173,11 +173,24 @@ class OpenRouterLLM(LLMProvider):
                 # with a message that names the real cause (not "rate limits").
                 if _is_auth_error(e):
                     if _is_key_quota_exhausted(e):
-                        break       # every remaining candidate is paid and will say the same
-                    raise RuntimeError(
+                        # Every remaining candidate is paid and will say the same — and so will
+                        # every remaining call in the run. This used to `break` into the generic
+                        # "all models failed" message below, which the mapper then reported as a
+                        # BAD KEY. Two hours were spent rotating a key that was never wrong.
+                        raise LLMTerminalError(
+                            "OpenRouter says this key has hit its own spend limit: "
+                            f"{str(getattr(e, 'body', None) or e)[:180]}",
+                            kind="quota",
+                            hint="the key is VALID — its spend cap is used up. Check the cap and "
+                                 "its reset window at openrouter.ai/settings/keys, or use "
+                                 "another key. Do not rotate this one.",
+                        ) from e
+                    raise LLMTerminalError(
                         "OpenRouter rejected the API key (HTTP 401/403 — 'User not found' means "
-                        "the key is invalid, revoked, or the account was removed). Set a valid "
-                        "OPENROUTER_API_KEY (openrouter.ai/keys), or switch LLM_PROVIDER."
+                        "the key is invalid, revoked, or the account was removed).",
+                        kind="auth",
+                        hint="set a valid OPENROUTER_API_KEY (openrouter.ai/keys), or switch "
+                             "LLM_PROVIDER",
                     ) from e
                 continue
         raise RuntimeError(f"All OpenRouter models failed (last: {last_err})")
