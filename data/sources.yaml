@@ -503,11 +503,14 @@ sources:
     robots_read: "2026-08-21"
     sitemap: http://publication.pravo.gov.ru/sitemap.xml
     note: >-
-      Answered immediately, no geo-block. But robots.txt disallows /Search AND /File, and /File
-      is where the document bodies live — so the obvious route is the forbidden one. It offers a
-      sitemap instead, which is both permitted and a better discovery surface than search.
-      Build the RU lane on the sitemap. paddle lang "ru" reads the script (verified against the
-      model dictionary), so OCR is not the risk here; the access route is.
+      Answered immediately, no geo-block. robots.txt disallows /Search AND /File, and /File is
+      where the document bodies live — so the obvious route is the forbidden one.
+      RE-PROBED 2026-08-28, and the sitemap plan recorded here on 2026-08-21 is WRONG: the
+      sitemap lists only index and calendar pages (/documents/block/president,
+      /documents/government/daily, /calendar/...), no documents at all, and the permitted
+      /Document/View/<id> page carries METADATA ONLY — 854 characters of visible text for
+      0001202209200008, title and registration line, no operative text. This host cannot
+      supply bodies politely, whatever the discovery route. Use pravo.gov.ru instead.
 
   - economy: TL
     name: Jornal da República (Ministério da Justiça) — official gazette
@@ -529,6 +532,34 @@ sources:
       ships as both ConstituicaoRDTL_Portugues.pdf and ConstituicaoRDTL_tetum.pdf), so language
       detection must run PER DOCUMENT, not per economy. Not yet verified end to end: no corpus
       has been built and no CER measured on a Timorese scan.
+
+  - economy: RU
+    name: Законодательство России (IPS) on pravo.gov.ru — full document bodies
+    base_url: http://pravo.gov.ru/proxy/ips/
+    adapter: websearch
+    verified: false
+    reachable: "2026-08-28: HTTP 200, document body 13.8k chars of real statute text, cp1251, ~2s"
+    robots_read: "2026-08-28"
+    note: >-
+      A DIFFERENT host from publication.pravo.gov.ru, with a different robots.txt, and this one
+      is "User-Agent: * / Disallow:" — nothing forbidden at all. The FETCH half of the Russian
+      lane is solved here: `?doc_itself=&nd=<id>&page=1&rdk=0` returns the whole document body
+      server-rendered. Two traps. (1) The encoding is windows-1251, not UTF-8; decoded as UTF-8
+      it is mojibake that still "succeeds", which is the failure mode this project keeps
+      meeting — query strings must also be cp1251-percent-encoded, not UTF-8. (2) The wrapper
+      `?docbody=&nd=<id>` is a frameset carrying 586 characters of chrome; the body lives in
+      its inner frame, so fetching the obvious URL yields a page that looks fine and contains
+      no law.
+      DISCOVERY is the open half. `?searchres=&bpas=cd00000&a1=<query>` accepts the query and
+      reports a result count ("Аннотации: с 1 по 20", ten pages of them), but the rows are
+      injected client-side: neither plain HTTP nor a default browser render surfaces a single
+      nd= id (measured 2026-08-28, both routes, 25.2k rendered bytes, zero ids). The next thing
+      to try is the XHR the list frame issues, or the rubricator/classifier browse, NOT more
+      rendering of the same frame.
+      Note also what the panel itself cites for Russia: 24 of 28 references are base.garant.ru
+      and consultant.ru, commercial mirrors — only ONE is the official portal. So the answer
+      key's URLs cannot be used as a discovery target; the law NAME is the join key, as in
+      Round 1.
 
 regulators:
   SG:

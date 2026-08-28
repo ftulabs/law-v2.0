@@ -488,9 +488,14 @@ def map_provisions(
                    else provisions[0].economy) if provisions else None
         eff_top_k, budget_note = retrieval_budget.shortlist_size(econ, n, top_k)
     if ranked_by_ind is None:
-        log(f"[mapping] {'grade-all: every' if grade_all else f'retrieval shortlist {budget_note} of'} "
-            f"{n} provisions x {len(indicators)} indicators "
-            f"= {'n/a' if grade_all else eff_top_k * len(indicators)} grading calls")
+        # The budget's justification goes at the END, after the shape of the work. Spliced
+        # into the middle it ran straight into the corpus size — "…than the untuned default of
+        # 6752 provisions x 9 indicators" — which reads as one clause and means nothing.
+        if grade_all:
+            log(f"[mapping] grade-all: every {n} provisions x {len(indicators)} indicators")
+        else:
+            log(f"[mapping] retrieval shortlist over {n} provisions x {len(indicators)} "
+                f"indicators = {eff_top_k * len(indicators)} grading calls · {budget_note}")
 
     # ── build the (indicator, retrieved-provision) work list ──────────────────────────────
     work: list[tuple] = []
