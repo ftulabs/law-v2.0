@@ -2,8 +2,13 @@
 
 **Project:** VeriTrade (Team FTU)  
 **Hackathon:** UN ESCAP Global Hackathon on AI for Digital Trade Regulatory Analysis (RDTII 2.1)  
-**Deadline:** 20 July 2026 (Round 1)  
+**Deadline:** 20 July 2026 (Round 1) · **30 Sep 2026 code freeze** · **15 Oct 2026 Grand Finale**  
 **Contact:** minhtc@ftu.edu.vn
+
+> **▶ Read [`PROJECT_STATE.md`](PROJECT_STATE.md) first.** This file explains how the system is
+> BUILT; that one records where the project STANDS — the panel's verified rules, the open
+> checklist, and the decisions not to re-litigate. When the two disagree, PROJECT_STATE.md is
+> the newer one: fix this file rather than forking the fact.
 
 ---
 
@@ -13,7 +18,13 @@
 Automate the manual legal-data-collection workflow: **given an economy + regulatory topic → autonomously find and extract ALL relevant legal text** without anyone telling the system where to look.
 
 **Scoring pillar:** The judges test the app by giving it:
-- An economy (SG/AU/MY mandatory for Round 1; the sealed final-round live test draws from **nine**: Thailand, Viet Nam, Indonesia, China, India, Kazakhstan, Lao PDR, Mongolia, Russian Federation — see `LIVE_TEST_NINE` in `backend/schemas.py`)
+- An economy. SG/AU/MY are mandatory in every round. The final round adds a published list of
+  **eight**: China, India, Indonesia, Lao PDR, Mongolia, Russian Federation, Thailand,
+  **Timor-Leste** (verified 2026-08-27 against `Finalist Orientation/Finalist Orientation_Slide.pdf`
+  and `Meeting notes.docx`) — pick at least three; Timor-Leste carries a bonus. The sealed live
+  test on 15 Oct draws from any listed economy, so **eleven** are possible.
+  ⚠ `LIVE_TEST_NINE` in `backend/schemas.py` does NOT match this list — it names Viet Nam and
+  Kazakhstan, which are on no published list, and omits Timor-Leste. See `PROJECT_STATE.md` §1.
 - A regulatory pillar (6 = Cross-border Data Policies; 7 = Domestic Data Protection and Privacy)
 
 The app must, with zero seed URLs:
@@ -511,6 +522,8 @@ Use this as if you're a judge reviewing VeriTrade for the RDTII hackathon:
 | Ground-truth reference (6 economies) | `python tools/build_reference_dataset.py` → `data/ground_truth/rdtii_reference_p67.csv` |
 | Check native retrieval terms | `python tools/audit_native_terms.py --economy MN --suggest` |
 | Re-measure retrieval | `python tools/sweep_retrieval.py --stage final` |
+| Re-measure the per-economy LLM-call budget | `python tools/measure_budget.py` → `data/retrieval_budget.json` |
+| Check the OpenRouter key's spend cap | `curl -H "Authorization: Bearer $OPENROUTER_API_KEY" https://openrouter.ai/api/v1/key` |
 | Verify shipped retrieval | `python tools/validate_retrieval.py` |
 | View audit trail | `logs/run_<timestamp>.log` or SQLite: `backend/storage/*.db` |
 | Output files | `outputs/<Economy>_P<pillar>_<timestamp>.csv/json` |
