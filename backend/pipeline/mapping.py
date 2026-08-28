@@ -9,17 +9,16 @@ extraction, not generation. That separation is the core anti-hallucination contr
 from __future__ import annotations
 
 import hashlib
-import math
 import re
 import threading
 import time
 
 from ..config import settings
 from ..providers import get_llm_provider
-from ..providers.llm_base import LLMProvider
+from ..providers.llm_base import LLMProvider, LLMTerminalError
 from ..rdtii import get_indicator, siblings
 from ..schemas import DiscoveryTag, EvidenceMapping, Provision
-from . import confidence
+from . import confidence, retrieval_budget
 from .retrieval import Retrieved, retrieve
 
 
@@ -444,6 +443,20 @@ def map_provisions(
     mappings: list[EvidenceMapping] = []
     failures = 0
 
+    # ── circuit breaker ───────────────────────────────────────────────────────────────────
+    # Shared by every grading worker. `stop` is set the moment a failure is known to be
+    # systemic; workers that have not started yet return immediately instead of repeating a
+    # doomed call. Without this, an exhausted key produced 968 identical 403s and a run that
+    # looked like "the economy has no such law".
+    breaker = {"stop": threading.Event(), "lock": threading.Lock(),
+               "ok": 0, "bad": 0, "skipped": 0, "reason": "", "hint": "", "kind": ""}
+
+    def _trip(reason: str, kind: str, hint: str) -> None:
+        with breaker["lock"]:
+            if not breaker["reason"]:
+                breaker["reason"], breaker["kind"], breaker["hint"] = reason, kind, hint
+        breaker["stop"].set()
+
     # retrieval backend: LightRAG graph-RAG at scale, else built-in hybrid (citations
     # preserved either way — the grader below still judges the verbatim snippet).
     _t_retr = time.perf_counter()
@@ -459,15 +472,20 @@ def map_provisions(
     n = len(provisions)
     grade_all = ranked_by_ind is None and n <= settings.grade_all_max_provisions
     eff_top_k = top_k
+    budget_note = ""
     if ranked_by_ind is None and not grade_all:
         # recall-safe shortlist: scale gently with the corpus but clamp to [floor, cap] so a
         # 1200-provision crawl grades ~40/indicator (not 360) — the rerank already front-loads
         # the relevant provisions, so a bigger shortlist only adds latency + cost, not recall.
-        eff_top_k = min(n, settings.retrieve_max_top_k,
-                        max(top_k, settings.retrieve_top_k, math.ceil(n * settings.retrieve_fraction)))
+        # The clamp is PER ECONOMY where it has been measured (retrieval_budget), because the
+        # single fitted curve over-spends badly on the economies whose targets rank high.
+        econ = str(provisions[0].economy.value if hasattr(provisions[0].economy, "value")
+                   else provisions[0].economy) if provisions else None
+        eff_top_k, budget_note = retrieval_budget.shortlist_size(econ, n, top_k)
     if ranked_by_ind is None:
-        log(f"[mapping] {'grade-all: every' if grade_all else f'retrieval shortlist top_k={eff_top_k} of'} "
-            f"{n} provisions x {len(indicators)} indicators")
+        log(f"[mapping] {'grade-all: every' if grade_all else f'retrieval shortlist {budget_note} of'} "
+            f"{n} provisions x {len(indicators)} indicators "
+            f"= {'n/a' if grade_all else eff_top_k * len(indicators)} grading calls")
 
     # ── build the (indicator, retrieved-provision) work list ──────────────────────────────
     work: list[tuple] = []
@@ -497,10 +515,27 @@ def map_provisions(
     def _grade(item):
         ind, r = item
         prov = r.provision
+        if breaker["stop"].is_set():
+            with breaker["lock"]:
+                breaker["skipped"] += 1
+            return None
         try:
             graded = llm.complete_json(SYSTEM, _user_prompt(ind, prov))
+        except LLMTerminalError as e:
+            # The provider has told us the NEXT call fails the same way. Stop the run's
+            # grading here rather than proving it 900 more times.
+            _trip(str(e)[:200], e.kind, e.hint)
+            return ("FAIL", f"{e.kind}: {e}"[:160], ind.indicator_id, prov.provision_id)
         except Exception as e:  # noqa: BLE001 — one rate-limited call must not crash the run
             reason = f"{type(e).__name__}: {e}"[:160]
+            with breaker["lock"]:
+                breaker["bad"] += 1
+                # Nothing has EVER worked and we are this far in: the fault is systemic, not
+                # per-provision. Trip on the count rather than on any one error's wording, so
+                # a provider that reports its outage in prose we have never seen still stops.
+                if breaker["ok"] == 0 and breaker["bad"] >= settings.mapping_failure_breaker:
+                    _trip(reason, "systemic",
+                          "no grading call has succeeded — check the LLM provider, key and network")
             return ("FAIL", reason, ind.indicator_id, prov.provision_id)
 
         # An empty or unparseable response is a FAILED call, not a considered rejection.
@@ -508,9 +543,19 @@ def map_provisions(
         # model whose thinking overran the token budget returned truncated/empty JSON, and
         # the row vanished with zero warnings (live case: Insurance Act 49Q → P6-I2 lost on
         # ~2/3 of runs). Route it through the failure path so it's counted and surfaced.
+        # It also counts against the breaker: a model whose every answer is truncated is just
+        # as systemically broken as one that refuses to answer, and costs the same money.
         if not graded or graded.get("_parse_error"):
-            return ("FAIL", "empty/unparseable LLM response (likely reasoning-token truncation)",
-                    ind.indicator_id, prov.provision_id)
+            reason = "empty/unparseable LLM response (likely reasoning-token truncation)"
+            with breaker["lock"]:
+                breaker["bad"] += 1
+                if breaker["ok"] == 0 and breaker["bad"] >= settings.mapping_failure_breaker:
+                    _trip(reason, "truncation",
+                          "no grading call has returned parseable JSON — raise "
+                          "OPENROUTER_MAX_TOKENS or pick a non-reasoning model")
+            return ("FAIL", reason, ind.indicator_id, prov.provision_id)
+        with breaker["lock"]:
+            breaker["ok"] += 1
 
         # relevant = satisfies the target AND not a mislabel for a better sibling. Prefer the
         # model's explicit `relevant`; else derive it (real LLMs return satisfies_target/
@@ -610,10 +655,12 @@ def map_provisions(
     else:
         results = [_grade(it) for it in work]
     _grade_secs = time.perf_counter() - _t_grade
+    attempted = len(work) - breaker["skipped"]
     log(f"[timing] mapping: retrieval/build {_retr_secs:.1f}s · LLM grading {_grade_secs:.1f}s "
-        f"({len(work)} calls, {workers}-way, {len(work)/_grade_secs:.2f} calls/s)"
+        f"({attempted} calls, {workers}-way, {attempted/_grade_secs:.2f} calls/s"
+        + (f", {breaker['skipped']} not attempted" if breaker["skipped"] else "") + ")"
         if work and _grade_secs > 0 else
-        f"[timing] mapping: retrieval/build {_retr_secs:.1f}s · {len(work)} grading calls")
+        f"[timing] mapping: retrieval/build {_retr_secs:.1f}s · {attempted} grading calls")
 
     first_reason = ""
     for res in results:
@@ -626,16 +673,30 @@ def map_provisions(
                 log(f"[warn] LLM call failed ({res[1]}); skipping {res[2]}/{res[3]}")
             continue
         mappings.append(res)
-    if failures:
+    if breaker["reason"]:
+        # The breaker tripped: the provider itself classified the fault, so report THAT rather
+        # than guessing from the wording of an error string. This line is the difference
+        # between "your key is broken" (it was not) and "your key's daily spend cap is used
+        # up" (it was), and between one wasted call and nine hundred.
+        skipped = breaker["skipped"]
+        log(f"[error] grading stopped after {failures} failed call(s) — {breaker['kind']}: "
+            f"{breaker['reason']}")
+        log(f"[error] what to do: {breaker['hint'] or 'see the message above'}"
+            + (f" · {skipped} of {len(work)} pairings were not attempted, so this run's "
+               f"coverage is INCOMPLETE — it is not evidence that the economy has no such law."
+               if skipped else ""))
+    elif failures:
         # Surface the ACTUAL first-failure reason (auth vs truncation vs rate-limit) instead
         # of always blaming rate limits — a dead API key looks nothing like a 429.
-        if "401" in first_reason or "rejected" in first_reason:
+        if "quota" in first_reason:
+            hint = "the key's spend limit is used up — check the cap/reset window, or use another key"
+        elif "401" in first_reason or "auth" in first_reason or "rejected" in first_reason:
             hint = "check the LLM key/provider"
         elif "truncation" in first_reason or "unparseable" in first_reason:
             hint = "responses truncated/unparseable — try raising OPENROUTER_MAX_TOKENS"
         else:
             hint = "possible rate limits — try a paid key or fewer pillars"
-        log(f"[warn] {failures} LLM call(s) failed and were skipped ({hint})")
+        log(f"[warn] {failures} of {len(work)} LLM call(s) failed and were skipped ({hint})")
     # most confident first
     mappings.sort(key=lambda m: m.confidence_score, reverse=True)
     return mappings
