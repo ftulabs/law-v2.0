@@ -1,0 +1,56 @@
+name: Rotate the deployed API key
+
+# Put the repository's API-key secrets into the running container, WITHOUT rebuilding and
+# without waiting for the test suite.
+#
+# This exists because the two things were welded together and should not be. The deployed key
+# lives in ${VERITRADE_BASE}/.env on the Sager box; when it was revoked, the only route to
+# replacing it was a full deploy — which is gated on CI, which is gated on the whole test
+# suite. A red or slow suite therefore meant a site that could not judge a single provision,
+# for reasons that had nothing to do with the code being deployed. Replacing a credential is
+# not a code change and must not queue behind one.
+#
+# It does NOT rebuild the image: the container is recreated from the image already on the box,
+# so the code running afterwards is exactly the code that was running before. Only the
+# environment changes.
+#
+#     gh workflow run rotate-key.yml --repo ftulabs/law-v2.0
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-sager        # never race a real deploy
+  cancel-in-progress: false
+
+jobs:
+  rotate:
+    name: Replace the key and restart the container
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Write the keys and recreate the container
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: bash deploy/rotate_key.sh
+
+      - name: Prove the deployed key can actually answer
+        # "A key is configured" and "a key can answer" are different questions. The dashboard
+        # only ever asked the first, which is how a revoked key served a healthy-looking site
+        # that failed on every run. This asks the second, inside the container now serving.
+        run: |
+          docker exec veritrade python -c "
+          from backend.providers import get_llm_provider
+          llm = get_llm_provider()
+          print('grader:', llm.name, llm.model_version)
+          out = llm.complete_json('Return ONLY JSON.', 'Answer with {\"ok\": true}')
+          assert out.get('ok') is True, out
+          print('the deployed key answers:', out)
+          "
