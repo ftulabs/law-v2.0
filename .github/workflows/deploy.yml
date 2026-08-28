@@ -26,7 +26,28 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build & restart VeriTrade
+        # The API keys are handed to the script, which writes them into the host's env file.
+        # An unset secret is an empty string and changes nothing on the box, so adding one
+        # here can only ever fix a stale key, never blank a working one.
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: bash deploy/redeploy.sh
+
+      - name: Does the deployed key actually work?
+        # "A key is configured" and "a key can answer" are different questions, and the
+        # dashboard was only ever asking the first. This asks the second, against the
+        # container that is now serving, so a revoked key is a red deploy rather than a
+        # dashboard that looks healthy and fails on every run.
+        run: |
+          docker exec veritrade python -c "
+          from backend.providers import get_llm_provider
+          llm = get_llm_provider()
+          print('grader:', llm.name, llm.model_version)
+          print(llm.complete_json('Return ONLY JSON.', 'Answer with {\"ok\": true}'))
+          "
 
       - name: Health check
         run: |

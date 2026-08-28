@@ -15,6 +15,11 @@ on:
 jobs:
   build-and-smoke-test:
     runs-on: ubuntu-latest
+    # Deploys are gated on this job, so a hang here is a hang of the deployed site. Without a
+    # bound it inherits GitHub's six-hour default: one test that pulled model weights from a
+    # cold runner held the site on two-hour-old code with the run still showing "in progress",
+    # which reads as slow rather than stuck. Thirty minutes is ~3x the healthy run.
+    timeout-minutes: 30
     strategy:
       matrix:
         python-version: ["3.11", "3.12"]

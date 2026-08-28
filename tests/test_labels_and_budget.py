@@ -93,13 +93,25 @@ def test_budget_can_be_switched_off(monkeypatch):
 
 
 # ── circuit breaker ───────────────────────────────────────────────────────────────────────
-def test_terminal_error_stops_the_run_after_one_call():
+def test_terminal_error_stops_the_run_after_one_call(monkeypatch):
     """An exhausted key used to produce one doomed call per pairing — 968 of them on a live
-    Singapore pillar-6 run — and report the spend cap as a bad key."""
+    Singapore pillar-6 run — and report the spend cap as a bad key.
+
+    Retrieval is stubbed out. The subject here is the breaker, and letting the real retriever
+    run would pull ~500 MB of sentence-transformer weights from HuggingFace on a cold CI
+    runner — which is exactly how this test wedged a deploy for two hours.
+    """
     from backend.pipeline import mapping
+    from backend.pipeline.retrieval import Retrieved
     from backend.providers.llm_base import LLMProvider, LLMTerminalError
     from backend.rdtii import get_indicators
     from backend.schemas import Economy, Provision
+
+    monkeypatch.setattr(mapping, "retrieve",
+                        lambda _ind, provs, top_k=5: [
+                            Retrieved(provision=p, score=0.5,
+                                      raw_context=p.verbatim_snippet, log=[])
+                            for p in provs[:top_k]])
 
     calls = {"n": 0}
 

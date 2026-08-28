@@ -82,10 +82,27 @@ measurement: `harness.load_provisions()` needs a **built corpus**, and only SG/A
 
 Priority order. `[ ]` not started · `[~]` in progress · `[x]` done (move to §5 and prune).
 
+### Owed right now — asked for on 2026-08-28, not yet done
+1. [ ] **Correct `LIVE_TEST_NINE`** in `backend/schemas.py` to the panel's published EIGHT:
+       drop Viet Nam and Kazakhstan (on no list the panel published — the "final-round
+       instructions" quoted in that file's comment exist in no document, see §1), add
+       **Timor-Leste**. Then follow the enum through: `ECONOMY_UN_NAME`, aliases,
+       `data/sources.yaml`, `ocr_languages.py`, `query_terms_i18n.py`, `tools/readiness.py`,
+       `tests/test_final_round.py`, `tests/test_livetest.py`.
+2. [ ] **Committed set for 30 Sep: SG · MY · AU + China · India · Mongolia** (decided
+       2026-08-28), **plus Russia if it can be made to work** — RU today has one unverified
+       `pravo.gov.ru` lane and no corpus, so it needs a portal adapter of the kind CN/IN/MN
+       have before it can be declared. Six is the minimum; RU would make seven.
+3. [ ] **Re-validate the per-economy budget on real output, not just retrieval recall.** What
+       is measured today is whether the panel's cited law/provision reaches the shortlist —
+       the ceiling on everything the grader can get right, and it needs no LLM call. What is
+       NOT yet measured is the finished CSV at the new caps: run SG/MY/AU live on both
+       pillars and diff the rows against the answer key, so the saving is proven at the
+       output and not only at the shortlist.
+
 ### Decisions owed by the team (blocking)
-- [ ] **Country list**: adopt the panel's 8 (drop VN/KZ from the declared set, add TL)? Or keep
-      VN/KZ as extra coverage that scores nothing? Affects C1a and where effort goes next.
-- [ ] **Which 3+ of the 8** we actually commit to for 30 Sep. Today only CN/IN/MN have lanes.
+- [ ] **Which further economies**, if any, beyond the six committed above. Timor-Leste carries
+      a bonus and has nothing built; TH/ID/LA have labels but no lane and no corpus.
 
 ### Coverage (scores C1a, C1c)
 - [ ] Build corpora for the round-2 economies — without one, none of them can be measured,
@@ -142,6 +159,13 @@ Priority order. `[ ]` not started · `[~]` in progress · `[x]` done (move to §
 - **"Chapter N" is not a provision target.** `harness.section_key()` returns None for
   structural headings, so a Chapter label can never match and would only depress measured
   recall with no pipeline at fault. `ground_truth._ARTICLE_RE` deliberately excludes it.
+- **The deployed site's API keys come from `${VERITRADE_BASE}/.env` ON THE SAGER BOX**, not
+  from this repo's `.env`. They are now written there by `deploy/redeploy.sh` from the
+  repository secrets (`gh secret set OPENROUTER_API_KEY`), because a key that lives on one
+  machine is a key nobody can see rot: the deployed one was revoked, the dashboard still
+  reported the engine "ready" (it only ever asked whether a key EXISTS), and every run failed
+  with 401 "User not found" while local runs were fine on a different file. The deploy now
+  makes one real call against the running container, so a dead key is a red deploy.
 - **The shared OpenRouter key has a $20/day cap** (checked 2026-08-27: $18.32 already spent
   that day, $1.68 left). It reports exhaustion as HTTP 403 "Key limit exceeded", which is NOT
   a dead key. `GET https://openrouter.ai/api/v1/key` answers the question in one call.
