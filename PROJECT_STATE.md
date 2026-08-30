@@ -102,6 +102,30 @@ All six re-run live on current code, exported CSV diffed against the answer key
 
 Total for the whole six-economy submission: **$2.07 and 72 minutes.**
 
+**Per-PROVISION scorecard** (`tools/provision_scorecard.py`) — "indicators reached" is too
+coarse to act on, because one lucky row scores a whole indicator. Counting the provisions:
+
+| | panel cites | HIT | wrong indicator | missing | our rows | NEW |
+|---|---|---|---|---|---|---|
+| SG | 12 | 9 | 0 | 3 | 167 | 158 |
+| AU | 15 | 6 | 1 | 8 | 299 | 292 |
+| MY | 48 | 12 | 10 | 26 | 272 | 251 |
+| CN | 37 | 14 | 3 | 20 | 138 | 121 |
+| IN | 16 | 7 | 2 | 7 | 172 | 161 |
+| MN | 20 | 7 | 9 | 4 | 101 | 71 |
+| **all** | **148** | **55 (37%)** | **25** | **68** | **1,149** | **1,054** |
+
+Three different failures needing three different fixes:
+· **WRONG INDICATOR (25)** — the text was found and read, and filed under the wrong indicator.
+  **13 of the 25 were filed as P7-I1**, from six different source indicators: P7-I1 is acting
+  as a magnet, because "establishes a data-protection framework" is true of loosely anything
+  in a data-protection law. Second pattern: P7-I4 (DPO/DPIA) → P7-I2 (cybersecurity), 4 cases.
+  Cheapest fix of the three: the documents are already in hand.
+· **MISSING (68)** — never cited at all. Discovery or fetch: the text never arrived.
+· **NEW (1,054)** — seven rows for every one the panel cites. Finding more than the panel is
+  an explicit goal, so this is not automatically wrong; it is also completely unaudited, and
+  precision is criterion C2b. Nobody has read a sample.
+
 Corpus-side retrieval (k = the whole corpus, so this is the ceiling chunking and ranking
 impose once the documents are in hand — it does NOT include discovery):
 MN prov 0.857 · ID 0.778 · TH 0.714 · CN 0.571 · IN 0.143 (20 of 27 documents never
