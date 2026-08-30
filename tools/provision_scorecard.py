@@ -33,7 +33,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from backend.eval.ground_truth import load_labels          # noqa: E402
+from backend.eval.ground_truth import _ABSENCE_RE, load_labels   # noqa: E402
 from backend.eval.harness import label_section_key, section_key   # noqa: E402
 from backend.eval.linkage import _norm                     # noqa: E402
 from tools.compare_to_key import IND, url_keys             # noqa: E402
@@ -49,11 +49,24 @@ def key_provisions(econ: str) -> list[dict]:
         urls = set()
         for u in r.portal_urls + r.other_urls:
             urls |= url_keys(u)
+        # CONTESTED: the justification contains an absence statement. Some of these are real
+        # targets — "the PDPA prohibits the transfer … there is no other rule" cites a genuine
+        # provision — and some are the panel documenting that the economy has NOTHING and
+        # citing the nearest thing to explain what it has instead. Mongolia's P7-I4 row opens
+        # "Mongolia does not mandate DPO or DPIA requirement" and then cites five articles
+        # about BREACH NOTIFICATION; our grader refused all five, correctly, and the scorecard
+        # counted five wrong-indicator failures against it.
+        #
+        # A regex cannot tell those apart and neither can I from the prose alone, so this is
+        # FLAGGED, not decided: the scorecard reports with and without, and the difference is
+        # the size of the judgement call rather than a number asserted over it.
+        contested = bool(_ABSENCE_RE.search(r.impact or ""))
         for sec in r.sections:
             k = label_section_key(sec)
             if k:
                 out.append({"indicator": r.indicator_id, "names": names, "urls": urls,
-                            "section": k, "label": f"{r.indicator_id} {sorted(names)[:1]} s.{sec}"})
+                            "section": k, "contested": contested,
+                            "label": f"{r.indicator_id} {sorted(names)[:1]} s.{sec}"})
     return out
 
 
@@ -123,9 +136,14 @@ def score(econ: str, path: str, detail: bool = False) -> dict:
             missing.append(k)
 
     new = [r for i, r in enumerate(rows) if i not in matched_rows]
+    firm = [k for k in keys if not k["contested"]]
     res = {"economy": econ, "key_provisions": len(keys), "hit": len(hit),
            "wrong_indicator": len(wrong), "missing": len(missing),
-           "our_rows": len(rows), "new": len(new)}
+           "our_rows": len(rows), "new": len(new),
+           "firm_key": len(firm),
+           "firm_hit": sum(1 for k in hit if not k["contested"]),
+           "firm_wrong": sum(1 for k, _ in wrong if not k["contested"]),
+           "firm_missing": sum(1 for k in missing if not k["contested"])}
     if detail:
         res["_wrong"] = [(k["label"], got) for k, got in wrong]
         res["_missing"] = [k["label"] for k in missing]
@@ -142,17 +160,18 @@ def main() -> int:
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     detail = "--detail" in sys.argv
     econs = [e.upper() for e in (args or ["SG", "AU", "MY", "CN", "IN", "MN"])]
-    print(f"{'ec':4} {'key prov':>9} {'HIT':>5} {'WRONG IND':>10} {'MISSING':>8} "
-          f"{'our rows':>9} {'NEW':>5}   recall")
+    print(f"{'ec':4} {'key':>4} {'HIT':>4} {'WRG':>4} {'MISS':>5} | "
+          f"{'firm':>5} {'HIT':>4} {'WRG':>4} {'MISS':>5} | {'rows':>5} {'NEW':>5}  recall")
     for econ in econs:
         path = newest(econ)
         if not path:
             print(f"{econ:4} no run found")
             continue
         r = score(econ, path, detail)
-        rec = r["hit"] / r["key_provisions"] if r["key_provisions"] else 0
-        print(f"{econ:4} {r['key_provisions']:>9} {r['hit']:>5} {r['wrong_indicator']:>10} "
-              f"{r['missing']:>8} {r['our_rows']:>9} {r['new']:>5}   {rec:.0%}")
+        rec = r["firm_hit"] / r["firm_key"] if r["firm_key"] else 0
+        print(f"{econ:4} {r['key_provisions']:>4} {r['hit']:>4} {r['wrong_indicator']:>4} "
+              f"{r['missing']:>5} | {r['firm_key']:>5} {r['firm_hit']:>4} {r['firm_wrong']:>4} "
+              f"{r['firm_missing']:>5} | {r['our_rows']:>5} {r['new']:>5}  {rec:.0%}")
         if detail:
             for lab, got in r.get("_wrong", []):
                 print(f"     WRONG  {lab}  -> filed as {got}")
