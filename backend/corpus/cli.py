@@ -1,6 +1,7 @@
 """Corpus CLI.
 
     python -m backend.corpus.cli catalogue --economy MY
+    python -m backend.corpus.cli catalogue --economy MN --from-database   # eval corpus seed
     python -m backend.corpus.cli catalogue --economy SG --kinds Act SL
     python -m backend.corpus.cli build     --economy MY --limit 50
     python -m backend.corpus.cli stats
@@ -23,6 +24,10 @@ def main(argv=None) -> int:
                    help="SG: Act / SL. AU: Act / LegislativeInstrument.")
     c.add_argument("--max-items", type=int, default=None)
     c.add_argument("--no-codes", action="store_true", help="MY: skip the pdp.gov.my codes")
+    c.add_argument("--from-database", action="store_true",
+                   help="seed L0 from the panel's RDTII Database instead of a portal. "
+                        "EVALUATION ONLY — the scored path never reads the corpus store, and "
+                        "this is refused for an economy that has a real portal enumerator.")
 
     b = sub.add_parser("build", help="fetch + extract + split (L1-L3)")
     b.add_argument("--economy", required=True)
@@ -43,6 +48,10 @@ def main(argv=None) -> int:
     store.init()
 
     if a.cmd == "catalogue":
+        if a.from_database:
+            from .catalogue_database import sweep_database
+            print(json.dumps(sweep_database(a.economy), indent=1, ensure_ascii=False))
+            return 0
         from .catalogue import sweep
         kw: dict = {}
         econ = a.economy.upper()

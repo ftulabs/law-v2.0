@@ -65,16 +65,20 @@ C4a handover 8 · C4b no vendor lock-in 7 · C5 live test 10 (discovery 6 + engi
 | SG | portal adapter, verified | yes (14,610 prov) | yes | **cap 80** (prov+law recall 1.000 from k=40) | 2026-08-28 · 7/7 answer-key indicators at 760 calls |
 | AU | portal adapter, verified | yes (18,262) | yes | **cap 450** — genuinely needs the depth (1.000 only from k=300) | 2026-08-28 · 8/8 answer-key indicators |
 | MY | portal adapter, verified | yes (14,903) | yes | **cap 150** (law recall 1.000 from k=80; prov flat 0.875 at every k) | 2026-08-28 · robots carve-out landed: 489 → 5,931 provisions |
-| CN | 2 portal lanes, unverified | **no** | yes | no | 2026-08-25 (fragile) |
-| IN | 5 lanes, unverified | **no** | yes | no | 2026-08-25 |
-| MN | 1 lane, unverified | **no** | yes | no | 2026-08-27 |
-| TH · ID · LA | generic websearch only | **no** | yes | no | **no** |
+| CN | 2 portal lanes, unverified | eval, 19 docs / 261 prov ⚠ 1.9k chars/doc | yes | no | 2026-08-25 (fragile) |
+| IN | 5 lanes, unverified | eval, 7 docs / 224 prov | yes | no | 2026-08-25 |
+| MN | 1 lane, unverified | eval, 4 docs / 397 prov | yes | no | 2026-08-27 |
+| TH | generic websearch only | eval, 6 docs / 103 prov | yes | no | **no** |
+| ID | generic websearch only | eval, 7 docs / **7 prov** ⚠ unsplit | yes | no | **no** |
+| LA | generic websearch only | eval, 2 docs / 452 prov | yes | no | **no** |
+| RU | body route solved, discovery open | eval, 2 docs / **2 prov** ⚠ chrome only | yes | no | no |
 | **TL** | gazette lane, unverified | no | **impossible** (no database sheet) | no | reachable only |
-| RU | body route solved, discovery open | **no** | yes | no | no |
 
 "Labels" = rows parsed from the panel's own databases by `backend/eval/ground_truth.py`
-(223 rows / 10 economies / 90 indicator-pairs as of 2026-08-27). Labels alone do not enable
-measurement: `harness.load_provisions()` needs a **built corpus**, and only SG/AU/MY have one.
+(223 rows / 10 economies / 90 indicator-pairs). "eval" corpora are seeded from the panel's own
+citations by `backend/corpus/catalogue_database.py` — an EVALUATION corpus, never discovery: the
+live pipeline imports nothing from `backend/corpus`, and a test pins that. SG/AU/MY are built
+from their real portal enumerators and are the only ones whose numbers are self-contained.
 
 ---
 
@@ -125,8 +129,31 @@ Priority order. `[ ]` not started · `[~]` in progress · `[x]` done (move to §
       a bonus and has nothing built; TH/ID/LA have labels but no lane and no corpus.
 
 ### Coverage (scores C1a, C1c)
-- [ ] Build corpora for the round-2 economies — without one, none of them can be measured,
-      budgeted or regression-tested (`python -m backend.corpus.cli build --economy CN`).
+- [x] **Evaluation corpora built for all seven Round-2 economies** (2026-08-30),
+      `python -m backend.corpus.cli catalogue --economy CN --from-database && … build`.
+      They are seeded from the panel's citations, so they measure retrieval and extraction —
+      never discovery. What building them immediately exposed, per economy:
+
+      | | docs | provisions | chars/doc | chars/provision |
+      |---|---|---|---|---|
+      | MN | 4 | 397 | 182,000 | 1,303 |
+      | IN | 7 | 224 | 57,300 | 1,649 |
+      | TH | 6 | 103 | 76,300 | 1,439 |
+      | LA | 2 | 452 | 43,800 | 188 |
+      | CN | 19 | 261 | **1,966** | 127 |
+      | ID | 7 | **7** | 3,465 | 3,465 |
+      | RU | 2 | **2** | 1,150 | 1,150 |
+
+      (SG/AU/MY, built from their portals, run 55k–102k chars/doc and 880–1,157 chars/provision.)
+- [ ] **The splitter knows three drafting styles and the list has eight economies.**
+      `extraction.py` handles English "Section", Chinese 第X条 and Mongolian "N.N." — there is no
+      pattern for Indonesian **Pasal**, Russian **Статья**, Thai **มาตรา** or Portuguese
+      **Artigo N.º**. Indonesia is the clean demonstration: 7 documents in, 7 provisions out,
+      one undifferentiated block each. Article-level citation is criterion C2b, ten points.
+- [ ] **RU and CN corpora hold chrome, not law.** RU's 1,150 chars/doc is the IPS frameset
+      (measured 2026-08-28: the wrapper carries 586 characters and no statute); CN's 1,966 is
+      a gov.cn landing page. Both need the body route wired before their numbers mean anything.
+- [ ] India fetch: 20 of 27 cited instruments failed to download.
 - [ ] Portal adapters for TH · ID · LA · RU (today: generic websearch, `verified: false`).
       Measured 2026-08-25: TH and ID time out on the DuckDuckGo HTML endpoint; LA's gazette
       host does not resolve.

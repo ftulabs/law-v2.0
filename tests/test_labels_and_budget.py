@@ -226,3 +226,60 @@ def test_the_breaker_does_not_deadlock_when_it_trips_under_the_lock():
         assert result[0] == []
     finally:
         mapping.retrieve = orig
+
+
+# ── the Database-seeded evaluation corpus ─────────────────────────────────────────────────
+def test_the_seeded_corpus_can_never_reach_a_scored_run():
+    """The corpus for the Round-2 economies is seeded from the panel's own citations, which
+    would be a "baked corpus" if the scored path could read it. It cannot, and that is checked
+    here rather than promised in a comment: nothing under backend/pipeline imports the store."""
+    import pathlib
+    import re
+
+    root = pathlib.Path(__file__).resolve().parent.parent / "backend" / "pipeline"
+    offenders = []
+    for f in root.glob("*.py"):
+        src = f.read_text(encoding="utf-8")
+        if re.search(r"^\s*from\s+\.\.corpus|^\s*from\s+backend\.corpus|^\s*import\s+.*\bcorpus\b",
+                     src, re.M):
+            offenders.append(f.name)
+    assert not offenders, f"the live pipeline now reads the corpus store: {offenders}"
+
+
+def test_a_seeded_economy_is_refused_when_it_has_a_real_enumerator():
+    """Seeding an economy we can already discover from would make its measured numbers
+    meaningless — recall against the answer key, measured on a corpus built from the answer
+    key, is not a measurement of anything."""
+    from backend.corpus.catalogue_database import sweep_database
+
+    for econ in ("SG", "AU", "MY"):
+        with pytest.raises(ValueError, match="portal enumerator"):
+            sweep_database(econ, log=lambda _m: None)
+
+
+def test_every_seeded_row_says_where_it_came_from():
+    """A row a reader cannot tell apart from discovery output is the whole risk here."""
+    import json
+
+    from backend.corpus.catalogue_database import enumerate_from_database
+
+    rows = enumerate_from_database("MN", log=lambda _m: None)
+    assert rows, "Mongolia has cited instruments with URLs in the Round-2 database"
+    for r in rows:
+        meta = json.loads(r["catalogue_json"])
+        assert meta["seed"] == "rdtii_database"
+        assert "official_publisher" in meta and meta["indicators"]
+
+
+def test_a_url_is_not_attached_to_a_law_it_does_not_name():
+    """A Database row lists several instruments and several references with no correspondence
+    between them; pairing them positionally is how linkage.py once matched the Privacy Act to
+    the Security of Critical Infrastructure Act."""
+    from backend.corpus.catalogue_database import _url_names_this_law
+
+    assert _url_names_this_law("https://x.gov/acts/personal-data-protection-act-2012.pdf",
+                               "Personal Data Protection Act 2012")
+    assert not _url_names_this_law("https://x.gov/documents/12148567",
+                                   "Federal Law No. 152-FZ On Personal Data")
+    assert not _url_names_this_law("https://x.gov/acts/companies-act.pdf",
+                                   "Cybersecurity Act 2018")
