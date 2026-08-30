@@ -145,15 +145,23 @@ Priority order. `[ ]` not started · `[~]` in progress · `[x]` done (move to §
       | RU | 2 | **2** | 1,150 | 1,150 |
 
       (SG/AU/MY, built from their portals, run 55k–102k chars/doc and 880–1,157 chars/provision.)
-- [ ] **The splitter knows three drafting styles and the list has eight economies.**
-      `extraction.py` handles English "Section", Chinese 第X条 and Mongolian "N.N." — there is no
-      pattern for Indonesian **Pasal**, Russian **Статья**, Thai **มาตรา** or Portuguese
-      **Artigo N.º**. Indonesia is the clean demonstration: 7 documents in, 7 provisions out,
-      one undifferentiated block each. Article-level citation is criterion C2b, ten points.
-- [ ] **RU and CN corpora hold chrome, not law.** RU's 1,150 chars/doc is the IPS frameset
-      (measured 2026-08-28: the wrapper carries 586 characters and no statute); CN's 1,966 is
-      a gov.cn landing page. Both need the body route wired before their numbers mean anything.
+- [x] **Article splitters for the four civil-law drafting styles** (2026-08-30) —
+      `ARTICLE_PATTERNS` in `extraction.py`: Indonesian **Pasal**, Russian **Статья**, Thai
+      **มาตรา**, Portuguese **Artigo N.º**, each written against a real document fetched that
+      day and each line-anchored, because most occurrences are cross-references (Thai: 18 of
+      76 are headings; Indonesian: 24 of 39). Thailand went from 2 whole-document blocks to
+      206 article-level provisions. Portuguese is the one pattern that is case-SENSITIVE:
+      "Artigo" opens an article, "artigo" cites one. `tests/test_civil_law_splitting.py`.
+- [~] **The remaining gap on ID/RU is FETCH, not splitting** — corrected 2026-08-30 after
+      reading the stored text. Indonesia's documents are `peraturan.bpk.go.id` ABSTRACT pages
+      ("MATERI POKOK PERATURAN Abstrak…") with no articles in them at all; the statute is a
+      separate PDF (`/Download/<id>/<name>.pdf`, verified fetchable — 24 Pasal). Russia's are
+      the IPS frameset. Chinese documents were fine all along: 第一条 splits correctly, and the
+      low chars/doc average was a few short notices, not landing pages.
 - [ ] India fetch: 20 of 27 cited instruments failed to download.
+- [ ] One Thai PDF extracts as `(cid:N)` mojibake — a broken font encoding, the
+      `legacy_encoding_risk` hazard the language profile names. OCR would read it; the text
+      layer must be rejected first.
 - [ ] Portal adapters for TH · ID · LA · RU (today: generic websearch, `verified: false`).
       Measured 2026-08-25: TH and ID time out on the DuckDuckGo HTML endpoint; LA's gazette
       host does not resolve.

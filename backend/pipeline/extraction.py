@@ -165,6 +165,46 @@ _RESOLUTION_MIN = 2
 # followed by a close button, a WeChat link, a back-to-top link and a CMS build stamp.
 # `ocr._html_to_text` removes what it can identify structurally; this catches the rest, which
 # arrives as bare links with no class on them.
+# ── article headings for the civil-law economies on the panel's list ────────────────────
+#
+# Four drafting traditions, one shape: a keyword and a number at the head of a line. Each was
+# written against a real document fetched on 2026-08-30, and the counts below are from those
+# files — the ratio is the whole reason every pattern is line-anchored.
+#
+#   ID  UU 27/2022 (peraturan.bpk.go.id)   "Pasal"   39 occurrences, 24 at line start
+#   TH  krisdika.go.th computer-crime act  "มาตรา"   76 occurrences, 18 at line start
+#   RU  pravo.gov.ru IPS body              "Статья"   4 occurrences,  4 at line start
+#   TL  Jornal da República série 1 no.36  "Artigo"   8 headings, plus lowercase cross-refs
+#
+# The occurrences that are NOT at a line start are cross-references — "Mengingat Pasal 5",
+# "ตามมาตรา ๗", "alínea d) do artigo 116º" — and splitting on them would shatter every article
+# into fragments, which is the same trap the Latin and Han patterns above already guard.
+#
+# Case matters for Portuguese and only for Portuguese: the heading is "Artigo", the
+# cross-reference is "artigo", and both occur at the start of a wrapped line in a two-column
+# gazette. So these are NOT compiled with re.I.
+#
+# Numerals are the other per-language detail. Thai statutes number in Thai digits (๑, ๑๐) and
+# occasionally Arabic; an article inserted by amendment is "มาตรา ๗/๑". Indonesian carries a
+# letter suffix ("Pasal 28J"). Portuguese writes the ordinal indicator, with or without the
+# dot before it ("Artigo 1º", "Artigo 2.º", "Artigo 11.º-A"), and U+00BA is a distinct
+# character from the degree sign U+00B0 an OCR pass may emit — both are accepted, because
+# rejecting the mis-read one would lose the article rather than flag it.
+_ARTICLE_RE_ID = re.compile(r"(?m)^[ \t]*(Pasal\s+\d{1,3}[A-Z]{0,2})\b")
+_ARTICLE_RE_RU = re.compile(r"(?m)^[ \t]*(Статья\s+\d{1,3}(?:\.\d{1,2})?)")
+_ARTICLE_RE_TH = re.compile(
+    r"(?m)^[ \t]*(มาตรา[ \t]*[๐-๙\d]{1,4}(?:/[๐-๙\d]{1,3})?)")
+_ARTICLE_RE_TL = re.compile(r"(?m)^[ \t]*(Artigo\s+\d{1,3}\.?[º°]?(?:-[A-Z])?)")
+
+#: economy → its article pattern. Membership of this table is what routes an economy down the
+#: civil-law branch in `_boundaries`, so adding a language is one line plus its evidence above.
+ARTICLE_PATTERNS = {
+    Economy.ID: _ARTICLE_RE_ID,
+    Economy.RU: _ARTICLE_RE_RU,
+    Economy.TH: _ARTICLE_RE_TH,
+    Economy.TL: _ARTICLE_RE_TL,
+}
+
 _CMS_LINE = re.compile(
     r"publishdate|produced\s+by|版权所有|ICP备|公网安备|承办|技术支持|主办单位", re.I)
 #: A line that ends a sentence is content. Chinese and Japanese full stops are included,
@@ -862,6 +902,22 @@ def _boundaries(text: str, economy=None) -> list[tuple]:
                     alt = resol
             if len(alt) > len(out):
                 out = alt
+    elif economy in ARTICLE_PATTERNS:
+        # Indonesia, Russia, Thailand, Timor-Leste — see ARTICLE_PATTERNS for the evidence
+        # behind each pattern. Before this branch existed the four fell through to SECTION_RE,
+        # which is English-only, so every one of their documents reached the grader as a single
+        # "(document)" block: measured on the seeded corpora, Thailand produced two such blocks
+        # from real statute text and Russia one. Nothing raised — the run simply had no
+        # article-level citation to make, which is criterion C2b.
+        out = [(m.start(), m.end(), m.group(1).strip(), False)
+               for m in ARTICLE_PATTERNS[economy].finditer(text)]
+        if len(out) < 3:
+            # An English translation of the same instrument. This is not hypothetical: the Lao
+            # gazette publishes them, and its documents already split on "Article N" through
+            # SECTION_RE. Reached only when the native pattern found nothing, so a native
+            # document can never be re-split on an English cross-reference.
+            out = [(m.start(), m.end(), m.group(2) or m.group(1), bool(m.group(1)))
+                   for m in SECTION_RE.finditer(text)]
     elif economy in (Economy.SG, Economy.MY, Economy.IN):
         # India is here too: the Indian Code prints "3. Definitions.—(1) …", the same numbered
         # margin form as SG/MY, and its statutes are English so nothing else needs to change.
