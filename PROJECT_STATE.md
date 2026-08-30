@@ -62,12 +62,12 @@ C4a handover 8 · C4b no vendor lock-in 7 · C5 live test 10 (discovery 6 + engi
 
 | Economy | Lane | Corpus built | Labels | Budget measured | End-to-end |
 |---|---|---|---|---|---|
-| SG | portal adapter, verified | yes (14,610 prov) | yes | **cap 80** (prov+law recall 1.000 from k=40) | 2026-08-28 · 7/7 answer-key indicators at 760 calls |
-| AU | portal adapter, verified | yes (18,262) | yes | **cap 450** — genuinely needs the depth (1.000 only from k=300) | 2026-08-28 · 8/8 answer-key indicators |
+| SG | portal adapter, verified | yes (14,610 prov) | yes | **cap 80** (prov+law recall 1.000 from k=40) | 2026-08-28 · **7/7** at 760 calls |
+| AU | portal adapter, verified | yes (18,262) | yes | **cap 450** — genuinely needs the depth (1.000 only from k=300) | 2026-08-28 · **8/8** |
 | MY | portal adapter, verified | yes (14,903) | yes | **cap 150** (law recall 1.000 from k=80; prov flat 0.875 at every k) | 2026-08-28 · robots carve-out landed: 489 → 5,931 provisions |
-| CN | 2 portal lanes, unverified | eval, 10 docs / 251 prov (10 shells, 3 dead links) | yes | no | 2026-08-25 (fragile) |
-| IN | 5 lanes, unverified | eval, 11 docs / 222 prov (**20 failed: link rot + robots**) | yes | no | 2026-08-25 |
-| MN | 1 lane, unverified | eval, 4 docs / 397 prov | yes | no | 2026-08-27 |
+| CN | 2 portal lanes, unverified | eval, 10 docs / 251 prov (10 shells, 3 dead links) | yes | no | **2026-08-30 · 8/9 answer-key indicators** |
+| IN | 5 lanes, unverified | eval, 11 docs / 222 prov (**20 failed: link rot + robots**) | yes | no | **2026-08-30 · 7/8** |
+| MN | 1 lane, unverified | eval, 4 docs / 397 prov | yes | no | **2026-08-30 · 6/8** |
 | TH | generic websearch only | eval, 6 docs / 206 prov | yes | no | **no** |
 | ID | generic websearch only | eval, 11 docs / 252 prov | yes | no | **no** |
 | LA | generic websearch only | eval, 2 docs / 226 prov | yes | no | **no** |
@@ -85,6 +85,32 @@ from their real portal enumerators and are the only ones whose numbers are self-
 ## §3 Open work — the checklist
 
 Priority order. `[ ]` not started · `[~]` in progress · `[x]` done (move to §5 and prune).
+
+### Scored against the panel's 2025 database — the six committed economies (2026-08-30)
+
+All six re-run live on current code, exported CSV diffed against the answer key
+(`tools/compare_to_key.py`). **44 of 48 answer-key indicators reached.**
+
+| | docs | provisions | rows | LLM calls | cost | min | answer key |
+|---|---|---|---|---|---|---|---|
+| SG | 35 | 6,752 | 183 | 760 | $0.25 | 11 | **7/7** |
+| AU | 28 | 4,948 | 344 | 2,272 | $0.76 | 25 | **8/8** |
+| MY | 31 | 5,931 | 313 | 1,390 | $0.46 | 10 | **8/8** |
+| CN | 41 | 888 | 138 | 584 | $0.15 | 6 | **8/9** (misses P6-I3) |
+| IN | 1,111 | 1,615 | 183 | 769 | $0.31 | 14 | **7/8** (misses P6-I2) |
+| MN | 40 | 648 | 103 | 498 | $0.14 | 6 | **6/8** (misses P7-I2, P7-I5) |
+
+Total for the whole six-economy submission: **$2.07 and 72 minutes.**
+
+Corpus-side retrieval (k = the whole corpus, so this is the ceiling chunking and ranking
+impose once the documents are in hand — it does NOT include discovery):
+MN prov 0.857 · ID 0.778 · TH 0.714 · CN 0.571 · IN 0.143 (20 of 27 documents never
+downloaded) · LA 0.000 (linkage maps no cited law to the corpus — open).
+
+- [ ] **MN P7-I2 and P7-I5, CN P6-I3, IN P6-I2** — four named misses, each now a specific
+      question rather than a general worry. Worth reading the four before any broad change.
+- [ ] LA corpus-side recall is 0.000 because linkage links none of its cited laws to the
+      corpus, though `link_all` reports 5 of 6 linked. Diagnose before trusting any LA number.
 
 ### Owed right now — asked for on 2026-08-28, not yet done
 1. [x] **Country list corrected** (2026-08-28) — `FINAL_ROUND_LIST` / `LIVE_TEST_POOL` /
