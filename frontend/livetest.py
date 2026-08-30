@@ -58,9 +58,7 @@ STEPS = [
 #: An ordering, not a restriction; a picker that could not accept an economy would fail at
 #: the only moment it exists for.
 #:
-#: It used to name nine, including Viet Nam and Kazakhstan, which appear on no list the panel
-#: published, and to omit Timor-Leste, which does appear and carries a bonus. See
-#: backend/schemas.LIVE_TEST_POOL for where that came from.
+#: See backend/schemas.LIVE_TEST_POOL.
 LIVE_TEST_ORDER = LIVE_TEST_POOL
 
 #: Which way is better, per comparison row. Used to mark the winner rather than leaving the

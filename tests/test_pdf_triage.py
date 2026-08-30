@@ -88,14 +88,13 @@ def test_thai_gets_its_dedicated_model_not_the_latin_bucket():
     assert L.ocr_code("tesseract", "TH") == "tha+eng"   # bilingual gazettes, single pass
 
 
-def test_vietnamese_never_routed_to_paddle_family():
-    """Verified charset audit: the shared `latin` dictionary contains the base letters but
-    none of the 45 precomposed tone-marked forms, so diacritics are lost by construction —
-    fatal for a verbatim legal snippet. Vietnamese must go to an engine that can emit them."""
-    assert L.ocr_code("paddle", "VN") is None
-    assert L.ocr_code("rapidocr", "VN") is None
-    assert L.ocr_code("tesseract", "VN") == "vie"
-    assert L.best_engine("VN") == L.AZURE
+def test_portuguese_reaches_an_engine_that_can_emit_its_diacritics():
+    """Timor-Leste legislates in Portuguese, whose diacritics all sit in Latin-1 Supplement —
+    unlike the precomposed tone forms that disqualify the shared `latin` dictionary for other
+    languages. So the Latin path IS valid here, and tesseract must be told `por`, not `eng`:
+    a verbatim snippet reading "proteção" cannot survive an English-only dictionary."""
+    assert L.ocr_code("tesseract", "TL") == "por+eng"
+    assert L.ocr_code("rapidocr", "TL") == "latin"
 
 
 def test_lao_has_only_tesseract_offline_and_is_flagged_unvalidated():
@@ -129,7 +128,7 @@ def test_spaceless_scripts_are_flagged_for_segmentation():
     assert L.needs_segmentation("TH") == "pythainlp"
     assert L.needs_segmentation("LA") == "laonlp"
     assert L.needs_segmentation("CN") == "jieba"
-    for eco in ("SG", "AU", "MY", "RU", "VN"):
+    for eco in ("SG", "AU", "MY", "RU", "TL"):
         assert L.needs_segmentation(eco) is None
 
 

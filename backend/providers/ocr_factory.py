@@ -113,7 +113,7 @@ def get_ocr_provider(name: str | None = None, azure_endpoint: str | None = None,
     without a language hint can only emit characters from whatever dictionary it defaulted
     to. Before this argument existed every provider ran its English/Chinese default no
     matter what the document was, which is invisible on Round-1 Latin text and silently
-    destructive on Thai, Cyrillic or Vietnamese.
+    destructive on Thai or Cyrillic.
 
     Azure endpoint/key can be overridden at runtime (dashboard) — other providers read
     their settings (tesseract path, poppler) from `.env`.
@@ -155,7 +155,7 @@ def get_ocr_provider(name: str | None = None, azure_endpoint: str | None = None,
 
     # Last resort before admitting defeat: a vision model, which has no per-script dictionary
     # to be missing a letter from. It bills per page and returns no confidence, so it is never
-    # preferred — but "no engine can read Kazakh" is not an answer a sealed live test accepts,
+    # preferred — but "no engine can read Lao" is not an answer a sealed live test accepts,
     # and the alternative to a costed page is a lost economy.
     if settings.vlm_ocr_auto_fallback and requested != VLM:
         try:

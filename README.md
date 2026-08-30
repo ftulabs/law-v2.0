@@ -41,7 +41,7 @@ rather than running a recogniser whose dictionary cannot spell the script — wh
 text with letters missing and raises nothing.
 
 **Language and script are different questions.** Script decides how text is tokenised; language
-decides whether the English reranker runs at all. Viet Nam and Indonesia use Latin letters and
+decides whether the English reranker runs at all. Indonesia and Timor-Leste use Latin letters and
 still need the non-English lane.
 
 **The quote is never rewritten.** The Verbatim Snippet column *is* the statute's own text —
@@ -197,7 +197,7 @@ Set `OCR_PROVIDER` in `.env`, or pick it in the **Engines** tab. No code changes
 | RapidOCR | `rapidocr` | no | Default. ONNX, pip-only. **CER 1.11 %** measured on the bundled scan |
 | PaddleOCR | `paddle` | no | PP-OCRv5 per-script models — the Thai and East-Slavic recognisers |
 | Tesseract | `tesseract` | no | Needs a system binary; the only offline option for Lao |
-| Vision model | `vlm` | optional | Reads any script — the fallback for Lao, Mongolian, Kazakh, Vietnamese. `qwen3-vl-8b` (Apache-2.0, MDPBench 68.3) by default; `gemini-3.1-pro` opt-in for the hardest pages |
+| Vision model | `vlm` | optional | Reads any script — the fallback for Lao and Mongolian. `qwen3-vl-8b` (Apache-2.0, MDPBench 68.3) by default; `gemini-3.1-pro` opt-in for the hardest pages |
 | Azure Document Intelligence | `azure` | **yes** | Strongest on noisy gazette scans; needs endpoint + key |
 | Mock | `mock` | no | Offline sidecar, $0 |
 
@@ -222,14 +222,14 @@ Three things follow. Purpose-built document parsers beat general vision models b
 margin, and **none of them is served by any hosted router** — so a hosted fallback has to be a
 general VLM, and Qwen3-VL-8B is the best-evidenced one we can actually reach (it also has
 Apache-2.0 weights, so self-hosting keeps the no-proprietary-API declaration true). **Neither
-benchmark covers Lao, Mongolian or Kazakh**, our three hardest scripts, so every number about
+benchmark covers Lao or Mongolian**, our two hardest scripts, so every number about
 them is ours or nobody's. And PP-StructureV3's collapse on Thai and Cyrillic is a *warning, not
 a verdict*: it scores Paddle's document-parsing pipeline on photographed pages, while we call
 its per-script recogniser on pages we render from clean government PDFs. Quoting one as the
 other would be the same category error as quoting line-level accuracy as CER — but it is why
 those paths stay `validated=false` until measured here.
 
-→ per-language evidence, and why Paddle is disqualified for Vietnamese, Mongolian and Kazakh:
+→ per-language evidence, and why Paddle is disqualified for Mongolian:
 [docs/OCR_LANGUAGE_EVIDENCE.md](docs/OCR_LANGUAGE_EVIDENCE.md)
 
 ---
@@ -262,22 +262,21 @@ claim a capability the code does not have.
 **extracted** = provisions produced · **measured** = scored against the panel's 2025 database.
 Only *measured* is a claim about quality.
 
-| Economy | Live-test nine | Language | Portal | Run end to end? | Next blocker |
+| Economy | On the panel's list | Language of source | Portal | Run end to end? | Next blocker |
 | :--- | :---: | :--- | :--- | :--- | :--- |
-| Thailand | yes | Thai | krisdika.go.th (+1) | declared | TLS fixed; document path unknown |
-| Viet Nam | yes | Vietnamese | vbpl.vn | reachable | no discovery adapter yet |
-| Indonesia | yes | Indonesian | peraturan.bpk.go.id (+1) | reachable | no discovery adapter yet |
-| China | yes | Chinese | gov.cn (+1) | **extracted** | not yet scored against the 2025 database |
-| India | yes | English | indiacode.gov.in (+2) | **extracted** | not yet scored across all 50 reference rows |
-| Kazakhstan | yes | Kazakh | adilet.zan.kz | reachable | robots closes the listing paths |
-| Lao PDR | yes | Lao | laoofficialgazette.gov.la | declared | host does not resolve |
-| Mongolia | yes | Mongolian | legalinfo.mn | **extracted** | not yet scored against the 2025 database |
-| Russian Federation | yes | Russian | publication.pravo.gov.ru | reachable | robots disallows `/File`; use the sitemap |
 | Singapore | — | English | sso.agc.gov.sg | **measured** | — |
-| Australia | — | English | legislation.gov.au (+1) | **measured** | — |
+| Australia | — | English | www.legislation.gov.au (+1) | **measured** | — |
 | Malaysia | — | English | lom.agc.gov.my (+2) | **measured** | — |
+| China | yes | Chinese (Simplified) | www.gov.cn (+1) | **extracted** | no scored run against the 2025 database yet |
+| India | yes | English | indiacode.gov.in (+4) | **extracted** | no scored run against the 2025 database yet |
+| Indonesia | yes | Indonesian | peraturan.bpk.go.id (+1) | **reachable** | portal answers; no discovery adapter has produced provisions from it |
+| Lao People's Democratic Republic | yes | Lao | laoofficialgazette.gov.la | **declared** | host does not resolve — the portal URL itself is wrong |
+| Mongolia | yes | Mongolian | legalinfo.mn | **extracted** | no scored run against the 2025 database yet |
+| Russian Federation | yes | Russian | publication.pravo.gov.ru (+1) | **reachable** | portal answers; no discovery adapter has produced provisions from it |
+| Thailand | yes | Thai | www.krisdika.go.th (+1) | **declared** | reachable, document path unknown (404 on every path tried) |
+| Timor-Leste | yes | Portuguese | mj.gov.tl/jornal | **reachable** | portal answers; no discovery adapter has produced provisions from it |
 
-**Of the nine live-test economies today: 0 measured, 3 extracted, 4 reachable, 2 declared.**
+**Of the eight economies on the panel's list today: 0 measured, 3 extracted, 3 reachable, 2 declared.**
 Singapore, Australia and Malaysia are our deepest corpora but are *not* among the nine — the
 panel holds no 2025 database for them.
 
@@ -313,7 +312,7 @@ Source**. Source of truth is `SUBMISSION_COLUMNS` in `backend/schemas.py`.
 
 | # | Column | Req. | Notes |
 | :--- | :--- | :--- | :--- |
-| 1 | Economy | ✓ | Official UN name — "Viet Nam", "Lao People's Democratic Republic" |
+| 1 | Economy | ✓ | Official UN name — "Lao People's Democratic Republic", "Timor-Leste" |
 | 2 | Law Name | ✓ | Full official name and year |
 | 3 | Law Number / Ref | | `Act 709`, `B.E. 2562` |
 | 4 | Last Amended | | Month + year when verified; `Original` when the portal shows none |
@@ -402,7 +401,7 @@ equal confidence.
   *raises* retrieval scores and changed 0 of 20 shortlist rows.
   Set `CROSS_ENCODER_MULTILINGUAL_ENABLED=true` if you have a GPU.
 - **OCR accuracy is validated only for Latin script** (CER 1.11 %). No document-level CER exists
-  for Thai, Lao, Mongolian or Kazakh from any engine, ours included.
+  for Thai, Lao or Mongolian from any engine, ours included.
 - **The vision OCR engine can hallucinate.** Classical OCR degrades into visible noise; a vision
   model degrades into a fluent sentence that was never in the document. It is the last engine
   tried, runs at temperature 0, writes `[illegible]` rather than guessing, and returns no

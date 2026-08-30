@@ -26,8 +26,6 @@ class Economy(str, Enum):
     RU = "RU"   # Russian Fed.   — final-round list
     TH = "TH"   # Thailand       — final-round list
     TL = "TL"   # Timor-Leste    — final-round list (carries the difficulty bonus)
-    VN = "VN"   # Viet Nam       — NOT on the panel's list; see below
-    KZ = "KZ"   # Kazakhstan     — NOT on the panel's list; see below
 
 
 # The panel's published country list, verified 2026-08-27 against
@@ -45,17 +43,13 @@ ROUND1_ECONOMIES = ("SG", "AU", "MY")
 # Eleven, not nine.
 LIVE_TEST_POOL = ROUND1_ECONOMIES + FINAL_ROUND_LIST
 
-# Viet Nam and Kazakhstan appear on NO list the panel published, and have no sheet in either
-# RDTII database. They were added on 2026-08-21 by a `LIVE_TEST_NINE` constant whose comment
-# quoted "final-round instructions" that exist in no document in this repo — the orientation
-# material is gitignored, so it was never opened, and the list was inferred instead. That cost
-# both of them a portal lane, a language profile and an OCR entry, while Timor-Leste — which IS
-# on the list, and carries a bonus — had none of the three.
-#
-# They stay resolvable rather than being deleted: the lanes work, someone may still want to run
-# them, and a user typing "Vietnam" should get Viet Nam and not a stack trace. What they must
-# never be again is ADVERTISED as economies the live test can name.
-NOT_ON_PANEL_LIST = ("VN", "KZ")
+# Viet Nam and Kazakhstan were supported here until 2026-08-30 and are now removed entirely.
+# They appeared on no list the panel published and have a sheet in neither RDTII database; they
+# arrived on 2026-08-21 inside a `LIVE_TEST_NINE` constant whose comment quoted "final-round
+# instructions" that exist in no document in this repo. Every economy this file declares costs
+# a portal lane, a language profile, an OCR entry, native query terms, a map polygon and a row
+# in the readiness table, and carrying two that can never be graded made all six harder to read
+# without making any run better.
 
 # An economy being DECLARABLE and an economy being READY are different claims, and the README
 # asks us to state which is which per economy. Appearing above buys resolvability, a language
@@ -64,12 +58,12 @@ NOT_ON_PANEL_LIST = ("VN", "KZ")
 
 # Official UN member-state names required by the submission template
 # (https://www.unescap.org/about/member-states). The CSV must use these, not codes.
-# Spelling is load-bearing and the instructions call two of them out by name: "Viet Nam"
-# (two words, no circumflex) and "Lao People's Democratic Republic", never "Laos".
+# Spelling is load-bearing: the UN name is "Lao People's Democratic Republic", never "Laos",
+# and Timor-Leste keeps its hyphen.
 ECONOMY_UN_NAME = {"SG": "Singapore", "AU": "Australia", "MY": "Malaysia",
                    "CN": "China", "IN": "India", "MN": "Mongolia",
-                   "TH": "Thailand", "VN": "Viet Nam", "ID": "Indonesia",
-                   "KZ": "Kazakhstan", "LA": "Lao People's Democratic Republic",
+                   "TH": "Thailand", "ID": "Indonesia",
+                   "LA": "Lao People's Democratic Republic",
                    "RU": "Russian Federation", "TL": "Timor-Leste"}
 
 # value the user may type → Economy. Includes codes, UN names and common variants.
@@ -87,12 +81,8 @@ _ECONOMY_ALIASES = {
     "mn": Economy.MN, "mongolia": Economy.MN, "mng": Economy.MN,
     "th": Economy.TH, "thailand": Economy.TH, "tha": Economy.TH,
     "kingdom of thailand": Economy.TH, "siam": Economy.TH,
-    "vn": Economy.VN, "viet nam": Economy.VN, "vietnam": Economy.VN, "vnm": Economy.VN,
-    "socialist republic of viet nam": Economy.VN,
     "id": Economy.ID, "indonesia": Economy.ID, "idn": Economy.ID,
     "republic of indonesia": Economy.ID,
-    "kz": Economy.KZ, "kazakhstan": Economy.KZ, "kaz": Economy.KZ,
-    "republic of kazakhstan": Economy.KZ,
     # "Lao PDR" is how the panel writes it; the UN name is longer. Both must land here, and
     # so must "laos", which is what a user will actually type.
     "la": Economy.LA, "lao": Economy.LA, "laos": Economy.LA, "lao pdr": Economy.LA,
@@ -268,7 +258,7 @@ class EvidenceMapping(BaseModel):
     # The ORIGINAL language of the document, never the language we translated into. Left None
     # to mean "use the economy's authoritative statute language"; set explicitly only where a
     # document departs from it, which bilingual portals genuinely do — Malaysia's AGC serves
-    # Malay and English editions of the same Act, and Kazakhstan serves Kazakh and Russian.
+    # Malay and English editions of the same Act, and Timor-Leste serves Portuguese and Tetum.
     language_of_source: Optional[str] = None
     review_status: ReviewStatus
 

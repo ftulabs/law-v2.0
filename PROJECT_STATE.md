@@ -47,16 +47,14 @@ Read them before trusting any restatement, including this one.
 consistency 10 · C2b citation fidelity 10 · C3a audit / human-in-the-loop 10 · C3b UI+export 5 ·
 C4a handover 8 · C4b no vendor lock-in 7 · C5 live test 10 (discovery 6 + engine swap 4).
 
-> **Corrected in code 2026-08-28.** `LIVE_TEST_NINE` listed nine economies including **Viet Nam
-> and Kazakhstan, which are on no list the panel published**, and omitted **Timor-Leste, which
-> is on it and carries the bonus**. The "final-round instructions" quoted in that constant's
-> comment appear in no document in this repo; the orientation material is gitignored, so it was
-> never opened and the list was inferred instead. It is now `FINAL_ROUND_LIST` (the panel's 8)
-> and `LIVE_TEST_POOL` (those 8 + the mandatory 3 = what the assignment can name).
-> VN and KZ stay **resolvable** — their lanes work and a user typing "Vietnam" should not get a
-> stack trace — but are listed in `NOT_ON_PANEL_LIST` and are no longer offered as live-test
-> economies. Timor-Leste now has an economy code, UN name, aliases, a Portuguese language
-> profile, Portuguese seed query terms and a gazette lane.
+> **Corrected in code 2026-08-28, finished 2026-08-30.** The old `LIVE_TEST_NINE` listed nine
+> economies including Viet Nam and Kazakhstan, which are on no list the panel published, and
+> omitted Timor-Leste, which is on it and carries the bonus. The "final-round instructions"
+> quoted in that constant's comment appear in no document in this repo; the orientation material
+> is gitignored, so it was never opened and the list was inferred instead. The code now has
+> `FINAL_ROUND_LIST` (the panel's 8) and `LIVE_TEST_POOL` (those 8 + the mandatory 3).
+> **Viet Nam and Kazakhstan are removed outright** — enum, UN names, aliases, portal lanes,
+> language profiles, native query terms, map polygons and tests. Timor-Leste has all of those.
 
 ---
 
@@ -73,7 +71,6 @@ C4a handover 8 · C4b no vendor lock-in 7 · C5 live test 10 (discovery 6 + engi
 | TH · ID · LA | generic websearch only | **no** | yes | no | **no** |
 | **TL** | gazette lane, unverified | no | **impossible** (no database sheet) | no | reachable only |
 | RU | body route solved, discovery open | **no** | yes | no | no |
-| VN · KZ | lanes exist, **not on the panel's list** | no | **no** (in no database) | no | no |
 
 "Labels" = rows parsed from the panel's own databases by `backend/eval/ground_truth.py`
 (223 rows / 10 economies / 90 indicator-pairs as of 2026-08-27). Labels alone do not enable

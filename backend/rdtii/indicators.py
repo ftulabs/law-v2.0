@@ -121,7 +121,7 @@ INDICATORS: list[Indicator] = [
             # model refused it as "a delegation of power, not an operative rule". That reasoning
             # is coherent and wrong for RDTII: the panel cites exactly this section for 6.4,
             # because the resulting regime IS conditional — transfer is lawful unless and until
-            # the notification issues. The same shape appears in Viet Nam and China, so this is a
+            # the notification issues. The same shape appears in China, so this is a
             # class of provision, not one statute.
             "A DELEGATED POWER also maps here: a provision empowering the government to restrict, "
             "notify, blacklist, or permit transfers to particular countries creates a CONDITIONAL "

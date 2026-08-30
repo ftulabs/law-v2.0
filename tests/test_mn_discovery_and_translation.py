@@ -210,7 +210,7 @@ def test_english_economies_are_skipped_without_a_call():
     from backend.pipeline.translate import needs_translation
     for eco in ("SG", "AU", "MY", "IN"):
         assert not needs_translation(eco, "English")
-    for eco in ("MN", "CN", "RU", "TH", "LA", "KZ", "ID", "VN"):
+    for eco in ("MN", "CN", "RU", "TH", "LA", "ID", "TL"):
         assert needs_translation(eco, "English")
 
 

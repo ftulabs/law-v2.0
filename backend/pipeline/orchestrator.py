@@ -202,7 +202,7 @@ def _resolve_ocr(name, log, economy=None):
 
     `economy` selects the per-script model (see providers/ocr_languages.py). Without it the
     engine loads whatever dictionary it defaults to, which is invisible on Latin text and
-    silently destructive on Thai/Cyrillic/Vietnamese — so the language is resolved here and
+    silently destructive on Thai/Cyrillic/Lao — so the language is resolved here and
     printed, rather than being a setting nobody can confirm took effect.
     """
     from ..providers.ocr_languages import is_validated, ocr_code, profile_for

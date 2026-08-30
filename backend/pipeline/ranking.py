@@ -35,7 +35,7 @@ def _ce_model_for(economy: str | None) -> str | None:
     """The reranker for this economy's LANGUAGE, or None to run without one.
 
     Keyed on language, not script. The shipped cross-encoder is English-only, and it is no
-    less out of its depth on Vietnamese or Indonesian — both Latin-script — than on Chinese.
+    less out of its depth on Indonesian or Portuguese — both Latin-script — than on Chinese.
     Its score is fused into the ranking at the same weight as BM25, so an off-language
     reranker actively degrades the result rather than merely failing to help.
     """

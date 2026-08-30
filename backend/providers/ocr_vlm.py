@@ -4,8 +4,7 @@ Why this exists
 ---------------
 The per-script recognition models we ship do not cover every live-test economy, and the gaps
 are MEASURED, not assumed (see `ocr_languages`): PaddleOCR's East-Slavic dictionary has no
-Ө/Ү, so Mongolian loses four letters and Kazakh sixteen; its Latin dictionary has đ ă ơ ư but
-none of the 45 precomposed Vietnamese tone forms; no maintained engine ships a Lao model at
+Ө/Ү, so Mongolian loses four letters; no maintained engine ships a Lao model at
 all. Saying "no OCR engine can read this" is an honest answer, but it is not a usable one for
 a sealed live test that may name any of nine economies.
 

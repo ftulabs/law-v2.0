@@ -431,16 +431,6 @@ sources:
     verified: false
     reachable: "2026-08-21: 403 to BOTH plain urllib and the browser lane — genuinely WAF-blocked, unlike vbpl.vn and bpk.go.id which the browser lane cleared"
     note: The gazette of record; scanned PDFs dominate, so this is the OCR-heavy lane.
-  - economy: VN
-    name: National Legal Normative Document Database (Ministry of Justice)
-    base_url: https://vbpl.vn
-    adapter: websearch
-    verified: false
-    reachable: "2026-08-21: plain urllib 403 (WAF); browser lane HTTP 200 — reachable through scrapling, which is the default fetcher"
-    note: >-
-      Viet Nam publishes consolidated text as HTML and .doc. The .doc lane already works
-      (ocr._word_to_text), which matters because Vietnamese OCR is the weakest link — no local
-      recognition model carries the precomposed tone forms.
   - economy: ID
     name: Database Peraturan JDIH BPK
     base_url: https://peraturan.bpk.go.id
@@ -470,20 +460,6 @@ sources:
     note: >-
       Kept as the second Indonesian lane, but unproven: it did not answer at all. Since the BPK
       host turns out to be permitted to us, this is a redundancy rather than the primary route.
-  - economy: KZ
-    name: Adilet — Legal Information System of Kazakhstan
-    base_url: https://adilet.zan.kz
-    adapter: websearch
-    verified: false
-    reachable: "2026-08-21: HTTP 200, 13.9k chars of server-rendered text, 18s"
-    robots_read: "2026-08-21"
-    note: >-
-      Reachable and NOT a JS shell — the only one of the six that answered plain HTTP first try.
-      robots.txt disallows the listing and search paths (/kaz|rus|eng/search/, /list/docs/,
-      /archive/, /origins/), so discovery must NOT enumerate through them; individual document
-      URLs are permitted. Serves Kazakh AND Russian editions of the same act under /kaz/ and
-      /rus/, and the Latin-alphabet transition means Kazakh itself appears in two orthographies.
-      Script detection must therefore run per document, never per economy.
   - economy: LA
     name: Lao Official Gazette
     base_url: https://laoofficialgazette.gov.la

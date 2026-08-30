@@ -10,7 +10,7 @@ __init__ so importing this module never fails on a machine without the optional 
 TWO PACKAGES, AND THE DIFFERENCE MATTERS
 ----------------------------------------
 `rapidocr_onnxruntime` is frozen at 1.4.4 (Jan 2025): it bundles PP-OCRv4 Chinese+English
-models and exposes NO language selector at all, so Thai, Cyrillic and Vietnamese characters
+models and exposes NO language selector at all, so Thai and Cyrillic characters
 are simply absent from its output dictionary and cannot be produced. The maintained package
 is `rapidocr` (>=3.9, Apache-2.0), which accepts a recognition language and can load the
 PP-OCRv5 per-script models. We prefer the new package and degrade to the old one so an

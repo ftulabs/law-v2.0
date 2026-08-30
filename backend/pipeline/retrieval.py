@@ -32,15 +32,17 @@ from ..schemas import Provision
 _NOSPACE = (r"\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff"     # kana + Han
             r"\u0e00-\u0e7f\u0e80-\u0eff\u1780-\u17ff\u1000-\u109f")    # Thai, Lao, Khmer, Myanmar
 # Accented Latin. This MUST sit in the SAME character class as a-z, not in a class of its own,
-# because Latin scripts interleave the two inside a single word. Vietnamese is the case that
-# matters — one of the nine live-test economies — where "dữ liệu được chuyển" tokenised as
-# ['d','li','u','đư','c','chuy','n']: every diacritic split the word, leaving one-letter
-# fragments so common they match any document at all. Unlike the Chinese failure (a flat zero,
-# obvious the moment anyone looked) this one returns plausible NON-ZERO scores computed from
-# noise, so no log, no metric and no exception reports anything wrong. The same shredding hit
-# Portuguese (Timor-Leste: "Artigo 1.º", "proteção") and every other accented Latin language.
-#   U+00C0–U+024F  Latin-1 Supplement + Extended-A/B  (é ç ă đ ơ ư)
-#   U+1E00–U+1EFF  Latin Extended Additional          (ế ộ ữ — the 45 Vietnamese tone forms)
+# because Latin scripts interleave the two inside a single word. Portuguese is the case that
+# matters now — Timor-Leste, on the panel's list — where "proteção de dados" and "Artigo 1.º"
+# shredded into one-letter fragments: every diacritic split the word, leaving pieces so common
+# they match any document at all. Unlike the Chinese failure (a flat zero, obvious the moment
+# anyone looked) this one returns plausible NON-ZERO scores computed from noise, so no log, no
+# metric and no exception reports anything wrong.
+#   U+00C0-U+024F  Latin-1 Supplement + Extended-A/B  (é ç ã õ ă đ) - Portuguese, Bahasa
+#   U+1E00-U+1EFF  Latin Extended Additional          (ế ộ ữ)
+# The second range is kept although no economy on the list needs it: a Timorese or Indonesian
+# document can quote a Vietnamese instrument, and dropping it would be a behaviour change that
+# buys nothing.
 _LATIN_EXT = r"\u00c0-\u024f\u1e00-\u1eff"
 # Every other letter-bearing script: Greek, Cyrillic, Armenian, Hebrew, Arabic, Devanagari
 # through Sinhala, Georgian. These ARE spaced, so they tokenise as words.

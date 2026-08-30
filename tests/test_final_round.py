@@ -26,26 +26,26 @@ def test_every_live_test_economy_is_declarable(code):
 
 
 @pytest.mark.parametrize("typed,expected", [
-    ("Thailand", "TH"), ("Viet Nam", "VN"), ("Vietnam", "VN"), ("Indonesia", "ID"),
-    ("Kazakhstan", "KZ"), ("Lao PDR", "LA"), ("Laos", "LA"),
+    ("Thailand", "TH"), ("Indonesia", "ID"), ("Lao PDR", "LA"), ("Laos", "LA"),
     ("Lao People's Democratic Republic", "LA"), ("Russian Federation", "RU"), ("Russia", "RU"),
+    ("Timor-Leste", "TL"), ("Timor Leste", "TL"), ("East Timor", "TL"),
 ])
 def test_the_names_a_steward_will_actually_type_resolve(typed, expected):
     assert resolve_economy(typed).value == expected
 
 
 def test_un_names_match_the_instructions_exactly():
-    """The Instructions sheet names two spellings itself, and both are easy to get wrong:
-    "Viet Nam" is two words with no circumflex, and Lao PDR's UN name is not "Laos"."""
-    assert ECONOMY_UN_NAME["VN"] == "Viet Nam"
+    """The submission template needs the UN member-state name, and two are easy to get wrong:
+    Lao PDR's is not "Laos", and Timor-Leste keeps its hyphen."""
     assert ECONOMY_UN_NAME["LA"] == "Lao People's Democratic Republic"
+    assert ECONOMY_UN_NAME["TL"] == "Timor-Leste"
 
 
 @pytest.mark.parametrize("code", LIVE_TEST_POOL)
 def test_every_live_test_economy_has_its_own_language_profile(code):
-    """Kazakhstan had no entry, so profile_for("KZ") returned the Latin default: Cyrillic text
-    would have been called Latin script, handed to an English cross-encoder, and reported as
-    English in the Language of Source column. A missing key is silent in all three places."""
+    """Timor-Leste had no entry, so profile_for("TL") returned the Latin default: a Portuguese
+    statute would have been handed to an English cross-encoder and reported as English in the
+    Language of Source column. A missing key is silent in both places."""
     assert code in PROFILES, f"{code} falls through to the Latin default"
 
 
@@ -55,7 +55,7 @@ def test_english_economies_take_the_english_lane(code):
     assert EP.profile_for(code).lane == EP.LANE_ENGLISH
 
 
-@pytest.mark.parametrize("code", ["VN", "ID"])
+@pytest.mark.parametrize("code", ["ID", "TL"])
 def test_latin_script_but_not_english_takes_the_non_english_lane(code):
     """The defect this pins: both economies write in Latin letters, so a script-keyed lane put
     them on the English cross-encoder. That model's score is fused at the same weight as BM25,
@@ -74,8 +74,8 @@ def test_no_economy_reports_a_language_it_does_not_speak(code):
     assert lang and lang != ""
     if code == "ID":
         assert lang == "Indonesian"
-    if code == "KZ":
-        assert lang == "Kazakh"
+    if code == "TL":
+        assert lang == "Portuguese"
 
 
 # ── OCR: no script may be a dead end ─────────────────────────────────────────────────
@@ -89,12 +89,11 @@ def test_every_live_test_economy_resolves_a_real_ocr_engine(code):
     assert not isinstance(provider, UnavailableOCR), getattr(provider, "reason", "")
 
 
-@pytest.mark.parametrize("code", ["MN", "KZ"])
-def test_paddle_is_disqualified_for_mongolian_and_kazakh_by_measurement(code):
+def test_paddle_is_disqualified_for_mongolian_by_measurement():
     """Measured against eslav_PP-OCRv5_mobile_rec's own 517-character dictionary: Ө Ү ө ү are
-    absent (Mongolian loses four letters) and sixteen Kazakh letters are absent. Setting a
-    paddle code here would produce fluent text missing letters, with no error raised."""
-    assert profile_for(code).paddle is None
+    absent, so Mongolian loses four letters. Setting a paddle code here would produce fluent
+    text missing letters, with no error raised."""
+    assert profile_for("MN").paddle is None
 
 
 def test_paddle_language_keys_match_the_installed_paddleocr():
@@ -104,13 +103,12 @@ def test_paddle_language_keys_match_the_installed_paddleocr():
     assert profile_for("RU").paddle == "ru"
 
 
-def test_vietnamese_never_routes_to_a_latin_recogniser():
-    """latin_PP-OCRv5_mobile_rec carries đ ă ơ ư but none of the 45 precomposed tone forms, so
-    a Vietnamese verbatim snippet cannot survive it. paddle lang "vi" loads that very model
-    without raising, which is why this is pinned rather than left to the note."""
-    p = profile_for("VN")
-    assert p.paddle is None and p.rapidocr is None
-    assert "vlm" in p.preferred
+def test_no_script_is_left_without_a_last_resort():
+    """An engine can only emit what is in its dictionary, so every economy whose script has no
+    validated recogniser must still reach the vision model — "nothing can read this" is not an
+    answer a sealed live test accepts."""
+    for code in ("LA", "MN"):
+        assert "vlm" in profile_for(code).preferred, code
 
 
 # ── indicator codes ──────────────────────────────────────────────────────────────────
@@ -212,15 +210,16 @@ def test_exported_row_carries_the_numeric_code_and_the_language():
     from backend.export.csv_export import _row
     from backend.schemas import ConfidenceBreakdown, DiscoveryTag, EvidenceMapping, ReviewStatus
     m = EvidenceMapping(
-        mapping_id="m1", run_id="r1", economy=Economy.VN, pillar=6, indicator_id="P6-I4",
-        law_name="Luật An ninh mạng 2018", article_section="Điều 26", verbatim_snippet="…",
+        mapping_id="m1", run_id="r1", economy=Economy.TL, pillar=6, indicator_id="P6-I4",
+        law_name="Lei da Protecção de Dados Pessoais", article_section="Artigo 26.º",
+        verbatim_snippet="…",
         source_url="https://example.test/x", mapping_rationale="…", confidence_score=0.9,
         discovery_tag=DiscoveryTag.NEW, review_status=ReviewStatus.AUTO_ACCEPTED,
         provision_id="p1", confidence=ConfidenceBreakdown())
     row = _row(m)
     assert row["Indicator ID"] == "6.4"
-    assert row["Language of Source"] == "Vietnamese"
-    assert row["Economy"] == "Viet Nam"
+    assert row["Language of Source"] == "Portuguese"
+    assert row["Economy"] == "Timor-Leste"
 
 
 def test_an_amending_act_row_is_annotated_on_export():
@@ -357,8 +356,8 @@ def test_the_benchmark_evidence_is_recorded_where_the_choice_is_made():
     assert "PIPELINE" in src and "RECOGNISER" in src
 
 
-def test_lao_mongolian_and_kazakh_are_still_unmeasured_by_anyone():
+def test_lao_and_mongolian_are_still_unmeasured_by_anyone():
     """Neither benchmark covers them. Claiming otherwise would be the easiest way to turn a
     real gap into an invisible one, so the registry keeps them validated=False."""
-    for code in ("LA", "MN", "KZ"):
+    for code in ("LA", "MN"):
         assert not profile_for(code).validated, code

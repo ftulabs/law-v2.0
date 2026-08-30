@@ -16,14 +16,14 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 SRC = ROOT / "world110m.json"
 OUT = ROOT / "frontend" / "components" / "geo" / "world.json"
 
-# ISO-3166 numeric ids used by world-atlas, for every economy VeriTrade covers.
+# ISO-3166 numeric ids used by world-atlas, one per economy VeriTrade covers — the panel's
+# eight plus the three mandatory ones.
 # 626 = Timor-Leste, added 2026-08-28: it is on the panel's list and carries the difficulty
 # bonus, and it was missing here because the economy itself was missing from the codebase.
 # At 110m it is a real outline, not a dot — Natural Earth carries it.
 NUMERIC = {
     "702": "SG", "036": "AU", "458": "MY", "156": "CN", "356": "IN", "496": "MN",
-    "764": "TH", "704": "VN", "360": "ID", "398": "KZ", "418": "LA", "643": "RU",
-    "626": "TL",
+    "764": "TH", "360": "ID", "418": "LA", "643": "RU", "626": "TL",
 }
 
 

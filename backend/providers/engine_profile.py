@@ -91,9 +91,9 @@ class EngineProfile:
 #               snippet itself is never rewritten — a translated snippet is a false citation.
 #
 #
-# The lane is keyed on LANGUAGE, not script. Viet Nam and Indonesia write in Latin letters and
+# The lane is keyed on LANGUAGE, not script. Indonesia and Timor-Leste write in Latin letters and
 # still need the non-English lane: the cross-encoder is an English model, and its score is
-# fused into the ranking at the same weight as BM25, so applying it to Vietnamese degrades the
+# fused into the ranking at the same weight as BM25, so applying it to Bahasa degrades the
 # result rather than merely failing to improve it. Keying on script put both economies on the
 # English lane for no better reason than a shared alphabet.
 LANE_ENGLISH = "english"

@@ -132,7 +132,13 @@ SYSTEM = (
     "true,\"legal_match\":0.95,\"scope_alignment\":1.0,\"scope_flag\":null,\"rationale\":\"This "
     "Article permits cross-border transfer on consent or destination adequacy. Maps to P6-I4 "
     "because transfer stays possible once a condition is met — conditional flow, not a ban (P6-I1).\"}\n"
-    # 2 — Kazakhstan, Law No.94-V 2013, Art.12(2) → 6.2 local storage
+    # 2 — Kazakhstan, Law No.94-V 2013, Art.12(2) → 6.2 local storage.
+    #     Kazakhstan is NOT a supported economy (removed 2026-08-30, it is on no list the panel
+    #     published). This stays because it is a worked example of a legal test, not a country
+    #     declaration: it is the clearest short provision that separates "store it here" (6.2)
+    #     from "run servers here" (6.3), and the prompt's behaviour is measured. Swapping it for
+    #     a provision from a supported economy would mean re-validating the grader to gain
+    #     nothing a reader of this file could see.
     "P6-I2 :: 'Personal data shall be stored by the owner and/or operator, as well as by a third "
     "party in a database located in the territory of the Republic of Kazakhstan.' → {\"operative_"
     "rule\":\"Requires personal data to be stored in a database located in Kazakhstan\",\"satisfies"

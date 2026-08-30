@@ -11,11 +11,14 @@ silently wrong for every Finals economy that does not write in Latin script.
 Recognition models are per-script, so the choice is load-bearing: an engine can only emit
 characters that exist in its output dictionary. Two verified examples of that failing hard:
 
-* PaddleOCR routes Vietnamese to its shared `latin` recogniser, whose dictionary contains the
-  base letters (ă â đ ê ô ơ ư) but NONE of the 45 precomposed tone-marked forms (ế ộ ữ …), and
-  no combining marks either. Vietnamese output is therefore corrupted deterministically, not
-  probabilistically — a verbatim legal snippet cannot survive it.
 * PaddleOCR's pre-v5 Cyrillic dictionary omits Ө/Ү entirely, so Mongolian loses two letters.
+* An engine will accept a language it cannot render. `PaddleOCR(lang="vi")` constructs without
+  error and quietly loads the shared `latin` recogniser, whose 836-character dictionary has the
+  base letters but not one precomposed tone form — a configuration that looks like it works and
+  destroys the text. Viet Nam is no longer a supported economy, but the trap is not about
+  Vietnamese: it is why every entry below is set from the model's OWN dictionary rather than
+  from the engine's list of language codes. Portuguese and Tetum for Timor-Leste were checked
+  the same way.
 
 Evidence grade is recorded per language because most of these numbers do not exist. Anything
 marked `validated=False` has NO published document-level CER for any engine, and our own
@@ -30,7 +33,7 @@ from dataclasses import dataclass
 RAPIDOCR, PADDLE, TESSERACT, AZURE, GOOGLE = "rapidocr", "paddle", "tesseract", "azure", "google"
 #: Vision-model OCR. Unlike every engine above it has NO per-script dictionary, so it is
 #: never disqualified by script — which is exactly why it is the last-resort fallback for
-#: Mongolian, Kazakh, Vietnamese and Lao. See ocr_vlm.py for what it costs to use it.
+#: Mongolian and Lao. See ocr_vlm.py for what it costs to use it.
 VLM = "vlm"
 
 # ── What the public benchmarks do and do not settle (read 2026-08-22) ────────────────
@@ -58,7 +61,7 @@ VLM = "vlm"
 #    self-host-only — so the hosted fallback has to be a general VLM, and Qwen3-VL-8B is the
 #    best-evidenced one we can actually reach.
 #
-# 2. NEITHER benchmark covers Lao, Mongolian or Kazakh — our three hardest scripts. Every
+# 2. NEITHER benchmark covers Lao or Mongolian — our two hardest scripts. Every
 #    number about them remains our own or nobody's.
 #
 # 3. PP-StructureV3's collapse on Thai (15.4), Russian (7.7) and Chinese (7.5) is a warning,
@@ -81,7 +84,7 @@ class LangProfile:
     * `spaces_between_words=False` (Thai, Lao, Chinese) breaks every whitespace tokeniser.
       BM25 retrieval silently degrades to near-zero recall because the "words" it indexes are
       whole sentences, and this happens even when OCR is perfect. A segmenter is required.
-    * `stacking_marks=True` (Thai, Lao, Vietnamese) is the dominant OCR error mode for these
+    * `stacking_marks=True` (Thai, Lao) is the dominant OCR error mode for these
       scripts, and it also means CER must be computed on Unicode-normalised text or the metric
       reports phantom errors from NFC/NFD differences alone.
     * `legacy_encoding_risk=True` means a PDF can carry a perfectly good text layer that still
@@ -211,38 +214,6 @@ PROFILES: dict[str, LangProfile] = {
     
         language="Mongolian",
     ),
-    "KZ": LangProfile(
-        # Kazakhstan was ABSENT from this table until the live-test nine were declared, so
-        # profile_for("KZ") returned the Latin default: is_latin_script() said True, the English
-        # cross-encoder was applied to Cyrillic, and OCR would have loaded a Latin dictionary.
-        # Every one of those is silent. A missing key is the most expensive kind of entry here.
-        script="Cyrillic (Kazakh)", rapidocr="cyrillic", paddle=None, tesseract="kaz",
-        azure="kk", preferred=(RAPIDOCR, AZURE, TESSERACT, VLM), validated=False,
-        note=("Worst Cyrillic coverage of the nine. Measured against eslav_PP-OCRv5_mobile_rec's "
-              "own dictionary, SIXTEEN of the 42 Kazakh letters are missing (Ә Ғ Қ Ң Ө Ұ Ү Һ "
-              "and their lower case; only І/і are present), so PaddleOCR is disqualified by "
-              "measurement rather than by caution. Second hazard, unique to Kazakhstan: the "
-              "2017-2025 Latin-alphabet transition means adil.gov.kz carries statutes in BOTH "
-              "Cyrillic and Latin orthography, and Russian is co-official — so script detection "
-              "must run per document, never per economy."),
-        unicode_ranges=((0x0400, 0x04FF), (0x0020, 0x024F)),
-
-        language="Kazakh",
-    ),
-    "VN": LangProfile(
-        # Deliberately NOT paddle: its latin dictionary cannot emit Vietnamese tone marks.
-        script="Latin (Vietnamese)", rapidocr=None, paddle=None, tesseract="vie", azure="vi",
-        preferred=(AZURE, TESSERACT, VLM), validated=True,
-        note=("PaddleOCR/RapidOCR latin models are DISQUALIFIED here, and it is now measured: "
-              "latin_PP-OCRv5_mobile_rec's 836-character dictionary DOES carry đ ă ơ ư but "
-              "NOT one of the precomposed tone forms (ế ộ ữ ạ ằ …), so diacritics are lost by "
-              "construction. Note paddle lang 'vi' CONSTRUCTS without error and quietly loads "
-              "that same latin model — a config that looks like it works and does not. Measured on VieBookRead: Azure 0.04 CER, Tesseract vie 0.12, "
-              "EasyOCR 0.25."),
-        unicode_ranges=((0x0020, 0x024F), (0x1EA0, 0x1EF9)), stacking_marks=True,
-    
-        language="Vietnamese",
-    ),
     "IN": LangProfile(
         # indiacode.nic.in publishes Central Acts in ENGLISH as the authoritative text, so the
         # Latin path carries the load and Devanagari is only needed for Hindi editions. That
@@ -347,12 +318,12 @@ def is_english_text(economy: str | None) -> bool:
     """True when the AUTHORITATIVE statute text is in English.
 
     Script and language answer different questions, and conflating them was a real defect.
-    `is_latin_script` is the right test for TOKENISATION — Vietnamese and Indonesian are Latin
+    `is_latin_script` is the right test for TOKENISATION — Indonesian and Portuguese are Latin
     and do tokenise as words. It is the wrong test for the CROSS-ENCODER, which is an English
-    model: ms-marco-MiniLM scoring Vietnamese is the same category of noise as ms-marco
+    model: ms-marco-MiniLM scoring Bahasa Indonesia is the same category of noise as ms-marco
     scoring Chinese, and it is fused into the ranking at the same weight as BM25. Before this
-    split, Viet Nam and Indonesia — two of the nine — took the English reranker purely because
-    their alphabet has the same letters.
+    split, Indonesia took the English reranker purely because its alphabet has the same
+    letters; Timor-Leste would have done the same.
     """
     return profile_for(economy).language == "English"
 

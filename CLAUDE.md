@@ -224,7 +224,7 @@ Register new providers in `backend/providers/llm_factory.py`.
   licence, AU's Telecommunications Regulations 2021 (an instrument, not an Act), MY sectoral
   Codes of Practice + PDP Standard 2015. **This is the largest remaining coverage gap, and it
   is a discovery problem, not a retrieval one.**  
-❌ **Live-test six (TH/VN/ID/KZ/LA/RU) are NOT end-to-end ready** — all six have only generic `websearch` lanes with zero portal-scoped queries and `verified: false` (`data/sources.yaml`). Measured 2026-08-25: TH and ID timed out (their lanes hang on the DuckDuckGo HTML endpoint), VN returned 22 documents of pure noise (no `site:` scope — `OFFICIAL_PORTAL` has no VN entry — so results were EU/Canadian/US pages). KZ/LA/RU share the same lane shape and are unproven; LA's gazette host does not even resolve. These six need per-portal adapters of the kind CN/IN/MN got, not tuning.  
+❌ **TH/ID/LA are NOT end-to-end ready** — generic `websearch` lanes only, zero portal-scoped queries, `verified: false` (`data/sources.yaml`). Measured 2026-08-25: TH and ID time out on the DuckDuckGo HTML endpoint; LA's gazette host does not resolve. RU is further along — its document bodies are reachable on `pravo.gov.ru` (see below) but discovery is unsolved. All four need per-portal adapters of the kind CN/IN/MN got, not tuning.  
 ✅ **Three Mongolia defects found and fixed (2026-08-27)** — all SILENT, all cost the run its
   document set. A pillar-6 run returned FOUR documents, of which one was a statute.
   (1) `_matches` assumed a Mongolian stem reaches its declined form by substring, using
@@ -428,7 +428,7 @@ When corpus ≤80 provisions, **every provision is graded by the LLM against eve
 
 The tool is built to be auditable, not hidden:
 
-1. **Live crawling** runs end-to-end for SG/AU/MY/CN/IN/MN (measured 2026-08-25). Two caveats: MY's primary portal (`lom.agc.gov.my`) serves a broken robots.txt (HTTP 500) so its statute PDFs are currently skipped — the run leans on `pdp.gov.my`; CN's principal statutes can vanish when `cac.gov.cn` is unreachable (JS-only `flk.npc.gov.cn` is the fallback). The six live-test economies TH/VN/ID/KZ/LA/RU have no working lane yet (generic websearch only, unverified portals).
+1. **Live crawling** runs end-to-end for SG/AU/MY/CN/IN/MN (measured 2026-08-25). Two caveats: MY's primary portal (`lom.agc.gov.my`) serves a broken robots.txt (HTTP 500) so its statute PDFs are currently skipped — the run leans on `pdp.gov.my`; CN's principal statutes can vanish when `cac.gov.cn` is unreachable (JS-only `flk.npc.gov.cn` is the fallback). TH/ID/LA have no working lane yet (generic websearch, unverified portals); RU can fetch document bodies but cannot yet discover them.
 2. **Scanned/image PDFs** are handled by real raster OCR (RapidOCR/Paddle), measured CER on bundled sample is 1.11% (PASS <5%).
 3. **Mock grader** is lexical (offline) and can confuse P6-I1/P6-I4, P7-I1/P7-I2 without a real LLM → always use a real LLM (OpenRouter/Claude) for submission.
 4. **Indicator `legal_test`** are our interpretation of the RDTII methodology; review pending_review rows before submission.
@@ -481,7 +481,7 @@ Use this as if you're a judge reviewing VeriTrade for the RDTII hackathon:
 
 ### High Priority (confidence for score boost)
 1. **MY robots.txt carve-out** — treat `lom.agc.gov.my/robots.txt` HTTP 500 as "unreachable → proceed" (RFC 9309 §2.3.1.4), the same carve-out the India lane already has, so the primary portal's statute PDFs stop being silently skipped
-2. **Lanes for TH/VN/ID/KZ/LA/RU** — per-portal adapters + portal-scoped queries + native vocabulary, modelled on the CN/IN/MN lanes; today these six are generic-websearch-only and cannot produce a trustworthy run
+2. **Lanes for TH/ID/LA/RU** — per-portal adapters + portal-scoped queries + native vocabulary, modelled on the CN/IN/MN lanes; today these four cannot produce a trustworthy run
 3. **CN principal-statute resilience** — PIPL/CSL/DSL must survive `cac.gov.cn` being unreachable: render `flk.npc.gov.cn` (browser lane) or add more mirrors
 4. **Multilingual cross-encoder reranker** — swap to `BAAI/bge-reranker-v2-m3` for Finals (China, Russia, Lao, Mongolian text)
 5. **Manual review UI** — build the workflow.py skeleton into a functional reviewer dashboard (flag low-confidence, allow edit/accept/reject, export amended CSV)
@@ -494,7 +494,7 @@ Use this as if you're a judge reviewing VeriTrade for the RDTII hackathon:
 8. **Confidence calibration** — collect feedback on low/high confidence rows to tune the 4-signal model
 
 ### Low Priority (polish, if time permits)
-9. **Multi-language UI** — Vietnamese translation for FTU team demos
+9. **Multi-language UI** — a second interface language for FTU team demos
 10. **Docker image baking** — HuggingFace model weights baked into the image for offline deployment
 
 ---
@@ -514,7 +514,7 @@ Use this as if you're a judge reviewing VeriTrade for the RDTII hackathon:
 | Change LLM | Edit `.env`: `LLM_PROVIDER=openrouter`, `OPENROUTER_API_KEY=...` |
 | Change OCR | Edit `.env`: `OCR_PROVIDER=rapidocr` or `paddle` |
 | Change retriever | Edit `.env`: `RETRIEVER=auto` (default) or `hybrid` or `lightrag` |
-| Turn translation off / retarget | Edit `.env`: `TRANSLATION_ENABLED=false`, or `TRANSLATION_TARGET_LANG=Vietnamese` |
+| Turn translation off / retarget | Edit `.env`: `TRANSLATION_ENABLED=false`, or `TRANSLATION_TARGET_LANG=French` |
 | Run tests | `pytest tests/` |
 | Enumerate an economy's whole corpus | `python -m backend.corpus.cli catalogue --economy MY` |
 | Fetch/extract/split it | `python -m backend.corpus.cli build --economy MY` |
@@ -551,7 +551,7 @@ title matching, size-aware ranking over title length, and clause splitting witho
 pillar 6 went from 4 documents (1 statute) to 22 with every relevant answer-key law ranked top.
 (3) Working-translation layer added (`backend/pipeline/translate.py`) — 2 CSV columns after the
 mandatory 14, plus the evidence panel, Details and Review surfaces. `tests/test_mn_discovery_and_translation.py`.
-2026-08-25 — Live re-verification of all six reference economies (SG/AU/MY/CN/IN/MN) end-to-end on pillars 6+7; new blockers recorded (MY robots.txt 500, CN cac.gov.cn reachability, TH/VN/ID/KZ/LA/RU lanes absent); output format corrected to 14 columns. Outputs: `outputs/rt_check/`.
+2026-08-25 — Live re-verification of all six reference economies (SG/AU/MY/CN/IN/MN) end-to-end on pillars 6+7; new blockers recorded (MY robots.txt 500, CN cac.gov.cn reachability, TH/ID/LA/RU lanes absent); output format corrected to 14 columns. Outputs: `outputs/rt_check/`.
 2026-08-19 — Round-2 expansion (CN/IN/MN): multilingual retrieval, script-aware extraction, language-aware grading prompt. See `docs/round2-expansion.md`.
 2026-06-07  
 Claude Code auto-memory + consolidated from project memory files + README + code inspection.

@@ -168,7 +168,7 @@ class Settings(BaseSettings):
     poppler_path: str = ""
 
     # Vision-model OCR — the fallback for scripts no local recognition model covers
-    # (Mongolian and Kazakh Cyrillic, Vietnamese tone marks, Lao). OpenAI chat-completions
+    # (Mongolian Cyrillic, Lao). OpenAI chat-completions
     # shape, so the same code reaches a hosted router or a local open-weights server: point
     # vlm_ocr_base_url at http://localhost:11434/v1 with an Ollama-served Qwen2.5-VL and the
     # pipeline uses no proprietary API at all, which is what the Section 3 declaration claims.

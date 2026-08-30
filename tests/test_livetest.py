@@ -142,12 +142,12 @@ def test_the_picker_offers_exactly_what_the_assignment_can_name():
     the one screen where the difference is decided against a clock.
 
     Eleven, not nine: the panel publishes eight countries and the assignment "draws from the
-    listed economies", which includes the mandatory three. Viet Nam and Kazakhstan are on no
-    published list; Timor-Leste is, and carries the bonus."""
-    from backend.schemas import FINAL_ROUND_LIST, LIVE_TEST_POOL, NOT_ON_PANEL_LIST
+    listed economies", which includes the mandatory three. Timor-Leste is on the list and
+    carries the bonus; nothing that is NOT on it may be offered here."""
+    from backend.schemas import FINAL_ROUND_LIST, LIVE_TEST_POOL, ROUND1_ECONOMIES
     assert set(livetest.LIVE_TEST_ORDER) == set(LIVE_TEST_POOL)
     assert "TL" in FINAL_ROUND_LIST, "Timor-Leste is on the list and carries a bonus"
-    assert not set(NOT_ON_PANEL_LIST) & set(LIVE_TEST_POOL), "VN/KZ are on no published list"
+    assert set(LIVE_TEST_POOL) == set(FINAL_ROUND_LIST) | set(ROUND1_ECONOMIES)
 
 
 # ── what the organisers' own template requires, and this file used to get wrong ──────

@@ -1,7 +1,7 @@
 """Working translations of the evidence, for a reviewer who does not read the statute language.
 
 Six of the nine live-test economies legislate in a script the reviewer cannot read — Chinese,
-Mongolian, Thai, Lao, Russian, Kazakh — and the two columns that carry the actual finding are
+Mongolian, Thai, Lao, Russian, Portuguese — and the two columns that carry the actual finding are
 `Law Name` and `Verbatim Snippet`, both of which are the statute's own words by definition. So
 the output of a correct run on Mongolia is a spreadsheet nobody on the team can check. Not
 "hard to read": unverifiable. The mapping rationale is already written in English (see the

@@ -47,7 +47,8 @@ def test_the_geometry_itself_never_depends_on_the_network():
 def test_the_world_outline_ships_with_the_component():
     world = json.loads((COMPONENT / "world.json").read_text(encoding="utf-8"))
     assert world["land"], "no land outline"
-    assert len(world["economies"]) >= 11
+    # every economy the app declares except Singapore, which is smaller than the 110m mesh
+    assert len(world["economies"]) >= 10
 
 
 def test_the_outline_is_small_enough_to_ship():
