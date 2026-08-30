@@ -73,8 +73,40 @@ _APP_RE = re.compile(r"\bapp\s*(\d+(?:\.\d+)?)", re.I)
 _STRUCTURAL_RE = re.compile(r"^\s*(part|division|chapter|schedule|subdivision)\b", re.I)
 
 
+_HAN_DIGITS = {"〇": 0, "零": 0, "一": 1, "二": 2, "两": 2, "三": 3,
+               "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+_HAN_UNITS = {"十": 10, "百": 100, "千": 1000}
+_HAN_ARTICLE_RE = re.compile(r"第([〇零一二三四五六七八九十百千两]+)[条條]")
+_THAI_DIGITS = str.maketrans("๐๑๒๓๔๕๖๗๘๙", "0123456789")
+
+
+def _han_to_int(s: str) -> int | None:
+    """三十五 → 35. None when the string is not a Han numeral.
+
+    The panel writes its citations in Arabic numerals ("Article 35") while a Chinese statute
+    numbers its articles 第三十五条, and _SEC_NUM_RE looks for digits. Every Chinese provision
+    therefore keyed to None, so China's measured provision recall was 0.000 BY CONSTRUCTION —
+    at k = the whole corpus, where retrieval could not affect it either way. A metric that
+    cannot rise is not a measurement, and this one was about to be reported as a finding.
+    """
+    total, part, seen = 0, 0, False
+    for ch in s:
+        if ch in _HAN_DIGITS:
+            part = _HAN_DIGITS[ch]
+            seen = True
+        elif ch in _HAN_UNITS:
+            # "十五" is 15: a bare 十 with nothing before it means one ten.
+            total += (part or 1) * _HAN_UNITS[ch]
+            part = 0
+            seen = True
+        else:
+            return None
+    return total + part if seen else None
+
+
 def section_key(article_section: str) -> str | None:
-    """'Section 199' → '199'; 'APP 8' → 'app8'; 'Regulation 3.1.1' → '3.1.1'.
+    """'Section 199' → '199'; 'APP 8' → 'app8'; 'Regulation 3.1.1' → '3.1.1';
+    '第三十五条' → '35'; 'มาตรา ๑๐' → '10'.
     Structural headings (Part/Division/Schedule) return None — they are not provisions."""
     s = (article_section or "").strip()
     m = _APP_RE.search(s)
@@ -82,6 +114,15 @@ def section_key(article_section: str) -> str | None:
         return "app" + m.group(1)
     if _STRUCTURAL_RE.match(s):
         return None
+    # Native numerals first: China and Thailand both number articles in a script the
+    # Arabic-digit pattern cannot see, and both are on the panel's list.
+    m = _HAN_ARTICLE_RE.search(s)
+    if m:
+        n = _han_to_int(m.group(1))
+        if n is not None:
+            return str(n)
+    if any("๐" <= c <= "๙" for c in s):
+        s = s.translate(_THAI_DIGITS)
     m = _SEC_NUM_RE.search(s)
     return m.group(1).lower() if m else None
 
