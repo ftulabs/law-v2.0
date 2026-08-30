@@ -130,3 +130,38 @@ def test_every_listed_economy_has_a_way_to_split():
     own_pattern = {"CN", "MN"} | {e.value for e in ARTICLE_PATTERNS}
     for code in set(FINAL_ROUND_LIST) | set(ROUND1_ECONOMIES):
         assert code in english or code in own_pattern, f"{code} has no article splitter"
+
+
+# ── a document that is not the law must not count as one ──────────────────────────────────
+def test_a_landing_page_is_marked_a_shell_not_a_provision():
+    """Indonesia's corpus was nine peraturan.bpk.go.id ABSTRACT pages and Russia's was the IPS
+    frameset. Each was recorded as a document built successfully, contributing exactly one
+    provision, and every number computed from those corpora silently included them."""
+    from types import SimpleNamespace
+
+    from backend.corpus.build import _looks_like_a_shell
+
+    whole_doc = [SimpleNamespace(article_section="(document)")]
+    assert _looks_like_a_shell(whole_doc, 895)          # a bpk abstract page
+    assert _looks_like_a_shell(whole_doc, 585)          # the IPS frameset
+    # …and the cases it must NOT swallow
+    assert not _looks_like_a_shell(whole_doc, 40_000), "a long unsplit document is a splitter bug"
+    assert not _looks_like_a_shell(
+        [SimpleNamespace(article_section="Pasal 1"),
+         SimpleNamespace(article_section="Pasal 2")], 900), "it found articles; it is the law"
+
+
+def test_a_fetch_failure_says_which_kind_it_was():
+    """"fetch failed" was recorded for a 404, a WAF block, a DNS failure and a timeout alike,
+    so diagnosing twenty of them meant re-probing every URL by hand. Each needs a different
+    answer: a 403 escalates to the browser, a 404 is the panel's dead link, DNS is a wrong host."""
+    import httpx
+
+    from backend.pipeline.fetch import _why
+
+    req = httpx.Request("GET", "https://example.gov/x.pdf")
+    for code, expect in ((403, "blocked"), (404, "not found"), (429, "rate-limited")):
+        e = httpx.HTTPStatusError("", request=req, response=httpx.Response(code, request=req))
+        assert f"HTTP {code}" in _why(e) and expect in _why(e)
+    assert _why(httpx.ConnectTimeout("timed out")) == "timeout"
+    assert "DNS" in _why(httpx.ConnectError("[Errno 11002] getaddrinfo failed"))

@@ -65,13 +65,13 @@ C4a handover 8 · C4b no vendor lock-in 7 · C5 live test 10 (discovery 6 + engi
 | SG | portal adapter, verified | yes (14,610 prov) | yes | **cap 80** (prov+law recall 1.000 from k=40) | 2026-08-28 · 7/7 answer-key indicators at 760 calls |
 | AU | portal adapter, verified | yes (18,262) | yes | **cap 450** — genuinely needs the depth (1.000 only from k=300) | 2026-08-28 · 8/8 answer-key indicators |
 | MY | portal adapter, verified | yes (14,903) | yes | **cap 150** (law recall 1.000 from k=80; prov flat 0.875 at every k) | 2026-08-28 · robots carve-out landed: 489 → 5,931 provisions |
-| CN | 2 portal lanes, unverified | eval, 19 docs / 261 prov ⚠ 1.9k chars/doc | yes | no | 2026-08-25 (fragile) |
-| IN | 5 lanes, unverified | eval, 7 docs / 224 prov | yes | no | 2026-08-25 |
+| CN | 2 portal lanes, unverified | eval, 10 docs / 251 prov (10 shells, 3 dead links) | yes | no | 2026-08-25 (fragile) |
+| IN | 5 lanes, unverified | eval, 11 docs / 222 prov (**20 failed: link rot + robots**) | yes | no | 2026-08-25 |
 | MN | 1 lane, unverified | eval, 4 docs / 397 prov | yes | no | 2026-08-27 |
-| TH | generic websearch only | eval, 6 docs / 103 prov | yes | no | **no** |
-| ID | generic websearch only | eval, 7 docs / **7 prov** ⚠ unsplit | yes | no | **no** |
-| LA | generic websearch only | eval, 2 docs / 452 prov | yes | no | **no** |
-| RU | body route solved, discovery open | eval, 2 docs / **2 prov** ⚠ chrome only | yes | no | no |
+| TH | generic websearch only | eval, 6 docs / 206 prov | yes | no | **no** |
+| ID | generic websearch only | eval, 11 docs / 252 prov | yes | no | **no** |
+| LA | generic websearch only | eval, 2 docs / 226 prov | yes | no | **no** |
+| RU | body route open, discovery open | eval, 3 docs / **2 prov** ⚠ garant blocks, IPS unreachable | yes | no | no |
 | **TL** | gazette lane, unverified | no | **impossible** (no database sheet) | no | reachable only |
 
 "Labels" = rows parsed from the panel's own databases by `backend/eval/ground_truth.py`
@@ -152,16 +152,33 @@ Priority order. `[ ]` not started · `[~]` in progress · `[x]` done (move to §
       76 are headings; Indonesian: 24 of 39). Thailand went from 2 whole-document blocks to
       206 article-level provisions. Portuguese is the one pattern that is case-SENSITIVE:
       "Artigo" opens an article, "artigo" cites one. `tests/test_civil_law_splitting.py`.
-- [~] **The remaining gap on ID/RU is FETCH, not splitting** — corrected 2026-08-30 after
-      reading the stored text. Indonesia's documents are `peraturan.bpk.go.id` ABSTRACT pages
-      ("MATERI POKOK PERATURAN Abstrak…") with no articles in them at all; the statute is a
-      separate PDF (`/Download/<id>/<name>.pdf`, verified fetchable — 24 Pasal). Russia's are
-      the IPS frameset. Chinese documents were fine all along: 第一条 splits correctly, and the
-      low chars/doc average was a few short notices, not landing pages.
-- [ ] India fetch: 20 of 27 cited instruments failed to download.
+- [x] **Fetch fixed where it was ours to fix** (2026-08-30). Three changes, all general:
+      · a refusal now escalates to the stealth browser even with `crawl_browser` off
+        (`fetch_browser_on_block`) — bpk.go.id refused httpx AND Scrapling with 403 and served
+        the browser the same page in full, and `sources.yaml` had said so since 21 August
+        while nothing acted on it;
+      · a known landing page is followed to the instrument (`_BODY_ROUTES`): bpk
+        `/Details/<id>` → the `/Download/…pdf` it links;
+      · a fetch failure records WHICH KIND it was instead of "fetch failed" for everything.
+      **Indonesia went from 0 usable provisions to 252** (three real statutes, Pasal-labelled).
+- [x] **A landing page can no longer masquerade as a provision** — `build._looks_like_a_shell`
+      marks a version `shell`, not `split`, when one whole-document block is all that came out
+      of under 8,000 characters. `load_provisions` filters on `split`, so a shell cannot enter
+      retrieval, a budget or a recall figure. It caught 10 in China, 3 in Indonesia, 2 in India
+      and 1 in Russia that had all been counted as built documents.
+- [ ] **Most of what is still missing is NOT ours to fix, and that is the finding.** Across
+      all seven, the failure taxonomy is now: **13 × HTTP 404 (the panel's own link has
+      rotted)**, **11 × robots.txt forbids the path** (mca.gov.in, irdai.gov.in, pfrda.org.in,
+      ifsca.gov.in, pbc.gov.cn, ojk.go.id), 4 × 403 the browser could not clear (garant.ru),
+      4 × other. So an evaluation corpus can never be complete from the answer key alone —
+      each economy needs its own portal adapter. India is the clearest case: 20 of 27
+      instruments, almost all link rot or robots.
 - [ ] One Thai PDF extracts as `(cid:N)` mojibake — a broken font encoding, the
       `legacy_encoding_risk` hazard the language profile names. OCR would read it; the text
       layer must be rejected first.
+- [ ] Indonesian labels show `Pasal 3O` / `Pasal 4O` — a text-layer misread of 30/40. Left
+      alone deliberately: Indonesian articles really do carry letter suffixes ("Pasal 28J"),
+      so a rule that rejected them would lose real citations to catch a cosmetic one.
 - [ ] Portal adapters for TH · ID · LA · RU (today: generic websearch, `verified: false`).
       Measured 2026-08-25: TH and ID time out on the DuckDuckGo HTML endpoint; LA's gazette
       host does not resolve.

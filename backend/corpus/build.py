@@ -58,13 +58,18 @@ def _fetch_one(law: dict, log: Log) -> tuple[dict, dict | None]:
 
     from ..pipeline.fetch import fetch_to_cache
     parts = []
+    # The fetcher explains itself and this function used to throw the explanation away — the
+    # log callback was silenced and the version was then recorded as "fetch failed", for a
+    # 404, a WAF block, a DNS failure and a timeout alike. Diagnosing twenty of them meant
+    # re-probing every URL by hand. Keep the last line instead; it is the one that says why.
+    said: list[str] = []
     for url in _body_urls(law):
-        fr = fetch_to_cache(url, log=lambda m: None)   # fetch.py logs per-URL; keep it quiet
+        fr = fetch_to_cache(url, log=said.append)
         if fr:
             parts.append({"url": url, "local_path": fr.local_path, "fmt": fr.fmt,
                           "sha256": fr.sha256})
     if not parts:
-        return law, None
+        return law, {"error": (said[-1] if said else "fetch failed").replace("[fetch] ", "")[:200]}
     sha = (parts[0]["sha256"] if len(parts) == 1 else
            hashlib.sha256("|".join(p["sha256"] for p in parts).encode()).hexdigest())
     return law, {"body_url": parts[0]["url"], "local_path": parts[0]["local_path"],
@@ -124,10 +129,44 @@ def _process_one(law: dict, fetched: dict, ocr_provider, log: Log) -> dict:
                     ocr_used=int(bool(metrics.used)), ocr_provider=metrics.provider,
                     cer=metrics.cer)
     n = store.save_provisions(vid, law["economy"], provisions)
-    store.set_state(vid, DONE, provisions_n=n)
-    return {"law_id": law["law_id"], "version_id": vid, "provisions": n,
+    shell = _looks_like_a_shell(provisions, total_chars)
+    if shell:
+        # NOT "split". The provisions stay on disk for audit, but `store.load_provisions`
+        # filters on state == "split", so this document cannot enter retrieval, a budget
+        # measurement or a recall figure while it holds no law.
+        store.set_state(vid, "shell", error=shell, provisions_n=n)
+        log(f"[build] SHELL — {shell}: {law.get('title', '')[:52]}")
+    else:
+        store.set_state(vid, DONE, provisions_n=n)
+    return {"law_id": law["law_id"], "version_id": vid, "provisions": 0 if shell else n,
             "chars": total_chars, "pages": metrics.pages, "ocr": bool(metrics.used),
-            "title": law.get("title") or "", "scanned": bool(metrics.used)}
+            "title": law.get("title") or "", "scanned": bool(metrics.used),
+            "shell": bool(shell)}
+
+
+def _looks_like_a_shell(provisions: list, chars: int) -> str | None:
+    """Is this a landing page, a viewer frame or an abstract rather than the law? Reason, or None.
+
+    This guard exists because its absence was expensive and completely silent. Indonesia's
+    corpus was nine `peraturan.bpk.go.id` ABSTRACT pages — "MATERI POKOK PERATURAN Abstrak…",
+    a summary of the statute with not one article in it — and Russia's was the IPS frameset,
+    586 characters of chrome around an iframe. Both were recorded as documents built
+    successfully, each contributing exactly one provision, and every number computed from
+    those corpora silently included them. The symptom that eventually gave it away was
+    chars-per-provision, which nothing was watching.
+
+    The test is deliberately narrow: ONE provision, that provision being the whole document
+    (so no article marker of any kind was found, in any of the languages the splitter knows),
+    and short. A genuinely short single-article instrument does exist — a one-article amending
+    decree — so the length bound is what keeps this from swallowing one, and even then the
+    document is marked rather than deleted.
+    """
+    if len(provisions) != 1 or chars >= 8_000:
+        return None
+    if (provisions[0].article_section or "").strip() != "(document)":
+        return None
+    return (f"no article marker found in {chars} characters — this is probably a landing page, "
+            f"viewer frame or abstract, not the instrument")
 
 
 def build(economy: str, laws: list[dict] | None = None, log: Log = print,
@@ -166,13 +205,13 @@ def build(economy: str, laws: list[dict] | None = None, log: Log = print,
         futures = []
         for i, law in enumerate(todo, 1):
             law2, fetched = _fetch_one(law, log)
-            if not fetched:
+            if fetched is None or "error" in fetched:
                 failed += 1
+                why = (fetched or {}).get("error", "fetch failed")
                 vid = store.version_id(law["law_id"], None, None)
                 store.save_version({"version_id": vid, "law_id": law["law_id"],
-                                    "economy": economy, "state": "failed",
-                                    "error": "fetch failed"})
-                log(f"[build] {i}/{len(todo)} FETCH-FAIL {law.get('title','')[:60]}")
+                                    "economy": economy, "state": "failed", "error": why})
+                log(f"[build] {i}/{len(todo)} FETCH-FAIL [{why[:48]}] {law.get('title','')[:44]}")
                 continue
             futures.append(pool.submit(_process_one, law2, fetched, ocr, log))
             if i % 25 == 0 or i == len(todo):
@@ -191,6 +230,7 @@ def build(economy: str, laws: list[dict] | None = None, log: Log = print,
                 failed += 1
                 log(f"[build] process error: {type(e).__name__}: {e}")
     report = {"economy": economy, "attempted": len(todo), "built": done, "failed": failed,
+              "shells": sum(1 for r in results if r.get("shell")),
               "provisions": provisions, "seconds": round(time.perf_counter() - t0, 1),
               "scanned_docs": sum(1 for r in results if r["scanned"]),
               "pages": sum(r["pages"] or 0 for r in results)}

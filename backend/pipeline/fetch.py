@@ -162,12 +162,54 @@ def fetch_to_cache(url: str, log: Callable[[str], None] = print) -> FetchResult 
         # known-expired certificate it burns three retries (~10s per document) before failing
         # every time. Go straight to the engine that can actually complete the request.
         engines = [e for e in engines if e != "scrapling"] or ["httpx"]
+    said: list[str] = []
+
+    def tee(m):                       # keep what the engines say, and still say it
+        said.append(m)
+        log(m)
+
     for engine in engines:
-        res = (_scrapling_fetch(url, idx, log) if engine == "scrapling"
-               else _httpx_fetch(url, idx, log))
+        res = (_scrapling_fetch(url, idx, tee) if engine == "scrapling"
+               else _httpx_fetch(url, idx, tee))
         if res:
             res = _maybe_resolve_embedded_pdf(url, res, idx, log)
+            res = _maybe_resolve_portal_body(url, res, idx, log)
             return _maybe_render_spa(url, res, idx, log)
+    return _maybe_browser_after_block(url, said, idx, log)
+
+
+def _maybe_browser_after_block(url: str, said: list[str], idx: dict, log) -> "FetchResult | None":
+    """A refusal is the one failure a real browser can overturn. Escalate to it, once.
+
+    `_maybe_render_spa` already renders — but only AFTER a successful fetch, and only when
+    CRAWL_BROWSER is on, which it is not by default. So a portal that answers 403 to every
+    engine was simply lost, even where the browser lane demonstrably clears it: measured on
+    2026-08-30, peraturan.bpk.go.id refused httpx and Scrapling with 403 and served the
+    stealth browser 43,946 bytes of the same page. Six of Indonesia's nine instruments were
+    failing on exactly that, and `data/sources.yaml` had recorded "the browser lane clears
+    it" since 21 August — the note was right and nothing acted on it.
+
+    Narrow on purpose. Only a refusal (403/429) escalates: a 404 is a dead link and a DNS
+    failure is a wrong host, and driving a browser at either wastes seconds to fail again.
+    """
+    if not settings.fetch_browser_on_block:
+        return None
+    tail = " ".join(said[-3:])
+    if "HTTP 403" not in tail and "HTTP 429" not in tail:
+        return None
+    try:
+        from . import scrapling_fetch
+        if not scrapling_fetch.available():
+            return None
+        log(f"[fetch] refused by the portal, retrying in the stealth browser: {url}")
+        r = scrapling_fetch.fetch(url, browser=True, log=log)
+        if r and r.body and len(r.body) <= settings.fetch_max_bytes:
+            res = _store(url, r.body, r.content_type, idx, None, None, log, engine=r.engine)
+            if res:
+                res = _maybe_resolve_embedded_pdf(url, res, idx, log)
+                return _maybe_resolve_portal_body(url, res, idx, log)
+    except Exception as e:  # noqa: BLE001 — an escalation must never crash the run
+        log(f"[fetch] browser escalation failed ({type(e).__name__}): {url}")
     return None
 
 
@@ -200,6 +242,51 @@ def _maybe_resolve_embedded_pdf(url: str, res: "FetchResult", idx: dict, log) ->
             return pdf
     except Exception as e:  # noqa: BLE001 — resolution is best-effort; keep the HTML body
         log(f"[fetch] embedded-PDF resolve skipped ({type(e).__name__}): {url}")
+    return res
+
+
+#: Portals that answer a document URL with a PAGE ABOUT the document. The page is not broken
+#: and not a JS shell — it renders, it is the right instrument, and it contains no law — so
+#: neither the SPA check nor the embedded-PDF check sees anything wrong with it. Only knowing
+#: the portal helps. Each rule below is a measured route from the landing URL to the body.
+_BODY_ROUTES = [
+    # peraturan.bpk.go.id: /Details/<id>/<slug> is an ABSTRACT ("MATERI POKOK PERATURAN
+    # Abstrak…", a summary with no articles). The statute is a separate PDF linked from it.
+    # Nine of these were the whole Indonesian corpus; the linked PDF for UU 27/2022 carries
+    # its 24 Pasal. Verified 2026-08-30.
+    ("peraturan.bpk.go.id", re.compile(r'href="(/Download/\d+/[^"]+\.pdf)"', re.I)),
+]
+
+#: pravo.gov.ru's IPS answers `?docbody=&nd=<id>` with a FRAMESET — 586 characters of chrome
+#: around an iframe, measured 2026-08-28. The body is in the frame, and its URL is derivable,
+#: so this one is a rewrite rather than a scrape.
+_IPS_WRAPPER_RE = re.compile(r"[?&]docbody=&nd=(\d+)", re.I)
+
+
+def _maybe_resolve_portal_body(url: str, res: "FetchResult", idx: dict, log) -> "FetchResult":
+    """Follow a known landing page to the instrument itself. Unchanged when there is no rule."""
+    if res.fmt != DocFormat.HTML:
+        return res
+    try:
+        host = urlparse(url).netloc.lower().removeprefix("www.")
+        m = _IPS_WRAPPER_RE.search(url)
+        if m and "pravo.gov.ru" in host:
+            body = f"http://pravo.gov.ru/proxy/ips/?doc_itself=&nd={m.group(1)}&page=1&rdk=0"
+            log(f"[fetch] IPS wrapper -> document frame: {body}")
+            return _httpx_fetch(body, idx, log) or res
+        for portal, rx in _BODY_ROUTES:
+            if portal not in host:
+                continue
+            html = Path(res.local_path).read_text(encoding="utf-8", errors="ignore")
+            hit = rx.search(html)
+            if not hit:
+                return res
+            from urllib.parse import urljoin
+            body = urljoin(url, hit.group(1))
+            log(f"[fetch] landing page -> instrument: {body}")
+            return fetch_to_cache(body, log=log) or res
+    except Exception as e:  # noqa: BLE001 — best effort; keep the page we already have
+        log(f"[fetch] body resolution skipped ({type(e).__name__}): {url}")
     return res
 
 
@@ -258,6 +345,29 @@ def _tls_relaxed(host: str) -> bool:
     return any(host == h or host.endswith("." + h) for h in _TLS_RELAXED_HOSTS)
 
 
+def _why(e: Exception) -> str:
+    """A failure description an operator can act on: the HTTP status when there is one, the
+    transport problem when there is not."""
+    resp = getattr(e, "response", None)
+    code = getattr(resp, "status_code", None)
+    if code:
+        meaning = {401: "auth", 403: "blocked (WAF/bot rule)", 404: "not found — dead link",
+                   410: "gone", 429: "rate-limited", 451: "legally blocked",
+                   500: "server error", 502: "bad gateway", 503: "unavailable",
+                   504: "gateway timeout"}.get(code, "")
+        return f"HTTP {code}{' — ' + meaning if meaning else ''}"
+    name = type(e).__name__
+    if "ConnectTimeout" in name or "ReadTimeout" in name or "Timeout" in name:
+        return "timeout"
+    if "ConnectError" in name and "getaddrinfo" in str(e):
+        return "DNS: host does not resolve"
+    if "ConnectError" in name:
+        return f"connect failed: {str(e)[:60]}"
+    if "SSL" in name or "Certificate" in name:
+        return f"TLS: {str(e)[:60]}"
+    return f"{name}: {str(e)[:60]}"
+
+
 def _httpx_fetch(url: str, idx: dict, log) -> FetchResult | None:
     """Fetch via httpx with conditional GET (ETag/Last-Modified → 304 reuse) and a byte cap."""
     try:
@@ -307,7 +417,13 @@ def _httpx_fetch(url: str, idx: dict, log) -> FetchResult | None:
                 etag = resp.headers.get("etag")
                 last_mod = resp.headers.get("last-modified")
     except Exception as e:  # noqa: BLE001 — network/HTTP errors must not crash a run
-        log(f"[fetch] httpx failed ({type(e).__name__}): {url}")
+        # The KIND of failure decides what to do about it, and "HTTPStatusError" says none of
+        # it. Diagnosing twenty Indian fetch failures meant re-probing every URL by hand,
+        # because the only thing recorded was the exception's class name. They turned out to
+        # be four different problems needing four different answers: 403 (a WAF, which the
+        # browser lane clears), 404 (the panel's own link has rotted — nothing to fix here and
+        # a fact worth knowing), DNS failure, and connect timeout.
+        log(f"[fetch] httpx failed ({_why(e)}): {url}")
         return None
     return _store(url, bytes(buf), content_type, idx, etag, last_mod, log)
 

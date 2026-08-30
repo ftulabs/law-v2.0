@@ -246,6 +246,12 @@ class Settings(BaseSettings):
     crawl_fetcher: str = "scrapling"
     # crawl_browser=true also allows Scrapling's stealth (Camoufox) browser for JS-gated
     # portals — needs `scrapling install` to download the browser first.
+    # Escalate to the stealth browser when a portal REFUSES the fetch (403/429), even with
+    # crawl_browser off. A refusal is the one failure a browser can overturn, and the cost is
+    # paid only on documents that would otherwise be lost outright: measured 2026-08-30,
+    # peraturan.bpk.go.id refused httpx and Scrapling and served the browser the same page in
+    # full. Set false to keep a run strictly non-browser.
+    fetch_browser_on_block: bool = True
     crawl_browser: bool = False
     cache_dir: str = "data/cache"              # downloaded law bodies live here (content-hashed)
     fetch_max_bytes: int = 60_000_000          # 60 MB hard cap per document
