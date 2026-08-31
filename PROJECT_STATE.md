@@ -288,10 +288,25 @@ Everything else is retrieval or grading, which is where the budget below bites.
   Two counter-intuitive results are settled: a law-level prefilter makes recall WORSE, and
   `per_law_k=3` degenerates into one-provision-per-law. Re-measure before touching:
   `tools/sweep_retrieval.py` then `tools/validate_retrieval.py`. (`docs/retrieval-redesign.md`)
-- **A per-economy budget may only ever NARROW a shortlist, and only where measured.**
-  An economy with no entry in `data/retrieval_budget.json` keeps the global default. Spending
-  too much costs money; spending too little costs a submission row that nothing downstream can
-  notice is missing. (2026-08-27, `backend/pipeline/retrieval_budget.py`)
+- **A measured budget IS the shortlist depth; an unmeasured economy keeps the global default.**
+  Superseded 2026-08-31 the earlier rule "a budget may only ever NARROW a shortlist". Written
+  that way — `min(n, cap, max(floor, 5% of n))` — the heuristic stayed in charge and a
+  measurement could only ever shrink a shortlist, so Singapore's measured k=450 would have been
+  overridden by `ceil(5% x 6,752) = 338` on a real crawl and the measured number never tested.
+  The asymmetry behind the old rule still holds and is why the DEFAULT is generous: spending
+  too much costs money, spending too little costs a submission row nothing downstream can
+  notice is missing. (`backend/pipeline/retrieval_budget.py`)
+- **Recall against the panel's labels is counted PER PROVISION, three ways, and the three
+  differ enormously.** One bit per indicator saturates on the first hit (Malaysia read 7/8
+  against 72 cited provisions). Every cited provision counts documents that never fetched, so
+  no depth can move it (India: 1/16, of which 15 never arrived). The number a shortlist budget
+  is derived from is `prov_recall_available` — cited provisions the corpus actually holds.
+  India is 1/1 and 1/16 simultaneously and both are true. (`backend/eval/harness.py`)
+- **A `--live` re-run measures the OLD code unless you pass `--fresh`.** `batch_run.py` has a
+  result cache keyed on (economy, pillars, config): a six-economy re-run on 2026-08-31 finished
+  in six seconds, exported every CSV, JSON and master file, and exited 0. The only sign was one
+  `[cache] result cache hit` line per economy. Reporting those numbers as "after the fix" would
+  have been reporting the numbers from before it.
 - **The budget table is generated, never hand-edited.** `tools/measure_budget.py` writes it
   with the recall it observed and the date. A hand-typed cap is an opinion wearing a number.
 - **"Chapter N" is not a provision target.** `harness.section_key()` returns None for
@@ -324,6 +339,48 @@ Everything else is retrieval or grading, which is where the budget below bites.
 ---
 
 ## §5 Recently done
+
+- **2026-08-31** All six economies re-run live on the day's fixes (`outputs/after_fixes/`,
+  `logs/rerun_20260831.log`). **$7.39 and 186 minutes**, against $2.07 / 72 min before.
+
+  | | panel cites | HIT | wrong indicator | missing | rows exported |
+  |---|---|---|---|---|---|
+  | SG | 12 | 9 → 9 | 0 → 0 | 3 → 3 | 167 → 349 |
+  | AU | 15 | 6 → 8 | 1 → 1 | 8 → 6 | 299 → 402 |
+  | MY | 48 | 12 → 19 | 10 → 6 | 26 → 23 | 272 → 426 |
+  | CN | 37 | 14 → 21 | 3 → 1 | 20 → 15 | 138 → 473 |
+  | IN | 16 | 7 → 7 | 2 → 2 | 7 → 7 | 172 → 162 |
+  | MN | 20 | 7 → 8 | 9 → 10 | 4 → 2 | 101 → 309 |
+  | **all** | **148** | **55 → 72** | **25 → 20** | **68 → 56** | **1,149 → 2,121** |
+
+  Cited provisions found rose 31%, misfilings fell, misses fell — and output volume nearly
+  DOUBLED. China gained most (the `</html>` parser fix took its corpus from 335 to 765
+  provisions); India moved not at all, because 15 of its 16 cited provisions are on hosts that
+  answer nothing.
+- **2026-08-31** **The confidence formula has never rejected a row.** Of 2,320 mappings, 199
+  were quarantined and ALL 199 came from the two hard caps (82 scope, 117 topical); ZERO came
+  from the weighted sum. `snippet_grounding` is 1.000 on every row ever scored — the snippet is
+  copied out by extraction and the model never writes it, so the question has one possible
+  answer and 20% of the weight is inert. `scope_alignment` is 1.0 on 94%, and the model self-
+  reports `legal_match` 0.9 on 79%. The floor is ~0.71 against a 0.60 quarantine threshold: the
+  two cannot meet. 1,801 of the 2,121 surviving rows land in "needs review", so that band
+  flags 85% of the output and tells a reviewer nothing.
+- **2026-08-31** Acceptance concentrates in the three indicators whose test is not checkable.
+  Same corpus, same model, same shortlist: AU P7-I4 ("appoint a DPO / run a DPIA") accepted 3
+  rows; P7-I5 ("government access to personal data") accepted 143, P7-I1 106, P7-I3 59. The
+  difference is that P7-I4 asks a yes/no question about a named artefact. That is the shape the
+  P6 gates took on 2026-08-31 and the shape P7-I5/I1/I3 still need.
+- **2026-08-31** **The AU evaluation corpus is 53% amending instruments** — 9,684 of 18,262
+  provisions whose text is "omit X, substitute Y", carrying the vocabulary of the law they amend
+  while not being operative law. Australia publishes COMPILATIONS, so their effect is already in
+  the principal Act: they are duplicate text. Every AU retrieval number measured on 2026-08-31
+  is therefore measured against a corpus half of which the live pipeline never sees — including
+  the cap of 450 that doubled the LLM spend. On the filtered corpus, AU P7-I5 ranks improve
+  665 → 268 (DAT Act s.104) and 901 → 434 (TIA Act s.10), and the top 12 goes from 13 amendment
+  Acts, Hazardous Waste, Fair Work and an "ANZ submission" to 12 of 12 on-topic.
+  The LIVE path is clean — `discovery._drop_amendment_docs` already runs for SG/AU, and 0 of
+  402 exported AU rows come from an amending instrument. This is an evaluation-corpus defect,
+  so it corrupts measurements, not the submission.
 - **2026-08-31** Localisation precision. All 24 auditor-refused P6-I1/I2/I3 rows read, grouped
   by fault, and three negative gates written against the groups: the thing restricted must be
   DATA (India's Chemical Weapons Convention Act was exported as a cross-border data ban), a

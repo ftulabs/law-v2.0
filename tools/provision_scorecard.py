@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import csv
 import glob
+import os
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -169,10 +170,21 @@ def score(econ: str, path: str, detail: bool = False) -> dict:
     return res
 
 
+#: Where an exported run may live, NEWEST FIRST. Every scoring tool resolves an economy's run
+#: through `newest`, so a fresh batch landing in a new directory is scored only once that
+#: directory is named here — otherwise the tools keep reporting the PREVIOUS run's numbers and
+#: nothing says so. Override for a one-off with VERITRADE_RUN_DIRS (os.pathsep-separated).
+RUN_DIRS = ("outputs/after_fixes", "outputs/budget_check", "outputs/rt_check")
+
+
 def newest(econ: str) -> str | None:
-    hits = sorted(glob.glob(f"outputs/budget_check/{econ}_P67_*.csv")) or \
-        sorted(glob.glob(f"outputs/rt_check/{econ}_P67_*.csv"))
-    return hits[-1] if hits else None
+    dirs = [d for d in (os.environ.get("VERITRADE_RUN_DIRS") or "").split(os.pathsep) if d] \
+        or list(RUN_DIRS)
+    for d in dirs:
+        hits = sorted(glob.glob(f"{d}/{econ}_P67_*.csv"))
+        if hits:
+            return hits[-1]
+    return None
 
 
 def main() -> int:
