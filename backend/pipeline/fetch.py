@@ -140,7 +140,16 @@ def fetch_to_cache(url: str, log: Callable[[str], None] = print) -> FetchResult 
     # in the README has to be true of the code, not of our intentions.
     ok, why = robots.allowed(url)
     if not ok:
-        log(f"[fetch] SKIPPED by robots.txt: {url} ({why})")
+        # Two very different findings shared one sentence. "The host refuses us" is a decision
+        # to respect and nothing to fix; "we could not read the host's rules" is usually the
+        # host being unreachable, which is a fetch problem wearing a compliance label. Reading
+        # a corpus of Indian failures, the prefix sent the diagnosis to robots policy when the
+        # hosts (www.mca.gov.in, upload.indiacode.nic.in) were answering nothing at all — the
+        # detail was in the parenthetical all along, and nobody reads the parenthetical.
+        head = ("SKIPPED, robots.txt UNREADABLE (treated as disallowed — the host may simply "
+                "be down)" if "unreadable" in why else "SKIPPED by robots.txt (the host "
+                "disallows this path)")
+        log(f"[fetch] {head}: {url} ({why})")
         return None
     if why:
         log(f"[fetch] robots: {why}")

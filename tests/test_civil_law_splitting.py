@@ -149,6 +149,12 @@ def test_a_landing_page_is_marked_a_shell_not_a_provision():
     assert not _looks_like_a_shell(
         [SimpleNamespace(article_section="Pasal 1"),
          SimpleNamespace(article_section="Pasal 2")], 900), "it found articles; it is the law"
+    # …and the plainest case of all, which fell through the one-provision test and was
+    # recorded as a document built successfully: nothing at all. China's flk.npc.gov.cn
+    # served two regulations as zero characters, stored as state "split" with 0 provisions,
+    # so the missing-provision ladder blamed the splitter for an article the fetch never got.
+    assert _looks_like_a_shell([], 0)
+    assert _looks_like_a_shell([SimpleNamespace(article_section="(document)")], 0)
 
 
 def test_a_fetch_failure_says_which_kind_it_was():

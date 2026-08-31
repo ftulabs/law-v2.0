@@ -37,9 +37,49 @@ _CHROME = ("footer", "copyright", "beian", "navbar", "nav-", "menu", "breadcrumb
            "side-bar", "share", "related", "totop", "back-to-top", "banner", "search-box")
 
 
-def _html_to_text(html: str) -> str:
+_TAG_RE = re.compile(r"(?s)<[^>]*>")
+_SCRIPTISH_RE = re.compile(r"(?is)<(script|style)\b.*?</\1\s*>")
+_COMMENT_RE = re.compile(r"(?s)<!--.*?-->")
+
+
+def _visible_estimate(html: str) -> int:
+    """A cheap lower bound on the text a CORRECT parse of this page should yield.
+
+    Only used to catch a parse that collapsed. Strip comments, script and style bodies, then
+    all tags — no DOM, no recovery, nothing that can fail the way a parser can.
+    """
+    stripped = _TAG_RE.sub(" ", _SCRIPTISH_RE.sub(" ", _COMMENT_RE.sub(" ", html)))
+    return len(re.sub(r"\s+", "", stripped))
+
+
+def _soup(html: str):
+    """Parse, and notice when the parser gave up.
+
+    lxml is fast and is the right default, but its error recovery can truncate a malformed
+    page to almost nothing WITHOUT raising. www.gov.cn — where the State Council publishes
+    China's administrative regulations — is exactly that case: 53 KB of markup carrying the
+    full text of 网络出版服务管理规定 parses to 87 characters under lxml and 9,185 under
+    html.parser, a 106x loss. Nine of the ten Chinese documents recorded as "shell" in the
+    corpus were this, not a JS shell: 25x to 155x of statute text discarded silently, the run
+    completing normally and reporting no provisions, which is indistinguishable from an
+    economy whose law does not exist.
+
+    So the yield is checked against the regex estimate and a second parser is tried when it
+    looks collapsed. html.parser is slower and stricter about nothing, which is what makes it
+    the right fallback; it is not made the default because it is markedly slower on the large,
+    well-formed pages that are the common case.
+    """
     from bs4 import BeautifulSoup
     soup = BeautifulSoup(html, "lxml")
+    got = len(soup.get_text(strip=True))
+    if got >= _visible_estimate(html) * 0.4:
+        return soup
+    alt = BeautifulSoup(html, "html.parser")
+    return alt if len(alt.get_text(strip=True)) > got else soup
+
+
+def _html_to_text(html: str) -> str:
+    soup = _soup(html)
     for tag in soup(["script", "style", "nav", "header", "footer", "aside", "noscript"]):
         tag.decompose()
 
@@ -256,7 +296,12 @@ def _content_key(doc: DiscoveredDoc) -> str | None:
 # v3: pages are now joined with a PAGE_MARK sentinel so Location Reference page numbers are
 # COUNTED rather than interpolated. Text cached under v2 has no marks and would silently keep
 # producing estimated page citations.
-EXTRACT_FORMAT_VERSION = "v4"
+# v5: `_soup` retries with html.parser when lxml's parse has collapsed. Text cached under v4
+# for such a page is the collapsed version — a hundred characters of site chrome where the
+# statute should be — and a rebuild would keep serving it, because the cache key is the
+# document's bytes and those did not change. Rebuilding China's corpus after the fix, with
+# --force, still produced ten shells for exactly this reason.
+EXTRACT_FORMAT_VERSION = "v5"
 
 
 def _extract_cache_path(key: str, provider_name: str) -> Path:

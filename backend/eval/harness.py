@@ -165,6 +165,15 @@ class IndicatorResult:
     prov_expected: bool         # …and named a specific provision
     target_in_top: int
     best_target_rank: int | None = None
+    # Per-PROVISION counts, alongside the per-indicator bits above. `prov_hit` is one bit for
+    # the whole indicator — true if ANY cited provision was reached — and it is what the
+    # retrieval budget was derived from. On Malaysia that reads "7/8" while the panel cites 48
+    # provisions there, because 7 of 8 INDICATORS had at least one arrive; the other forty are
+    # invisible to it. The bit is kept (the shipped retrieval parameters in
+    # docs/retrieval-redesign.md were swept against it, and changing its meaning would
+    # re-baseline every number we hold), and the counts are added beside it.
+    prov_expected_n: int = 0
+    prov_hit_n: int = 0
     notes: list[str] = field(default_factory=list)
 
 
@@ -182,6 +191,14 @@ class EvalReport:
             "prov_recall": round(sum(r.prov_hit for r in prov_rows) / max(len(prov_rows), 1), 3),
             "law_hits": f"{sum(r.law_hit for r in law_rows)}/{len(law_rows)}",
             "prov_hits": f"{sum(r.prov_hit for r in prov_rows)}/{len(prov_rows)}",
+            # …and the same question asked of every cited provision rather than of each
+            # indicator. This is the one to derive a shortlist budget from: an indicator whose
+            # eight citations are all in the corpus scores the same bit whether one arrives or
+            # all eight, so the bit plateaus long before recall does.
+            "prov_recall_each": round(sum(r.prov_hit_n for r in prov_rows)
+                                      / max(sum(r.prov_expected_n for r in prov_rows), 1), 3),
+            "prov_hits_each": f"{sum(r.prov_hit_n for r in prov_rows)}/"
+                              f"{sum(r.prov_expected_n for r in prov_rows)}",
             "coverage": f"{sum(1 for r in self.rows if r.n_candidates > 0)}/{len(self.rows)}",
             "target_density": round(sum(r.target_in_top for r in self.rows) / max(sum(cand), 1), 3),
             "median_rank_of_target": _median([r.best_target_rank for r in self.rows
@@ -204,7 +221,8 @@ def targets_by_indicator(economy: str) -> dict[str, dict]:
     for row in load_labels():
         if row.economy != economy or row.kind != "provision":
             continue
-        e = out.setdefault(row.indicator_id, {"law_ids": set(), "sections": {}, "rows": 0})
+        e = out.setdefault(row.indicator_id,
+                           {"law_ids": set(), "sections": {}, "rows": 0, "pairs": set()})
         e["rows"] += 1
         for law in row.laws:
             lk = links.get(law)
@@ -212,6 +230,13 @@ def targets_by_indicator(economy: str) -> dict[str, dict]:
                 e["law_ids"].add(lk.law_id)
                 if row.sections:
                     e["sections"].setdefault(lk.law_id, []).extend(row.sections)
+                    # One entry per (law, cited article) so recall can be counted per
+                    # provision. Normalised through label_section_key and de-duplicated,
+                    # because the Database cites the same article in several rows.
+                    for sec in row.sections:
+                        want = label_section_key(sec)
+                        if want:
+                            e["pairs"].add((lk.law_id, want))
     return out
 
 
@@ -229,8 +254,10 @@ def evaluate(economy: str, selector: Callable[[str, list[Provision]], list],
         t = targets.get(ind.indicator_id)
         want_laws = t["law_ids"] if t else set()
         want_secs = t["sections"] if t else {}
+        want_pairs = t.get("pairs", set()) if t else set()
         law_hit = prov_hit = False
         in_top, best_rank = 0, None
+        reached: set[tuple[str, str]] = set()
         for rank, p in enumerate(cands, 1):
             lid = law_id_of(p, v2l)
             if lid and lid in want_laws:
@@ -239,11 +266,20 @@ def evaluate(economy: str, selector: Callable[[str, list[Provision]], list],
                 best_rank = best_rank or rank
                 if want_secs.get(lid) and section_matches(p.article_section, want_secs[lid]):
                     prov_hit = True
+                # Which of the cited articles this candidate covers. `section_matches` already
+                # encodes the parent/child rule (a provision labelled "20" carries clause
+                # "20.2"), so it is asked once per cited article rather than once per law.
+                got = section_key(p.article_section)
+                if got:
+                    reached |= {(lid, w) for (l, w) in want_pairs if l == lid
+                                and (got == w or w.startswith(got + ".")
+                                     or got.startswith(w + "."))}
         rows.append(IndicatorResult(
             economy=economy, indicator_id=ind.indicator_id, n_candidates=len(cands),
             law_hit=law_hit, prov_hit=prov_hit,
             law_expected=bool(want_laws), prov_expected=bool(want_secs),
-            target_in_top=in_top, best_target_rank=best_rank))
+            target_in_top=in_top, best_target_rank=best_rank,
+            prov_expected_n=len(want_pairs), prov_hit_n=len(reached)))
     return EvalReport(rows=rows, n_calls=calls)
 
 

@@ -161,6 +161,14 @@ def _looks_like_a_shell(provisions: list, chars: int) -> str | None:
     decree — so the length bound is what keeps this from swallowing one, and even then the
     document is marked rather than deleted.
     """
+    # NOTHING is the plainest case and it was falling straight through: zero provisions from
+    # zero characters was recorded as state "split", i.e. a document built successfully. Two of
+    # China's flk.npc.gov.cn documents (the Map Management Regulations, the Credit Reporting
+    # Regulations) sat in the corpus that way — counted as built, contributing no text, and
+    # reported by the missing-provision ladder as "the article is absent from a law we have",
+    # which sent the diagnosis to the splitter instead of to the empty fetch.
+    if not provisions or chars == 0:
+        return "no text extracted (empty document)"
     if len(provisions) != 1 or chars >= 8_000:
         return None
     if (provisions[0].article_section or "").strip() != "(document)":

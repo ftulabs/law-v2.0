@@ -15,9 +15,15 @@ provision. This counts the provisions themselves, and splits our output four way
                    says finding more than the panel is an explicit goal) or a false positive.
                    It is counted, never scored, because only a lawyer can tell those apart.
 
-The split matters because the three failures need three different fixes. MISSING is discovery
-or fetch: the text never arrived. WRONG INDICATOR is the grader or the indicator definition:
-the text arrived and was misread. NEW is a question for a human.
+The split matters because the three failures need three different fixes. WRONG INDICATOR is the
+grader or the indicator definition: the text arrived and was misread. NEW is a question for a
+human — see tools/audit_rows.py, which asks a different model.
+
+MISSING was described here as "discovery or fetch: the text never arrived", and that was WRONG:
+measured on 2026-08-31 with tools/missing_ladder.py, 44 of the 68 missing provisions were
+already in the corpus, extracted and citable. Only 10 were never catalogued or never fetched.
+Run the ladder before acting on this column — it separates the five failures that "missing"
+conflates, and they take five different fixes with very different costs.
 
 A provision is matched on (law, article), where the law matches by name OR by document URL —
 see tools/compare_to_key.url_keys for why the URL is needed: the panel names laws in English
@@ -35,7 +41,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from backend.eval.ground_truth import _ABSENCE_RE, load_labels   # noqa: E402
 from backend.eval.harness import label_section_key, section_key   # noqa: E402
-from backend.eval.linkage import _norm                     # noqa: E402
+from backend.eval.linkage import _ACTNO_RE, _norm          # noqa: E402
 from tools.compare_to_key import IND, url_keys             # noqa: E402
 
 
@@ -46,6 +52,13 @@ def key_provisions(econ: str) -> list[dict]:
         if r.economy != econ or r.kind != "provision" or not r.sections:
             continue
         names = {n for n in (_norm(x) for x in r.laws if len(x) > 4) if n}
+        # The act number, read from the RAW name before `_norm` strips the word "act".
+        # Malaysia's "Services Tax Act (Act 807) 2018" is catalogued as "SERVICE TAX ACT 2018":
+        # a plural and a year-versus-number apart, so containment fails in both directions, and
+        # the panel cites a mirror so the URLs never meet. The number is the exact key —
+        # `linkage.link_law` has always tried it first — and without it the Act read as never
+        # discovered when it was in the catalogue all along.
+        act_nos = {m.group(1).upper() for x in r.laws for m in [_ACTNO_RE.search(x)] if m}
         urls = set()
         for u in r.portal_urls + r.other_urls:
             urls |= url_keys(u)
@@ -65,7 +78,7 @@ def key_provisions(econ: str) -> list[dict]:
             k = label_section_key(sec)
             if k:
                 out.append({"indicator": r.indicator_id, "names": names, "urls": urls,
-                            "section": k, "contested": contested,
+                            "act_nos": act_nos, "section": k, "contested": contested,
                             "label": f"{r.indicator_id} {sorted(names)[:1]} s.{sec}"})
     return out
 
@@ -78,9 +91,11 @@ def our_rows(path: str) -> list[dict]:
             if not law or "no evidence" in law.lower():
                 continue
             ind = (row.get("Indicator ID") or "").strip()
+            m = _ACTNO_RE.search(law)
             out.append({
                 "indicator": IND.get(ind, ind),
                 "name": _norm(law), "raw_name": law,
+                "act_no": m.group(1).upper() if m else None,
                 "urls": url_keys(row.get("Source URL") or ""),
                 "section": section_key(row.get("Article/Section") or
                                        row.get("Article / Section") or ""),
@@ -92,6 +107,10 @@ def our_rows(path: str) -> list[dict]:
 
 def _same_law(k: dict, r: dict) -> bool:
     if r["name"] and any(n in r["name"] or r["name"] in n for n in k["names"]):
+        return True
+    # An act number is an exact identifier and beats every fuzzy name rule: two instruments
+    # never share one within an economy, which is what the number is for.
+    if r.get("act_no") and r["act_no"] in k.get("act_nos", ()):
         return True
     return bool(k["urls"] & r["urls"])
 

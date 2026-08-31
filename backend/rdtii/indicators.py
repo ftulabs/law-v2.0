@@ -43,7 +43,23 @@ INDICATORS: list[Indicator] = [
             "it prevents or strongly constrains cross-border data use. Distinguish from P6-I4 (Conditional "
             "flow): if transfer REMAINS legally possible once conditions (consent/adequacy/etc.) are met, it "
             "is NOT a total ban → map to P6-I4, not here. Distinguish from P6-I2 (storage of data in-country, "
-            "which may still permit transfer of a copy) and P6-I3 (local servers/infrastructure)."
+            "which may still permit transfer of a copy) and P6-I3 (local servers/infrastructure). "
+            # Added 2026-08-31. An independent auditor (tools/audit_rows.py) refused 83% of the
+            # rows we filed here; reading them, the commonest fault by far was that the provision
+            # was not about data at all. India's Chemical Weapons Convention Act s.15-16 bans the
+            # "transfer of toxic Chemicals or Precursors" and was exported as a cross-border DATA
+            # ban; Australia's Insurance Act s.15(1)(f) is revocation of an authorisation. Each
+            # shares vocabulary with this test — transfer, prohibited — and nothing else.
+            "WHAT IS RESTRICTED MUST BE DATA. The subject of the ban has to be data, information, "
+            "records or personal information. A prohibition or restriction on moving anything ELSE "
+            "across a border — goods, chemicals, weapons, currency, securities, property, persons — "
+            "does NOT satisfy this indicator however absolutely it is worded, and neither does an "
+            "export-control, customs or non-proliferation rule that happens to use the word 'transfer'. "
+            "Nor is it satisfied by: revoking, suspending or refusing a registration, licence or "
+            "authorisation; conditions for granting one; a duty to operate systems or premises "
+            "securely; or an arrangement for recognising foreign authorities or certificates. If you "
+            "cannot quote words that stop DATA leaving the country or compel it to be processed inside "
+            "it, answer false."
         ),
         scope="national",
         query_terms=["shall not transfer", "prohibited from transferring", "may not be transferred",
@@ -67,7 +83,25 @@ INDICATORS: list[Indicator] = [
             "0.5): rules that permit records to be kept ABROAD only if copies, accounts or returns are sent "
             "to and KEPT IN-COUNTRY (classic companies/tax accounting-records drafting) — the mandatory "
             "local copy IS a storage-localisation measure; do not reject it for permitting the originals "
-            "offshore. Distinguish from P6-I3 (local SERVERS/data-centres/infrastructure as a "
+            "offshore. "
+            # Added 2026-08-31 alongside the P6-I1 gate above, from the same audit. Six refusals
+            # here were record-keeping duties that name no place — SG Income Tax Act s.67(1)(a),
+            # Confiscation of Benefits Act s.43 — and the auditor's own words, five times over,
+            # were "does not specify a geographical location". Storage localisation without a
+            # location is not storage localisation. This gate costs the answer key nothing: every
+            # P6-I2 provision the panel accepts names a place (SG Companies Act s.199 "at the
+            # registered office … or such other place in Singapore", CN PIPL art.36 "within the
+            # territory", IN Companies Act s.128 "accessible in India").
+            "A LOCATION MUST BE NAMED. The rule has to fix WHERE the data or records sit: inside the "
+            "country or its territory, at a registered office or facility in the country, on domestic "
+            "premises, accessible from within the country — or, negatively, not outside it. A duty to "
+            "keep, retain, maintain, preserve, produce, lodge or safeguard records that is SILENT about "
+            "where they are held does NOT satisfy this indicator, no matter how detailed the duty is: "
+            "that is a retention or record-keeping rule (see P7-I3 if it states a minimum period), not "
+            "a localisation rule. Neither do generic data-security or safe-custody obligations, nor "
+            "conditions on transferring data OUT of the country (P6-I4). If you cannot quote the words "
+            "naming the place, answer false. "
+            "Distinguish from P6-I3 (local SERVERS/data-centres/infrastructure as a "
             "condition for supplying a service, not merely where data is stored), and from P7-I3 (a minimum "
             "RETENTION DURATION, which is about how long, not where)."
         ),
@@ -96,7 +130,20 @@ INDICATORS: list[Indicator] = [
         legal_test=(
             "The operative rule requires LOCAL servers, data centres, or local data infrastructure AS A "
             "CONDITION for supplying a service. Example: 'providers of websites, social networks and online "
-            "games must maintain at least one local server'. Distinguish from P6-I2 (where DATA is stored — "
+            "games must maintain at least one local server'. "
+            # Added 2026-08-31, same audit. Both refusals here were a provision setting out what a
+            # MINISTRY does — China's domain-name measures art.4, Mongolia's public-information law
+            # art.32 — read as an infrastructure mandate. Describing an agency's functions is not
+            # requiring anyone to site a server.
+            "PHYSICAL INFRASTRUCTURE MUST BE NAMED AND LOCATED. Quote the words identifying the thing — "
+            "server, data centre, node, equipment, computing facility, premises — and the words placing "
+            "it inside the country (or making it reachable only from inside). Without both, answer "
+            "false. In particular these do NOT satisfy it: a provision setting out the functions, "
+            "powers or responsibilities of a ministry, regulator or agency; a licensing or approval "
+            "requirement that names no infrastructure; generic information-security, risk-management, "
+            "business-continuity or system-administration duties; and a requirement about where DATA is "
+            "held with no equipment mandated (that is P6-I2). "
+            "Distinguish from P6-I2 (where DATA is stored — "
             "here the trigger is mandated local INFRASTRUCTURE/equipment) and from P6-I1 (a processing ban)."
         ),
         scope="national",

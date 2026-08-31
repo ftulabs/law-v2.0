@@ -61,9 +61,13 @@ def measure(econ: str, ladder: tuple[int, ...]) -> dict | None:
 
         rep = harness.evaluate(econ, sel, provisions)
         s = rep.summary()
-        curve.append({"k": k, "prov_recall": s["prov_recall"], "law_recall": s["law_recall"],
-                      "prov_hits": s["prov_hits"], "n_calls": s["n_calls"]})
-        print(f"  {econ} k={k:<4} prov={s['prov_recall']:.3f} ({s['prov_hits']:>7}) "
+        curve.append({"k": k, "prov_recall": s["prov_recall_each"],
+                      "law_recall": s["law_recall"], "prov_hits": s["prov_hits_each"],
+                      # the old per-indicator bit, kept so a re-measurement can be compared
+                      # with the 2026-08-27 table rather than silently replacing it
+                      "prov_recall_by_indicator": s["prov_recall"],
+                      "n_calls": s["n_calls"]})
+        print(f"  {econ} k={k:<4} prov={s['prov_recall_each']:.3f} ({s['prov_hits_each']:>7}) "
               f"law={s['law_recall']:.3f}  calls={s['n_calls']:<5} {time.perf_counter()-t0:.0f}s")
     return {**_derive(curve, ladder),
             "provisions": len(provisions),
@@ -79,6 +83,13 @@ def _derive(curve: list[dict], ladder: tuple[int, ...]) -> dict:
     cannot buy it), while its LAW recall climbs 0.875 → 1.000 between k=40 and k=80. Choosing
     on provision recall alone would have capped Malaysia at 40 and dropped a cited Act out of
     the shortlist entirely — a law that never reaches the grader can never be answered.
+
+    CHANGED 2026-08-31: `prov_recall` here is now `summary()["prov_recall_each"]`, which counts
+    every cited provision, not `["prov_recall"]`, which was one bit per indicator. The bit
+    saturates as soon as ONE citation per indicator arrives, so it plateaued early and the caps
+    derived from it were too small: Malaysia's read "7/8" and was capped at 150 while the panel
+    cites 72 linkable provisions there, 24 of which are in our corpus and never reached the
+    submission. The rule is otherwise unchanged.
     """
     best_p = max(c["prov_recall"] for c in curve)
     best_l = max(c["law_recall"] for c in curve)
