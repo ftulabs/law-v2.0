@@ -61,14 +61,22 @@ def measure(econ: str, ladder: tuple[int, ...]) -> dict | None:
 
         rep = harness.evaluate(econ, sel, provisions)
         s = rep.summary()
-        curve.append({"k": k, "prov_recall": s["prov_recall_each"],
-                      "law_recall": s["law_recall"], "prov_hits": s["prov_hits_each"],
+        curve.append({"k": k, "prov_recall": s["prov_recall_available"],
+                      "law_recall": s["law_recall"], "prov_hits": s["prov_hits_available"],
+                      # every cited provision, including those the corpus does not hold —
+                      # the honest overall figure, but not one a shortlist depth can move
+                      "prov_recall_all_cited": s["prov_recall_each"],
+                      "prov_hits_all_cited": s["prov_hits_each"],
+                      # how many cited provisions the recall above is a fraction OF
+                      "prov_sample": int(s["prov_hits_available"].split("/")[1]),
                       # the old per-indicator bit, kept so a re-measurement can be compared
                       # with the 2026-08-27 table rather than silently replacing it
                       "prov_recall_by_indicator": s["prov_recall"],
                       "n_calls": s["n_calls"]})
-        print(f"  {econ} k={k:<4} prov={s['prov_recall_each']:.3f} ({s['prov_hits_each']:>7}) "
-              f"law={s['law_recall']:.3f}  calls={s['n_calls']:<5} {time.perf_counter()-t0:.0f}s")
+        print(f"  {econ} k={k:<4} in-corpus={s['prov_recall_available']:.3f} "
+              f"({s['prov_hits_available']:>7})  all-cited={s['prov_recall_each']:.3f} "
+              f"({s['prov_hits_each']:>7})  law={s['law_recall']:.3f}  "
+              f"calls={s['n_calls']:<5} {time.perf_counter()-t0:.0f}s")
     return {**_derive(curve, ladder),
             "provisions": len(provisions),
             "measured_on": time.strftime("%Y-%m-%d"),
@@ -84,26 +92,53 @@ def _derive(curve: list[dict], ladder: tuple[int, ...]) -> dict:
     on provision recall alone would have capped Malaysia at 40 and dropped a cited Act out of
     the shortlist entirely — a law that never reaches the grader can never be answered.
 
-    CHANGED 2026-08-31: `prov_recall` here is now `summary()["prov_recall_each"]`, which counts
-    every cited provision, not `["prov_recall"]`, which was one bit per indicator. The bit
-    saturates as soon as ONE citation per indicator arrives, so it plateaued early and the caps
-    derived from it were too small: Malaysia's read "7/8" and was capped at 150 while the panel
-    cites 72 linkable provisions there, 24 of which are in our corpus and never reached the
-    submission. The rule is otherwise unchanged.
+    CHANGED 2026-08-31: `prov_recall` here is `summary()["prov_recall_available"]` — every
+    cited provision THE CORPUS ACTUALLY HOLDS — where it used to be `["prov_recall"]`, one bit
+    per indicator. Two corrections in one:
+
+      The bit saturated as soon as ONE citation per indicator arrived, so it plateaued long
+      before recall did and the caps derived from it were too small. Malaysia's read "7/8" and
+      capped at 150 while the panel cites 72 linkable provisions there.
+
+      Counting ALL cited provisions instead would swing too far the other way: India reaches
+      1 of 16, but six of its laws never fetched, so no shortlist depth on earth can reach
+      them and a cap chosen from that number would just buy calls. `prov_recall_all_cited`
+      is still recorded in the curve as the honest overall figure; the cap is derived from
+      what retrieval can actually influence.
+
+    The rule is otherwise unchanged.
     """
     best_p = max(c["prov_recall"] for c in curve)
     best_l = max(c["law_recall"] for c in curve)
     smallest = min(c["k"] for c in curve
                    if c["prov_recall"] >= best_p and c["law_recall"] >= best_l)
     cap = next((k for k in ladder if k >= smallest * MARGIN), max(ladder))
+    # "Plateaus" was written unconditionally, and on the 2026-08-31 re-measurement it was FALSE
+    # for five of six economies: provision recall was still CLIMBING at the ladder's last rung,
+    # so `smallest` is where we stopped looking, not where the curve flattened. A cap justified
+    # by a plateau that does not exist is an opinion wearing a measurement's clothes.
+    plateaued = smallest < max(ladder)
+    # How many provisions the recall is a fraction of. India's cap is derived from ONE — the
+    # only cited provision its corpus holds, six of its laws having failed to fetch — and a cap
+    # justified by a single data point should not read the same as one justified by fifty-five.
+    sample = max((c.get("prov_sample") or 0) for c in curve)
+    note = (f"recall plateaus at prov={best_p:.3f} law={best_l:.3f} from k={smallest}; "
+            f"cap={cap} is that with a {MARGIN}x margin") if plateaued else (
+        f"recall had NOT plateaued at the ladder's last rung k={max(ladder)} "
+        f"(prov={best_p:.3f} law={best_l:.3f}, still rising); cap={cap} is the deepest "
+        f"measured, NOT a measured sufficiency — extend the ladder to find the real one")
+    if sample < 5:
+        note += (f"  ⚠ derived from only {sample} cited provision(s) in the corpus — too few to "
+                 f"choose a cap from; fix the fetch failures and re-measure before trusting it")
     return {
         "cap": cap,
         "floor": min(settings.retrieve_top_k, cap),
         "measured_k": smallest,
+        "plateaued": plateaued,
+        "prov_sample": sample,
         "prov_recall": best_p,
         "law_recall": best_l,
-        "note": (f"recall plateaus at prov={best_p:.3f} law={best_l:.3f} from k={smallest}; "
-                 f"cap={cap} is that with a {MARGIN}x margin"),
+        "note": note,
     }
 
 
@@ -146,7 +181,16 @@ def main() -> int:
         "_README": ("Per-economy retrieval shortlist budget, GENERATED by "
                     "tools/measure_budget.py against the panel's own Database labels. Do not "
                     "hand-edit: re-run the tool. An economy absent from this file keeps the "
-                    "conservative default in backend/config.py, which is the safe direction."),
+                    "conservative default in backend/config.py, which is the safe direction. "
+                    "`prov_recall` counts the cited provisions THE CORPUS HOLDS that reach the "
+                    "shortlist — not one bit per indicator (which saturates on the first hit "
+                    "and produced caps that were far too small), and not every cited provision "
+                    "(which counts documents that never fetched, and no shortlist depth can "
+                    "reach those). `prov_recall_all_cited` in each curve point is that wider, "
+                    "honest figure. `plateaued: false` means recall was STILL RISING at the "
+                    "ladder's last rung, so the cap is the deepest measured rather than a "
+                    "measured sufficiency. `prov_sample` is how many provisions the recall is "
+                    "a fraction of; below five it is too few to choose a cap from."),
         "generated_by": "tools/measure_budget.py",
         "ladder": list(ladder),
         "margin": MARGIN,

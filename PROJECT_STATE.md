@@ -121,15 +121,31 @@ Three different failures needing three different fixes:
   as a magnet, because "establishes a data-protection framework" is true of loosely anything
   in a data-protection law. Second pattern: P7-I4 (DPO/DPIA) → P7-I2 (cybersecurity), 4 cases.
   Cheapest fix of the three: the documents are already in hand.
-· **MISSING (68)** — never cited at all. Discovery or fetch: the text never arrived.
-· **NEW (1,054)** — seven rows for every one the panel cites. Finding more than the panel is
-  an explicit goal, so this is not automatically wrong; it is also completely unaudited, and
-  precision is criterion C2b. Nobody has read a sample.
+· **MISSING (68)** — never cited at all. **Not "discovery or fetch", as this file said until
+  2026-08-31**: `tools/missing_ladder.py` splits the label into the five failures it conflates,
+  and **44 of the 68 were already in the corpus**, extracted and citable. Run the ladder before
+  acting on this column.
+· **NEW (1,054)** — seven rows for every one the panel cites. Audited 2026-08-30 by a different
+  model with a control group (`tools/audit_rows.py`): **roughly half do not survive an
+  independent reading**, and the failure is concentrated, not spread — P6-I1 83% refused,
+  P6-I3 80%, P6-I2 67%, against P7-I2's 28%. Gates shipped 2026-08-31; see §5.
 
 Corpus-side retrieval (k = the whole corpus, so this is the ceiling chunking and ranking
 impose once the documents are in hand — it does NOT include discovery):
 MN prov 0.857 · ID 0.778 · TH 0.714 · CN 0.571 · IN 0.143 (20 of 27 documents never
 downloaded) · LA 0.000 (linkage maps no cited law to the corpus — open).
+
+### The missing 68, by where they actually fall out (`tools/missing_ladder.py`, 2026-08-31)
+
+| | not catalogued | fetch failed | not split | article absent | **in corpus** |
+|---|---|---|---|---|---|
+| before the day's fixes | 2 | 8 | 10 | 4 | **44** |
+| after | **0** | 8 | **1** | 4 | **55** |
+
+What remains upstream is eight fetch failures that are the panel's own link rot (HTTP 404) or
+hosts answering nothing at all from this network (`www.mca.gov.in`, `upload.indiacode.nic.in` —
+both time out on robots.txt *and* on the document, so a robots override would buy nothing).
+Everything else is retrieval or grading, which is where the budget below bites.
 
 - [ ] **MN P7-I2 and P7-I5, CN P6-I3, IN P6-I2** — four named misses, each now a specific
       question rather than a general worry. Worth reading the four before any broad change.
@@ -308,6 +324,55 @@ downloaded) · LA 0.000 (linkage maps no cited law to the corpus — open).
 ---
 
 ## §5 Recently done
+- **2026-08-31** Localisation precision. All 24 auditor-refused P6-I1/I2/I3 rows read, grouped
+  by fault, and three negative gates written against the groups: the thing restricted must be
+  DATA (India's Chemical Weapons Convention Act was exported as a cross-border data ban), a
+  storage rule must NAME A PLACE (six record-keeping duties silent on where), an infrastructure
+  rule must NAME INFRASTRUCTURE (a ministry's functions read as a server mandate). The fourth
+  group — a conditional regime filed as a ban — is deliberately left alone: a rule strong enough
+  to catch it loses Malaysia's PDPA s.129, which the panel scores as a ban because its gazette
+  whitelist is empty. Measured by `tools/replay_grade.py` over 107 exported rows, twice,
+  identically: **CONTROL 11/11 held, UPHELD 8/8 held, REJECTED fell 4 → 14 of 24.**
+- **2026-08-31** `tools/replay_grade.py` — re-grades rows already exported under a proposed
+  definition, no crawl. The previous definition change was judged by re-running three economies
+  (forty minutes, real money, recovered nothing) when a definition edit can only alter the
+  grader's verdict on a provision it was already shown. Staging area: `tools/candidate_indicators.py`.
+- **2026-08-31** **`www.gov.cn` emits a stray `</html>` in its page header.** lxml obeys it,
+  treats the document as finished and discards the entire statute — no exception, no warning, a
+  short and perfectly valid string. Nine Chinese documents recorded as "shell" were this,
+  losing **25x to 155x** of text (Counter-Espionage Law, Network Data Security Regulation,
+  Industrial and Telecom Data Protection Measures). `ocr._soup` now checks the yield against a
+  regex estimate and retries with html.parser. **CN: shells 10 → 1, split 9 → 18, provisions
+  335 → 765.** `EXTRACT_FORMAT_VERSION` → v5, because the cache key is the document's bytes and
+  a rebuild kept serving the collapsed text.
+- **2026-08-31** Two smaller honesty defects found while diagnosing it: a document yielding
+  ZERO characters was recorded as state "split" (built successfully), and "SKIPPED by
+  robots.txt" was logged both for a host that refuses us and for one whose robots.txt is
+  unreadable because it answers nothing. The second cost half an hour of misdirected diagnosis.
+- **2026-08-31** Retrieval budget re-measured per provision (`logs/budget_measure_20260831.txt`,
+  `data/retrieval_budget.json`). Of the cited provisions THE CORPUS HOLDS, reached at k=450:
+  **SG 12/12 · CN 26/29 · MN 20/20 · AU 10/21 · MY 25/55 · IN 1/1**. Three readings:
+  · **SG's shipped cap of 80 was losing 2 of its 12** — provisions already in the corpus that
+    the shortlist never reached. That is part of the 55 "in corpus but not in the submission".
+  · **India's 1/16 on all cited provisions is not a retrieval failure at all** — 15 of the 16
+    never fetched. Splitting the metric is what makes that visible; a cap chosen from 1/16
+    would only have bought calls.
+  · **AU and MY are a RANKING problem, not a depth problem.** AU goes 3/21 → 10/21 while k
+    rises elevenfold and still loses half. Extending the ladder past 450 buys recall at a very
+    poor rate; a better ranker is the lever.
+  Recall was still rising at k=450 for five of six, so every "plateau" claim in the file now
+  says so — `_derive` used to assert a plateau unconditionally, which was false for five.
+- **2026-08-31** A measured cap now IS the depth. It was written `min(n, cap, max(floor, 5% of
+  n))`, so the heuristic stayed in charge and a measurement could only ever SHRINK a shortlist:
+  Singapore's measured k=450 would have been overridden by ceil(5% x 6,752) = 338 on a real
+  crawl, and the measured number never tested. Cost of the correction across the six
+  economies: **~6,300 → ~21,000 grading calls, $2.07 → ~$6–7 a submission.**
+- **2026-08-31** `harness.evaluate` recorded **one bit per indicator** — did ANY cited provision
+  arrive — and the retrieval budget was derived from it. On Malaysia that bit reads 7/8 while
+  the panel cites 72 linkable provisions there, so it saturates long before recall does.
+  `prov_recall_each` (all cited) and `prov_recall_available` (those the corpus holds — the one a
+  depth budget can move) are added; the old bit is unchanged, because the shipped retrieval
+  parameters were swept against it.
 
 - **2026-08-28** The deployed site could not judge a single provision: its key lives in a file
   on the Sager box, hand-edited and re-checked by nothing, and it had been revoked. Keys now
@@ -319,23 +384,9 @@ downloaded) · LA 0.000 (linkage maps no cited law to the corpus — open).
   non-reentrant lock in the circuit breaker that deadlocked the run and hung CI for two hours,
   and `openpyxl` never declared in requirements, so a clean clone could not read the panel's
   workbooks at all.
-- **2026-08-27** Round-2 labels: `ground_truth.py` reads both Database workbooks; added
-  `_ARTICLE_RE`, because Round-2 economies cite "Article N" and every such row previously
-  parsed to zero targets — silently. 223 label rows across 10 economies.
-- **2026-08-27** Grading circuit breaker + honest failure classes (`LLMTerminalError`). A
-  Singapore pillar-6 run on an exhausted key had made **968 doomed calls** and reported a
-  spend cap as "check the LLM key/provider".
-- **2026-08-27** Per-economy retrieval budget (`retrieval_budget.py`, `tools/measure_budget.py`,
-  `data/retrieval_budget.json`). Measured on the shipped selector: **SG cap 80, MY 150,
-  AU 450**. Effect on grading calls at the corpus sizes actually seen — SG pillar 6
-  968 → **320**, SG pillars 6+7 3,043 → **720**, MY 4,050 → **1,350**, AU unchanged.
-  One cited Malaysian provision is unreachable at *every* budget (prov-recall flat 0.875 from
-  k=40 to k=450) — that is a retrieval-quality bug to chase separately, not a depth problem.
-- **2026-08-27** Three silent Mongolia defects fixed (fleeting-vowel title matching, size-aware
-  ranking, clause splitting) — pillar 6 went from 4 documents to 22.
-- **2026-08-27** Working-translation layer (2 CSV columns after the mandatory 14).
-- **2026-08-25** Live re-verification of SG/AU/MY/CN/IN/MN end-to-end on both pillars.
+
+Older milestones (2026-08-25, 2026-08-27) are pruned per the rule in "How to keep this file useful" — they are in git history.
 
 ---
 
-*Last updated 2026-08-27.*
+*Last updated 2026-08-31.*

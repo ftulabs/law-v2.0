@@ -6,6 +6,7 @@ that spent the same everywhere, a run that made 968 doomed calls and blamed the 
 from __future__ import annotations
 
 import json
+import math
 
 import pytest
 
@@ -65,13 +66,35 @@ def test_unmeasured_economy_keeps_the_conservative_default():
     assert "no measured budget" in why
 
 
-def test_measured_economy_spends_no_more_than_the_default():
-    """A budget entry may narrow a shortlist; it must never widen one past the global cap."""
+def test_a_measured_economy_never_exceeds_the_global_cap_or_its_corpus():
+    """A budget entry sets the depth, but two bounds still hold absolutely."""
     for econ in (B._load().get("economies") or {}):
         for n in (500, 5_000, 40_000):
             k, _ = B.shortlist_size(econ, n)
             assert k <= settings.retrieve_max_top_k
             assert k <= n
+
+
+def test_a_measurement_overrides_the_fraction_heuristic_even_upward():
+    """The measured cap is the depth, not a ceiling over `retrieve_fraction`.
+
+    Written as min(n, cap, max(floor, 5% of n)), the heuristic stayed in charge and a
+    measurement could only ever make a shortlist SMALLER. Singapore is the case: 12 of the 12
+    cited provisions its corpus holds are reached at k=450 and 10 at k=80, but a 6,752-provision
+    live crawl would have used ceil(5% x 6752) = 338 and never tested the measured number. The
+    fraction is a guess for economies nobody has measured; where a measurement exists it
+    replaces the guess, in both directions.
+    """
+    e = B.entry("SG")
+    if not e:
+        pytest.skip("SG has not been measured")
+    n = 6_752                                  # the corpus size of a real SG live crawl
+    fraction_k = math.ceil(n * settings.retrieve_fraction)
+    k, why = B.shortlist_size("SG", n)
+    assert k == min(n, e["cap"]), f"the measured cap did not take effect: {why}"
+    if e["cap"] > fraction_k:
+        assert k > fraction_k, "the 5% heuristic is still overriding the measurement"
+        assert "MORE candidates" in why, "spending more than the default must be said out loud"
 
 
 def test_budget_table_is_generated_not_handwritten():

@@ -174,6 +174,13 @@ class IndicatorResult:
     # re-baseline every number we hold), and the counts are added beside it.
     prov_expected_n: int = 0
     prov_hit_n: int = 0
+    # …and the same pair of counts restricted to cited provisions that are actually IN the
+    # corpus. Without the restriction, recall-per-provision conflates "the shortlist did not
+    # reach it" with "the text never arrived", and no shortlist depth can fix the second.
+    # India is the case that forces the split: 1 of 16 cited provisions reached, but six of
+    # its laws failed to fetch at all, so the 1/16 says nothing about retrieval.
+    prov_available_n: int = 0
+    prov_hit_available_n: int = 0
     notes: list[str] = field(default_factory=list)
 
 
@@ -199,6 +206,14 @@ class EvalReport:
                                       / max(sum(r.prov_expected_n for r in prov_rows), 1), 3),
             "prov_hits_each": f"{sum(r.prov_hit_n for r in prov_rows)}/"
                               f"{sum(r.prov_expected_n for r in prov_rows)}",
+            # The RETRIEVAL number: of the cited provisions the corpus actually holds, how many
+            # does the shortlist reach. This is the one a depth budget can move, and therefore
+            # the one to derive a cap from.
+            "prov_recall_available": round(
+                sum(r.prov_hit_available_n for r in prov_rows)
+                / max(sum(r.prov_available_n for r in prov_rows), 1), 3),
+            "prov_hits_available": f"{sum(r.prov_hit_available_n for r in prov_rows)}/"
+                                   f"{sum(r.prov_available_n for r in prov_rows)}",
             "coverage": f"{sum(1 for r in self.rows if r.n_candidates > 0)}/{len(self.rows)}",
             "target_density": round(sum(r.target_in_top for r in self.rows) / max(sum(cand), 1), 3),
             "median_rank_of_target": _median([r.best_target_rank for r in self.rows
@@ -246,6 +261,19 @@ def evaluate(economy: str, selector: Callable[[str, list[Provision]], list],
     provisions = provisions if provisions is not None else load_provisions(economy)
     v2l = version_law_map(economy)
     targets = targets_by_indicator(economy)
+    # Section keys the corpus holds, per law — built once, because the alternative is a scan of
+    # every provision for every cited article of every indicator (18k x 31 x 9 on Australia).
+    have: dict[str, set[str]] = {}
+    for p in provisions:
+        lid, got = law_id_of(p, v2l), section_key(p.article_section)
+        if lid and got:
+            have.setdefault(lid, set()).add(got)
+
+    def _in_corpus(lid: str, want: str) -> bool:
+        keys = have.get(lid)
+        return bool(keys) and any(got == want or want.startswith(got + ".")
+                                  or got.startswith(want + ".") for got in keys)
+
     rows, calls = [], 0
     for ind in get_indicators(None):
         picked = selector(ind.indicator_id, provisions)
@@ -255,6 +283,7 @@ def evaluate(economy: str, selector: Callable[[str, list[Provision]], list],
         want_laws = t["law_ids"] if t else set()
         want_secs = t["sections"] if t else {}
         want_pairs = t.get("pairs", set()) if t else set()
+        available = {(lid, w) for (lid, w) in want_pairs if _in_corpus(lid, w)}
         law_hit = prov_hit = False
         in_top, best_rank = 0, None
         reached: set[tuple[str, str]] = set()
@@ -279,7 +308,8 @@ def evaluate(economy: str, selector: Callable[[str, list[Provision]], list],
             law_hit=law_hit, prov_hit=prov_hit,
             law_expected=bool(want_laws), prov_expected=bool(want_secs),
             target_in_top=in_top, best_target_rank=best_rank,
-            prov_expected_n=len(want_pairs), prov_hit_n=len(reached)))
+            prov_expected_n=len(want_pairs), prov_hit_n=len(reached),
+            prov_available_n=len(available), prov_hit_available_n=len(reached & available)))
     return EvalReport(rows=rows, n_calls=calls)
 
 

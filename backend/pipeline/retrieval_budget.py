@@ -79,12 +79,20 @@ def shortlist_size(economy: str | None, n_provisions: int, top_k: int = 5) -> tu
 
     cap = int(e.get("cap") or settings.retrieve_max_top_k)
     floor = int(e.get("floor") or settings.retrieve_top_k)
-    k = min(n_provisions, cap, max(top_k, floor, math.ceil(n_provisions * settings.retrieve_fraction)))
+    # A MEASURED cap is the depth, not a ceiling over the 5% heuristic. Written the other way —
+    # min(n, cap, max(floor, 5% of n)) — the heuristic stayed in charge and the measurement
+    # only ever made things smaller: Singapore measures 12 of its 12 in-corpus cited provisions
+    # reached at k=450 and 10 at k=80, yet a 6,752-provision live crawl would have used
+    # ceil(5% x 6752) = 338 and never tested the number that was measured. The fraction is a
+    # guess for economies nobody has measured; where a measurement exists it replaces the guess.
+    k = min(n_provisions, max(cap, floor, top_k))
     recall = e.get("prov_recall")
     saved = default_k - k
-    why = (f"top_k={k} (measured for {economy}: prov-recall "
+    why = (f"top_k={k} (measured for {economy}: in-corpus prov-recall "
            f"{recall if recall is not None else '?'} at k={e.get('measured_k', cap)} "
            f"on {e.get('measured_on', 'an unrecorded date')})")
     if saved > 0:
         why += f" — {saved} fewer candidates/indicator than the untuned default"
+    elif saved < 0:
+        why += f" — {-saved} MORE candidates/indicator than the untuned default would give"
     return k, why
