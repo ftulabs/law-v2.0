@@ -75,27 +75,61 @@ def test_a_measured_economy_never_exceeds_the_global_cap_or_its_corpus():
             assert k <= n
 
 
-def test_a_measurement_overrides_the_fraction_heuristic_even_upward():
-    """The measured cap is the depth, not a ceiling over `retrieve_fraction`.
+def test_a_budget_entry_can_only_ever_NARROW_a_shortlist():
+    """The cap is a ceiling. It may make a run cheaper; it may never make one more expensive.
 
-    Written as min(n, cap, max(floor, 5% of n)), the heuristic stayed in charge and a
-    measurement could only ever make a shortlist SMALLER. Singapore is the case: 12 of the 12
-    cited provisions its corpus holds are reached at k=450 and 10 at k=80, but a 6,752-provision
-    live crawl would have used ceil(5% x 6752) = 338 and never tested the measured number. The
-    fraction is a guess for economies nobody has measured; where a measurement exists it
-    replaces the guess, in both directions.
+    Tried the other way for one afternoon on 2026-08-31 — `min(n, max(cap, floor, top_k))`, on
+    the argument that a measured cap should BE the depth rather than be overridden by the 5%
+    heuristic. The retrieval measurement behind it was sound and the conclusion was not, because
+    retrieval recall is a ceiling on what the grader can get right, not an outcome. Measured end
+    to end over six economies: depth ~250 -> 450 cost $2.07 -> $7.39, found 17 more of the
+    provisions the panel cites (55 -> 72) and exported 972 more rows (1,149 -> 2,121) at an
+    unchanged 57% precision — about 418 more wrong rows, twenty-five for every right one.
+
+    So a shortlist may only get shorter than the untuned default, never longer, until the
+    grader and the confidence score can tell a good candidate from a nearby one.
     """
-    e = B.entry("SG")
-    if not e:
-        pytest.skip("SG has not been measured")
-    n = 6_752                                  # the corpus size of a real SG live crawl
-    fraction_k = math.ceil(n * settings.retrieve_fraction)
-    k, why = B.shortlist_size("SG", n)
-    assert k == min(n, e["cap"]), f"the measured cap did not take effect: {why}"
-    if e["cap"] > fraction_k:
-        assert k > fraction_k, "the 5% heuristic is still overriding the measurement"
-        assert "MORE candidates" in why, "spending more than the default must be said out loud"
+    for econ, e in (B._load().get("economies") or {}).items():
+        for n in (500, 5_000, 40_000):
+            k, why = B.shortlist_size(econ, n)
+            default_k = min(n, settings.retrieve_max_top_k,
+                            max(settings.retrieve_top_k,
+                                math.ceil(n * settings.retrieve_fraction)))
+            assert k <= default_k, (f"{econ} at n={n} spends {k} where the untuned default "
+                                    f"spends {default_k}: {why}")
+            assert k <= e["cap"], f"{econ} exceeded its own measured cap"
 
+
+def test_an_unflattened_recall_curve_is_not_written_as_a_budget():
+    """`measure_budget._derive` must refuse to write a cap it did not actually find.
+
+    On 2026-08-31 the recall curve was still climbing at the ladder's last rung for five of six
+    economies, and the tool wrote that rung down as the answer — turning "the ladder was too
+    short" into "450 is sufficient" for the whole table. Nothing in the file said so; every
+    entry carried a recall figure and a date and looked measured.
+    """
+    import importlib
+
+    mb = importlib.import_module("tools.measure_budget")
+    rising = [{"k": k, "prov_recall": r, "law_recall": 1.0, "prov_sample": 20}
+              for k, r in zip(mb.LADDER, (0.15, 0.30, 0.60, 0.95, 1.00))]
+    flat = [{"k": k, "prov_recall": r, "law_recall": 1.0, "prov_sample": 20}
+            for k, r in zip(mb.LADDER, (1.0, 1.0, 1.0, 1.0, 1.0))]
+    assert mb._derive(rising, mb.LADDER)["write_ok"] is False
+    assert "NOT plateaued" in mb._derive(rising, mb.LADDER)["note"]
+    assert mb._derive(flat, mb.LADDER)["write_ok"] is True
+
+
+def test_a_curve_predating_prov_sample_is_not_reported_as_measured_on_nothing():
+    """A stored curve from before `prov_sample` existed has no sample count. Reading the missing
+    field as zero produced "derived from only 0 cited provisions" on entries that were measured
+    on plenty — a fabricated warning is as bad as a fabricated number."""
+    import importlib
+
+    mb = importlib.import_module("tools.measure_budget")
+    old = [{"k": k, "prov_recall": 1.0, "law_recall": 1.0} for k in mb.LADDER]
+    assert "too few" not in mb._derive(old, mb.LADDER)["note"]
+    assert mb._derive(old, mb.LADDER)["prov_sample"] is None
 
 def test_budget_table_is_generated_not_handwritten():
     if not B.BUDGET_JSON.exists():

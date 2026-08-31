@@ -79,13 +79,32 @@ def shortlist_size(economy: str | None, n_provisions: int, top_k: int = 5) -> tu
 
     cap = int(e.get("cap") or settings.retrieve_max_top_k)
     floor = int(e.get("floor") or settings.retrieve_top_k)
-    # A MEASURED cap is the depth, not a ceiling over the 5% heuristic. Written the other way —
-    # min(n, cap, max(floor, 5% of n)) — the heuristic stayed in charge and the measurement
-    # only ever made things smaller: Singapore measures 12 of its 12 in-corpus cited provisions
-    # reached at k=450 and 10 at k=80, yet a 6,752-provision live crawl would have used
-    # ceil(5% x 6752) = 338 and never tested the number that was measured. The fraction is a
-    # guess for economies nobody has measured; where a measurement exists it replaces the guess.
-    k = min(n_provisions, max(cap, floor, top_k))
+    # REVERTED 2026-08-31, same day, on the evidence of the run it produced. For one afternoon
+    # this read `min(n, max(cap, floor, top_k))` — "a measured cap IS the depth" — on the
+    # argument that writing it as `min(n, cap, max(floor, 5% of n))` let the heuristic override
+    # the measurement and never test it. The retrieval measurement was right and the conclusion
+    # was wrong, because retrieval recall is a CEILING, not an outcome. Measured end to end
+    # across six economies:
+    #
+    #     depth ~250 -> 450     cost $2.07 -> $7.39, 72 -> 186 minutes
+    #                           cited provisions found  55 -> 72   (+17)
+    #                           rows exported        1,149 -> 2,121
+    #                           precision on new rows   57% -> 57%  (independent audit,
+    #                                                    control group, MN excluded)
+    #                           => false rows          ~494 -> ~912  (+418)
+    #
+    # Seventeen more correct answers bought at twenty-five wrong rows each. Criterion C2b
+    # scores citation fidelity, so those rows cost marks, not just money. The extra depth
+    # cannot pay until the acceptance side can refuse: 21% of what retrieval already sends
+    # (36-41% on pillar 6) contains no concept term of the pillar at all, the grader emits
+    # legal_match=0.9 on 79% of what it accepts, and the confidence formula has never rejected
+    # a single row (floor ~0.71 against a 0.60 threshold).
+    #
+    # So the cap is a CEILING again. It stays measured, and it stays in the table with the
+    # recall it was measured at — raise it when the grader and the confidence score can tell a
+    # good candidate from a nearby one, not before.
+    k = min(n_provisions, cap, max(top_k, floor,
+                                   math.ceil(n_provisions * settings.retrieve_fraction)))
     recall = e.get("prov_recall")
     saved = default_k - k
     why = (f"top_k={k} (measured for {economy}: in-corpus prov-recall "
