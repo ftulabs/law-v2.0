@@ -17,6 +17,33 @@ from urllib.parse import parse_qs, urlparse
 from ..config import settings
 from ..schemas import Economy
 
+
+class EngineUnavailable(Exception):
+    """An engine could not answer at all — a spent key, a rate limit, a challenge page.
+
+    Deliberately distinct from an engine that answered with zero results. Collapsing the
+    two is what made a dead Serper key read as "Singapore has no data-protection law":
+    measured 2026-09-07, `_serper` returned [] on HTTP 400 "Not enough credits" and nothing
+    anywhere recorded that the engine had failed.
+    """
+
+    def __init__(self, engine: str, detail: str):
+        self.engine, self.detail = engine, detail
+        super().__init__(f"{engine}: {detail}")
+
+
+#: Per-run discovery provenance. Reset by `reset_circuit()` at the top of every run, so a
+#: dashboard process that serves many runs cannot attribute one run's failures to the next.
+_diag: dict = {"cache_hits": 0, "network_queries": 0, "empty_queries": 0,
+               "engine_failures": {}}
+
+
+def diagnostics() -> dict:
+    """A copy of this run's search provenance — what came from cache, what hit the network,
+    and which engines were unavailable. Read by `discovery.explain_empty_discovery`."""
+    return {**_diag, "engine_failures": dict(_diag["engine_failures"])}
+
+
 # Official primary-source portals per economy (domain only — NOT specific laws).
 OFFICIAL_PORTAL: dict[str, str] = {
     "SG": "sso.agc.gov.sg",
@@ -73,7 +100,11 @@ def _serper(client, q, n):
                     headers={"X-API-KEY": settings.serper_api_key, "Content-Type": "application/json"},
                     json={"q": q, "num": max(n, 10)})
     if r.status_code != 200:
-        return []
+        try:
+            detail = r.json().get("message") or r.text[:120]
+        except Exception:                                    # noqa: BLE001 — not JSON
+            detail = r.text[:120]
+        raise EngineUnavailable("serper", f"HTTP {r.status_code} — {detail}")
     out = []
     for it in r.json().get("organic", []):
         link = it.get("link", "")
@@ -87,17 +118,26 @@ def _serper(client, q, n):
 # Independent engines — try in order until one returns results (engines rate-limit).
 def _ddg_html(client, q, n):
     r = client.post("https://html.duckduckgo.com/html/", data={"q": q})
-    return _parse(r.text, "a.result__a", n) if r.status_code == 200 else []
+    if r.status_code != 200:
+        # 202 is DuckDuckGo's anomaly/challenge page, not an empty result set.
+        raise EngineUnavailable("ddg_html", f"HTTP {r.status_code}"
+                                            f"{' (challenge page)' if r.status_code == 202 else ''}")
+    return _parse(r.text, "a.result__a", n)
 
 
 def _ddg_lite(client, q, n):
     r = client.post("https://lite.duckduckgo.com/lite/", data={"q": q})
-    return _parse(r.text, "a.result-link", n) if r.status_code == 200 else []
+    if r.status_code != 200:
+        raise EngineUnavailable("ddg_lite", f"HTTP {r.status_code}"
+                                            f"{' (challenge page)' if r.status_code == 202 else ''}")
+    return _parse(r.text, "a.result-link", n)
 
 
 def _mojeek(client, q, n):
     r = client.get("https://www.mojeek.com/search", params={"q": q})
-    return _parse(r.text, "a.title, ul.results-standard li a", n) if r.status_code == 200 else []
+    if r.status_code != 200:
+        raise EngineUnavailable("mojeek", f"HTTP {r.status_code}")
+    return _parse(r.text, "a.title, ul.results-standard li a", n)
 
 
 def _scrapling_ddg(client, q, n):
@@ -137,6 +177,8 @@ _SOFT, _HARD = 2, 6
 
 def reset_circuit() -> None:
     _circuit["empties"] = 0
+    _diag.update(cache_hits=0, network_queries=0, empty_queries=0)
+    _diag["engine_failures"] = {}
 
 
 def _engines() -> list:
@@ -184,6 +226,10 @@ def search(query: str, site: str | None = None, max_results: int = 10, log=print
         for engine in _engines():
             try:
                 results = engine(client, q, max_results)
+            except EngineUnavailable as e:
+                _diag["engine_failures"][e.engine] = e.detail
+                log(f"[websearch] {e.engine} unavailable — {e.detail}")
+                results = []
             except Exception as e:  # noqa: BLE001
                 log(f"[websearch] {engine.__name__} error ({type(e).__name__})")
                 results = []
@@ -195,6 +241,7 @@ def search(query: str, site: str | None = None, max_results: int = 10, log=print
         _cache_file().write_text(json.dumps(cache, indent=1), encoding="utf-8")
     else:
         _circuit["empties"] += 1
+        _diag["empty_queries"] += 1
         msg = f"[websearch] all engines empty for '{q}'"
         if _circuit["empties"] == _HARD and not settings.serper_api_key:
             msg += " — engines blocked; circuit OPEN. Set SERPER_API_KEY for reliable discovery."
