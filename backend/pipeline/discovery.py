@@ -1083,7 +1083,8 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int,
     portal whose HTML pages are JS/navigation wrappers, so only the document files are extracted."""
     from . import websearch
     from ..rdtii.keywords import portal_search_queries
-    websearch.reset_circuit()                      # fresh circuit-breaker state per run
+    websearch.reset_circuit()                      # fresh circuit-breaker state per lane (this
+                                                     # runs once per web-search source per pillar)
     # web search is inherently full-text (the engine indexed the law BODIES), so descriptive
     # obligation phrases fire here even for economies whose portal API is name-only (AU/MY)
     topics = (queries if queries is not None

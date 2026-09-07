@@ -341,6 +341,40 @@ def test_websearch_circuit_breaker_stops_hammering_blocked_engines(monkeypatch):
     assert websearch._circuit["empties"] == websearch._HARD   # opened and stays open
 
 
+def test_discover_live_sums_network_queries_across_websearch_lanes(monkeypatch, tmp_path):
+    """MUST-FIX 1 regression. India runs several websearch lanes across pillars, and each lane
+    (`discover_websearch`) calls `websearch.reset_circuit()` — deliberately, since the circuit
+    breaker is per-lane. Before the fix, `reset_circuit()` also zeroed `_diag`, so a second
+    lane's `network_queries` overwrote the first lane's count instead of adding to it, and
+    `explain_empty_discovery` reported the LAST lane's numbers as the whole run's. This drives
+    the real loop in `discover_live` (discovery.py, the `for s in sources` websearch loop)
+    across two lanes and checks the counter is the SUM, not the last lane's value."""
+    from backend.pipeline import discovery as D, websearch
+    from backend.schemas import Economy
+
+    fake_sources = [
+        {"economy": "IN", "adapter": "websearch", "site": "indiacode.nic.in",
+         "queries": ["data protection act"]},
+        {"economy": "IN", "adapter": "websearch", "site": "meity.gov.in",
+         "queries": ["information technology act"]},
+    ]
+    monkeypatch.setattr(D, "load_sources", lambda: fake_sources)
+    monkeypatch.setattr(websearch.settings, "cache_dir", str(tmp_path))
+    monkeypatch.setattr(websearch.settings, "serper_api_key", "")
+
+    def fake_engine(client, q, n):
+        site = q.split("site:")[-1] if "site:" in q else ""
+        return [(f"https://{site}/some-act", "Some Act", "snippet")]
+
+    monkeypatch.setattr(websearch, "_engines", lambda: [fake_engine])
+
+    websearch.reset_diagnostics()
+    D.discover_live(Economy.IN, pillar=6)
+
+    assert websearch.diagnostics()["network_queries"] == 2, \
+        "each lane's per-lane reset_circuit() must not wipe the other lane's diagnostics"
+
+
 # ─────────────────── Malaysia portal-catalogue adapter ───────────────────
 def test_my_extract_names_bilingual_picks_english():
     """MY catalogue titles list both languages; the English name (anchor before 'As At') is

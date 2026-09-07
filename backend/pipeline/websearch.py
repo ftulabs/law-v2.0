@@ -32,7 +32,7 @@ class EngineUnavailable(Exception):
         super().__init__(f"{engine}: {detail}")
 
 
-#: Per-run discovery provenance. Reset by `reset_circuit()` at the top of every run, so a
+#: Per-run discovery provenance. Reset by `reset_diagnostics()` at the top of every run, so a
 #: dashboard process that serves many runs cannot attribute one run's failures to the next.
 _diag: dict = {"cache_hits": 0, "network_queries": 0, "empty_queries": 0,
                "engine_failures": {}}
@@ -175,10 +175,22 @@ _circuit = {"empties": 0}
 _SOFT, _HARD = 2, 6
 
 
-def reset_circuit() -> None:
-    _circuit["empties"] = 0
+def reset_diagnostics() -> None:
+    """Zero the per-RUN search provenance. Called once per run by the orchestrator.
+
+    Kept separate from reset_circuit() because the circuit breaker is per-LANE:
+    discover_websearch resets it for every web-search source of every pillar (the loop
+    in discovery.discover_live), so an economy with four lanes across two pillars resets
+    it eight times. Conflating the two made explain_empty_discovery report the last lane's
+    counters as the whole run's, and let it assert "every engine answered" when an earlier
+    lane had failed.
+    """
     _diag.update(cache_hits=0, network_queries=0, empty_queries=0)
     _diag["engine_failures"] = {}
+
+
+def reset_circuit() -> None:
+    _circuit["empties"] = 0
 
 
 def _engines() -> list:
@@ -276,6 +288,14 @@ def search(query: str, site: str | None = None, max_results: int = 10, log=print
         cache[q] = {"results": [list(r) for r in results],
                     "fetched_at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
                     "engine": getattr(engine, "__name__", "?")}
+        if settings.search_cache_max_age_days > 0:
+            # Nothing else prunes this file: `_entry_results()` only declines to SERVE a
+            # stale entry, so without this the dict only grows — 890 entries from 2026-08-31
+            # were still being re-serialised on every successful query, at 1.6 MB. Drop
+            # already-expired keys on every write instead. Guarded on the TTL being enabled:
+            # at max_age_days<=0, `_entry_results` treats EVERY entry (including the one just
+            # written above) as expired, which would empty the file on the next write.
+            cache = {k: v for k, v in cache.items() if _entry_results(v) is not None}
         _cache_file().write_text(json.dumps(cache, indent=1), encoding="utf-8")
     else:
         _circuit["empties"] += 1

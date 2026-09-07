@@ -12,7 +12,7 @@ from backend.schemas import Economy
 
 
 def _reset():
-    websearch.reset_circuit()
+    websearch.reset_diagnostics()
 
 
 def test_a_dead_search_engine_is_named_as_the_cause(monkeypatch):
@@ -85,13 +85,16 @@ def test_a_second_pass_that_lost_every_cached_body_blames_the_cache_not_the_sear
     assert "search engine" not in joined
 
 
-def test_reset_circuit_clears_stale_diagnostics_between_runs():
+def test_reset_diagnostics_clears_stale_diagnostics_between_runs():
     """Finding 2: `frontend/app.py` is one long-lived Streamlit process, and Phase 2 gives most
-    economies a portal-native lane, so a run may never call `discover_websearch` (the only other
-    place `reset_circuit()` is called) at all. `run_pipeline` now calls `websearch.reset_circuit()`
-    once near the top of every run, before the discovery branch chain, so stale diagnostics from
-    a previous run's web-search lane can never be reported as this run's cause.
+    economies a portal-native lane, so a run may never call `discover_websearch` at all.
+    `discover_websearch` calls `reset_circuit()` — but that resets only the per-LANE circuit
+    breaker (it fires once per web-search source per pillar, so an economy with several lanes
+    would otherwise wipe the run's diagnostics mid-run). `run_pipeline` instead calls
+    `websearch.reset_diagnostics()` once near the top of every run, before the discovery branch
+    chain, so stale diagnostics from a previous run's web-search lane can never be reported as
+    this run's cause.
     """
     websearch._diag["engine_failures"]["serper"] = "stale"
-    websearch.reset_circuit()
+    websearch.reset_diagnostics()
     assert websearch.diagnostics()["engine_failures"] == {}

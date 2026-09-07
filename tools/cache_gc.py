@@ -2,7 +2,8 @@
 
 Measured 2026-09-07: 843 PDFs, 2,155 HTML pages, 2,854 extraction results — holding BOTH
 `_rapidocr_v4` and `_rapidocr_v5` output for the same documents — 210 MB of embedding
-caches and 53 MB of LightRAG artefacts that `RETRIEVER=hybrid` never reads.
+caches and 53 MB of LightRAG artefacts that `RETRIEVER=hybrid` cannot read (`RETRIEVER=auto`
+CAN, once a corpus crosses `lightrag_min_provisions` — see `backend/pipeline/mapping.py`).
 
 What this tool must NOT reclaim is the more important half:
 
@@ -12,8 +13,13 @@ What this tool must NOT reclaim is the more important half:
                 document with a single version is never touched.
   _emb_*.npz    measured at a 16x speedup on repeat runs and rebuilt only at real CPU cost.
   _ce_*.npz     same.
-  _search.json  expires per ENTRY (settings.search_cache_max_age_days), which keeps the
-                provenance a stale-vs-fresh decision needs. Deleting the file hides that.
+  _search.json  on every successful search, `websearch.search()` now drops entries that are
+                already expired (settings.search_cache_max_age_days) when it rewrites the
+                file — that is the per-entry lifecycle. This tool still never reclaims it
+                directly: a query that never runs again would otherwise sit dead forever,
+                but that is a slower leak than this tool exists to police.
+  _results/     directory of run-result caches; protected same as above (a directory, so the
+                per-file passes below never reach it — listed to make the exemption explicit).
 
     python tools/cache_gc.py                       # what would go, and why (default)
     python tools/cache_gc.py --apply               # actually delete
@@ -35,7 +41,9 @@ from backend.config import settings                            # noqa: E402
 from backend.console import enable_utf8_stdio                  # noqa: E402
 
 #: Never reclaimed by age or size — see the module docstring for why each one earns it.
-_PROTECTED = ("_search.json", "_index.json")
+#: `_results` is a directory, so the top-level-file passes below never reach it today
+#: regardless — listed anyway as cheap insurance in destructive code.
+_PROTECTED = ("_search.json", "_index.json", "_results")
 _PROTECTED_PREFIX = ("_emb_", "_ce_")
 
 #: `<doc-hash>_<engine>_<version>.json` in _extracted/. The version is what makes one
@@ -66,13 +74,15 @@ def plan_gc(root: Path, max_age_days: float, max_gb: float,
     if not root.exists():
         return out
 
-    # 1. LightRAG artefacts, when the configured retriever cannot read them.
+    # 1. LightRAG artefacts, when the configured retriever cannot read them. Empty-string
+    # default matches backend/pipeline/mapping.py:36 ("auto") — the two must not drift, since
+    # RETRIEVER=auto DOES build and read LightRAG once a corpus crosses lightrag_min_provisions.
     lr = root / "lightrag"
-    if lr.is_dir() and (settings.retriever or "hybrid").lower() != "lightrag":
+    if lr.is_dir() and (settings.retriever or "auto").lower() not in ("lightrag", "auto"):
         size = _dir_size(lr)
         if size:
             out.append(Reclaim(lr, size,
-                               f"RETRIEVER={settings.retriever} never reads LightRAG artefacts"))
+                               f"RETRIEVER={settings.retriever} cannot read LightRAG artefacts"))
 
     # 2. Superseded engine outputs in _extracted/ — newest version per (document, engine) stays.
     ex = root / "_extracted"

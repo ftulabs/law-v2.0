@@ -5,6 +5,7 @@ re-process already-downloaded documents without re-fetching, so extraction resul
 mechanism, not waste. Only SUPERSEDED versions of the same document may go.
 """
 import json
+import sys
 import time
 from pathlib import Path
 
@@ -38,12 +39,25 @@ def test_a_document_with_only_one_engine_version_is_never_reclaimed(tmp_path):
     assert not [r for r in plan if r.path.name == "solo_rapidocr_v5.json"]
 
 
-def test_lightrag_is_reclaimed_only_when_the_retriever_does_not_use_it(tmp_path, monkeypatch):
+def test_lightrag_is_reclaimed_only_when_the_retriever_cannot_read_it(tmp_path, monkeypatch):
     _write(tmp_path / "lightrag" / "graph.graphml", 5000)
     from tools import cache_gc
     monkeypatch.setattr(cache_gc.settings, "retriever", "hybrid")
     assert any("lightrag" in str(r.path) for r in plan_gc(tmp_path, 0, 0, False))
     monkeypatch.setattr(cache_gc.settings, "retriever", "lightrag")
+    assert not any("lightrag" in str(r.path) for r in plan_gc(tmp_path, 0, 0, False))
+
+
+def test_lightrag_is_not_reclaimed_under_retriever_auto(tmp_path, monkeypatch):
+    """RETRIEVER=auto DOES build and read LightRAG once a corpus crosses
+    lightrag_min_provisions (backend/pipeline/mapping.py:36) — reclaiming it here would delete
+    an artefact the retriever rebuilds on the very next run, under a message claiming auto
+    never reads it. Empty string must default to "auto" too, matching mapping.py."""
+    _write(tmp_path / "lightrag" / "graph.graphml", 5000)
+    from tools import cache_gc
+    monkeypatch.setattr(cache_gc.settings, "retriever", "auto")
+    assert not any("lightrag" in str(r.path) for r in plan_gc(tmp_path, 0, 0, False))
+    monkeypatch.setattr(cache_gc.settings, "retriever", "")
     assert not any("lightrag" in str(r.path) for r in plan_gc(tmp_path, 0, 0, False))
 
 
@@ -63,8 +77,10 @@ def test_embedding_caches_are_never_reclaimed_by_age(tmp_path):
 
 
 def test_the_search_cache_is_never_reclaimed_by_this_tool(tmp_path):
-    """It expires per entry (search_cache_max_age_days), which preserves the provenance
-    a stale-vs-fresh decision needs. Deleting the file wholesale would hide that."""
+    """`plan_gc` never touches `_search.json` wholesale — deleting it would lose provenance a
+    stale-vs-fresh decision needs. Its per-ENTRY lifecycle is handled elsewhere: on every
+    successful query, `websearch.search()` drops already-expired entries when it rewrites the
+    file (see tests/test_websearch_diagnostics.py)."""
     _write(tmp_path / "_search.json", 1000, age_days=365)
     assert plan_gc(tmp_path, max_age_days=30, max_gb=0, keep_engines=False) == []
 
@@ -81,3 +97,23 @@ def test_every_reclaim_states_a_reason(tmp_path):
     _write(tmp_path / "old.pdf", 1000, age_days=90)
     plan = plan_gc(tmp_path, max_age_days=30, max_gb=0, keep_engines=False)
     assert plan and all(isinstance(r, Reclaim) and r.reason for r in plan)
+
+
+def test_main_without_apply_leaves_every_file_on_disk(tmp_path, monkeypatch):
+    """The `--apply` gate is the single most important property in this tool — a dry run
+    (the default) must never delete."""
+    old = _write(tmp_path / "old.pdf", 1000, age_days=90)
+    from tools import cache_gc
+    monkeypatch.setattr(sys, "argv",
+                        ["cache_gc.py", "--root", str(tmp_path), "--max-age-days", "30"])
+    assert cache_gc.main() == 0
+    assert old.exists()
+
+
+def test_main_with_apply_deletes(tmp_path, monkeypatch):
+    old = _write(tmp_path / "old.pdf", 1000, age_days=90)
+    from tools import cache_gc
+    monkeypatch.setattr(sys, "argv",
+                        ["cache_gc.py", "--root", str(tmp_path), "--max-age-days", "30", "--apply"])
+    assert cache_gc.main() == 0
+    assert not old.exists()

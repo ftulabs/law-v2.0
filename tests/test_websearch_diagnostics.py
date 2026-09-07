@@ -66,7 +66,7 @@ def test_search_records_the_failure_and_keeps_going(monkeypatch, tmp_path):
     """One dead engine must not be fatal, but it must be REPORTED."""
     monkeypatch.setattr(websearch.settings, "cache_dir", str(tmp_path))
     monkeypatch.setattr(websearch.settings, "serper_api_key", "")
-    websearch.reset_circuit()
+    websearch.reset_diagnostics()
 
     def dead(client, q, n):
         raise websearch.EngineUnavailable("ddg_html", "HTTP 202 (challenge page)")
@@ -88,7 +88,7 @@ def test_zero_results_is_not_an_engine_failure(monkeypatch, tmp_path):
     """An engine that answers with nothing is a different fact from an engine that is down."""
     monkeypatch.setattr(websearch.settings, "cache_dir", str(tmp_path))
     monkeypatch.setattr(websearch.settings, "serper_api_key", "")
-    websearch.reset_circuit()
+    websearch.reset_diagnostics()
     monkeypatch.setattr(websearch, "_engines", lambda: [lambda c, q, n: []])
 
     assert websearch.search("nothing matches this", log=lambda *_: None) == []
@@ -108,7 +108,7 @@ def _iso(days_ago: float) -> str:
 def test_fresh_cache_entry_is_served_without_touching_the_network(monkeypatch, tmp_path):
     monkeypatch.setattr(websearch.settings, "cache_dir", str(tmp_path))
     monkeypatch.setattr(websearch.settings, "search_cache_max_age_days", 7.0)
-    websearch.reset_circuit()
+    websearch.reset_diagnostics()
     (tmp_path / "_search.json").write_text(json.dumps({
         "personal data site:sso.agc.gov.sg": {
             "results": [["https://sso.agc.gov.sg/Act/PDPA2012", "PDPA", ""]],
@@ -127,7 +127,7 @@ def test_stale_cache_entry_is_a_miss(monkeypatch, tmp_path):
     """The entry that made Singapore look alive was eight days old."""
     monkeypatch.setattr(websearch.settings, "cache_dir", str(tmp_path))
     monkeypatch.setattr(websearch.settings, "search_cache_max_age_days", 7.0)
-    websearch.reset_circuit()
+    websearch.reset_diagnostics()
     (tmp_path / "_search.json").write_text(json.dumps({
         "personal data site:sso.agc.gov.sg": {
             "results": [["https://sso.agc.gov.sg/Act/PDPA2012", "PDPA", ""]],
@@ -145,7 +145,7 @@ def test_legacy_bare_list_entry_is_treated_as_expired(monkeypatch, tmp_path):
     timestamp. It cannot be shown to be fresh, so it must never be served as live."""
     monkeypatch.setattr(websearch.settings, "cache_dir", str(tmp_path))
     monkeypatch.setattr(websearch.settings, "search_cache_max_age_days", 7.0)
-    websearch.reset_circuit()
+    websearch.reset_diagnostics()
     (tmp_path / "_search.json").write_text(json.dumps({
         "personal data": [["https://old", "Old", ""]]}), encoding="utf-8")
     monkeypatch.setattr(websearch, "_engines",
@@ -158,7 +158,7 @@ def test_legacy_bare_list_entry_is_treated_as_expired(monkeypatch, tmp_path):
 def test_ttl_of_zero_disables_the_cache_entirely(monkeypatch, tmp_path):
     monkeypatch.setattr(websearch.settings, "cache_dir", str(tmp_path))
     monkeypatch.setattr(websearch.settings, "search_cache_max_age_days", 0.0)
-    websearch.reset_circuit()
+    websearch.reset_diagnostics()
     (tmp_path / "_search.json").write_text(json.dumps({
         "q": {"results": [["https://cached", "C", ""]],
               "fetched_at": _iso(0), "engine": "serper"}}), encoding="utf-8")
@@ -168,10 +168,55 @@ def test_ttl_of_zero_disables_the_cache_entirely(monkeypatch, tmp_path):
     assert websearch.search("q", log=lambda *_: None) == [("https://fresh", "Fresh", "")]
 
 
+def test_a_successful_search_prunes_expired_entries_from_the_cache_file(monkeypatch, tmp_path):
+    """Nothing else prunes `_search.json` — `_entry_results()` only declines to SERVE a stale
+    entry, so the 890 dead 2026-08-31 entries were being re-serialised on every successful
+    query. A successful write must drop already-expired keys, leaving fresh ones alone."""
+    monkeypatch.setattr(websearch.settings, "cache_dir", str(tmp_path))
+    monkeypatch.setattr(websearch.settings, "search_cache_max_age_days", 7.0)
+    websearch.reset_diagnostics()
+    cache_file = tmp_path / "_search.json"
+    cache_file.write_text(json.dumps({
+        "stale query": {"results": [["https://old", "Old", ""]],
+                        "fetched_at": _iso(30), "engine": "serper"},
+        "fresh query": {"results": [["https://still-good", "Still good", ""]],
+                        "fetched_at": _iso(1), "engine": "serper"}}), encoding="utf-8")
+    monkeypatch.setattr(websearch, "_engines",
+                        lambda: [lambda c, qq, n: [("https://new", "New", "")]])
+
+    websearch.search("brand new query", log=lambda *_: None)
+
+    on_disk = json.loads(cache_file.read_text(encoding="utf-8"))
+    assert "stale query" not in on_disk
+    assert "fresh query" in on_disk
+    assert "brand new query" in on_disk
+
+
+def test_ttl_disabled_does_not_empty_the_cache_file_on_write(monkeypatch, tmp_path):
+    """max_age_days<=0 makes `_entry_results` treat every entry (including the one just
+    written) as expired — the prune must be guarded so a disabled TTL doesn't wipe the file
+    on the very next successful search."""
+    monkeypatch.setattr(websearch.settings, "cache_dir", str(tmp_path))
+    monkeypatch.setattr(websearch.settings, "search_cache_max_age_days", 0.0)
+    websearch.reset_diagnostics()
+    cache_file = tmp_path / "_search.json"
+    cache_file.write_text(json.dumps({
+        "existing query": {"results": [["https://kept", "Kept", ""]],
+                           "fetched_at": _iso(1), "engine": "serper"}}), encoding="utf-8")
+    monkeypatch.setattr(websearch, "_engines",
+                        lambda: [lambda c, qq, n: [("https://new", "New", "")]])
+
+    websearch.search("another query", log=lambda *_: None)
+
+    on_disk = json.loads(cache_file.read_text(encoding="utf-8"))
+    assert "existing query" in on_disk
+    assert "another query" in on_disk
+
+
 def test_a_written_entry_carries_its_provenance(monkeypatch, tmp_path):
     monkeypatch.setattr(websearch.settings, "cache_dir", str(tmp_path))
     monkeypatch.setattr(websearch.settings, "search_cache_max_age_days", 7.0)
-    websearch.reset_circuit()
+    websearch.reset_diagnostics()
 
     def named(client, q, n):
         return [("https://x", "X", "")]

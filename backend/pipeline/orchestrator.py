@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 
 from .. import metering
 from ..config import settings
+from ..console import safe_log
 from ..schemas import ECONOMY_UN_NAME
 from ..providers import get_llm_provider, get_ocr_provider
 from ..rdtii import get_indicators
@@ -252,7 +253,7 @@ def _resolve_llm(name, model, api_key, log):
         return get_llm_provider("mock")
 
 
-def _explain_lost_cached_bodies(economy: Economy, requested: int, log=print) -> list[str]:
+def _explain_lost_cached_bodies(economy: Economy, requested: int, log=safe_log) -> list[str]:
     """Say why a second pass produced zero documents, as `[error]` pairs the Run screen can
     render — the same (what happened, what to do) pair shape as `discovery.explain_empty_discovery`,
     but for the opposite cause. A second pass never contacts a portal (that is the point of it:
@@ -348,14 +349,17 @@ def run_pipeline(
 
     # Per-run, not per-lane: `frontend/app.py` is one long-lived Streamlit process serving many
     # runs in sequence, and Phase 2 gives most economies a portal-native adapter, so a run may
-    # never enter `discover_websearch` (the only other place this is called) at all. Without a
-    # reset here, run N can print run N-1's stale engine failures and query counts as its own.
-    websearch.reset_circuit()
+    # never enter `discover_websearch` at all. Without a reset here, run N can print run N-1's
+    # stale engine failures and query counts as its own. `discover_websearch` (discovery.py)
+    # separately calls `reset_circuit()` — that one is per-LANE by design (once per web-search
+    # source per pillar) and must stay that way; conflating the two here would let it wipe this
+    # run's diagnostics mid-run. See websearch.reset_diagnostics()'s docstring.
+    websearch.reset_diagnostics()
 
     # discover across all requested pillars (union) — or use a single provided file
     _t = time.perf_counter()
     seen, docs = set(), []
-    live_discovery = reuse_documents is None and pdf_path is None
+    live_discovery = reuse_documents is None and not pdf_path
     if reuse_documents is not None:
         docs = list(reuse_documents)
         missing = [d for d in docs if not d.local_path]

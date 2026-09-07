@@ -210,7 +210,7 @@ Register new providers in `backend/providers/llm_factory.py`.
 ⚠️ **Multilingual retrieval** — embed = multilingual MiniLM; cross-encoder = English-only (mitigated by grade-all policy for small corpora)
 
 ### Known Gaps
-❌ **MY primary portal PDFs are robots-skipped (found 2026-08-25)** — `lom.agc.gov.my/robots.txt` returns **HTTP 500**; the fetch layer treats "robots unreadable" as disallowed, so every statute PDF on the AGC portal is skipped and a MY run survives only on the `pdp.gov.my` secondary lane. India has the RFC 9309 §2.3.1.4 carve-out for exactly this (server error ≠ refusal); MY needs the same.  
+✅ **MY robots.txt carve-out shipped (found 2026-08-25, fixed 2026-08-28)** — `lom.agc.gov.my/robots.txt` returns **HTTP 500**; the fetch layer used to treat "robots unreadable" as disallowed, so every statute PDF on the AGC portal was skipped and a MY run survived only on the `pdp.gov.my` secondary lane. Fixed via `UNREACHABLE_OVERRIDE` in `backend/pipeline/robots.py` — the same RFC 9309 §2.3.1.4 carve-out (server error ≠ refusal) the India lane already had. MY's corpus went 489 → 5,931 provisions (`PROJECT_STATE.md` §2).  
 ❌ **CN principal statutes depend on network reachability (found 2026-08-25)** — `cac.gov.cn` (the mirror lane) TLS-times-out from some networks and `flk.npc.gov.cn` serves a JS shell with no static text, so PIPL/CSL/DSL can drop out of the corpus; the 2026-08-25 run still completed via `moj.gov.cn`/`mee.gov.cn` mirrors.  
 ✅ **Three portal defects found and fixed (2026-08-15)** — all were SILENT, all cost whole Acts:
   (1) `legislation.gov.au` publishes large Acts as **multi-volume** compilations and 404s on the
@@ -224,7 +224,7 @@ Register new providers in `backend/providers/llm_factory.py`.
   licence, AU's Telecommunications Regulations 2021 (an instrument, not an Act), MY sectoral
   Codes of Practice + PDP Standard 2015. **This is the largest remaining coverage gap, and it
   is a discovery problem, not a retrieval one.**  
-❌ **TH/ID/LA are NOT end-to-end ready** — generic `websearch` lanes only, zero portal-scoped queries, `verified: false` (`data/sources.yaml`). Measured 2026-08-25: TH and ID time out on the DuckDuckGo HTML endpoint; LA's gazette host does not resolve. RU is further along — its document bodies are reachable on `pravo.gov.ru` (see below) but discovery is unsolved. All four need per-portal adapters of the kind CN/IN/MN got, not tuning.  
+❌ **TH/ID/LA are NOT end-to-end ready** — generic `websearch` lanes only, zero portal-scoped queries, `verified: false` (`data/sources.yaml`). Measured 2026-08-25: TH and ID time out on the DuckDuckGo HTML endpoint. LA's gazette host (`laoofficialgazette.gov.la`) DOES resolve — probed 2026-09-07: HTTP 200, 110 KB, full pagination; the earlier "host does not resolve" reading was wrong or transient, and LA still needs a portal-scoped adapter, not just a reachable host. RU is further along — its document bodies are reachable on `pravo.gov.ru` (see below) but discovery is unsolved. All four need per-portal adapters of the kind CN/IN/MN got, not tuning.  
 ✅ **Three Mongolia defects found and fixed (2026-08-27)** — all SILENT, all cost the run its
   document set. A pillar-6 run returned FOUR documents, of which one was a statute.
   (1) `_matches` assumed a Mongolian stem reaches its declined form by substring, using
@@ -428,7 +428,7 @@ When corpus ≤80 provisions, **every provision is graded by the LLM against eve
 
 The tool is built to be auditable, not hidden:
 
-1. **Live crawling** runs end-to-end for SG/AU/MY/CN/IN/MN (measured 2026-08-25). Two caveats: MY's primary portal (`lom.agc.gov.my`) serves a broken robots.txt (HTTP 500) so its statute PDFs are currently skipped — the run leans on `pdp.gov.my`; CN's principal statutes can vanish when `cac.gov.cn` is unreachable (JS-only `flk.npc.gov.cn` is the fallback). TH/ID/LA have no working lane yet (generic websearch, unverified portals); RU can fetch document bodies but cannot yet discover them.
+1. **Live crawling** runs end-to-end for SG/AU/MY/CN/IN/MN (measured 2026-08-25). One caveat remains: CN's principal statutes can vanish when `cac.gov.cn` is unreachable (JS-only `flk.npc.gov.cn` is the fallback). MY's primary portal (`lom.agc.gov.my`) served a broken robots.txt (HTTP 500) that used to skip its statute PDFs — fixed 2026-08-28 via the `UNREACHABLE_OVERRIDE` carve-out in `backend/pipeline/robots.py` (489 → 5,931 provisions). TH/ID have no working lane yet (generic websearch, unverified portals); LA's gazette host resolves (`laoofficialgazette.gov.la`, HTTP 200, probed 2026-09-07) but still needs a portal-scoped adapter; RU can fetch document bodies but cannot yet discover them.
 2. **Scanned/image PDFs** are handled by real raster OCR (RapidOCR/Paddle), measured CER on bundled sample is 1.11% (PASS <5%).
 3. **Mock grader** is lexical (offline) and can confuse P6-I1/P6-I4, P7-I1/P7-I2 without a real LLM → always use a real LLM (OpenRouter/Claude) for submission.
 4. **Indicator `legal_test`** are our interpretation of the RDTII methodology; review pending_review rows before submission.
@@ -446,7 +446,7 @@ Use this as if you're a judge reviewing VeriTrade for the RDTII hackathon:
 - [ ] **Zone 1 mandatory:** Autonomous discovery from live gov portal (no seed URLs), no hardcoded law names
   - [ ] SG: sso.agc.gov.sg works (token-AJAX or direct fetch)
   - [ ] AU: legislation.gov.au works (JSON API confirmed)
-  - [ ] MY: lom.agc.gov.my works (AES-GCM catalogue decrypts; ⚠ its robots.txt returns 500 so portal PDFs are skipped — pdp.gov.my carries the run)
+  - [ ] MY: lom.agc.gov.my works (AES-GCM catalogue decrypts; robots.txt carve-out shipped 2026-08-28 — `UNREACHABLE_OVERRIDE` in `backend/pipeline/robots.py` — so its HTTP-500 robots.txt no longer skips portal PDFs)
   - [ ] Crawl is live, reproducible with current portal state, not a baked corpus
 - [ ] **Zone 2 mandatory:** OCR + extraction
   - [ ] Text-layer PDFs work (MarkItDown)
@@ -480,12 +480,11 @@ Use this as if you're a judge reviewing VeriTrade for the RDTII hackathon:
 ## 10. IMPROVEMENT PRIORITIES FOR FINALS (IF SHORTLISTED)
 
 ### High Priority (confidence for score boost)
-1. **MY robots.txt carve-out** — treat `lom.agc.gov.my/robots.txt` HTTP 500 as "unreachable → proceed" (RFC 9309 §2.3.1.4), the same carve-out the India lane already has, so the primary portal's statute PDFs stop being silently skipped
-2. **Lanes for TH/ID/LA/RU** — per-portal adapters + portal-scoped queries + native vocabulary, modelled on the CN/IN/MN lanes; today these four cannot produce a trustworthy run
-3. **CN principal-statute resilience** — PIPL/CSL/DSL must survive `cac.gov.cn` being unreachable: render `flk.npc.gov.cn` (browser lane) or add more mirrors
-4. **Multilingual cross-encoder reranker** — swap to `BAAI/bge-reranker-v2-m3` for Finals (China, Russia, Lao, Mongolian text)
-5. **Manual review UI** — build the workflow.py skeleton into a functional reviewer dashboard (flag low-confidence, allow edit/accept/reject, export amended CSV)
-6. **CER calibration** — validate CER measurement on real gazette scans (not just the bundled sample) using Azure Document Intelligence as a ground-truth baseline
+1. **Lanes for TH/ID/LA/RU** — per-portal adapters + portal-scoped queries + native vocabulary, modelled on the CN/IN/MN lanes; today these four cannot produce a trustworthy run. (LA's gazette host resolves as of the 2026-09-07 probe, but still lacks a portal-scoped adapter — MY's robots.txt carve-out shipped 2026-08-28 and is no longer on this list.)
+2. **CN principal-statute resilience** — PIPL/CSL/DSL must survive `cac.gov.cn` being unreachable: render `flk.npc.gov.cn` (browser lane) or add more mirrors
+3. **Multilingual cross-encoder reranker** — swap to `BAAI/bge-reranker-v2-m3` for Finals (China, Russia, Lao, Mongolian text)
+4. **Manual review UI** — build the workflow.py skeleton into a functional reviewer dashboard (flag low-confidence, allow edit/accept/reject, export amended CSV)
+5. **CER calibration** — validate CER measurement on real gazette scans (not just the bundled sample) using Azure Document Intelligence as a ground-truth baseline
 
 ### Medium Priority (robustness)
 5. **Batch job scheduler** — for judges to run multiple economies in one command with progress tracking
@@ -551,7 +550,7 @@ title matching, size-aware ranking over title length, and clause splitting witho
 pillar 6 went from 4 documents (1 statute) to 22 with every relevant answer-key law ranked top.
 (3) Working-translation layer added (`backend/pipeline/translate.py`) — 2 CSV columns after the
 mandatory 14, plus the evidence panel, Details and Review surfaces. `tests/test_mn_discovery_and_translation.py`.
-2026-08-25 — Live re-verification of all six reference economies (SG/AU/MY/CN/IN/MN) end-to-end on pillars 6+7; new blockers recorded (MY robots.txt 500, CN cac.gov.cn reachability, TH/ID/LA/RU lanes absent); output format corrected to 14 columns. Outputs: `outputs/rt_check/`.
+2026-08-25 — Live re-verification of all six reference economies (SG/AU/MY/CN/IN/MN) end-to-end on pillars 6+7; new blockers recorded (MY robots.txt 500, CN cac.gov.cn reachability, TH/ID/LA/RU lanes absent); output format corrected to 14 columns. Outputs: `outputs/rt_check/`. **Update:** the MY robots.txt blocker shipped a fix 2026-08-28 (`UNREACHABLE_OVERRIDE` in `backend/pipeline/robots.py`; 489 → 5,931 provisions), and LA's gazette host was confirmed reachable 2026-09-07 (`laoofficialgazette.gov.la`, HTTP 200) though it still lacks a portal adapter; the CN reachability and TH/ID/RU-lane items are still open.
 2026-08-19 — Round-2 expansion (CN/IN/MN): multilingual retrieval, script-aware extraction, language-aware grading prompt. See `docs/round2-expansion.md`.
 2026-06-07  
 Claude Code auto-memory + consolidated from project memory files + README + code inspection.
