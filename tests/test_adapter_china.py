@@ -17,12 +17,18 @@ from backend.pipeline import adapter_china
 from backend.schemas import Economy
 
 FIXTURE = Path(__file__).parent / "fixtures" / "portals" / "cn_cac_index.html"
+SEARCH_FIXTURE = Path(__file__).parent / "fixtures" / "portals" / "cn_cac_search.html"
 BASE = "https://www.cac.gov.cn/"
 
 
 @pytest.fixture(scope="module")
 def html():
     return FIXTURE.read_text(encoding="utf-8", errors="replace")
+
+
+@pytest.fixture(scope="module")
+def search_html():
+    return SEARCH_FIXTURE.read_text(encoding="utf-8", errors="replace")
 
 
 def test_article_links_are_found(html):
@@ -92,6 +98,50 @@ def test_search_produces_unique_documents(monkeypatch, html):
 def test_the_adapter_is_registered_under_the_name_sources_yaml_uses():
     from backend.pipeline import portal
     assert portal.get_adapter("cn_portal") is not None
+
+
+def test_article_links_parses_the_search_results_page_too(search_html):
+    """The search pass (`_search_pass`, added fix round 1) reuses `_article_links` for the SAME
+    /c_<id>.htm row shape `search.cac.gov.cn` returns. Fixture captured live 2026-09-08 from a
+    real `sort=0` query for PIPL's own title, cleared through the Scrapling browser lane --
+    search.cac.gov.cn is Jiasule-WAF-gated and plain httpx/curl could not reach it directly.
+    """
+    rows = adapter_china._article_links(search_html, BASE)
+    titles = [t for _, t in rows]
+    # Not an exact match: the search page wraps matched query terms in <font color=red>, which
+    # BeautifulSoup's get_text(" ", ...) renders as a space at that text-node boundary (measured:
+    # "中华人民共和国 个人信息保护法", not "中华人民共和国个人信息保护法"). The leading "» " bullet
+    # IS stripped by `_article_links` (see its own comment) -- this checks the substring that
+    # matters for `_relevance`'s topic-fit scoring, not byte-for-byte equality with the statute's
+    # own name.
+    assert any("个人信息保护法" in t for t in titles), (
+        "PIPL's own title did not survive parsing the saved search-result fixture")
+    assert not any(t.startswith("»") for t in titles), "decorative bullet prefix was not stripped"
+
+
+def test_search_pass_adds_documents_when_scrapling_is_available(monkeypatch, search_html):
+    """No network: `portal.portal_get` is stubbed to return None (isolating the search pass from
+    the front/section pass), `scrapling_fetch.fetch` is stubbed to return the saved fixture, and
+    `robots.allowed` is stubbed so no real robots.txt fetch happens either. This exercises the
+    actual wiring -- `_search_terms` -> `_search_pass` -> `_article_links` -> `portal.make_doc`
+    -- without ever touching search.cac.gov.cn."""
+    class _SR:
+        status = 200
+        body = search_html.encode()
+        content_type = "text/html;charset=UTF-8"
+        engine = "scrapling-fetcher"
+
+    monkeypatch.setattr(adapter_china.portal, "portal_get", lambda *a, **k: None)
+    monkeypatch.setattr(adapter_china.scrapling_fetch, "available", lambda: True)
+    monkeypatch.setattr(adapter_china.scrapling_fetch, "fetch", lambda *a, **k: _SR())
+    monkeypatch.setattr(adapter_china.robots, "allowed", lambda *a, **k: (True, ""))
+
+    docs = adapter_china.search_cn_portals(
+        client=None, src={"name": "Cyberspace Administration"},
+        query="中华人民共和国个人信息保护法", economy=Economy.CN, indicators=[],
+        log=lambda *_: None)
+    assert docs, "search pass produced no documents even with scrapling_fetch stubbed to succeed"
+    assert any("个人信息保护法" in d.title for d in docs)
 
 
 def test_documents_get_a_real_relevance_score_not_a_flat_one():

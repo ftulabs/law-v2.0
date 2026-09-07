@@ -67,16 +67,51 @@ WHAT THIS ADAPTER DOES NOT COVER, recorded rather than hidden:
     front-page recon dump used to pick `_SECTIONS`. Only the four on-topic ones above are walked.
     A future pass that wants deeper coverage should widen `_SECTIONS`, not silently assume the
     four here are exhaustive.
-  * Every page here is read ONCE at its front (page 1). There is no search endpoint on either
-    host that this adapter uses — `query` is accepted (to match `PortalEnumerator`) but ignored,
-    the same choice `adapter_timor.py` and `adapter_mongolia.py` made for portals with no search
-    of their own.
+  * Each section page is read ONCE at its front (page 1) — see the pagination finding above.
   * `flk.npc.gov.cn` is NOT a lane and never will be through this module. Its own API's
     permission block answers with a "download" field set to zero, which is the operator stating
     plainly that the documents are not to be downloaded — this project honours that rather than
     finding a way around it. (Naming the host here, in a docstring, is not the same thing as
     building a fetchable string that points at it — `test_the_npc_database_is_not_a_fetch_target`
     is what pins the difference.)
+
+CORRECTION (2026-09-08 fix round 1): an earlier version of this docstring said "there is no
+search endpoint on either host that this adapter uses" / "neither host exposes a search
+endpoint this adapter can call". That was false, and it was false on evidence sitting in the
+fixture this module's own tests read: `tests/fixtures/portals/cn_cac_index.html` carries a
+keyword-search form (`<form id="zlb" ... action="//search.cac.gov.cn/cms/cmsadmin/infopub/
+gjjs.jsp">`) and a 高级检索 ("advanced search") link in its header, and neither had been probed
+before that claim was written. See "FULL-TEXT SEARCH" below for what was actually found once it
+was. The gap this adapter has is not "no search exists on this portal" — it is "recency-sorted
+feeds and a WAF-gated search endpoint, between them, do not surface a promulgation-era statute
+without either full-text search or many pages of un-paginated recency"; the search pass below
+closes most of that gap where the browser lane is available, and is honest about the rest where
+it is not.
+
+GOV.CN/ZHENGCE/XXGK/ PAGINATION (Finding 2, checked 2026-09-08): this page is a client-rendered
+listing widget (script `.../trs_zfxx_20190820policyLibrarySearchResultPage.js`, markup carrying
+`class="k-pagination-dot"` and inline JS testing `this.currentPage`/`this.totalPage`) backed by
+an AJAX call this module does not reverse-engineer. It is NOT the simple `?page=N` shape
+`cac.gov.cn`'s search endpoint turned out to have. The `javascript:;` year links visible in the
+DOM (2019年..2025年) are client-side filter triggers for that same AJAX call, not fetchable
+URLs; the few `year=2021`/`year=2023` query strings that DO appear on the page belong to OTHER
+agencies' own sites (`nfra.gov.cn`, `safe.gov.cn`) reached through this page's cross-domain
+aggregator links, not to gov.cn's own archive. So: **no**, this page does not paginate in a way
+this adapter can walk without running its JS, and it offers no plain year-archive URL either.
+`gov_aggregator` stays a front-page-only pass, same as before — recorded here as a checked
+"no", not an unchecked one.
+
+WHY `portal_strategies.paginated_index` IS NOT USED (Finding 3) even though it is named in this
+task's own Interfaces block, following the precedent `adapter_laos.py` set for saying so rather
+than leaving the question open: that helper reads the row's href AND its title off the SAME
+anchor (`a.get("href")`, `a.get_text()`) and filters only on the href via `link_filter`. Every
+page this adapter reads needs MORE than that from one anchor — the protocol-relative resolution,
+the `/c_<id>.htm`-only filter, and the 答记者问 title-level noise drop all have to happen
+together, in one pass, for the section walk, the front page AND the search-pass results to
+agree on what a "row" is. `_article_links` is that one pass. Reusing `paginated_index` for the
+sections would have meant a second, divergent extraction path with no title-noise filtering, for
+a payoff that stopped applying once Step 1 measured `_2` as a 404 on every real section — there
+is nothing here to paginate INTO.
 
 ENCODING — checked, not assumed (Timor-Leste's `<meta charset>` vs httpx mismatch, in
 `adapter_timor.py::_decode`, is the reason to check rather than trust). Both hosts declare UTF-8
@@ -107,6 +142,62 @@ success), and `robots.py`'s per-host cache means only the FIRST check in a given
 risk. Recorded here so the next person who sees a CN run come back emptier than expected checks
 this before assuming the adapter itself is broken.
 
+FULL-TEXT SEARCH (added 2026-09-08, fix round 1): `search.cac.gov.cn/cms/cmsadmin/infopub/
+gjjs.jsp` is a real keyword search over the whole `cac.gov.cn` corpus, found in the front-page
+fixture's own header form (see the CORRECTION note above). It answers `?huopro=<query>&
+templetid=1563339473064626&pubtype=S&pubpath=portal&webappcode=A09&searchdir=A09&sort=<0|1>
+&page=<N>` with a paginated HTML result list in the SAME `/c_<id>.htm` shape `_article_links`
+already parses. The host is `search.` — DNS resolves it to `*.vip.jiasule.org`, i.e. it sits
+behind the Jiasule anti-bot CDN, confirmed live 2026-09-08: plain httpx/curl cannot even
+complete the TLS handshake most attempts (`ConnectTimeout` on 3 of 3 raw attempts), and on the
+one attempt that did connect, the JSP path answered a 403 Jiasule challenge page while the same
+client's earlier request to the bare `https://search.cac.gov.cn/` (no query string) 301-redirected
+straight to `www.cac.gov.cn` — i.e. only the actual search PATH is gated, not the whole host.
+
+Cleared through `backend/pipeline/scrapling_fetch.py`'s impersonating Fetcher (curl_cffi,
+`stealthy_headers=True`) — the same tool this project already documents as the answer to a
+TLS/WAF-fingerprint block (see that module's own docstring; ID's portal in this same phase is
+refused by httpx on every path and answers Scrapling 200). Measured live 2026-09-08, querying
+the exact statute names with `sort=0` (relevance — see below for why not the form's own default
+`sort=1`):
+
+    "中华人民共和国个人信息保护法" (PIPL)  -> rank #1: cac.gov.cn/2021-08/20/c_1631050028355286.htm
+                                              titled "中华人民共和国个人信息保护法" verbatim
+    "中华人民共和国数据安全法" (DSL)       -> rank #1: cac.gov.cn/2021-06/11/c_1624994566919140.htm
+                                              titled "中华人民共和国数据安全法" verbatim
+    "中华人民共和国网络安全法" (CSL)       -> found (2016 original + a 2025-12-29 amended
+                                              republication), on retry — the first attempt hit
+                                              the same network-level flakiness `cac.gov.cn`
+                                              already carries (both the Fetcher AND the
+                                              StealthyFetcher escalation timed out before either
+                                              reached the WAF; a bare retry of the same URL
+                                              cleared it)
+
+`sort=0` (relevance), not the form's own hidden default `sort=1` (date-descending), is the
+choice that makes this work WITHOUT hardcoding a promulgation date: the form also exposes
+`startDate`/`endDate`, and an earlier probe confirmed a date-window on PIPL's real 2021-08/09
+promulgation month does surface it too — but shipping a per-statute date range in code would be
+exactly the "hardcode a law's answer" this project's own rules forbid. `sort=0` with the plain
+query text needs no such knowledge and is what `_search_url` uses; a query for "个人信息保护法"
+on page 1 with the DEFAULT `sort=1` returns only 2026 news (495 total results, date-sorted, the
+statute itself many pages back), which is the failure mode that made the original "no search
+endpoint" docstring claim look superficially true if the endpoint were only tried the naive way.
+
+BOUNDED, NOT EXHAUSTIVE: `_search_pass` runs at most `_SEARCH_MAX_TERMS` (6) query terms, page 1
+only (~20 results each), per call. This is a deliberate cap, not a discovered limit of the
+endpoint (page 25 of an unfiltered "个人信息保护法" query was reached live, 495 results total —
+the endpoint itself paginates fine). The cap exists because each Scrapling round trip against
+this specific WAF was observed taking anywhere from ~15s to several retried minutes, and an
+adapter call already does a 6-page front/section walk before this pass starts. `_search_terms`
+prefers `src["queries_p6"]`/`src["queries_p7"]` (filtered to whichever pillar(s) `indicators`
+covers) — the SAME vehicle `discovery._source_queries` already gives every other lane its own
+query vocabulary through — and falls back to one native Chinese phrase per indicator from
+`query_terms_i18n.NATIVE_QUERY_TERMS["zh"]` when `src` carries no queries yet (e.g. before
+`data/sources.yaml` is wired to `cn_portal`), so the pass is not dead code waiting on that
+wiring. If `scrapling_fetch.available()` is False, or `search.cac.gov.cn`'s own robots.txt is
+unreadable/disallowing, the pass logs why and returns nothing — it never raises, and the
+front/section pass above still runs regardless.
+
 RELEVANCE SCORING — every document used to default to `relevance_score=1.0` in an adapter this
 shape (see `adapter_timor.py`'s own note on what that does to `discovery._cap`'s trim to
 `discovery_max_docs`); `_relevance` here combines three signals instead: which of the four
@@ -125,7 +216,7 @@ from bs4 import BeautifulSoup
 
 from ..rdtii.query_terms_i18n import NATIVE_QUERY_TERMS
 from ..schemas import DiscoveredDoc, Economy
-from . import portal
+from . import portal, robots, scrapling_fetch
 
 Log = Callable[[str], None]
 
@@ -150,15 +241,30 @@ _SECTIONS: tuple[tuple[str, str], ...] = (
 #: Base relevance by which page a row came from — the first of `_relevance`'s signals. The two
 #: on-topic sections that map straight onto a pillar (data-export-security -> P6, cybersecurity
 #: -> P7-I2) sit highest; the front page and gov.cn's cross-domain aggregator are the lowest
-#: because they are general news/policy feeds, not a filtered index.
+#: because they are general news/policy feeds, not a filtered index. A "search" hit sits above
+#: those two: it is a DIRECTED match on a query term, not incidental recency, even before
+#: `_relevance`'s own topic-fit bonus is added on top.
 _SECTION_WEIGHT: dict[str, float] = {
     "data_export_security": 0.75,
     "cybersecurity": 0.72,
+    "search": 0.68,
     "data_governance": 0.65,
     "policy_regulations": 0.60,
     "front": 0.40,
     "gov_aggregator": 0.35,
 }
+
+#: The keyword-search endpoint found in the fixture's own header form (see module docstring's
+#: "FULL-TEXT SEARCH" section). `_SEARCH_TEMPLATE_ID` etc. are the form's own hidden field
+#: values, read verbatim off `tests/fixtures/portals/cn_cac_index.html`, not guessed.
+_SEARCH_ENDPOINT = "https://search.cac.gov.cn/cms/cmsadmin/infopub/gjjs.jsp"
+_SEARCH_TEMPLATE_ID = "1563339473064626"
+_SEARCH_WEBAPPCODE = "A09"
+_SEARCH_DIR = "A09"
+#: Bounded, not exhaustive — see module docstring's "BOUNDED, NOT EXHAUSTIVE" paragraph for why
+#: this number and not "walk every page the endpoint offers" (which live testing found goes to
+#: 25 pages / 495 results for one broad query alone).
+_SEARCH_MAX_TERMS = 6
 
 #: cac.gov.cn also carries 答记者问 (press Q&A) pages about its own measures alongside the real
 #: instruments in the same listings — see the module docstring's "答记者问 NOISE" section for the
@@ -201,6 +307,11 @@ def _article_links(html: str, base_url: str) -> list[tuple[str, str]]:
         if absolute in seen:
             continue
         title = " ".join(a.get_text(" ", strip=True).split())
+        # The search-result row shape (not the plain listing pages) prefixes every title with a
+        # decorative "» " bullet in its own text node -- measured live 2026-09-08: 0/69 front-page
+        # rows carry it, 20/20 search-result rows do. Pure UI noise, stripped rather than kept as
+        # a leading character nobody asked to match on.
+        title = title.lstrip("»").strip()
         if any(marker in title for marker in _NOISE_TITLE_MARKERS):
             continue
         seen.add(absolute)
@@ -226,14 +337,113 @@ def _relevance(section: str, title: str, indicators: list) -> float:
     return round(min(0.99, max(0.05, base + 0.35 * topic_zh + 0.10 * topic_en)), 4)
 
 
+def _search_url(term: str, page: int = 1) -> str:
+    """Build a `sort=0` (relevance) search URL. See the module docstring's "FULL-TEXT SEARCH"
+    section for why relevance and not the form's own default `sort=1` (date)."""
+    params = {
+        "templetid": _SEARCH_TEMPLATE_ID, "pubtype": "S", "pubpath": "portal",
+        "page": str(page), "webappcode": _SEARCH_WEBAPPCODE, "huopro": term,
+        "mustpro": "", "notpro": "", "inpro": "", "startDate": "", "endDate": "",
+        "sort": "0", "searchfield": "", "searchdir": _SEARCH_DIR,
+    }
+    return _SEARCH_ENDPOINT + "?" + urllib.parse.urlencode(params)
+
+
+def _search_terms(query: str, src: dict, indicators: list) -> list[str]:
+    """Terms to run through the search pass, capped at `_SEARCH_MAX_TERMS`.
+
+    Prefers `src["queries_p6"]`/`src["queries_p7"]`, filtered to whichever pillar(s)
+    `indicators` belongs to, then the `query` argument itself, then — only if neither gave
+    anything — one native Chinese phrase per indicator from `NATIVE_QUERY_TERMS["zh"]`, so the
+    pass still does something useful when called before `data/sources.yaml` carries queries for
+    this adapter. See the module docstring's "BOUNDED, NOT EXHAUSTIVE" paragraph for the cap.
+    """
+    terms: list[str] = []
+    pillars = {getattr(ind, "pillar", None) for ind in indicators}
+    for p in (6, 7):
+        if p in pillars:
+            terms.extend(src.get(f"queries_p{p}") or [])
+    if query:
+        terms.append(query)
+    if not terms and indicators:
+        zh = NATIVE_QUERY_TERMS.get("zh", {})
+        for ind in indicators:
+            ind_terms = zh.get(getattr(ind, "indicator_id", ""), [])
+            if ind_terms:
+                terms.append(ind_terms[0])
+    seen: set[str] = set()
+    out: list[str] = []
+    for t in terms:
+        if t and t not in seen:
+            seen.add(t)
+            out.append(t)
+        if len(out) >= _SEARCH_MAX_TERMS:
+            break
+    return out
+
+
+def _search_pass(terms: list[str], portal_name: str, economy: Economy, seen_ids: set[str],
+                  indicators: list, log: Log) -> list[DiscoveredDoc]:
+    """Full-text search via `search.cac.gov.cn`, cleared through the Scrapling browser lane.
+
+    See the module docstring's "FULL-TEXT SEARCH" section: plain httpx/curl cannot reliably
+    reach this host (TLS handshake failures, and a Jiasule anti-bot 403 on the query path when
+    it does connect); `scrapling_fetch.fetch` is what got through in live testing. Robots is
+    checked explicitly here (via `robots.allowed`, not `portal.portal_get`) because this fetch
+    does not go through `portal.portal_get`'s httpx client at all — Scrapling is a different
+    transport, so the one place robots gets enforced for this host has to be this function.
+    Never raises: a missing Scrapling install, a robots refusal, or a dead term each log why and
+    the pass continues (or returns empty) rather than taking the whole call down with it.
+    """
+    if not terms:
+        return []
+    if not scrapling_fetch.available():
+        log("[cn_portal] search pass skipped -- Scrapling not installed")
+        return []
+    ok, why = robots.allowed(_SEARCH_ENDPOINT)
+    if not ok:
+        log(f"[cn_portal] search pass skipped -- robots: {why}")
+        return []
+
+    out: list[DiscoveredDoc] = []
+    for i, term in enumerate(terms):
+        url = _search_url(term)
+        res = scrapling_fetch.fetch(url, timeout=45, browser=True, log=log)
+        if res is None:
+            log(f"[cn_portal] search pass: term {i + 1}/{len(terms)} -> no response")
+            continue
+        try:
+            body = res.body.decode("utf-8", errors="replace")
+            rows = _article_links(body, url)
+        except Exception as exc:                      # noqa: BLE001 -- one dead term is not fatal
+            log(f"[cn_portal] search pass: term {i + 1}/{len(terms)} parse failed: "
+                f"{type(exc).__name__}: {exc}")
+            rows = []
+        added = 0
+        for link_url, title in rows:
+            score = _relevance("search", title, indicators)
+            doc = portal.make_doc(economy, link_url, title, portal_name, score=score)
+            if doc.doc_id in seen_ids:
+                continue
+            seen_ids.add(doc.doc_id)
+            out.append(doc)
+            added += 1
+        log(f"[cn_portal] search pass: term {i + 1}/{len(terms)} -> {added} new "
+            f"({len(rows)} parsed)")
+    return out
+
+
 def search_cn_portals(client, src: dict, query: str, economy: Economy, indicators: list,
                        log: Log) -> list[DiscoveredDoc]:
     """Adapter entry point, matching the `PortalEnumerator` signature `discovery` dispatches on.
 
-    `query` is deliberately unused — neither host exposes a search endpoint this adapter can
-    call (see the module docstring), so, like `adapter_timor.search_tl_gazette` and
-    `adapter_mongolia._search_mn_legalinfo`, this walks every page it knows about regardless of
-    the query text it was called with. `indicators` IS used, via `_relevance`.
+    Two passes. First, the front page + `_SECTIONS` + the gov.cn aggregator, all read through
+    `portal.portal_get` (plain httpx; these pages are not WAF-gated). Second, a full-text search
+    pass over `_search_terms(query, src, indicators)` via `search.cac.gov.cn`, WHICH IS WAF-gated
+    — see `_search_pass` and the module docstring's "FULL-TEXT SEARCH" section for why this
+    needs the Scrapling browser lane rather than `portal.portal_get`, and why an earlier version
+    of this function's docstring claiming no search endpoint existed was wrong. `indicators` is
+    used by both passes, via `_relevance`.
 
     Reads its two base URLs from `src` (`base_url` for cac.gov.cn, `gov_base` for the gov.cn
     aggregator) so `data/sources.yaml` can hold them, falling back to the measured `_CAC_BASE` /
@@ -271,6 +481,12 @@ def search_cn_portals(client, src: dict, query: str, economy: Economy, indicator
             out.append(doc)
             added += 1
         log(f"[cn_portal] {label}: {url[:70]} -> {added} new ({len(rows)} parsed)")
+
+    terms = _search_terms(query, src, indicators)
+    if terms:
+        out.extend(_search_pass(terms, portal_name, economy, seen_ids, indicators, log))
+    else:
+        log("[cn_portal] search pass: no query terms available")
 
     return out
 

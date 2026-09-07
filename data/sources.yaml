@@ -197,6 +197,25 @@ sources:
       and split into a single block, so they are visible as noise rather than mistaken for law
       — the grader rejects them, but a tier filter would spend fewer LLM calls.
 
+      PORTAL-NATIVE LANE (added 2026-09-08, `backend/pipeline/adapter_china.py`, registered as
+      `cn_portal`; not yet wired to `adapter:` here — that is a separate task): reads
+      cac.gov.cn's front page + four on-topic section indexes (server-rendered, no WAF, plain
+      httpx) PLUS a second pass over `search.cac.gov.cn/cms/cmsadmin/infopub/gjjs.jsp`, a real
+      keyword search this module found in the front page's own header form. That search path is
+      Jiasule-WAF-gated (plain httpx/curl mostly cannot even complete its TLS handshake, and get
+      a 403 challenge page on the rare connection that does) and is cleared instead through
+      `backend/pipeline/scrapling_fetch.py`'s browser-impersonation lane. Measured live
+      2026-09-08 with `sort=0` (relevance, not the endpoint's own date-sorted default): searching
+      the exact statute names surfaces PIPL (中华人民共和国个人信息保护法, 2021-08-20) and DSL
+      (中华人民共和国数据安全法, 2021-06-11) at rank #1, and CSL (中华人民共和国网络安全法, 2016,
+      plus a 2025-12-29 amended republication) on a retry after one attempt hit this same
+      network's already-documented cac.gov.cn flakiness. None of the three is reachable through
+      the front-page/section walk alone (they are 2021-and-earlier and every section here shows
+      only its un-paginated front page of recent items) — the search pass is what closes that
+      gap, where the Scrapling browser lane is available. Full account, including what was tried
+      and what did not work on the first pass: `adapter_china.py`'s own module docstring and
+      `.superpowers/sdd/2026-09-07-phase2-portal-adapters/task-6-report.md`.
+
   - economy: CN
     name: National Laws and Regulations Database (NPC)
     base_url: https://flk.npc.gov.cn

@@ -1,0 +1,253 @@
+
+
+
+
+
+
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>中央网络安全和信息化委员会办公室</title>
+<META NAME="Keywords" CONTENT="">
+<META NAME="Abstract" CONTENT="">
+<META NAME="Description" CONTENT="">
+<link rel='stylesheet' href=''>
+</head>
+<body leftmargin='0' topmargin='0'>
+
+<script language="JavaScript" src="//www.cac.gov.cn/inc/appvar.js"></script>
+<script language="JavaScript" src="//www.cac.gov.cn/inc/appfunction.js"></script>
+<script language="JavaScript" src="//www.cac.gov.cn/inc/pub.js"></script>
+<script language="JavaScript" src="//www.cac.gov.cn/inc/date/WdatePicker.js"></script>
+<script language="JavaScript" src="//www.cac.gov.cn/inc/flv.js"></script>
+<script language="JavaScript" src="//www.cac.gov.cn/inc/tree.js"></script>
+<script language="JavaScript" src="//www.cac.gov.cn/inc/tree_tpl.js"></script>
+<script language="JavaScript" src="//www.cac.gov.cn/inc/jquery.min.js"></script><!-- <link rel="stylesheet" type="text/css" href="//www.cac.gov.cn/lib/template/scheme/css/Common.css" /> -->
+<link rel="stylesheet" type="text/css" href="//www.cac.gov.cn/lib/pc/scheme/css/common.css" />
+<div class="header">
+<div class="head-line">
+<div class="top-bar">
+<div id="time" class="left"> </div>
+<div class="right"><a class="t1" onclick="SetHome(this, window.location)" href="###">设为首页</a><a class="t2" onclick="AddFavorite(window.location, document.title)" href="###">加入收藏</a><a id="rwk_btn_ss" class="ydb" data-reveal-id="myModal" href="//wap.cac.gov.cn/" rel="noopener noreferrer">手机版</a><a id="StranLink" class="t3" href="/###">繁体</a></div>
+</div>
+</div>
+<div class="logo-area">
+<div class="logo">
+<ul>
+    <li><img src="//www.cac.gov.cn/lib/pc/scheme/images/logo01.png" alt="" /></li>
+    <li><img src="//www.cac.gov.cn/lib/pc/scheme/images/logo02.png" alt="" /></li>
+</ul>
+</div>
+<div class="search right">
+<div class="con"><i id="logo"></i>                     <input id="sw" class="input1" onKeyDown="KeyDown();" name="huopro" value="请输入检索关键词" type="text" />                     <a class="btn_ss" onClick="searchsearch()" href="javascript:">搜索</a>
+<form id="zlb" method="get" action="//search.cac.gov.cn/cms/cmsadmin/infopub/gjjs.jsp" target="_blank" name="frm">
+    <input id="searchword" type="hidden" name="huopro" />                         <input type="hidden" name="pubtype" value="S" />                         <input type="hidden" name="pubpath" value="portal" />                         <input type="hidden" name="templetid" value="1563339473064626" />                         <input type="hidden" name="startDate" />                         <input type="hidden" name="endDate" />                         <input type="hidden" name="searchfield" />                         <input type="hidden" name="sort" value="1" />                         <input type="hidden" name="webappcode" value="A09" />                         <input type="hidden" name="searchdir" value="A09" />
+</form>
+<div class="clear"> </div>
+</div>
+</div>
+</div>
+<div class="top-nav">
+<ul id="nav" class="nav clearfix">
+    <li class="nLi" id="home">
+    <h3><a href="//www.cac.gov.cn/index.htm" target="_blank" rel="noopener noreferrer"><i></i>首 页</a></h3>
+    </li>
+    <li class="nLi" id="central">
+    <h3><a href="//www.cac.gov.cn/yaowen/szyw/A093601index_1.htm" target="_blank" rel="noopener noreferrer"><i></i>时政要闻</a></h3>
+    </li>
+    <li class="nLi" id="gov">
+    <h3><a href="//www.cac.gov.cn/wxzw/A0937index_1.htm" target="_blank" rel="noopener noreferrer"><i></i>网信政务</a></h3>
+    </li>
+    <li class="nLi" id="service">
+    <h3><a href="//www.cac.gov.cn/hdfw/A0938index_1.htm" target="_blank" rel="noopener noreferrer"><i></i>互动服务</a></h3>
+    </li>
+    <li class="nLi" id="topic">
+    <h3><a href="//www.cac.gov.cn/gzzt/ztzl/A092001index_1.htm" target="_blank" rel="noopener noreferrer"><i></i>热点专题</a></h3>
+    </li>
+</ul>
+</div>
+</div>
+<script type="text/javascript" src="//www.cac.gov.cn/lib/template/scheme/js/jq.js"></script><SCRIPT type="text/javascript" src="//www.cac.gov.cn/lib/template/scheme/js/xh_roll.js"></SCRIPT><script type="text/javascript" src="//www.cac.gov.cn/lib/template/scheme/js/top_js.js"></script><style type="text/css">
+.Result_head {
+    height: 40px;
+    background: #f6f6f6;
+    line-height: 40px;
+    padding: 0 8px;
+    /* border-bottom: 1px solid #e5e5e5; */
+}
+.xxgkgjxf {
+    float:right; text-align:right; margin-right:10px;
+}
+.xxgkgjxf a {
+    color: #c50707; 
+    text-decoration:underline;
+}
+#jsearch-condition-box-content {
+    border: 1px solid #f1f1f1;
+}
+.form-input-datetime {
+    border: 1px solid #ccc;
+}
+.xpage-pagination {
+    text-align: center;
+    margin: 20px auto;
+}
+.xpage-content li {
+    margin: 0px 0;
+    border-bottom: 1px solid #f1f1f1;
+    padding: 15px 0;
+    line-height: 1.6;
+}
+.xpage-content lilist-item font {
+    margin-right: 10px;
+}
+
+.xpage-pagination span{
+    display: inline-block;
+    line-height: 2em;
+    margin-left: 10px;
+    border: 1px solid #ccc;
+    cursor: pointer;
+    padding-left: 18px;
+    padding-right: 20px
+}
+.xpage-pagination span:hover, .xpage-pagination .xpage-pagination-pager-active {
+    border-color: #d20000;
+    color: white;
+    background-color: #d20000;
+}
+.xpage-pagination span:hover a, .xpage-pagination .xpage-pagination-pager-active a {
+    color: white;
+}
+.search_time {
+    float:right;
+    color: #b1b1b1;
+    font-size: 14px;
+}
+.jsearch-condition-box-title {
+    font-size: 16px!important;
+}
+button, select {
+    text-transform: none;
+    color: rgb(170, 170, 170);
+    outline: none;
+    border: 1px solid #ccc;
+}
+.xpage-pagination-next div:hover {
+    color: white;
+}
+.fenyea a:hover {
+    color: white;
+}
+.xpage-pagination {
+    text-align: center;
+    margin: 20px auto;
+    color: #333;
+}
+.fenyea:hover {
+    color: white;
+}
+</style>
+<div class="main clearfix">
+<div class="mianL">
+<h3 id="pageName2" style="display: none">搜索结果</h3>
+<div><br />
+ </div>
+<div class="Result_head">
+<div class="xxgkgjxf"><a href="//www.cac.gov.cn/special/gjjs/A094204index_1.htm">高级检索</a></div>
+</div>
+<div>
+<link rel="stylesheet" type="text/css" href="//www.cac.gov.cn/inc/search/css/result.css" /><script src="//www.cac.gov.cn/inc/search/js/condition.js"></script><script src="//www.cac.gov.cn/inc/date/WdatePicker.js"></script><div id="jsearch-condition-box-content">	<div class="jsearch-condition-box" id="pos-box">		<input id="searchfield" name="searchfield" type="hidden" value="">		<div class="jsearch-condition-box-title">查询范围：<span>全部</span></div>		<div class="jsearch-condition-box-items">			<div class="jsearch-condition-box-item" data-value="">全部</div>			<div class="jsearch-condition-box-item" data-value="topic">标题</div>			<div class="jsearch-condition-box-item" data-value="content">正文</div>		</div>	</div>	<div class="jsearch-condition-box" id="od-box">		<input id="sort" name="sort" type="hidden" value="1">		<div class="jsearch-condition-box-title">排序方式：<span>时间倒序</span></div>		<div class="jsearch-condition-box-items">			<div class="jsearch-condition-box-item" data-value="0">相关程度</div>			<div class="jsearch-condition-box-item" data-value="1">时间倒序</div>			<div class="jsearch-condition-box-item" data-value="2">时间顺序</div>		</div>	</div>	<div class="jsearch-condition-box" id="date-box">		<div class="jsearch-condition-box-title">时间范围：		<input id="startDate" readonly type="text" data-date-format="yyyyMMdd" data-date-end="date_end" onClick="WdatePicker({dateFmt:'yyyyMMdd'})" class="form-input-datetime" name="startDate" value="2021-08-01">-		<input id="endDate" readonly type="text" class="form-input-datetime" name="endDate" data-date-format="yyyyMMdd"  onClick="WdatePicker({dateFmt:'yyyyMMdd'})" data-date-start="date_start" value="2021-09-30">		<span class="jsearch-criteria-btn ok">确定</span><span class="jsearch-criteria-btn cancel">清空</span></div>		<div class="jsearch-condition-box-items">			<div class="jsearch-condition-box-item" data-value="0">全部</div>			<div class="jsearch-condition-box-item" data-value="1">一天内</div>			<div class="jsearch-condition-box-item" data-value="2">一周内</div>			<div class="jsearch-condition-box-item" data-value="3">一月内</div>			<div class="jsearch-condition-box-item" data-value="4">一年内</div>		</div>	</div>	<div class="jsearch-condition-box2" style="float:right">		<div class="jsearch-condition-box-title">找到相关结果<span id="searchTotal">0</span>条，耗时<span id="searchTime">0</span>秒</div>	</div>		<input id="huopro" name="huopro" type="hidden" value="个人信息保护法">		<input id="mustpro" name="mustpro" type="hidden" value="">		<input id="notpro" name="notpro" type="hidden" value="">		<input id="inpro" name="inpro" type="hidden" value="">		<input id="searchdir" name="searchdir" type="hidden" value="A09">		<input id="pubpath" name="pubpath" type="hidden" value="portal">		<input id="webappcode" name="webappcode" type="hidden" value="A09">		<input id="templetid" name="templetid" type="hidden" value="1563339473064626">		<input id="pubtype" name="pubtype" type="hidden" value="S"></div>
+</div>
+<div class="xpage-container"><!-- 列表容器 -->
+<ul class="xpage-content xpage-content-page">
+    <script>
+function gotoPage(selObj){
+window.open('gjjs.jsp?templetid=1563339473064626&pubtype=S&pubpath=portal&webappcode=A09&huopro=个人信息保护法&mustpro=&notpro=&inpro=&startDate=2021-08-01&endDate=2021-09-30&sort=1&searchfield=$$$&searchdir=A09&page='+selObj.options[selObj.selectedIndex].value,'_self');
+}</script>
+<li class="list-item"><a href="//www.cac.gov.cn/2021-09/28/c_1635285317227219.htm" target="_blank" ><FONT color=#000000><B>&raquo;</B></FONT>聚焦法治护航数字经济高质量发展 2021年世界互联网大会乌镇峰会网络法治分论坛举行</a><span class="search_time">2021-09-28 14:00</span></li><li class="list-item"><a href="//www.cac.gov.cn/2021-09/24/c_1634076636607904.htm" target="_blank" ><FONT color=#000000><B>&raquo;</B></FONT>奋力谱写网络强国建设精彩华章——我国网信事业发展成就综述</a><span class="search_time">2021-09-25 15:43</span></li><li class="list-item"><a href="//www.cac.gov.cn/2021-09/16/c_1633381924922431.htm" target="_blank" ><FONT color=#000000><B>&raquo;</B></FONT>江苏徐州组织开展“落实个保法，徐州在行动”联合检查活动</a><span class="search_time">2021-09-16 09:30</span></li><li class="list-item"><a href="//www.cac.gov.cn/2021-09/14/c_1633210685786320.htm" target="_blank" ><FONT color=#000000><B>&raquo;</B></FONT>中办国办印发《关于加强网络文明建设的意见》</a><span class="search_time">2021-09-14 18:19</span></li><li class="list-item"><a href="//www.cac.gov.cn/2021-09/13/c_1633124452072531.htm" target="_blank" ><FONT color=#000000><B>&raquo;</B></FONT>江苏南通启动<font color=red>个人信息保护</font>专项整治行动</a><span class="search_time">2021-09-14 09:36</span></li><li class="list-item"><a href="//www.cac.gov.cn/2021-09/08/c_1632692967516943.htm" target="_blank" ><FONT color=#000000><B>&raquo;</B></FONT>专家解读｜《<font color=red>个人信息保护法</font>》：构筑新时代<font color=red>个人信息</font>权益<font color=red>保护</font>的安全防护网</a><span class="search_time">2021-09-08 15:49</span></li><li class="list-item"><a href="//www.cac.gov.cn/2021-09/08/c_1632692967456129.htm" target="_blank" ><FONT color=#000000><B>&raquo;</B></FONT>专家解读｜敏感<font color=red>个人信息保护</font>：我国《<font color=red>个人信息保护法</font>》的重要内容</a><span class="search_time">2021-09-08 15:48</span></li><li class="list-item"><a href="//www.cac.gov.cn/2021-09/08/c_1632692945365990.htm" target="_blank" ><FONT color=#000000><B>&raquo;</B></FONT>海南省委网信办专题学习《中华人民共和国<font color=red>个人信息保护法</font>》</a><span class="search_time">2021-09-08 09:44</span></li><li class="list-item"><a href="//www.cac.gov.cn/2021-09/02/c_1632170544184347.htm" target="_blank" ><FONT color=#000000><B>&raquo;</B></FONT>共谋发展 共享安全 携手构建网络空间命运共同体——中非互联网发展与合作论坛综述</a><span class="search_time">2021-09-02 20:22</span></li><li class="list-item"><a href="//www.cac.gov.cn/2021-08/30/c_1631913483561831.htm" target="_blank" ><FONT color=#000000><B>&raquo;</B></FONT>专家解读｜<font color=red>个人信息保护法</font>治的中国方案</a><span class="search_time">2021-08-30 14:55</span></li><li class="list-item"><a href="//www.cac.gov.cn/2021-08/27/c_1631652502874117.htm" target="_blank" ><FONT color=#000000><B>&raquo;</B></FONT>国家互联网<font color=red>信息</font>办公室关于《互联网<font color=red>信息</font>服务算法推荐管理规定（征求意见稿）》公开征求意见的通知</a><span class="search_time">2021-08-27 10:00</span></li><li class="list-item"><a href="//www.cac.gov.cn/2021-08/26/c_1631563863129317.htm" target="_blank" ><FONT color=#000000><B>&raquo;</B></FONT>青海召开全省网络安全协调机制工作会议</a><span class="search_time">2021-08-26 09:13</span></li><li class="list-item"><a href="//www.cac.gov.cn/2021-08/25/c_1631491552396505.htm" target="_blank" ><FONT color=#000000><B>&raquo;</B></FONT>专家解读｜吸收接轨国际立法 探索开创中国路径——读《中华人民共和国<font color=red>个人信息保护法</font>》</a><span class="search_time">2021-08-25 17:32</span></li><li class="list-item"><a href="//www.cac.gov.cn/2021-08/25/c_1631491549783065.htm" target="_blank" ><FONT color=#000000><B>&raquo;</B></FONT>专家解读｜<font color=red>个人信息保护法</font>解决广大人民群众最关心最直接最现实的利益问题</a><span class="search_time">2021-08-25 16:49</span></li><li class="list-item"><a href="//www.cac.gov.cn/2021-08/25/c_1631491548474109.htm" target="_blank" ><FONT color=#000000><B>&raquo;</B></FONT>专家解读｜<font color=red>个人信息保护法</font>：为数字社会治理与数字经济发展构建基本法</a><span class="search_time">2021-08-25 16:28</span></li><li class="list-item"><a href="//www.cac.gov.cn/2021-08/25/c_1631491543035763.htm" target="_blank" ><FONT color=#000000><B>&raquo;</B></FONT>专家解读｜全面<font color=red>保护个人信息</font>权益的重要法律</a><span class="search_time">2021-08-25 14:58</span></li><li class="list-item"><a href="//www.cac.gov.cn/2021-08/25/c_1631491542896651.htm" target="_blank" ><FONT color=#000000><B>&raquo;</B></FONT>专家解读｜<font color=red>个人信息保护法</font>的深远意义：中国与世界</a><span class="search_time">2021-08-25 14:56</span></li><li class="list-item"><a href="//www.cac.gov.cn/2021-08/21/c_1631141677655320.htm" target="_blank" ><FONT color=#000000><B>&raquo;</B></FONT>8章74条，<font color=red>个人信息保护法</font>来了！权威解读十大亮点</a><span class="search_time">2021-08-21 17:02</span></li><li class="list-item"><a href="//www.cac.gov.cn/2021-08/20/c_1631050028355286.htm" target="_blank" ><FONT color=#000000><B>&raquo;</B></FONT>中华人民共和国<font color=red>个人信息保护法</font></a><span class="search_time">2021-08-20 21:21</span></li><li class="list-item"><a href="//www.cac.gov.cn/2021-08/20/c_1631050018956556.htm" target="_blank" ><FONT color=#000000><B>&raquo;</B></FONT>中华人民共和国主席令（第九十一号）</a><span class="search_time">2021-08-20 18:45</span></li>
+</ul>
+<!-- 结构开始 -->
+<div class="xpage-pagination"><span class="xpage-pagination-first">
+<div data-type="first" class=fenyea>
+ 首页 
+</div>
+</span><span class="xpage-pagination-pre">
+<div data-type="pre" class=fenyea>
+ 上一页 
+</div>
+</span><span class="xpage-pagination-pager">
+<div data-type="pager" class=fenyea>共
+20
+ 条</div>
+</span> <span class="xpage-pagination-pager">
+<div data-type="pager" class=fenyea>当前第 
+1
+<b> / 
+1
+</b> 页 </div>
+</span><span class="xpage-pagination-pager">
+<div data-type="pager" class=fenyea>跳转
+<select name='selpageno' onchange='gotoPage(this)'><option value='1' selected>1</option></select>
+</div>
+</span><span class="xpage-pagination-next">
+<div data-type="pager" class=fenyea>
+ 下一页 
+</div>
+</span> <span class="xpage-pagination-next">
+<div data-type="pager" class=fenyea>
+ 尾页 
+</div>
+</span></div>
+<!-- 结构结束 --><script>		$(function(){			$("#searchTotal").html("20");			$("#searchTime").html("0.092");		});</script>
+</div>
+</div>
+<script type="text/javascript">
+$(function(){
+        	$("#R_bsfw .service li").hover(function(){
+		$("#R_bsfw .info").hide();
+		var text = $(this).find("a").html();
+		$(this).parent().next().stop(true,true).fadeIn().html(text);
+	},function(){
+		$("#R_bsfw .info").hide();
+	})
+})
+
+	
+</script><!--右侧栏目--></div>
+<div class="footer">
+<div class="foot">
+<p><span>中央网络安全和信息化委员会办公室</span>                 <span>中华人民共和国国家互联网信息办公室 &copy; 版权所有</span>                 <a href="//www.cac.gov.cn/hdfw/lxwm/A093812index_1.htm" target="_blank" rel="noopener noreferrer">联系我们</a></p>
+<p>承办：国家互联网应急中心　技术支持：长安通信科技有限责任公司　<a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">京ICP备14042428号</a>　<a id="beian" href="https://www.beian.gov.cn//www.cac.gov.cn/registerSystemInfo?recordcode=11040102700108" target="_blank" rel="noopener noreferrer"><i class="gwa"></i>京公网安备11040102700108号</a></p>
+<div id="conac"><a href="https://bszs.conac.cn/sitename?method=show&amp;id=04E495BC1FB45E52E053022819AC1EB7" target="_blank" rel="noopener noreferrer"><img src="//www.cac.gov.cn/lib/pc/scheme/images/conac.png" alt="党政机关标识" /></a></div>
+</div>
+</div>
+<!-- 侧边栏飘窗 返回顶部 -->
+<div class="right-nav">
+<ul>
+    <li class="qg">
+    <h6>学习强国</h6>
+    <div class="ewm" id="qg">
+    <div class="share_triangle"><em class="border_triangle">◆</em> <span class="con_triangle">◆</span></div>
+    <img src="//www.cac.gov.cn/lib/pc/scheme/images/QR-qg.jpg" alt="" srcset="" /></div>
+    </li>
+    <li class="wx">
+    <h6>微信</h6>
+    <div class="ewm" id="wx">
+    <div class="share_triangle"><em class="border_triangle">◆</em> <span class="con_triangle">◆</span></div>
+    <img src="//www.cac.gov.cn/lib/pc/scheme/images/QR-wx.jpg" alt="" srcset="" /></div>
+    </li>
+    <li class="top">
+    <h6>返回顶部</h6>
+    </li>
+</ul>
+</div>
+<script src="//www.cac.gov.cn/lib/pc/scheme/js/foot.js"></script> <script type="text/javascript" src="//www.cac.gov.cn/lib/template/scheme/js/crToken.js"></script>
+<!-- <script type="text/javascript" src="//www.cac.gov.cn/lib/template/scheme/js/common.js"></script><script type="text/javascript">
+XH_GLOBAL={"getDataEvent":"scroll","hasShare":true,"dataMoreBtn":document.getElementById('dataMoreBtn'),"dataImg":false};
+</script><script type="text/javascript" id="bdshare_js" data="type=tools&uid=483253" src="http://bdimg.share.baidu.com/static/js/bds_s_v2.js?cdnversion=393962"></script> --> <script src="//www.cac.gov.cn/lib/pc/scheme/js/stran.js"></script>     <script src="//www.cac.gov.cn/lib/pc/scheme/js/jquery.SuperSlide.js"></script>     <script src="//www.cac.gov.cn/lib/pc/scheme/js/common.js"></script></body></html>
