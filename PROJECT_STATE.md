@@ -334,6 +334,15 @@ Everything else is retrieval or grading, which is where the budget below bites.
 
 ## §5 Recently done
 
+- [x] **Phase 1 — pre-retrieval failures made loud** (2026-09-07). Serper answered HTTP 400
+      "Not enough credits" and `_serper()` returned `[]`, so a spent key read as an economy
+      with no law; `data/cache/_search.json` held 890 entries last written 2026-08-31 with no
+      TTL, and Singapore (websearch-only) was replaying them. Engines now raise
+      `EngineUnavailable`, cache entries carry `fetched_at` + engine and expire after
+      `search_cache_max_age_days=7`, and `discovery.explain_empty_discovery` emits the
+      `[error]` pair. `tools/cache_gc.py` gives the 1.3 GB cache a lifecycle.
+      `tests/test_websearch_diagnostics.py`, `test_empty_discovery.py`, `test_cache_gc.py`.
+
 - **2026-08-31** All six economies re-run live on the day's fixes (`outputs/after_fixes/`,
   `logs/rerun_20260831.log`). **$7.39 and 186 minutes**, against $2.07 / 72 min before.
 
