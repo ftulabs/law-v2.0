@@ -60,3 +60,38 @@ def test_the_lines_are_logged_not_just_returned():
     out = []
     discovery.explain_empty_discovery(Economy.LA, log=out.append)
     assert out and out == discovery.explain_empty_discovery(Economy.LA, log=lambda *_: None)
+
+
+def test_a_second_pass_that_lost_every_cached_body_blames_the_cache_not_the_search():
+    """Finding 1: `reuse_documents` is the second pass — it never contacts a portal, so when
+    every reused document has lost its cached body, `explain_empty_discovery` (which blames a
+    dead search engine or a missing portal lane) is the wrong message. The second pass gets its
+    own function, `orchestrator._explain_lost_cached_bodies`, called from the code that actually
+    knows why: the `missing` filter in `run_pipeline`. Tested directly, not by driving a full run.
+    """
+    from backend.pipeline import orchestrator
+
+    out = []
+    lines = orchestrator._explain_lost_cached_bodies(Economy.SG, 3, log=out.append)
+
+    assert lines == out                                      # logged, not just returned
+    assert all(ln.startswith("[error] ") for ln in lines)
+    assert lines[-1].startswith("[error] what to do:")
+    joined = " ".join(lines)
+    assert "3" in joined and "SG" in joined
+    assert "no portal was contacted" in joined
+    # Must not read like discovery.explain_empty_discovery — that would blame the wrong layer.
+    assert "failure of the search" not in joined
+    assert "search engine" not in joined
+
+
+def test_reset_circuit_clears_stale_diagnostics_between_runs():
+    """Finding 2: `frontend/app.py` is one long-lived Streamlit process, and Phase 2 gives most
+    economies a portal-native lane, so a run may never call `discover_websearch` (the only other
+    place `reset_circuit()` is called) at all. `run_pipeline` now calls `websearch.reset_circuit()`
+    once near the top of every run, before the discovery branch chain, so stale diagnostics from
+    a previous run's web-search lane can never be reported as this run's cause.
+    """
+    websearch._diag["engine_failures"]["serper"] = "stale"
+    websearch.reset_circuit()
+    assert websearch.diagnostics()["engine_failures"] == {}

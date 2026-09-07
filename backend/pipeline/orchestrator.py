@@ -17,7 +17,7 @@ from ..providers import get_llm_provider, get_ocr_provider
 from ..rdtii import get_indicators
 from ..schemas import Economy, OCRReport, RunMeta, RunResult
 from ..storage import db
-from . import discovery, extraction, mapping, scoring, translate
+from . import discovery, extraction, mapping, scoring, translate, websearch
 from .ocr import get_document_text
 
 
@@ -252,6 +252,27 @@ def _resolve_llm(name, model, api_key, log):
         return get_llm_provider("mock")
 
 
+def _explain_lost_cached_bodies(economy: Economy, requested: int, log=print) -> list[str]:
+    """Say why a second pass produced zero documents, as `[error]` pairs the Run screen can
+    render — the same (what happened, what to do) pair shape as `discovery.explain_empty_discovery`,
+    but for the opposite cause. A second pass never contacts a portal (that is the point of it:
+    the live-test template's "documents fetched during this pass: must be 0"), so when every
+    reused document has lost its cached body the honest cause is a cold/evicted cache, not a
+    search that came back empty — `explain_empty_discovery` would blame the wrong layer here.
+    """
+    out = [
+        f"[error] second pass asked to reuse {requested} document"
+        f"{'s' if requested != 1 else ''} for {economy.value}, but none still has a cached "
+        f"body — there is nothing to re-process, and no portal was contacted (a second pass "
+        f"never contacts one).",
+        f"[error] what to do: re-run the first pass for {economy.value} so the bodies are "
+        f"fetched into the cache again, then repeat the comparison.",
+    ]
+    for line in out:
+        log(line)
+    return out
+
+
 def _result_cache_file(economy, pillars, use_samples, ocr, llm, top_k, do_score, pdf_path):
     import hashlib
     key = (f"{economy.value}|{sorted(pillars)}|{use_samples}|{ocr.name}|{llm.name}|"
@@ -325,9 +346,16 @@ def run_pipeline(
     db.init_db()
     db.start_run(run_id, economy.value, pillars, started, ocr.name, llm.name, llm.model_version)
 
+    # Per-run, not per-lane: `frontend/app.py` is one long-lived Streamlit process serving many
+    # runs in sequence, and Phase 2 gives most economies a portal-native adapter, so a run may
+    # never enter `discover_websearch` (the only other place this is called) at all. Without a
+    # reset here, run N can print run N-1's stale engine failures and query counts as its own.
+    websearch.reset_circuit()
+
     # discover across all requested pillars (union) — or use a single provided file
     _t = time.perf_counter()
     seen, docs = set(), []
+    live_discovery = reuse_documents is None and pdf_path is None
     if reuse_documents is not None:
         docs = list(reuse_documents)
         missing = [d for d in docs if not d.local_path]
@@ -339,6 +367,8 @@ def run_pipeline(
             log(f"[discovery] {len(missing)} of them have no cached body and will be skipped: "
                 + ", ".join(d.title[:40] for d in missing[:3]))
             docs = [d for d in docs if d.local_path]
+            if not docs:
+                _explain_lost_cached_bodies(economy, len(missing), log=log)
     elif pdf_path:
         log(f"[discovery] single file (crawler bypassed): {pdf_path}")
         docs = [discovery.doc_from_file(economy, pdf_path)]
@@ -354,10 +384,13 @@ def run_pipeline(
                     seen.add(d.doc_id)
                     docs.append(d)
     log(f"[discovery] {len(docs)} documents (NEW={sum(d.discovery_tag=='NEW' for d in docs)})")
-    if not docs and not use_samples:
+    if not docs and not use_samples and live_discovery:
         # An empty live discovery is a failure with a knowable cause, not an economy
         # without law. Sample mode is excluded: an empty sample corpus is a packaging
-        # problem with a different fix, and it never reaches a judge.
+        # problem with a different fix, and it never reaches a judge. The second-pass and
+        # single-file branches are excluded too — they never contact a portal or a search
+        # engine, so `explain_empty_discovery` (which blames those) would misattribute the
+        # cause; the second pass has its own message above, at the point that knows why.
         discovery.explain_empty_discovery(economy, log=log)
     log(f"[timing] discovery {time.perf_counter() - _t:.1f}s")
 
