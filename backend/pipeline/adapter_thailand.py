@@ -55,62 +55,115 @@ adapter code, both measured live 2026-09-07 against `POST …/law` with `{"page"
      here as a disclosed follow-up rather than attempted with a heuristic nobody has verified.
   2. Does paging work?  YES. `{"page": 1}` and `{"page": 2}` returned ZERO overlapping
      `law_id`s (15 rows each, both pages, `limit` requested was 20 but the API always answers
-     15 rows/page regardless of the requested `limit` — measured, not assumed). Separately
-     (Step 6, live full-adapter run): the feed's OWN ordering is not stable between separate
-     calls minutes apart — a law seen on page 10 or 57 in one call was not on the same page in
-     a later call (see "WHAT THIS ADAPTER DOES NOT COVER"). Paging itself still works within a
-     single run (no duplicate ids were ever seen across this adapter's own 60 pages); it is the
-     feed's page ASSIGNMENT that drifts between separate calls, the same "content moving between
-     requests" property `adapter_timor.py`'s docstring records for its own portal.
+     15 rows/page regardless of the requested `limit` — measured, not assumed; `limit` turned
+     out to be the wrong field name entirely, see "DETERMINISM" below). Separately (Step 6,
+     live full-adapter run): the feed's OWN ordering is not stable between separate calls
+     minutes apart — a law seen on page 10 or 57 in one call was not on the same page in a
+     later call. Paging itself still works within a single run (no duplicate ids were ever
+     seen across one run's own pages); it is the feed's page ASSIGNMENT that drifts between
+     separate calls, the same "content moving between requests" property `adapter_timor.py`'s
+     docstring records for its own portal. **This drift is FIXED for the instruments that
+     matter — see "DETERMINISM" below, added in a review round after this adapter's first
+     version shipped with the drift only disclosed, not fixed.**
 
 Because paging works, this adapter uses the `law` endpoint directly and never touches
 `searchResult` (whose payload shape 400s on every guess tried: `keyword`, `search`,
 `search_text`, `law_name`, `text`, `category_id`, `hirachy_of_law_id` — none change the
-response even on the *working* `law` endpoint either; see "WHAT THIS ADAPTER DOES NOT COVER").
+response even on the *working* `law` endpoint either — see "WHAT THIS ADAPTER DOES NOT COVER").
+Two OTHER fields, found only in the fix round below by reading the app's request payload
+rather than guessing field names, DO work: `size` (the real page-size field) and `hirachy` (a
+real, working type filter) — see "DETERMINISM".
 
 WHAT THIS ADAPTER DOES NOT COVER — recorded rather than hidden (the lesson the Timor-Leste
 adapter cost this phase: a lane that reads part of a portal and reports success anyway).
 `POST …/law` is a BROWSE-ALL feed sorted newest-updated-first, not a search: passing `keyword`,
 `search`, `category_id`, `hirachy_of_law_id`, `search_text` or `law_name` in the POST body was
 tried against it directly (2026-09-07) and every one of them returned the identical 15 rows and
-identical `total: 11406` as no filter at all — none of these fields subset the corpus. With
-11,406 laws at 15 rows/page (761 pages) and no working filter, this adapter WALKS the feed
-page-by-page and RANKS what it finds (`_relevance`) rather than searching for a target; it does
-not and cannot see the whole 11,406-law corpus in one run. `_MAX_PAGES` (below) bounds how far
-it walks. A law that this adapter's `_relevance` ranks low AND that never gets updated recently
-enough to surface within `_MAX_PAGES` pages of the newest-first feed will not be seen by a
-single run — this is the same "narrow page budget under-reaches an older foundational statute"
-trade-off `adapter_laos.py`'s docstring names for its own `_MAX_PAGES`, not solved here either.
+identical `total: 11406` as no filter at all — none of these fields subset the corpus. The
+SUBORDINATE tier (Notifications, Ministerial Regulations, Orders — everything outside
+`_LEGISLATIVE_HIRACHY_TIERS`, roughly 10,231 of the 11,406 rows) still has no working filter
+and is still walked page-by-page, bounded by `_MAX_PAGES`, RANKED by `_relevance` rather than
+searched for, and NOT deterministic — see "DETERMINISM" for what changed and what did not. A
+subordinate instrument that `_relevance` ranks low AND that never gets updated recently enough
+to surface within `_MAX_PAGES` pages of the newest-first feed will not be seen by a single run
+— the same "narrow page budget under-reaches an older foundational statute" trade-off
+`adapter_laos.py`'s docstring names for its own `_MAX_PAGES`, not solved here either. The
+LEGISLATIVE-GRADE tier (Act and above — where every RDTII citation this adapter has found
+actually lives) no longer has this problem; see "DETERMINISM".
 
-`_MAX_PAGES` measurement (2026-09-07, same recon run, `limit=20`/15-rows-per-page): scanning
-this feed page-by-page for the three RDTII-relevant Acts by name found
+DETERMINISM — added in a fix round after review found the gap: a first version of this
+adapter disclosed the browse feed's page-order drift (above) but did not fix it, and the
+timed live-verification run in that version found only 1 of the 3 RDTII-cited Thai Acts
+(Cybersecurity Act 2019) — the Personal Data Protection Act 2019 and the Computer-Related
+Crime Act 2007, both present in the Step 1 recon minutes earlier, were simply not in the pages
+that particular run happened to walk. Disclosure was the right first step but was not enough:
+completeness against the panel's own citations is the deliverable.
 
-    พระราชบัญญัติว่าด้วยการกระทำความผิดเกี่ยวกับคอมพิวเตอร์ พ.ศ. 2550  (Computer-Related Crime
-        Act 2007)                                    -> page 10   (law_id 19250)
-    พระราชบัญญัติการรักษาความมั่นคงปลอดภัยไซเบอร์ พ.ศ. 2562  (Cybersecurity Act 2019)
-                                                       -> page 48   (law_id 3018)
-    พระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562  (Personal Data Protection Act 2019)
-                                                       -> page 57   (law_id 11029)
+The fix has two parts, both found by reading the app's own bundle request payload rather than
+guessing field names (`main.7a41c7a0.js`: `nj.getUpdated({...T, size:l>a?a:l, page:d})`):
 
-all three of the RDTII P6/P7 answer key's core Thai instruments surfaced within the first 57
-pages of an otherwise-unfiltered chronological feed. `_MAX_PAGES` is set to 60 for headroom —
-5 pages of margin past the furthest of the three measured hits, not a round number picked
-without evidence. At `settings.crawl_delay_seconds` between successful page fetches (2.0s
-measured default) plus ~0.35s/request measured round-trip, a full 60-page walk costs roughly
-60 * 2.35 ~= 141s of deliberate wall-clock — in the same range as `adapter_timor.py`'s 183s and
-well above `adapter_laos.py`'s 47s, recorded here for Task 10's budget rather than left for
-someone else to time. Measured live 2026-09-07/08: a full `search_th_law` call (60 pages, 20
-requests/min of throttling via `crawl_delay_seconds`) took 140.9s wall-clock and returned 165
-documents, top-scored by `_relevance` as the Cybersecurity Act 2019 (0.99). The SAME three
-target Acts named above are NOT reliably in that 165 on every call: the feed's page assignment
-drifted between the Step 1 recon (minutes earlier, same day) and this run — Computer-Related
-Crime Act 2007 and the Personal Data Protection Act 2019 were not among the 165 documents this
-particular call returned, while the Cybersecurity Act 2019 was (top-ranked). This is the
-portal's OWN ordering moving, not a bug in this adapter's pagination (no `law_id` repeated
-across this run's own 60 pages, confirmed by the `seen_law_ids` check in `search_th_law`) —
-recorded here rather than only in the task report because a reader of this file, not just the
-report, needs to know a single `_MAX_PAGES`-bounded run is not guaranteed to reach every core
-Act every time.
+  * `size`, not `limit`, is the real page-size field — `limit` silently did nothing in every
+    round-1 probe. Verified live 2026-09-08: `size=20` -> 20 rows, `size=500` -> 500 rows,
+    `size=8000` -> 8000 rows in 14.7s. `size=9000`/`9500` answered a Gateway timeout at least
+    once while `size=9998` (near the full 11,406-row corpus) succeeded once — a FLAKY
+    boundary, not a documented hard cap, so this adapter caps its own requests at
+    `_TIER_FETCH_SIZE_CAP` (3,000), comfortably inside the range measured reliable.
+  * `hirachy` is a REAL, working server-side filter (unlike `hirachy_of_law_id`, tried in
+    round 1 and silently ignored). Verified live 2026-09-08: `{"hirachy": 1}` dropped `total`
+    from 11,406 to 1,113 and the first row was immediately an actual Act. Every RDTII citation
+    this adapter's own recon has found — the Computer-Related Crime Act, the Cybersecurity
+    Act, the PDPA — carries `hirachy_of_law_id=1` (Act). `_LEGISLATIVE_HIRACHY_TIERS` is the
+    FULL "force of an Act or higher" tier from `GET …/law/master`: Act, Organic Act,
+    Emergency Decree, Code, Revenue Code, Constitution.
+
+Combined, `size` + `hirachy` mean a WHOLE legislative-grade tier fits in one atomic request
+(probe `total` at `size=1`, then fetch at `size=total`) — there is no multi-request window left
+for the feed's reordering to act in. `search_th_law` now runs this as PASS 1, deterministic,
+before the original bounded browse walk (now PASS 2, secondary, still non-deterministic, kept
+only for subordinate instruments the tier list does not reach).
+
+MEASURED, live 2026-09-08, two separate `search_th_law` calls roughly 3 minutes apart (the
+first call's own 165s runtime, back to back with the second's): **identical results** — 739
+documents both times, the exact same 739 `doc_id`s (0 only-in-run-1, 0 only-in-run-2). PASS 1
+alone: `hirachy=1` -> 1,113 rows -> 19 new documents; `hirachy=883` (Emergency Decree) -> 49
+rows -> 1 new document; the other four tiers contributed 0 NEW documents (their real content,
+where present, was already reached by `hirachy=1`'s superset in these two runs). This is a
+measured result for THIS pair of calls, not a guarantee the mechanism can give for all time —
+PASS 2 remains architecturally order-dependent even though it happened not to visibly drift in
+this particular ~3-minute window; the guarantee this fix actually provides is that PASS 1's
+documents do not depend on PASS 2's ordering at all (pinned by
+`tests/test_adapter_thailand.py::test_tier_walk_documents_survive_the_browse_walk_reordering`,
+which drives a fake feed that DOES reorder between calls and confirms PASS 1's document is
+unaffected).
+
+Of the three RDTII-cited Acts specifically, PASS 1 now reliably finds two on every run:
+
+    พระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562  (PDPA 2019)                    -> 0.99
+    พระราชบัญญัติการรักษาความมั่นคงปลอดภัยไซเบอร์ พ.ศ. 2562  (Cybersecurity Act 2019) -> 0.99
+
+The THIRD, the Computer-Related Crime Act B.E. 2550 (2007), is a SEPARATE, deeper problem that
+PASS 1's determinism does not fix and cannot fix: its `content_all` is EMPTY — not merely on
+this row, but on every representation of this law found anywhere in the API. Verified live
+2026-09-08 three ways: (1) inside the full 1,113-row `hirachy=1` dump, `content_all` is `""`;
+(2) `GET …/law/detail/{table_of_law_id}` for the SAME law also returns `content_all: ""`; (3)
+a full-corpus scan (two requests, `size=6000` each, covering all 11,406 rows) found exactly
+ONE row titled with this Act's name, and it is the same empty one. Its real text is not
+missing from the SITE — `GET …/law/detail/9000`'s `content_list_process` field carries 47
+structured per-clause objects (`content_type`/`content_number`/`content_desc`) — but reading
+THAT field is the same kind of per-clause reconstruction work as the มาตรา-splitting problem
+this file's "STEP 1 RECON" Q1 answer already found and left out of scope, and is left out of
+scope here for the same reason (a future task, not this adapter file). The PDPA had the SAME
+symptom on its `hirachy=1` row (`content_all: ""`) but turned out to have a SECOND, DUPLICATE
+row elsewhere in the same tier (a Thai-numeral-year title variant, "๒๕๖๒" vs "2562") whose
+`content_all` genuinely is populated (78,093 chars) — `_rows_to_docs`'s existing "drop empty,
+keep populated" rule (unchanged, already tested) resolves the duplicate correctly on its own,
+which is why the PDPA above shows a real score and the Computer-Related Crime Act does not.
+
+`fetch.seed_cache` tags the cache entry `engine="api"` (see `_store`'s `engine` parameter),
+but `FetchResult` itself carries no `engine` field, so nothing downstream can currently tell a
+seeded entry from a genuinely fetched one. This is inherited from `adapter_india.py`'s
+existing `_seed()`, not introduced here, and is left unfixed (noted for whoever next touches
+`fetch.py`, not a Task 4 regression).
 
 ARTICLE SPLITTING, measured live (Step 6): the Cybersecurity Act 2019 fetched above (54,521
 chars, 58 `มาตรา` occurrences) currently extracts as ONE `(document)` block, not 58 provisions
@@ -221,8 +274,40 @@ Log = Callable[[str], None]
 #: measured live 2026-09-07). 60 = 5 pages of margin past the furthest measured hit, not a
 #: round number chosen without evidence. Raising it is a one-line change, traded here for a
 #: bounded single-run wall-clock/request count exactly as `adapter_laos.py`'s own `_MAX_PAGES`
-#: docstring explains for the same trade-off.
+#: docstring explains for the same trade-off. AS OF 2026-09-08 this walk is SECONDARY — see
+#: `_LEGISLATIVE_HIRACHY_TIERS` below for the deterministic primary walk that replaced it for
+#: the instruments RDTII actually cites; this bounded, order-dependent walk now exists only to
+#: pick up subordinate instruments (Notifications, Ministerial Regulations) outside that tier,
+#: and its own non-determinism is disclosed in the module docstring's "DETERMINISM" section.
 _MAX_PAGES = 60
+
+#: THE FIX for the page-order-drift finding (see the module docstring's "DETERMINISM" section
+#: for the full story and measurements). `hirachy` is a REAL, working server-side filter on
+#: `POST …/law` — verified live 2026-09-08: `{"hirachy": 1}` dropped `total` from 11,406 to
+#: 1,113 and the first row was immediately an actual Act — unlike every field Task 4's first
+#: pass tried (`hirachy_of_law_id`, `category_id`, `keyword`…), which changed nothing. Combined
+#: with `size` (see `_TIER_FETCH_SIZE_CAP`), a whole tier fits in ONE atomic request, so there
+#: is no multi-request window left for the feed's own reordering to act in. These six ids are
+#: the FULL "has the force of an Act or higher" tier from `GET …/law/master` (verified live
+#: 2026-09-07): Act, Organic Act, Emergency Decree, Code, Revenue Code, Constitution — every
+#: RDTII P6/P7 citation this adapter's own recon has found (PDPA, Cybersecurity Act,
+#: Computer-Related Crime Act) carries hirachy=1 (Act). Totals measured live 2026-09-08:
+#: 1=1113, 926=4, 883=49, 893=8, 889=0, 887=1 (1,175 total) — never hard-coded here, because a
+#: stale count would silently under- or over-fetch; `_fetch_tier` re-probes every call.
+_LEGISLATIVE_HIRACHY_TIERS: tuple[int, ...] = (1, 926, 883, 893, 889, 887)
+
+#: The real page-size field is `size`, not `limit` — a genuinely separate finding from the
+#: `hirachy` filter, made investigating it. `limit` silently did nothing in every Task 4
+#: round-1 probe: the API always answered its own internal default of 15 rows regardless of
+#: the `limit` value sent, which is WHY round 1 never noticed `size` existed. `size` was
+#: recovered from the app's own bundle (`main.7a41c7a0.js`:
+#: `nj.getUpdated({...T, size:l>a?a:l, page:d})`) and verified live 2026-09-08: `size=20` -> 20
+#: rows, `size=500` -> 500 rows, `size=8000` -> 8000 rows in 14.7s. `size=9000`/`9500` answered
+#: a Gateway "timeout exceeded when trying to connect" at least once while `size=9998` (a
+#: near-full-corpus single request) succeeded once — the boundary is FLAKY, not a documented
+#: hard cap, so this adapter never asks for more than `_TIER_FETCH_SIZE_CAP`, comfortably
+#: inside the range measured reliable and far above the largest legislative tier (1,113).
+_TIER_FETCH_SIZE_CAP = 3000
 
 #: The portal's own `hirachy_of_law_id` codes, from `GET dga-user-service-phase2/law/master`
 #: (verified live 2026-09-07 — the full list, not a guess). `พระราชบัญญัติ` (Act) is id 1;
@@ -347,6 +432,121 @@ def _rows_to_docs(payload: dict, economy: Economy, portal_name: str,
     return out
 
 
+def _fetch_tier(client, url: str, headers: dict, hirachy: int, log: Log) -> list[dict]:
+    """Every row in one legislative-grade `hirachy` tier — see the module docstring's
+    "DETERMINISM" section for why this exists and what it fixes.
+
+    Two requests, not one: a cheap probe (`size=1`) to learn the tier's own `total`, then a
+    single atomic fetch at `size=total`. Whenever `total` fits under `_TIER_FETCH_SIZE_CAP`
+    (every tier measured live 2026-09-08 does — the largest, Act, is 1,113), there is exactly
+    ONE page for the WHOLE tier, so there is no multi-request window left for the feed's own
+    reordering (the finding this fix responds to) to act in between them.
+
+    Falls back to a bounded, DEDUPED paged walk within the tier only if a future `total` ever
+    exceeds the cap — logged loudly, because that path reintroduces the same reordering risk
+    this mechanism exists to avoid, just scoped to one tier instead of the whole corpus.
+    """
+    try:
+        probe = client.post(url, headers=headers,
+                             json={"page": 1, "size": 1, "hirachy": hirachy}, timeout=60)
+    except Exception as exc:                          # noqa: BLE001 — one tier is not the run
+        log(f"[th_law_api] hirachy={hirachy} probe failed: {type(exc).__name__}: {exc}")
+        return []
+    if probe.status_code != 200:
+        log(f"[th_law_api] hirachy={hirachy} probe -> HTTP {probe.status_code}")
+        return []
+    try:
+        # `total` comes back as a STRING ("1113"), not an int — measured live 2026-09-08,
+        # easy to miss because Python's own print()/repr() of a dict doesn't show the quotes
+        # unless you check .__class__ directly. Cast explicitly rather than let a bare
+        # `<=` comparison crash the whole tier walk on a str/int mismatch.
+        raw_total = probe.json().get("total")
+        total = int(raw_total) if raw_total not in (None, "") else 0
+    except Exception as exc:
+        log(f"[th_law_api] hirachy={hirachy} probe: unparsable JSON/total ({type(exc).__name__})")
+        return []
+    if not total:
+        return []
+
+    if total <= _TIER_FETCH_SIZE_CAP:
+        try:
+            resp = client.post(url, headers=headers,
+                                json={"page": 1, "size": total, "hirachy": hirachy}, timeout=120)
+        except Exception as exc:
+            log(f"[th_law_api] hirachy={hirachy} fetch ({total} rows) failed: "
+                f"{type(exc).__name__}: {exc}")
+            return []
+        if resp.status_code != 200:
+            log(f"[th_law_api] hirachy={hirachy} fetch -> HTTP {resp.status_code}")
+            return []
+        try:
+            return resp.json().get("rows") or []
+        except Exception as exc:
+            log(f"[th_law_api] hirachy={hirachy}: unparsable JSON ({type(exc).__name__})")
+            return []
+
+    log(f"[th_law_api] hirachy={hirachy}: total={total} exceeds _TIER_FETCH_SIZE_CAP="
+        f"{_TIER_FETCH_SIZE_CAP} — falling back to a paged walk (the reordering risk this "
+        f"whole mechanism exists to avoid applies to THIS tier only)")
+    rows_all: list[dict] = []
+    seen_ids: set = set()
+    page, max_pages = 1, (total // _TIER_FETCH_SIZE_CAP) + 2
+    while len(seen_ids) < total and page <= max_pages:
+        try:
+            resp = client.post(url, headers=headers,
+                                json={"page": page, "size": _TIER_FETCH_SIZE_CAP,
+                                      "hirachy": hirachy}, timeout=120)
+        except Exception as exc:
+            log(f"[th_law_api] hirachy={hirachy} page {page}: {type(exc).__name__}")
+            break
+        if resp.status_code != 200:
+            break
+        try:
+            rows = resp.json().get("rows") or []
+        except Exception:
+            break
+        if not rows:
+            break
+        for r in rows:
+            lid = r.get("law_id")
+            if lid not in seen_ids:
+                seen_ids.add(lid)
+                rows_all.append(r)
+        page += 1
+        if client is not None and page <= max_pages:
+            time.sleep(settings.crawl_delay_seconds)
+    return rows_all
+
+
+def _emit_docs(rows: list[dict], economy: Economy, portal_name: str, indicators: list | None,
+               out: list[DiscoveredDoc], seen_doc_ids: set[str], log: Log) -> int:
+    """Turn one batch of raw rows into `DiscoveredDoc`s, seed each new one's fetch cache (see
+    the module docstring's "DESIGN DECISION" section), and append it to `out`. Shared by the
+    deterministic tier walk and the supplementary browse walk so the seed_cache logic — the
+    part that actually gets real Thai text past the SPA shell — is written once. Returns how
+    many NEW documents this batch added (for the caller's own log line).
+    """
+    docs = _rows_to_docs({"rows": rows}, economy, portal_name, indicators)
+    content_by_url = {_detail_url(r): (r.get("content_all") or "").strip() for r in rows}
+    added = 0
+    for doc in docs:
+        if doc.doc_id in seen_doc_ids:
+            continue
+        seen_doc_ids.add(doc.doc_id)
+        added += 1
+        body = content_by_url.get(doc.source_url)
+        if body:
+            try:
+                from .fetch import seed_cache
+                seed_cache(doc.source_url, body.encode("utf-8"), "text/plain",
+                           log=lambda _m: None)
+            except Exception as exc:                  # noqa: BLE001 — discovery still stands
+                log(f"[th_law_api] could not seed cache for {doc.doc_id}: "
+                    f"{type(exc).__name__}")
+        out.append(doc)
+    return added
+
+
 def search_th_law(client, src: dict, query: str, economy: Economy, indicators: list,
                    log: Log) -> list[DiscoveredDoc]:
     """Adapter entry point, matching the `PortalEnumerator` signature `discovery` dispatches
@@ -357,6 +557,16 @@ def search_th_law(client, src: dict, query: str, economy: Economy, indicators: l
     has no working keyword filter (see "WHAT THIS ADAPTER DOES NOT COVER" above) — every field
     name tried changed nothing, so this walks the browse feed and ranks what it finds instead
     of searching for a target.
+
+    Two passes, not one — see the module docstring's "DETERMINISM" section for the full story:
+      1. PRIMARY, deterministic: `_fetch_tier` over every id in `_LEGISLATIVE_HIRACHY_TIERS`,
+         each in one atomic request. This is where the RDTII-cited instruments live and it is
+         reproducible run to run.
+      2. SECONDARY, best-effort: the original bounded newest-first browse walk (`_MAX_PAGES`),
+         for subordinate instruments (Notifications, Ministerial Regulations) the tier list
+         does not cover. This pass is NOT deterministic — the feed's own ordering drifts
+         between calls minutes apart (measured; see the module docstring) — and is disclosed
+         as such rather than relied on for anything the first pass already covers.
 
     `api_base` and `x-api-key` come from `src` (the `sources.yaml` entry), never hard-coded, so
     a key rotation is a config change — if either is missing this logs an `[error]`-shaped line
@@ -388,11 +598,26 @@ def search_th_law(client, src: dict, query: str, economy: Economy, indicators: l
     portal_name = src.get("name", "law.go.th")
 
     out: list[DiscoveredDoc] = []
-    seen_law_ids: set = set()
     seen_doc_ids: set[str] = set()
+
+    # PASS 1 — deterministic: every legislative-grade instrument, in as few atomic requests
+    # as its own total needs. See _fetch_tier's docstring and the module docstring's
+    # "DETERMINISM" section.
+    for hirachy in _LEGISLATIVE_HIRACHY_TIERS:
+        rows = _fetch_tier(client, url, headers, hirachy, log)
+        added = _emit_docs(rows, economy, portal_name, indicators, out, seen_doc_ids, log)
+        log(f"[th_law_api] hirachy={hirachy}: {len(rows)} rows -> {added} new documents "
+            f"({len(out)} total)")
+        if client is not None:
+            time.sleep(settings.crawl_delay_seconds)
+
+    # PASS 2 — best-effort: the original bounded, newest-first browse walk, for subordinate
+    # instruments PASS 1's tier list does not reach. NOT deterministic — see the module
+    # docstring's "DETERMINISM" section for the measured overlap between two separate calls.
+    seen_law_ids: set = set()
     for page in range(1, _MAX_PAGES + 1):
         try:
-            resp = client.post(url, headers=headers, json={"page": page, "limit": 20},
+            resp = client.post(url, headers=headers, json={"page": page, "size": 30},
                                timeout=60)
         except Exception as exc:                      # noqa: BLE001 — one bad page is not fatal
             log(f"[th_law_api] page {page}: {type(exc).__name__}: {exc}")
@@ -412,34 +637,13 @@ def search_th_law(client, src: dict, query: str, economy: Economy, indicators: l
         if rows and not new_ids:
             # Step 1's own stop condition: a page returning no new ids means pagination has
             # looped or exhausted the feed. Measured live 2026-09-07 this never actually
-            # fires inside _MAX_PAGES (every page carried 15 distinct new ids) — kept as the
+            # fires inside _MAX_PAGES (every page carried distinct new ids) — kept as the
             # safety net the brief specifies, not dead code.
             log(f"[th_law_api] page {page}: no new law_ids — pagination exhausted")
             break
         seen_law_ids |= row_ids
 
-        docs = _rows_to_docs(payload, economy, portal_name, indicators)
-        content_by_url = {_detail_url(r): (r.get("content_all") or "").strip() for r in rows}
-        added = 0
-        for doc in docs:
-            if doc.doc_id in seen_doc_ids:
-                continue
-            seen_doc_ids.add(doc.doc_id)
-            added += 1
-            body = content_by_url.get(doc.source_url)
-            if body:
-                # Seed the fetch cache with the text law.go.th's own API already handed us —
-                # see the module docstring's "DESIGN DECISION" section for why this, and not
-                # `raw_text` or a bare detail-page URL, is what actually gets real Thai text
-                # to extraction instead of an unrendered React shell.
-                try:
-                    from .fetch import seed_cache
-                    seed_cache(doc.source_url, body.encode("utf-8"), "text/plain",
-                               log=lambda _m: None)
-                except Exception as exc:              # noqa: BLE001 — discovery still stands
-                    log(f"[th_law_api] could not seed cache for {doc.doc_id}: "
-                        f"{type(exc).__name__}")
-            out.append(doc)
+        added = _emit_docs(rows, economy, portal_name, indicators, out, seen_doc_ids, log)
         log(f"[th_law_api] page {page}: {len(rows)} rows -> {added} new documents "
             f"({len(out)} total)")
         if not rows:

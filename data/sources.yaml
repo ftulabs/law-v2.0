@@ -455,21 +455,37 @@ sources:
       also fire on a "ตามมาตรา" cross-reference) — so live documents from this lane currently
       extract as ONE "(document)" block, confirmed live (Cybersecurity Act 2019, 58 มาตรา
       occurrences -> 1 provision). The citation and relevance ranking are correct; article-level
-      splitting on this source needs a follow-up task, not a change here. `POST …/law` is a
-      BROWSE-ALL feed (newest-updated-first), not a search — every filter field tried
-      (keyword/search/search_text/law_name/text/category_id/hirachy_of_law_id) returned the
-      identical 15 rows and identical total:11406 as no filter at all, and
-      POST …/law/searchResult 400s on every payload shape tried. The adapter therefore WALKS
-      the feed page-by-page (bounded by _MAX_PAGES=60, chosen with 5 pages of margin past the
-      furthest of the three RDTII core Acts found in recon: Computer-Related Crime Act 2007 on
-      page 10, Cybersecurity Act 2019 on page 48, Personal Data Protection Act 2019 on page 57)
-      and RANKS what it finds — it does not see the full 11,406-law corpus in one run, and a
-      law that ranks low AND never surfaces within 60 pages of the newest-first feed will not
-      be seen. The feed's own page ASSIGNMENT also drifts between separate calls minutes apart
-      (measured: a live 165-document run found the Cybersecurity Act top-ranked but did not
-      find the other two core Acts that an earlier recon call had placed at pages 10/57) — not
-      a pagination bug (no law_id repeats within one run), the portal's content moving between
-      requests, the same property adapter_timor.py's docstring records for its own portal.
+      splitting on this source needs a follow-up task, not a change here (unchanged since the
+      adapter's first version; a later review round fixed a SEPARATE problem, below, without
+      touching this one). `POST …/law` is a BROWSE-ALL feed (newest-updated-first), not a
+      search — every filter field tried (keyword/search/search_text/law_name/text/category_id/
+      hirachy_of_law_id) returned the identical 15 rows and identical total:11406 as no filter
+      at all, and POST …/law/searchResult 400s on every payload shape tried.
+      DETERMINISM (fixed in a review round after the adapter's first version shipped with this
+      only disclosed, not fixed — that version's timed run found just 1 of the 3 RDTII-cited
+      Thai Acts, because the feed's own page ASSIGNMENT drifts between separate calls minutes
+      apart and the other 2 simply were not on the pages that run happened to walk). The fix:
+      `size` (not `limit`, which silently did nothing) is the real page-size field, and
+      `hirachy` (not `hirachy_of_law_id`) is a REAL, working type filter — both found by
+      reading the app's own request payload rather than guessing field names. Every RDTII
+      citation found so far carries hirachy=1 (Act); `_LEGISLATIVE_HIRACHY_TIERS` in the
+      adapter (Act, Organic Act, Emergency Decree, Code, Revenue Code, Constitution, 1,175
+      rows total) is now fetched in ONE atomic request per tier (probe `total`, then fetch
+      `size=total`) as PASS 1, before the original bounded browse walk (now PASS 2, secondary,
+      for subordinate instruments only, still non-deterministic). Measured live 2026-09-08:
+      two `search_th_law` calls ~3 minutes apart returned IDENTICAL 739-document sets. PDPA
+      and the Cybersecurity Act are now found on every run (0.99 each); the Computer-Related
+      Crime Act 2007 is a separate, deeper gap the fix does not reach — its content_all is
+      empty on EVERY representation of it found anywhere in the API (the list endpoint, the
+      detail endpoint, and a full 11,406-row corpus scan all agree), and its real text lives
+      only in the detail endpoint's content_list_process field (47 structured per-clause
+      items) — reading that is the same kind of per-clause reconstruction work as the
+      มาตรา-splitting problem above and is left out of scope for the same reason. Two smaller,
+      unfixed items noted for a future pass: fetch.seed_cache tags its cache entry
+      engine="api" but FetchResult carries no engine field to read it back (inherited from
+      adapter_india.py, not introduced here); and _detail_url falls back from
+      table_of_law_id to law_id when the former is absent, which COULD collide two different
+      rows onto one document (not observed in any fixture or live row).
       www.law.go.th's DetailLawPage is a pure Create-React-App shell (`<div id="root"></div>`,
       no server-rendered text) that ocr.is_js_app_shell's marker list does not catch, so the
       adapter seeds the fetch cache directly with content_all (fetch.seed_cache, the same
