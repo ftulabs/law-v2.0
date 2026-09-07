@@ -11,6 +11,11 @@ sort-window union. Two sort keys x two directions.
 Fixture saved 2026-09-07 from
 https://sso.agc.gov.sg/Browse/Act/Current/All?PageSize=500&SortBy=Title&SortOrder=ASC
 No test here touches the network.
+
+The saved fixture is TRUNCATED to its first 150 of 500 rows (fix round 1, 2026-09-08) — see
+the comment at the top of tests/fixtures/portals/sg_browse_act.html for the full-file byte
+count and the exact cut point. 150 rows comfortably clears the >=100 assertion below while
+keeping this fixture from being 74% of the repository's portal-fixture download size.
 """
 from pathlib import Path
 
@@ -40,9 +45,25 @@ def test_rows_carry_a_path_and_a_title(html):
 
 def test_titles_are_html_unescaped(html):
     """SSO writes &amp; and &#39; in Act titles. A Law Name column reading
-    "Companies (Amendment &amp; Consequential) Act" is a wrong citation, not a cosmetic bug."""
+    "Companies (Amendment &amp; Consequential) Act" is a wrong citation, not a cosmetic bug.
+
+    This is a smoke test only: not one of the 500 rows in the committed fixture window
+    actually contains an entity, so this passes whether or not `_clean_title` unescapes
+    anything. `test_clean_title_decodes_html_entities` below is the test that can fail.
+    """
     rows = adapter_singapore._browse_rows(html)
     assert not any("&amp;" in t or "&#" in t for _, t in rows)
+
+
+def test_clean_title_decodes_html_entities():
+    """The test that can actually fail against a missing `html.unescape` call. SSO writes
+    entities in some titles (e.g. "Companies (Amendment &amp; Consequential) Act") even though
+    none happen to land in the committed fixture window — a Law Name column that still reads
+    "&amp;" is a wrong citation, not a cosmetic bug."""
+    assert adapter_singapore._clean_title("Companies (Amendment &amp; Consequential) Act") == (
+        "Companies (Amendment & Consequential) Act")
+    assert adapter_singapore._clean_title("What&#39;s New Act") == "What's New Act"
+    assert adapter_singapore._clean_title("A  &amp;   B") == "A & B"  # also collapses whitespace
 
 
 def test_the_body_url_is_the_pdf_view(html):

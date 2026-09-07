@@ -90,6 +90,7 @@ import time
 from typing import Callable
 
 from ..config import settings
+from ..console import safe_log
 from ..schemas import DiscoveredDoc, Economy
 from . import portal
 
@@ -170,10 +171,18 @@ def _relevance(kind: str, title: str, indicators: list) -> float:
     return round(min(0.99, max(0.05, base + 0.35 * topic)), 4)
 
 
-def enumerate_sso(client, log: Log = print, kinds=("Act",), page_size: int = 500) -> list[dict]:
+def enumerate_sso(client, log: Log = safe_log, kinds=("Act",), page_size: int = 500) -> list[dict]:
     """Enumerate SSO's browse index via sort-window union. Returns CORPUS-SHAPED dicts — the
     same shape `backend/corpus/catalogue.py` has always consumed — WITHOUT a `law_id` key;
     `catalogue.enumerate_sg` adds that itself (see module docstring's "two id schemes" note).
+
+    `log` defaults to `backend.console.safe_log`, NOT `print` — a bare `print` of non-ASCII text
+    (a Mongolian portal name, in the incident `backend/console.py`'s own docstring records)
+    raised `UnicodeEncodeError` under the Windows console code page from inside an `except`
+    block that existed so one dead query would not be fatal, and killed the run instead. SG's
+    own titles are ASCII, but this function is called from `backend/corpus/catalogue.py`, which
+    is not ASCII-only territory, and a `print` default here would be the same trap waiting for
+    whichever caller does not think to override it.
 
     SSO throttles hard: it answers a burst with `202` and an EMPTY body rather than `429`, which
     is exactly what `portal.portal_get` already treats as a throttle-and-retry rather than a

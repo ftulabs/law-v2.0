@@ -37,9 +37,9 @@ sources:
       ~5,843 subsidiary instruments (SL / Acts-Supp) — a PageSize=500 window can only
       union-cover an index of at most 1,000, and SSO's SL/Acts-Supp kinds are far larger.
       Neither this lane nor the corpus tool attempts those by default; widening it is
-      future work, not silently assumed coverage. robots.txt (verified with the project's
-      own crawl UA) grants the wildcard group and disallows only /search; /Browse and /Act
-      are unaffected.
+      future work, not silently assumed coverage. robots.txt (verified live 2026-09-07 with
+      the project's own crawl UA) grants the wildcard group and disallows only /search;
+      /Browse and /Act are unaffected.
       THROTTLE, found live 2026-09-08: SSO's throttle is severe enough to block a full run,
       not just slow one down. It answers a burst with 202 and an EMPTY body, never 429 — after
       the clean recon above plus this module's own testing traffic, every subsequent request
