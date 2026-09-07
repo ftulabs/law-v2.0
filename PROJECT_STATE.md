@@ -246,8 +246,13 @@ Everything else is retrieval or grading, which is where the budget below bites.
       alone deliberately: Indonesian articles really do carry letter suffixes ("Pasal 28J"),
       so a rule that rejected them would lose real citations to catch a cosmetic one.
 - [ ] Portal adapters for TH · ID · LA · RU (today: generic websearch, `verified: false`).
-      Measured 2026-08-25: TH and ID time out on the DuckDuckGo HTML endpoint; LA's gazette
-      host does not resolve.
+      Measured 2026-08-25: TH and ID time out on the DuckDuckGo HTML endpoint. The 2026-08-25
+      "LA's gazette host does not resolve" reading was wrong or transient: re-probed
+      2026-09-07, `laoofficialgazette.gov.la` answers HTTP 200 (110 KB), a Yii app with a
+      paginated list (`?r=site/index&Document_page=N`), detail pages (`?r=site/display&id=N`),
+      gazette PDFs under `/kcfinder/upload/files/`, and an English toggle
+      (`?r=site/switchpage&lc=en`); still no adapter. Scanned PDFs and Lao legacy fonts that
+      map letters into upper-ASCII (text-layer mojibake) remain open hazards.
 - [ ] Timor-Leste: no lane, no language profile, no OCR path. Carries a scoring bonus.
 - [ ] CN principal statutes must survive `cac.gov.cn` being unreachable (PIPL / CSL / DSL).
 - [ ] MY: one cited provision never reaches the shortlist at ANY budget (prov-recall flat

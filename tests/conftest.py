@@ -25,14 +25,19 @@ if str(ROOT) not in sys.path:
 
 @pytest.fixture(autouse=True)
 def _reset_websearch_diagnostics():
-    """`websearch._diag` is module-global mutable state, read by both `websearch` itself and
-    `discovery.explain_empty_discovery`. Three test files (test_empty_discovery.py,
-    test_websearch_diagnostics.py, test_discovery.py) set it directly and pass today only
-    because each test resets it at entry and pytest happens to run files in a fixed order.
-    Under `-p randomly` or xdist that becomes an order-dependent flake in exactly the code path
-    that reports why a judged run failed. Reset before AND after so a test that forgets its own
-    reset can't poison the next one either."""
+    """`websearch._diag` and `websearch._circuit` are both module-global mutable state, read
+    by both `websearch` itself and `discovery.explain_empty_discovery`. Three test files
+    (test_empty_discovery.py, test_websearch_diagnostics.py, test_discovery.py) set them
+    directly and pass today only because each test resets them at entry and pytest happens to
+    run files in a fixed order. Under `-p randomly` or xdist that becomes an order-dependent
+    flake in exactly the code path that reports why a judged run failed: if `_circuit["empties"]`
+    is left at `_HARD` by a circuit-breaker test, `search()` short-circuits before touching the
+    network in every test that runs after it, and those tests see all their counters stay at
+    zero. Reset both before AND after so a test that forgets its own reset can't poison the next
+    one either."""
     from backend.pipeline import websearch
     websearch.reset_diagnostics()
+    websearch.reset_circuit()
     yield
     websearch.reset_diagnostics()
+    websearch.reset_circuit()
