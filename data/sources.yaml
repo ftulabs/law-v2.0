@@ -424,8 +424,10 @@ sources:
       SUPERSEDED, kept because the error was expensive. This entry said "Thai statutes are
       published as PDF, frequently scanned … this is the OCR-heavy lane." That is FALSE, and
       it is why Thailand was ranked among the hardest economies for a fortnight. Thailand's
-      central legal system (law.go.th) returns clean full text as JSON — no PDF, no OCR, no
-      scan. See the TH API entry below and §2.1 of
+      central legal system (law.go.th) returns clean full text as JSON. The law.go.th lane is
+      NOT in this file yet — it is a Phase-2
+      deliverable; its measured route (POST apig.law.go.th/dga-user-service-phase2/law,
+      header x-api-key, rows[].content_all) is recorded in §2.1 of
       docs/superpowers/specs/2026-09-07-pre-retrieval-discovery-design.md.
   - economy: TH
     name: Royal Thai Government Gazette
