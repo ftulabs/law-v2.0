@@ -424,11 +424,58 @@ sources:
       SUPERSEDED, kept because the error was expensive. This entry said "Thai statutes are
       published as PDF, frequently scanned … this is the OCR-heavy lane." That is FALSE, and
       it is why Thailand was ranked among the hardest economies for a fortnight. Thailand's
-      central legal system (law.go.th) returns clean full text as JSON. The law.go.th lane is
-      NOT in this file yet — it is a Phase-2
-      deliverable; its measured route (POST apig.law.go.th/dga-user-service-phase2/law,
-      header x-api-key, rows[].content_all) is recorded in §2.1 of
-      docs/superpowers/specs/2026-09-07-pre-retrieval-discovery-design.md.
+      central legal system (law.go.th) returns clean full text as JSON — see the law.go.th
+      entry below (Phase-2 Task 4, landed 2026-09-08). Its measured route is also recorded in
+      §2.1 of docs/superpowers/specs/2026-09-07-pre-retrieval-discovery-design.md.
+  - economy: TH
+    name: Thailand Central Law Database (law.go.th) — REST API
+    base_url: https://www.law.go.th
+    adapter: th_law_api
+    api_base: https://apig.law.go.th
+    # PUBLIC bundle constant, not a credential issued to anyone: compiled into
+    # https://www.law.go.th/static/js/main.7a41c7a0.js (src/configs/axios.js per its
+    # sourcemap), the same JS every visitor's browser downloads to render the page.
+    # Rotation is a config change here, not a code change — see backend/pipeline/
+    # adapter_thailand.py's module docstring for the full provenance.
+    api_key: 4nEZYvTwRFlUVn7aK85cZ2xSU83dOFai
+    detail_url_template: "https://www.law.go.th/DetailLawPage?table_of_law_id={id}"
+    verified: true
+    reachable: >-
+      2026-09-07: POST apig.law.go.th/dga-user-service-phase2/law -> 200, rows[] with
+      content_all (the statute's full text — no PDF, no OCR, no scan). Paging confirmed
+      working (page 1 vs page 2: zero overlapping law_ids). www.law.go.th/robots.txt and
+      apig.law.go.th/robots.txt both answer non-2xx (a WAF page and a Gateway
+      "Missing Authentication Token" respectively, not a published ruleset) —
+      backend.pipeline.robots treats any 4xx as "no rules published" per RFC 9309, verified by
+      calling robots.allowed() directly: both hosts return (True, "").
+    note: >-
+      content_all carries มาตรา (article) markers as a SUBSTRING (measured: one sampled Act
+      had 76) but content_all has ZERO newline characters in every row sampled, and
+      extraction.ARTICLE_PATTERNS's Thai splitter is deliberately line-anchored (so it does not
+      also fire on a "ตามมาตรา" cross-reference) — so live documents from this lane currently
+      extract as ONE "(document)" block, confirmed live (Cybersecurity Act 2019, 58 มาตรา
+      occurrences -> 1 provision). The citation and relevance ranking are correct; article-level
+      splitting on this source needs a follow-up task, not a change here. `POST …/law` is a
+      BROWSE-ALL feed (newest-updated-first), not a search — every filter field tried
+      (keyword/search/search_text/law_name/text/category_id/hirachy_of_law_id) returned the
+      identical 15 rows and identical total:11406 as no filter at all, and
+      POST …/law/searchResult 400s on every payload shape tried. The adapter therefore WALKS
+      the feed page-by-page (bounded by _MAX_PAGES=60, chosen with 5 pages of margin past the
+      furthest of the three RDTII core Acts found in recon: Computer-Related Crime Act 2007 on
+      page 10, Cybersecurity Act 2019 on page 48, Personal Data Protection Act 2019 on page 57)
+      and RANKS what it finds — it does not see the full 11,406-law corpus in one run, and a
+      law that ranks low AND never surfaces within 60 pages of the newest-first feed will not
+      be seen. The feed's own page ASSIGNMENT also drifts between separate calls minutes apart
+      (measured: a live 165-document run found the Cybersecurity Act top-ranked but did not
+      find the other two core Acts that an earlier recon call had placed at pages 10/57) — not
+      a pagination bug (no law_id repeats within one run), the portal's content moving between
+      requests, the same property adapter_timor.py's docstring records for its own portal.
+      www.law.go.th's DetailLawPage is a pure Create-React-App shell (`<div id="root"></div>`,
+      no server-rendered text) that ocr.is_js_app_shell's marker list does not catch, so the
+      adapter seeds the fetch cache directly with content_all (fetch.seed_cache, the same
+      mechanism adapter_india.py uses) rather than relying on a live fetch of the citation page
+      — the citation URL itself is still the real www.law.go.th page, openable by any reviewer.
+      Full detail in backend/pipeline/adapter_thailand.py's module docstring.
   - economy: TH
     name: Royal Thai Government Gazette
     base_url: https://ratchakitcha.soc.go.th
