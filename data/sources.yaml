@@ -19,16 +19,32 @@
 
 sources:
   - economy: SG
+    name: Singapore Statutes Online — sort-window union (portal-native)
+    base_url: https://sso.agc.gov.sg
+    adapter: sg_sso                       # 2026-09-08 (Task 8): wired to discovery's dispatch;
+                                          # PRIMARY SG lane — see backend/pipeline/adapter_singapore.py
+    verified: true
+    notes: >
+      PRIMARY LANE (dispatch wired 2026-09-08). See the websearch entry immediately below for
+      the full sort-window-union measurement and the SSO throttle finding (202 + empty body) —
+      that entry is now kept as a SECONDARY lane rather than duplicated here: it costs nothing
+      when this adapter or the engines are down, and adds coverage when the throttle above
+      clears. Do not add a second websearch entry for SG.
+
+  - economy: SG
     name: Singapore Statutes Online
     base_url: https://sso.agc.gov.sg
-    adapter: websearch                    # on-portal search is token-AJAX; web search reaches the same Acts
+    adapter: websearch                    # SECONDARY lane (2026-09-08): sg_sso above is primary.
+                                          # Kept because it costs nothing when engines are down
+                                          # and can add coverage when they are not.
     verified: true
     notes: |
       Full-text body via /Act/{id}?ViewType=Pdf (verified, httpx). Discovery via web search.
       2026-09-07 — that web-search lane now answers 403 from every engine, so SG (mandatory
       every round) was producing zero documents. A portal-native lane now exists
-      (`backend/pipeline/adapter_singapore.py`, registered as `sg_sso`; dispatch wiring is a
-      separate task) using the sort-window union technique already proven in
+      (`backend/pipeline/adapter_singapore.py`, registered as `sg_sso`), wired to discovery's
+      dispatch 2026-09-08 (Task 8) — see the sg_sso entry directly above. It uses the
+      sort-window union technique already proven in
       `backend/corpus/catalogue.py` since August: SSO ignores `CurrentPage`, but honours the
       sort, so unioning ASC/DESC windows on two sort keys (Title, Number) covers the whole
       index whenever total <= 2 x PageSize. RE-MEASURED live 2026-09-07 (not inherited
@@ -148,10 +164,24 @@ sources:
   - economy: CN
     name: State Council / Cyberspace Administration (administrative measures)
     base_url: https://www.gov.cn
-    adapter: websearch
+    adapter: cn_portal                    # 2026-09-08 (Task 8): wired to discovery's dispatch —
+                                          # see backend/pipeline/adapter_china.py, registered `cn_portal`.
+                                          # This adapter's own search pass reads `queries_p6`/`queries_p7`
+                                          # straight off THIS entry (src["queries_p6"], src["queries_p7"]),
+                                          # the same vehicle every other portal-native lane uses.
     site: gov.cn
     verified: true             # measured: PIPL 74 provisions, data-export measures 19-20 each
+    # ⚠ QUERY ORDER IS LOAD-BEARING, not cosmetic: adapter_china._SEARCH_MAX_TERMS caps the
+    # search pass at the first 6 terms of whichever list matches the run's pillar(s). A term
+    # past position 6 is never searched — so an economy's whole pillar-6 answer can hinge on
+    # where its principal statute sits in this list. Found the hard way 2026-09-08: with
+    # 个人信息保护法 (PIPL, the central statute of the cross-border-data pillar) listed 13th/last,
+    # a pillar-6 CN run could not reach it at all, while queries_p7 happened to put CSL/DSL
+    # first and worked. REORDERED so the principal statute is always inside the first 6 —
+    # re-check this ordering before adding a term above it.
     queries_p6:
+      - 个人信息保护法             # PIPL — principal statute of this pillar; MUST stay inside the
+                                    # first 6 (see the load-bearing-order note above)
       - 数据出境安全评估办法
       - 个人信息出境标准合同
       - 应当在境内存储
@@ -162,6 +192,9 @@ sources:
       # reaches them. Name fragments like the FLK lane's second block — one per sector RDTII
       # treats as in scope: ride-hailing, P2P lending, credit reporting, maps, publishing,
       # e-mail, population-health info.
+      # ⚠ Past the first-6 cap given PIPL now occupies a slot above — these are NOT reached
+      # by the search pass as currently ordered. Widening `_SEARCH_MAX_TERMS` or splitting
+      # sector terms into their own pass is future work, not silently assumed coverage.
       - 网络预约出租汽车经营服务管理暂行办法
       - 网络借贷信息中介机构业务活动管理暂行办法
       - 征信业管理条例
@@ -169,7 +202,6 @@ sources:
       - 网络出版服务管理规定
       - 互联网电子邮件服务管理办法
       - 人口健康信息管理办法
-      - 个人信息保护法
     queries_p7:
       - 中华人民共和国网络安全法
       - 中华人民共和国数据安全法
@@ -198,7 +230,8 @@ sources:
       — the grader rejects them, but a tier filter would spend fewer LLM calls.
 
       PORTAL-NATIVE LANE (added 2026-09-08, `backend/pipeline/adapter_china.py`, registered as
-      `cn_portal`; not yet wired to `adapter:` here — that is a separate task): reads
+      `cn_portal`; wired to `adapter:` above as of Task 8, 2026-09-08 — this entry's own
+      `queries_p6`/`queries_p7` now feed its search pass directly): reads
       cac.gov.cn's front page + four on-topic section indexes (server-rendered, no WAF, plain
       httpx) PLUS a second pass over `search.cac.gov.cn/cms/cmsadmin/infopub/gjjs.jsp`, a real
       keyword search this module found in the front page's own header form. That search path is
@@ -547,8 +580,9 @@ sources:
   - economy: ID
     name: Database Peraturan JDIH BPK
     base_url: https://peraturan.bpk.go.id
-    adapter: websearch
-    verified: false
+    adapter: id_bpk                       # 2026-09-08 (Task 8): wired to discovery's dispatch —
+                                          # see backend/pipeline/adapter_indonesia.py, registered `id_bpk`
+    verified: true
     robots_read: "2026-08-21"
     reachable: "2026-08-21: plain urllib 403 (WAF); browser lane HTTP 200 — reachable through scrapling, which is the default fetcher"
     note: >-
@@ -600,13 +634,15 @@ sources:
   - economy: LA
     name: Lao Official Gazette
     base_url: https://laoofficialgazette.gov.la
-    adapter: websearch
-    verified: false
-    reachable: "2026-09-07: HTTP 200, 110 KB, 12,477 Lao characters, fully paginated. The 2026-08-21 reading 'URLError — host does not resolve' was wrong or transient; the host is a Yii app with ?r=site/index&Document_page=N listing, ?r=site/display&id=N detail, PDFs under /kcfinder/upload/files/, and an English toggle at ?r=site/switchpage&lc=en"
+    adapter: la_gazette                   # 2026-09-08 (Task 8): wired to discovery's dispatch —
+                                          # see backend/pipeline/adapter_laos.py, registered `la_gazette`
+    verified: true
+    reachable: "2026-09-07: HTTP 200, 110 KB, 12,477 Lao characters, fully paginated. The 2026-08-21 reading 'URLError — host does not resolve' was wrong or transient; the host is a Yii app with four routes: ?r=site/index&Document_page=N (paginated list, two grids per page), ?r=site/display&id=N (detail; unused, the list page already carries the PDF link), ?r=site/list&legaltype=N (type filter; unused), ?r=site/switchpage&lc=en (English toggle; unused). Document PDFs sit under /kcfinder/upload/files/. Ids come only from table.items rows on the list page, never from a guessed id or any other href on the page — see adapter_laos.py's module docstring."
     note: >-
       Scanned PDFs, no maintained Lao OCR model, and legacy Lao fonts that map letters into
       upper-ASCII so even a text layer can be mojibake. script_validity() is the only defence
-      and it is advisory.
+      and it is advisory. Discovery is now portal-native (adapter_laos.py, `la_gazette`,
+      dispatch wired 2026-09-08) rather than depending on a search engine.
   - economy: RU
     name: Official Internet Portal of Legal Information
     base_url: http://publication.pravo.gov.ru
@@ -628,8 +664,11 @@ sources:
   - economy: TL
     name: Jornal da República (Ministério da Justiça) — official gazette
     base_url: https://mj.gov.tl/jornal
-    adapter: websearch
-    verified: false
+    adapter: tl_gazette                   # 2026-09-08 (Task 8): wired to discovery's dispatch —
+                                          # see backend/pipeline/adapter_timor.py, registered `tl_gazette`.
+                                          # Crawl-delay 10 (robots.txt); targets the static frameset
+                                          # index at /jornal/lawsTL/, coverage 2001-2012 — see note below.
+    verified: true
     reachable: "2026-08-28: HTTP 200 over plain HTTPS, 18.8k chars server-rendered, no WAF, no JS shell"
     robots_read: "2026-08-28"
     note: >-

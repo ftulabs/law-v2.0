@@ -673,7 +673,7 @@ def _search_one(client, src: dict, query: str, economy: Economy, indicators, log
         href = a.get("href")
         if not href:
             continue
-        abs_href = httpx.URL(url).join(href).human_repr()
+        abs_href = str(httpx.URL(url).join(href))
         if must and must not in abs_href.lower():
             continue
         body_url = _resolve_download(src, abs_href)
@@ -1284,6 +1284,32 @@ def _source_queries(src: dict, pillar: int | None) -> list[str] | None:
     return out or None
 
 
+def _dispatch_in_dspace(client, src, query, economy, indicators, log):
+    """Lazy wrapper: importing adapter_india at module load time would add its cost to
+    every discovery.py import, not just to a live India run."""
+    from .adapter_india import _search_in_dspace
+    return _search_in_dspace(client, src, query, economy, indicators, log)
+
+
+def _dispatch_mn_legalinfo(client, src, query, economy, indicators, log):
+    """Lazy wrapper — see `_dispatch_in_dspace`."""
+    from .adapter_mongolia import _search_mn_legalinfo
+    return _search_mn_legalinfo(client, src, query, economy, indicators, log)
+
+
+#: Adapter names dispatched directly by this module rather than through `portal.register`
+#: (the Phase-2 six register themselves there instead — see `discover_live`). Kept as a
+#: module-level table, not a local built inside `discover_live`, so
+#: `test_adapter_registry.py` can confirm every `adapter:` name in `data/sources.yaml`
+#: resolves to *something* without first having to call `discover_live`.
+_ADAPTERS: dict = {
+    "au_api": _search_au_api,
+    "my_catalogue": _search_my_catalogue,
+    "in_dspace": _dispatch_in_dspace,
+    "mn_legalinfo": _dispatch_mn_legalinfo,
+}
+
+
 def discover_live(economy: Economy, pillar: int | None = None,
                   max_docs: int | None = None, log=safe_log) -> list[DiscoveredDoc]:
     """Search the economy's official portal(s) with coarse pillar keywords and return
@@ -1345,14 +1371,21 @@ def discover_live(economy: Economy, pillar: int | None = None,
     if api_sources:
         import httpx
         with httpx.Client(timeout=settings.crawl_timeout_seconds, headers=_headers(), follow_redirects=True) as client:
-            # in_dspace lives in its own module (adapter_india.py) so this file keeps one
-            # dispatch line rather than a fourth portal's worth of API handling.
-            from .adapter_india import _search_in_dspace
-            from .adapter_mongolia import _search_mn_legalinfo
-            _ADAPTERS = {"au_api": _search_au_api, "my_catalogue": _search_my_catalogue,
-                         "in_dspace": _search_in_dspace, "mn_legalinfo": _search_mn_legalinfo}
+            # au_api/my_catalogue/in_dspace/mn_legalinfo dispatch through the module-level
+            # `_ADAPTERS` table above (in_dspace/mn_legalinfo import their own modules lazily,
+            # only when actually called, so this file's import cost stays where it already is).
+            from . import portal
+            # The six Phase-2 lanes register themselves with `portal.register(...)` on import
+            # (adapter_china/indonesia/laos/singapore/thailand/timor) rather than being added
+            # to `_ADAPTERS` by hand — importing them here is what runs those registrations,
+            # kept inside discover_live (not module import time) for the same reason
+            # adapter_india's and adapter_mongolia's lazy imports already are.
+            from . import (adapter_china, adapter_indonesia, adapter_laos,  # noqa: F401
+                            adapter_singapore, adapter_thailand, adapter_timor)
             for src in api_sources:
-                searcher = _ADAPTERS.get(src.get("adapter"), _search_one)
+                searcher = (_ADAPTERS.get(src.get("adapter"))
+                            or portal.get_adapter(src.get("adapter"))
+                            or _search_one)
                 # An adapter searches the portal's OWN index, so it needs the portal's own
                 # language. AU and MY index English titles and are happy with the generated
                 # queries; legalinfo.mn indexes Mongolian ones and answered every English

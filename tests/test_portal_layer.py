@@ -106,7 +106,11 @@ def test_doc_id_matches_the_id_discovery_already_uses():
     assert portal.doc_id("AU", url) == _doc_id("AU", url)
 
 
-def test_registry_round_trips_and_rejects_an_unknown_name():
-    portal.register("unit_test_adapter", lambda *a, **k: [])
+def test_registry_round_trips_and_rejects_an_unknown_name(monkeypatch):
+    # portal._REGISTRY is module-global state shared with every other test that touches the
+    # registry (e.g. test_adapter_registry.py's enumeration of real adapters) — monkeypatch
+    # restores the dict's prior contents on teardown instead of leaving "unit_test_adapter"
+    # sitting in it for whichever test runs next.
+    monkeypatch.setitem(portal._REGISTRY, "unit_test_adapter", lambda *a, **k: [])
     assert portal.get_adapter("unit_test_adapter") is not None
     assert portal.get_adapter("no_such_adapter") is None
