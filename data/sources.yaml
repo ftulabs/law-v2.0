@@ -419,11 +419,14 @@ sources:
     base_url: https://www.krisdika.go.th
     adapter: websearch
     verified: false
-    reachable: "2026-08-21: TLS fixed (self-signed cert, see fetch._TLS_RELAXED_HOSTS); handshake now succeeds but /, /th/ and /web/guest/law all 404 — the document path is still unknown"
+    reachable: "2026-09-07: TLS connects, but /, /th/ and /web/guest/law all return HTTP 404 with a 2,150-byte body — the site was restructured and this is no longer the TLS problem recorded on 2026-08-21. Superseded by the law.go.th lane."
     note: >-
-      Thai statutes are published as PDF, frequently scanned. The English translations on the
-      same site are unofficial, so the AUTHORITATIVE text is Thai — which is what the Verbatim
-      Snippet column has to carry, and what Language of Source has to say.
+      SUPERSEDED, kept because the error was expensive. This entry said "Thai statutes are
+      published as PDF, frequently scanned … this is the OCR-heavy lane." That is FALSE, and
+      it is why Thailand was ranked among the hardest economies for a fortnight. Thailand's
+      central legal system (law.go.th) returns clean full text as JSON — no PDF, no OCR, no
+      scan. See the TH API entry below and §2.1 of
+      docs/superpowers/specs/2026-09-07-pre-retrieval-discovery-design.md.
   - economy: TH
     name: Royal Thai Government Gazette
     base_url: https://ratchakitcha.soc.go.th
@@ -465,11 +468,11 @@ sources:
     base_url: https://laoofficialgazette.gov.la
     adapter: websearch
     verified: false
-    reachable: "2026-08-21: URLError — host does not resolve; the Lao gazette URL still needs finding"
+    reachable: "2026-09-07: HTTP 200, 110 KB, 12,477 Lao characters, fully paginated. The 2026-08-21 reading 'URLError — host does not resolve' was wrong or transient; the host is a Yii app with ?r=site/index&Document_page=N listing, ?r=site/display&id=N detail, PDFs under /kcfinder/upload/files/, and an English toggle at ?r=site/switchpage&lc=en"
     note: >-
-      Weakest coverage of the nine on every axis: scanned PDFs, no maintained Lao OCR model,
-      and legacy Lao fonts that map letters into upper-ASCII so even a text layer can be
-      mojibake. script_validity() is the only defence and it is advisory.
+      Scanned PDFs, no maintained Lao OCR model, and legacy Lao fonts that map letters into
+      upper-ASCII so even a text layer can be mojibake. script_validity() is the only defence
+      and it is advisory.
   - economy: RU
     name: Official Internet Portal of Legal Information
     base_url: http://publication.pravo.gov.ru

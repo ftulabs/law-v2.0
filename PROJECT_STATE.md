@@ -249,9 +249,6 @@ Everything else is retrieval or grading, which is where the budget below bites.
       Measured 2026-08-25: TH and ID time out on the DuckDuckGo HTML endpoint; LA's gazette
       host does not resolve.
 - [ ] Timor-Leste: no lane, no language profile, no OCR path. Carries a scoring bonus.
-- [ ] MY robots carve-out — `lom.agc.gov.my/robots.txt` returns HTTP 500 and the fetcher reads
-      "unreadable" as "disallowed", so every statute PDF on the primary portal is skipped.
-      India already has the RFC 9309 §2.3.1.4 carve-out; MY needs the same.
 - [ ] CN principal statutes must survive `cac.gov.cn` being unreachable (PIPL / CSL / DSL).
 - [ ] MY: one cited provision never reaches the shortlist at ANY budget (prov-recall flat
       0.875 from k=40 to k=450, `data/retrieval_budget.json` curve). Depth is not the fix —
@@ -262,9 +259,6 @@ Everything else is retrieval or grading, which is where the budget below bites.
 - [x] Per-economy retrieval budget, measured not hand-tuned (`tools/measure_budget.py`).
 - [ ] Re-measure the budget for CN/IN/MN/TH/ID/LA/RU **once their corpora exist** — until then
       they correctly keep the conservative default and pay the old call count.
-- [ ] Surface `[error]` lines on the Run screen. `frontend/runview.py` has no branch for that
-      tag, so the breaker's plain-English cause reaches only the raw log — which is why a
-      zero-row run still *looks* like an empty economy. UI work → invoke `ui-ux-pro-max` first.
 - [ ] **Prompt caching for the grading call.** The SYSTEM prompt is 2,525 tokens, identical on
       every call — 64% of input cost. ~968 calls on a Singapore pillar-6 run = 2.4M repeated
       prompt tokens. Nothing about recall changes; it is pure refund.
