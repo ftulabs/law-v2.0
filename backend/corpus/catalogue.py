@@ -14,7 +14,6 @@ Adapters (verified live 2026-08-01):
 """
 from __future__ import annotations
 
-import re
 import time
 from typing import Callable
 from urllib.parse import urljoin
@@ -26,7 +25,6 @@ Log = Callable[[str], None]
 
 AU_API = "https://api.prod.legislation.gov.au/v1/titles"
 MY_PORTAL = "https://lom.agc.gov.my/"
-SG_BASE = "https://sso.agc.gov.sg"
 
 _HEADERS = {
     "User-Agent": settings.crawl_user_agent,
@@ -201,73 +199,30 @@ def _enumerate_my_codes(log: Log) -> list[dict]:
 
 
 # ─────────────────────────── Singapore ───────────────────────────
-# Result rows in the /Browse listing: <a class="non-ajax" href="/Act/PDPA2012">Title</a>.
-# `non-ajax` is what separates a real result link from the nav pills and action menus.
-_SG_ROW_RE = re.compile(r'<a\s+class="non-ajax"\s+href="(/(?:Act|SL|Acts-Supp)/[^"]+)"[^>]*>\s*([^<]{3,300}?)\s*</a>',
-                        re.I)
-_SG_COUNT_RE = re.compile(r'(\d[\d,]*)\s+results in\s+(\d+)\s+pages', re.I)
-
-
-# SSO's browse listing IGNORES `CurrentPage` (verified 2026-08-01: pages 1, 2 and 3 return
-# byte-identical HTML at every PageSize, with or without the AJAX header) — so the index
-# cannot be walked page by page. What it DOES honour is the sort: asking for the same list
-# ordered ASC and then DESC returns the first and last `PageSize` entries, and their union is
-# the whole index whenever total <= 2 x PageSize. Two sort keys (Title, Number) give four
-# windows, which covers SSO's 524 current Acts completely. It does NOT cover the 5,843
-# subsidiary instruments — that shortfall is reported, never hidden.
-_SG_SORTS = [("Title", "ASC"), ("Title", "DESC"), ("Number", "ASC"), ("Number", "DESC")]
-
-
+# The sort-window union technique (SSO ignores `CurrentPage`, so the index is enumerated by
+# unioning ASC/DESC windows on two sort keys — see the docstring on `enumerate_sso` for the
+# full explanation) now lives in `backend/pipeline/adapter_singapore.py`, NOT here. An
+# enumerator is live HTTP, not a stored corpus, so the dependency runs corpus -> pipeline
+# rather than the reverse: `tests/test_pipeline_isolation.py` forbids the live pipeline
+# importing `backend.corpus`, and that stays true because this module imports FROM the
+# pipeline, never the other way round. `enumerate_sg` below is a thin wrapper: it owns the
+# httpx client (this module's own `_get`/backoff convention) and adds the corpus-only
+# `law_id` key that `adapter_singapore.enumerate_sso` deliberately does not carry — a corpus
+# row and a live-discovered document use two different id schemes on purpose (see that
+# module's docstring).
 def enumerate_sg(log: Log = print, kinds=("Act",), page_size: int = 500,
                  max_items: int | None = None) -> list[dict]:
-    """Enumerate SSO's browse index via sort-window union (see note above).
+    """Enumerate SSO's browse index via sort-window union (see `adapter_singapore.enumerate_sso`).
 
     SSO throttles hard — it answers a burst with `202` and an EMPTY body rather than 429 —
-    so this is deliberately slow and retries with backoff (see `_get`)."""
+    so this is deliberately slow; `adapter_singapore` retries with backoff via `portal.portal_get`."""
     import httpx
-    rows: list[dict] = []
+
+    from ..pipeline import adapter_singapore
     with httpx.Client(timeout=120, headers=_HEADERS, follow_redirects=True) as c:
-        for kind in kinds:
-            seen: set[str] = set()
-            total = None
-            for sort_by, order in _SG_SORTS:
-                url = (f"{SG_BASE}/Browse/{kind}/Current/All?PageSize={page_size}"
-                       f"&SortBy={sort_by}&SortOrder={order}&CurrentPage=1")
-                r = _get(c, url, log)
-                if r is None:
-                    log(f"[catalogue] SG {kind}: window {sort_by}/{order} unavailable")
-                    continue
-                if total is None:
-                    m = _SG_COUNT_RE.search(re.sub(r"<[^>]+>", " ", r.text))
-                    total = int(m.group(1).replace(",", "")) if m else None
-                for href, title in _SG_ROW_RE.findall(r.text):
-                    path = href.split("?")[0]
-                    if path in seen:
-                        continue
-                    seen.add(path)
-                    landing = SG_BASE + path
-                    rows.append({
-                        "law_id": store.law_id("SG", landing), "economy": "SG",
-                        "portal": "sso.agc.gov.sg", "title": _unescape(title)[:400],
-                        "law_number": path.rsplit("/", 1)[-1], "source_url": landing,
-                        # SSO serves the whole instrument as PDF at ?ViewType=Pdf (verified)
-                        "body_url": landing + "?ViewType=Pdf",
-                        "collection": "act" if kind == "Act" else "subsidiary",
-                        "status": "active",
-                        "catalogue_json": _json({"browse_kind": kind,
-                                                 "window": f"{sort_by}/{order}"}),
-                    })
-                log(f"[catalogue] SG {kind}: {sort_by}/{order} -> {len(seen)} unique so far")
-                if max_items and len(rows) >= max_items:
-                    break
-                _sleep()
-            if total and len(seen) < total:
-                log(f"[catalogue] SG {kind}: INCOMPLETE — {len(seen)}/{total} enumerated "
-                    f"(SSO ignores CurrentPage; raise PageSize or add sort windows)")
-            elif total:
-                log(f"[catalogue] SG {kind}: complete — {len(seen)}/{total}")
-            if max_items and len(rows) >= max_items:
-                break
+        rows = adapter_singapore.enumerate_sso(c, log=log, kinds=kinds, page_size=page_size)
+    for row in rows:
+        row["law_id"] = store.law_id("SG", row["source_url"])
     return rows[:max_items] if max_items else rows
 
 
@@ -281,11 +236,6 @@ def _json(obj) -> str:
         return json.dumps(obj, default=str)[:20_000]
     except Exception:  # noqa: BLE001
         return "{}"
-
-
-def _unescape(s: str) -> str:
-    import html
-    return re.sub(r"\s+", " ", html.unescape(s)).strip()
 
 
 def sweep(economy: str, log: Log = print, include_regulators: bool = True, **kw) -> dict:

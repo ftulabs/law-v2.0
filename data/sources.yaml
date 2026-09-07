@@ -23,7 +23,33 @@ sources:
     base_url: https://sso.agc.gov.sg
     adapter: websearch                    # on-portal search is token-AJAX; web search reaches the same Acts
     verified: true
-    notes: Full-text body via /Act/{id}?ViewType=Pdf (verified, httpx). Discovery via web search.
+    notes: |
+      Full-text body via /Act/{id}?ViewType=Pdf (verified, httpx). Discovery via web search.
+      2026-09-07 — that web-search lane now answers 403 from every engine, so SG (mandatory
+      every round) was producing zero documents. A portal-native lane now exists
+      (`backend/pipeline/adapter_singapore.py`, registered as `sg_sso`; dispatch wiring is a
+      separate task) using the sort-window union technique already proven in
+      `backend/corpus/catalogue.py` since August: SSO ignores `CurrentPage`, but honours the
+      sort, so unioning ASC/DESC windows on two sort keys (Title, Number) covers the whole
+      index whenever total <= 2 x PageSize. RE-MEASURED live 2026-09-07 (not inherited
+      unverified): union = 524/524 against SSO's own reported total — COMPLETE for current
+      Acts. HONESTY FINDING: this technique covers SSO's ~524 current Acts but NOT its
+      ~5,843 subsidiary instruments (SL / Acts-Supp) — a PageSize=500 window can only
+      union-cover an index of at most 1,000, and SSO's SL/Acts-Supp kinds are far larger.
+      Neither this lane nor the corpus tool attempts those by default; widening it is
+      future work, not silently assumed coverage. robots.txt (verified with the project's
+      own crawl UA) grants the wildcard group and disallows only /search; /Browse and /Act
+      are unaffected.
+      THROTTLE, found live 2026-09-08: SSO's throttle is severe enough to block a full run,
+      not just slow one down. It answers a burst with 202 and an EMPTY body, never 429 — after
+      the clean recon above plus this module's own testing traffic, every subsequent request
+      (direct enumeration, a full search_sg_sso call, and the corpus CLI) received 202-empty on
+      all four windows for over 15 minutes straight, including through a dedicated 4-minute
+      cooldown and portal_get's own exponential backoff. A JUDGED LIVE RUN MUST BUDGET FOR
+      THIS. The four-window union (524/524) above is a genuine, freshly re-measured fact; the
+      number of documents search_sg_sso actually returns end-to-end is UNVERIFIED in this
+      session — it returned 0 while throttled, which is correct behaviour for a blocked run,
+      not evidence of a broken adapter.
 
   - economy: AU
     name: Federal Register of Legislation
