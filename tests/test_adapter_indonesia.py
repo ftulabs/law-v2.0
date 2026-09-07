@@ -59,12 +59,16 @@ def test_the_adapter_never_sends_a_named_crawler_user_agent():
 
 
 def test_search_produces_unique_documents(monkeypatch, html):
-    """The browser lane is mocked; the point is the adapter's shape, not the fetch."""
+    """The browser lane is mocked; the point is the adapter's shape, not the fetch. `robots.
+    allowed` is stubbed too -- unstubbed it performs a real httpx GET of peraturan.bpk.go.id's
+    robots.txt (see `test_no_test_here_touches_the_network` below, which proves this whole file
+    is hermetic by forcing httpx itself to raise)."""
     class _Res:
         body = html.encode()
 
     monkeypatch.setattr(adapter_indonesia.scrapling_fetch, "available", lambda: True)
     monkeypatch.setattr(adapter_indonesia.scrapling_fetch, "fetch", lambda *a, **k: _Res())
+    monkeypatch.setattr(adapter_indonesia.robots, "allowed", lambda *a, **k: (True, ""))
     docs = adapter_indonesia.search_id_bpk(
         client=None, src={"name": "JDIH BPK"}, query="data pribadi",
         economy=Economy.ID, indicators=[], log=lambda *_: None)
@@ -174,6 +178,12 @@ def test_search_id_bpk_actually_searches_every_pillar_scoped_term(monkeypatch, h
     loop runs. This drives it with a multi-term `src` (P6 + P7 terms together) and asserts every
     term up to the cap was actually turned into a distinct, correctly-encoded search URL --
     not just that `_search_terms` LISTED them.
+
+    `robots.allowed` is stubbed alongside `scrapling_fetch` -- `search_id_bpk` calls it once
+    per term before every browser fetch (by design: it does not go through `portal.portal_get`,
+    so this is the only enforcement point for this host), and unstubbed it is a real httpx GET
+    of peraturan.bpk.go.id/robots.txt. See `test_no_test_here_touches_the_network` below for
+    the proof this whole file needs no network at all.
     """
     import urllib.parse
 
@@ -190,6 +200,7 @@ def test_search_id_bpk_actually_searches_every_pillar_scoped_term(monkeypatch, h
 
     monkeypatch.setattr(adapter_indonesia.scrapling_fetch, "available", lambda: True)
     monkeypatch.setattr(adapter_indonesia.scrapling_fetch, "fetch", fake_fetch)
+    monkeypatch.setattr(adapter_indonesia.robots, "allowed", lambda *a, **k: (True, ""))
 
     src = {
         "name": "JDIH BPK",
@@ -213,6 +224,59 @@ def test_search_id_bpk_actually_searches_every_pillar_scoped_term(monkeypatch, h
         assert any(encoded in url for url in calls), (
             f"{term!r} was in _search_terms's output but never turned into a request")
     assert docs, "a multi-term search over a stubbed fixture should still produce documents"
+
+
+def test_no_test_here_touches_the_network(monkeypatch, html):
+    """Proof, not just a claim: every test in this file that calls `search_id_bpk` stubs BOTH
+    `scrapling_fetch` (the browser lane) AND `robots.allowed` -- the latter was missing in an
+    earlier round of this file, which meant `search_id_bpk`'s per-term `robots.allowed(url,
+    settings.crawl_user_agent)` call performed a REAL httpx GET of peraturan.bpk.go.id's
+    robots.txt (`backend/pipeline/robots.py::_fetch`), and the suite only passed on a machine
+    that could reach an Indonesian government server.
+
+    This forces `httpx.Client.get` itself to raise -- simulating total network unavailability,
+    not merely "this one host is unreachable" -- and re-runs the exact multi-term shape
+    `test_search_id_bpk_actually_searches_every_pillar_scoped_term` exercises. If `robots.
+    allowed` were NOT stubbed here, `robots.py::_fetch` would catch the raised exception, mark
+    the host `unknown`, and (peraturan.bpk.go.id has no `UNREACHABLE_OVERRIDE` entry) `robots.
+    allowed` would deny every term -- reproducing the `0 == 6` failure this test exists to rule
+    out permanently, not just fix once.
+    """
+    import httpx
+
+    from backend.rdtii.indicators import get_indicators
+
+    def _network_is_off(*a, **k):
+        raise RuntimeError("network must not be reachable for this test to be hermetic")
+
+    monkeypatch.setattr(httpx.Client, "get", _network_is_off)
+    adapter_indonesia.robots.clear_cache()   # discard any real answer an earlier test process
+                                              # (or a live-verification run) may have cached
+
+    calls: list[str] = []
+
+    class _Res:
+        body = html.encode()
+
+    def fake_fetch(url, timeout=None, log=None, **kw):
+        calls.append(url)
+        return _Res()
+
+    monkeypatch.setattr(adapter_indonesia.scrapling_fetch, "available", lambda: True)
+    monkeypatch.setattr(adapter_indonesia.scrapling_fetch, "fetch", fake_fetch)
+    monkeypatch.setattr(adapter_indonesia.robots, "allowed", lambda *a, **k: (True, ""))
+
+    src = {"queries_p6": ["a", "b"], "queries_p7": ["c", "d"]}
+    indicators = get_indicators()
+    docs = adapter_indonesia.search_id_bpk(
+        client=None, src=src, query="data pribadi", economy=Economy.ID,
+        indicators=indicators, log=lambda *_: None)
+
+    expected = adapter_indonesia._search_terms("data pribadi", src, indicators)
+    assert len(calls) == len(expected), (
+        "with the network unreachable and robots.allowed properly stubbed, every term should "
+        "still be searched -- an unstubbed robots.allowed would have produced 0 calls here")
+    assert docs
 
 
 def test_regional_instrument_type_outranks_nothing_it_should_not(html):

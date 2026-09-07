@@ -557,13 +557,37 @@ sources:
       meta-externalagent, CloudflareBrowserRenderingCrawler — and grants the wildcard group
       "Allow: /" with "Content-Signal: search=yes, ai-train=no, use=reference".
       We had this host recorded as simply disallowed. That was too broad: the block names
-      Anthropic's WEB CRAWLER, which is not this pipeline. VeriTrade fetches as
-      VeriTrade-Research/0.2 (config.crawl_user_agent) and falls in the wildcard group, whose
-      signals it satisfies exactly — it references and cites provisions with their source URL,
-      and it trains no model on them. So the host is permitted to US and forbidden to a
-      general-purpose AI crawler, and the difference is the user agent we send. Two rules
-      follow and neither is optional: never fetch this host with an agent identifying as one of
-      the named crawlers, and never use its text for training.
+      Anthropic's WEB CRAWLER, which is not this pipeline. The robots.txt DECISION is computed
+      for VeriTrade-Research/0.2 (config.crawl_user_agent) and that identity falls in the
+      wildcard group. CORRECTED 2026-09-08 (fix round 2 of the id_bpk adapter review — an
+      earlier version of this note said VeriTrade "fetches as VeriTrade-Research/0.2 ... and
+      falls in the wildcard group", which is true of the robots decision but false of the
+      actual HTTP request: this host refuses plain httpx everywhere (see `reachable` above), so
+      every real fetch is made by Scrapling's impersonating fetcher, which sends its OWN
+      randomised Chrome/Brave-shaped browser fingerprint and does not self-identify as
+      VeriTrade at all. That fetcher UA is verified (2026-09-08) to also fall in the same
+      wildcard group — it is not any of the nine named agents either — so the outcome is the
+      same, but the two user agents are not the same string, and whether this project should
+      make the real fetch self-identify is a decision above this file, put to the project
+      owner. The wildcard group's own signals are exactly what this pipeline does regardless of
+      which of the two UAs actually sends the request: it references and cites provisions with
+      their source URL, and it trains no model on them. Two rules follow and neither is
+      optional: never fetch this host with an agent identifying as one of the named crawlers,
+      and never use its text for training.
+    known_limits: >-
+      PAGE-1-ONLY CEILING, measured live 2026-09-08: the adapter (`backend.pipeline.
+      adapter_indonesia`) reads only page 1 of `/Search?keywords=<term>` per query term — a
+      bounded, deliberate choice (mirrors the CN adapter's own search-pass cap), not a limit of
+      the endpoint. Confirmed live: `p=2` of the same term returned 10 MORE rows with zero
+      overlap against page 1, so real recall is left on the table by design. A single-call
+      multi-term measurement (synthetic src, `_SEARCH_MAX_TERMS=6`) returned 60 documents; two
+      pillar-scoped calls (the shape a real submission runs in) returned 60 (P6) + 51 (P7) = 111
+      raw candidates — an order of magnitude below the gazette-walking lanes (Timor-Leste,
+      Laos, Thailand, Singapore, which enumerate a bounded index end to end) and in the same
+      rough range as the CN adapter's own search-pass count, because both portals expose only a
+      keyword search with no enumerable catalogue to walk exhaustively. Already comfortably
+      above `discovery_max_docs=22`, so this is not a hard coverage failure, but it is a real,
+      disclosed gap rather than an unmeasured one.
   - economy: ID
     name: JDIH Nasional (aggregator)
     base_url: https://jdihn.go.id
