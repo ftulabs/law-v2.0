@@ -32,6 +32,7 @@ from urllib.parse import urlparse
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from backend.config import settings                        # noqa: E402
+from backend.console import enable_utf8_stdio              # noqa: E402
 from backend.pipeline.discovery import load_sources        # noqa: E402
 from backend.schemas import Economy                        # noqa: E402
 
@@ -129,6 +130,11 @@ def search_index(economy: Economy, site: str, queries: list[str]) -> tuple[str, 
 
 
 def main() -> int:
+    # Portal names are Russian, Chinese and Mongolian. Windows hands a process the console's
+    # ANSI code page (cp1252 here), so printing one killed the tool on exactly the two
+    # economies it existed to investigate. Same defect, same fix, as tests/test_console_encoding.py.
+    enable_utf8_stdio()
+
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--economy", help="restrict to one economy code")
