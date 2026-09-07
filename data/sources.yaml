@@ -513,6 +513,19 @@ sources:
       ships as both ConstituicaoRDTL_Portugues.pdf and ConstituicaoRDTL_tetum.pdf), so language
       detection must run PER DOCUMENT, not per economy. Not yet verified end to end: no corpus
       has been built and no CER measured on a Timorese scan.
+      2026-09-07 — a portal-native lane now exists (`backend/pipeline/adapter_timor.py`,
+      registered as `tl_gazette`; dispatch wiring is a separate task). It targets the OLDER
+      static frameset tree at /jornal/lawsTL/RDTL-Law/ (127/228/18 EN PDFs across
+      Laws/Decree-Laws/Gov-Decrees, plus larger "-P" Portuguese twins), not the
+      /jornal/files/ path this note originally guessed at. HONESTY FINDING, measured live:
+      that tree's own six index pages — not the separate "Index of Laws ... as of 31 August
+      2011" PDF this note used to point at — top out at 2012 (youngest: Law 07/2012,
+      Decree-Law 20/2012). This lane's real coverage is 2001-2012, thirteen-plus years stale.
+      Separately, mj.gov.tl also runs a current Drupal CMS at /jornal/ (node URLs such as
+      ?q=node/7068) whose linked gazette editions reach /jornal/public/docs/2026/serie_2/ —
+      i.e. THIS YEAR — but that is a different portal shape (node listings, not one static
+      index per category) and adapter_timor.py does not read it. Until something does, the
+      economy's post-2012 statute book is not covered by any lane, portal-native or web-search.
 
   - economy: RU
     name: Законодательство России (IPS) on pravo.gov.ru — full document bodies
