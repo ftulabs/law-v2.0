@@ -354,6 +354,11 @@ def run_pipeline(
                     seen.add(d.doc_id)
                     docs.append(d)
     log(f"[discovery] {len(docs)} documents (NEW={sum(d.discovery_tag=='NEW' for d in docs)})")
+    if not docs and not use_samples:
+        # An empty live discovery is a failure with a knowable cause, not an economy
+        # without law. Sample mode is excluded: an empty sample corpus is a packaging
+        # problem with a different fix, and it never reaches a judge.
+        discovery.explain_empty_discovery(economy, log=log)
     log(f"[timing] discovery {time.perf_counter() - _t:.1f}s")
 
     # Zone 1b — fetch bodies for live-discovered docs (sample/file docs already have a path)

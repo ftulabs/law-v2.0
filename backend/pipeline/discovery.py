@@ -1429,6 +1429,55 @@ def discover_live(economy: Economy, pillar: int | None = None,
     return kept
 
 
+def explain_empty_discovery(economy: Economy, log=safe_log) -> list[str]:
+    """Say why discovery found nothing, as `[error]` pairs the Run screen can render.
+
+    Zero documents used to be a successful run with an empty CSV — indistinguishable from
+    an economy that genuinely has no such law. Measured 2026-09-07: every search engine was
+    unavailable at once (Serper out of credits, DuckDuckGo serving challenge pages) and
+    three economies reported "no provision found" with nothing in any log to say otherwise.
+
+    The last line always begins "what to do:", because `frontend/runview.py` reads these as
+    a (what happened, what to do) pair and an error with no recovery path is a dead end.
+    """
+    from . import websearch
+
+    diag = websearch.diagnostics()
+    srcs = [s for s in load_sources() if s.get("economy") == economy.value]
+    portal_lanes = [s for s in srcs
+                    if s.get("adapter") and s.get("adapter") != "websearch"]
+
+    out = [f"[error] discovery found no documents for {economy.value}. This is a failure of "
+           f"the search, not an economy without relevant law."]
+    for eng, why in diag["engine_failures"].items():
+        out.append(f"[error] search engine '{eng}' was unavailable: {why}")
+    if portal_lanes:
+        names = ", ".join(f"{s.get('name', '?')} ({s.get('adapter')})" for s in portal_lanes)
+        out.append(f"[error] portal lanes tried and returned nothing: {names}")
+    else:
+        out.append(f"[error] {economy.value} has no portal-native lane — every document must "
+                   f"arrive through web search, so a dead engine costs the whole economy.")
+    out.append(f"[error] lanes configured: {len(srcs)} · queries sent to the network: "
+               f"{diag['network_queries']} · answered from cache: {diag['cache_hits']} · "
+               f"queries that came back empty: {diag['empty_queries']}")
+
+    if diag["engine_failures"]:
+        fix = ("restore a working search engine — set a funded SERPER_API_KEY in .env "
+               "(check the current one with: curl -H \"X-API-KEY: $SERPER_API_KEY\" "
+               "-X POST https://google.serper.dev/search -d '{\"q\":\"test\"}')")
+    elif not portal_lanes:
+        fix = (f"give {economy.value} a portal-native lane in data/sources.yaml — every "
+               f"engine answered, none had anything for this portal")
+    else:
+        fix = ("check the portal lanes above against the live site with "
+               f"`python tools/probe_portals.py --economy {economy.value}`")
+    out.append(f"[error] what to do: {fix}")
+
+    for line in out:
+        log(line)
+    return out
+
+
 def doc_from_file(economy: Economy, path: str) -> DiscoveredDoc:
     """Build a DiscoveredDoc from a local file (the `--pdf` bypass-crawler path)."""
     p = Path(path)
