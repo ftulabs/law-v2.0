@@ -193,6 +193,38 @@ def _cache_file():
     return settings.cache_path / "_search.json"
 
 
+def _entry_results(entry, now: float | None = None) -> list | None:
+    """Usable results from a cache entry, or None meaning "treat as a miss".
+
+    Entries written before 2026-09-07 are a bare list with no timestamp. They cannot be
+    shown to be fresh, so they expire by construction rather than being trusted by default —
+    that default is what let a week-old cache stand in for live discovery.
+    """
+    import datetime as _dt
+
+    max_age = settings.search_cache_max_age_days
+    if max_age <= 0 or not isinstance(entry, dict):
+        return None
+    stamp = entry.get("fetched_at")
+    rows = entry.get("results")
+    if not stamp or not isinstance(rows, list):
+        return None
+    try:
+        fetched = _dt.datetime.fromisoformat(stamp)
+        if fetched.tzinfo is None:
+            # A stamp with no offset is NAIVE; .timestamp() would then read it in the
+            # host's local zone and skew the age by the UTC offset. Our own writer always
+            # emits a tz-aware stamp — this only guards a hand-edited or future non-UTC entry.
+            fetched = fetched.replace(tzinfo=_dt.timezone.utc)
+        age_days = ((now or _dt.datetime.now(_dt.timezone.utc).timestamp())
+                    - fetched.timestamp()) / 86400.0
+    except (ValueError, TypeError):
+        return None
+    if age_days > max_age:
+        return None
+    return [(r[0], r[1], r[2] if len(r) > 2 else "") for r in rows]
+
+
 def _load_cache() -> dict:
     f = _cache_file()
     if f.exists():
@@ -213,10 +245,13 @@ def search(query: str, site: str | None = None, max_results: int = 10, log=print
         return []
     q = query + (f" site:{site}" if site else "")
     cache = _load_cache()
-    if q in cache:                                  # cache hit — no network, no rate-limit
-        return [(r[0], r[1], r[2] if len(r) > 2 else "") for r in cache[q]]
+    hit = _entry_results(cache.get(q))
+    if hit is not None:                             # fresh hit — no network, no rate-limit
+        _diag["cache_hits"] += 1
+        return hit
     if _circuit["empties"] >= _HARD and not settings.serper_api_key:
         return []                                   # circuit open — engines blocked, skip network
+    _diag["network_queries"] += 1
 
     headers = {"User-Agent": settings.crawl_user_agent,
                "Accept-Language": settings.crawl_accept_language,
@@ -237,7 +272,10 @@ def search(query: str, site: str | None = None, max_results: int = 10, log=print
                 break
     if results:
         _circuit["empties"] = 0
-        cache[q] = results
+        import datetime as _dt
+        cache[q] = {"results": [list(r) for r in results],
+                    "fetched_at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
+                    "engine": getattr(engine, "__name__", "?")}
         _cache_file().write_text(json.dumps(cache, indent=1), encoding="utf-8")
     else:
         _circuit["empties"] += 1

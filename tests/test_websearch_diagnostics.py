@@ -95,3 +95,109 @@ def test_zero_results_is_not_an_engine_failure(monkeypatch, tmp_path):
     diag = websearch.diagnostics()
     assert diag["engine_failures"] == {}
     assert diag["empty_queries"] == 1
+
+
+import datetime as _dt
+
+
+def _iso(days_ago: float) -> str:
+    return (_dt.datetime.now(_dt.timezone.utc)
+            - _dt.timedelta(days=days_ago)).isoformat()
+
+
+def test_fresh_cache_entry_is_served_without_touching_the_network(monkeypatch, tmp_path):
+    monkeypatch.setattr(websearch.settings, "cache_dir", str(tmp_path))
+    monkeypatch.setattr(websearch.settings, "search_cache_max_age_days", 7.0)
+    websearch.reset_circuit()
+    (tmp_path / "_search.json").write_text(json.dumps({
+        "personal data site:sso.agc.gov.sg": {
+            "results": [["https://sso.agc.gov.sg/Act/PDPA2012", "PDPA", ""]],
+            "fetched_at": _iso(1), "engine": "serper"}}), encoding="utf-8")
+
+    def explode(client, q, n):
+        raise AssertionError("a fresh cache hit must not reach the network")
+
+    monkeypatch.setattr(websearch, "_engines", lambda: [explode])
+    out = websearch.search("personal data", site="sso.agc.gov.sg", log=lambda *_: None)
+    assert out == [("https://sso.agc.gov.sg/Act/PDPA2012", "PDPA", "")]
+    assert websearch.diagnostics()["cache_hits"] == 1
+
+
+def test_stale_cache_entry_is_a_miss(monkeypatch, tmp_path):
+    """The entry that made Singapore look alive was eight days old."""
+    monkeypatch.setattr(websearch.settings, "cache_dir", str(tmp_path))
+    monkeypatch.setattr(websearch.settings, "search_cache_max_age_days", 7.0)
+    websearch.reset_circuit()
+    (tmp_path / "_search.json").write_text(json.dumps({
+        "personal data site:sso.agc.gov.sg": {
+            "results": [["https://sso.agc.gov.sg/Act/PDPA2012", "PDPA", ""]],
+            "fetched_at": _iso(8), "engine": "serper"}}), encoding="utf-8")
+    monkeypatch.setattr(websearch, "_engines",
+                        lambda: [lambda c, q, n: [("https://fresh", "Fresh", "")]])
+
+    out = websearch.search("personal data", site="sso.agc.gov.sg", log=lambda *_: None)
+    assert out == [("https://fresh", "Fresh", "")], "stale entry must not be served"
+    assert websearch.diagnostics()["network_queries"] == 1
+
+
+def test_legacy_bare_list_entry_is_treated_as_expired(monkeypatch, tmp_path):
+    """Every one of the 890 entries written before this change is a bare list with no
+    timestamp. It cannot be shown to be fresh, so it must never be served as live."""
+    monkeypatch.setattr(websearch.settings, "cache_dir", str(tmp_path))
+    monkeypatch.setattr(websearch.settings, "search_cache_max_age_days", 7.0)
+    websearch.reset_circuit()
+    (tmp_path / "_search.json").write_text(json.dumps({
+        "personal data": [["https://old", "Old", ""]]}), encoding="utf-8")
+    monkeypatch.setattr(websearch, "_engines",
+                        lambda: [lambda c, q, n: [("https://fresh", "Fresh", "")]])
+
+    assert websearch.search("personal data", log=lambda *_: None) == \
+        [("https://fresh", "Fresh", "")]
+
+
+def test_ttl_of_zero_disables_the_cache_entirely(monkeypatch, tmp_path):
+    monkeypatch.setattr(websearch.settings, "cache_dir", str(tmp_path))
+    monkeypatch.setattr(websearch.settings, "search_cache_max_age_days", 0.0)
+    websearch.reset_circuit()
+    (tmp_path / "_search.json").write_text(json.dumps({
+        "q": {"results": [["https://cached", "C", ""]],
+              "fetched_at": _iso(0), "engine": "serper"}}), encoding="utf-8")
+    monkeypatch.setattr(websearch, "_engines",
+                        lambda: [lambda c, qq, n: [("https://fresh", "Fresh", "")]])
+
+    assert websearch.search("q", log=lambda *_: None) == [("https://fresh", "Fresh", "")]
+
+
+def test_a_written_entry_carries_its_provenance(monkeypatch, tmp_path):
+    monkeypatch.setattr(websearch.settings, "cache_dir", str(tmp_path))
+    monkeypatch.setattr(websearch.settings, "search_cache_max_age_days", 7.0)
+    websearch.reset_circuit()
+
+    def named(client, q, n):
+        return [("https://x", "X", "")]
+
+    named.__name__ = "_serper"
+    monkeypatch.setattr(websearch, "_engines", lambda: [named])
+    websearch.search("q", log=lambda *_: None)
+
+    entry = json.loads((tmp_path / "_search.json").read_text(encoding="utf-8"))["q"]
+    assert entry["engine"] == "_serper"
+    assert entry["fetched_at"].startswith(str(_dt.datetime.now(_dt.timezone.utc).year))
+
+
+def test_a_timezone_naive_stamp_is_read_as_utc(monkeypatch, tmp_path):
+    """fromisoformat on a stamp with no offset yields a NAIVE datetime, and .timestamp()
+    then reads it in the host's local zone — skewing the age by the UTC offset. On a
+    UTC+7 machine a 7-hour-old entry would read as fresh-or-stale depending on the host,
+    which is not a property of the cache."""
+    monkeypatch.setattr(websearch.settings, "search_cache_max_age_days", 1.0)
+    naive = (_dt.datetime.now(_dt.timezone.utc)
+             - _dt.timedelta(days=3)).replace(tzinfo=None).isoformat()
+    assert websearch._entry_results(
+        {"results": [["https://x", "X", ""]], "fetched_at": naive, "engine": "serper"}) is None
+
+    fresh_naive = (_dt.datetime.now(_dt.timezone.utc)
+                   - _dt.timedelta(hours=1)).replace(tzinfo=None).isoformat()
+    assert websearch._entry_results(
+        {"results": [["https://x", "X", ""]], "fetched_at": fresh_naive, "engine": "serper"}) \
+        == [("https://x", "X", "")]

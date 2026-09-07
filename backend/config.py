@@ -455,6 +455,14 @@ class Settings(BaseSettings):
     # free tier) gives reliable Google deep-links. Falls back to DuckDuckGo/Mojeek.
     serper_api_key: str = ""
 
+    # Search results are cached to disk so one run's repeated queries do not re-hit a
+    # rate-limited engine. They had NO expiry, while document bodies expire after
+    # fetch_ttl_hours — so on 2026-09-07 `data/cache/_search.json` held 890 queries last
+    # written 2026-08-31, and Singapore (whose only lane is web search) was replaying them
+    # while every live engine was down. A week-old cache is not a live run, and the panel's
+    # 15 October test is sealed. 0 disables the cache entirely.
+    search_cache_max_age_days: float = 7.0
+
     # sample kit (RDTII Round-1 Database) for KNOWN/NEW tagging. Empty = auto-discover.
     sample_kit_path: str = ""
 
