@@ -46,12 +46,28 @@ runs on, not a formality to clear:
 Nine NAMED agents are disallowed outright (ClaudeBot, GPTBot, CCBot, Bytespider, Amazonbot,
 Applebot-Extended, Google-Extended, meta-externalagent, CloudflareBrowserRenderingCrawler).
 The wildcard group `*` is granted `Allow: /` with `Content-Signal: search=yes, ai-train=no,
-use=reference`. VeriTrade fetches as `VeriTrade-Research/0.2` (`settings.crawl_user_agent`;
-verified live 2026-09-08, see below) and falls in the wildcard group — none of the nine named
-agents match it by product token. That group's own signals are exactly what this pipeline
-does: it references and cites every provision back to its source URL (`use=reference`,
-`search=yes`) and it trains no model on the text (`ai-train=no`). Both rules that follow are
-NOT optional and nothing in this module works around them:
+use=reference`.
+
+CORRECTED (fix round 1, 2026-09-08): an earlier version of this paragraph said VeriTrade
+"fetches as `VeriTrade-Research/0.2` ... and falls in the wildcard group" -- true of the
+robots DECISION but not of the actual HTTP request this adapter ever makes, and stating it
+that way here, ahead of the "SCRAPLING'S USER AGENT" section below that gets it right, let a
+reader stop at the first, wrong claim. What is actually true, stated once and precisely:
+`robots.allowed()` is asked, and answers, FOR `settings.crawl_user_agent`
+(`VeriTrade-Research/0.2`) -- that identity is what the compliance decision below is computed
+against, and it does fall in the wildcard group by product-token matching, none of the nine
+named agents included. But `search_id_bpk` never sends an HTTP request with that string in a
+`User-Agent` header, because it never calls httpx at all (see above) -- every fetch goes
+through `scrapling_fetch`, whose impersonating fetcher sends its OWN randomised
+Chrome/Brave-shaped fingerprint instead (measured live 2026-09-08, verbatim in "SCRAPLING'S
+USER AGENT" below). That fetcher UA is not `VeriTrade-Research/0.2` and -- the fact that
+actually matters for compliance -- it is also not any of the nine named agents, so it still
+lands in the same permissive wildcard group under its own steam. The two UAs happen to agree
+on the outcome here; they are not the same string, and this module does not pretend they are.
+That group's own signals are exactly what this pipeline does: it references and cites every
+provision back to its source URL (`use=reference`, `search=yes`) and it trains no model on the
+text (`ai-train=no`). Both rules that follow are NOT optional and nothing in this module works
+around them:
   1. Never fetch this host with an agent identifying as one of the nine named crawlers.
   2. Never use text fetched from this host to train a model.
 
@@ -70,8 +86,8 @@ matching `sec-ch-ua` Client Hints). That is a generic Chrome/Brave-shaped string
 `VeriTrade-Research/0.2`, and not any of the nine named agents either. It falls in the SAME
 wildcard robots group ours does (no product token in it names it specifically), so the fetch
 this module makes is still governed by `Allow: /` either way; it does not, however, identify
-itself as VeriTrade the way the httpx lane does, which is a real gap recorded here rather than
-glossed over — see "WHAT THIS ADAPTER DOES NOT COVER" below.
+itself as VeriTrade the way `portal.headers()` does for the httpx-based adapters, which is a
+real gap recorded here rather than glossed over — see "WHAT THIS ADAPTER DOES NOT COVER" below.
 
 ENCODING — checked, not assumed (Timor-Leste's `<meta charset>` vs httpx mismatch, in
 `adapter_timor.py::_decode`, is the reason to check rather than trust a single title). The
@@ -107,6 +123,12 @@ several query terms already run per pillar, page 1 of each term already supplies
 the trim keeps, and each additional page is another Scrapling round trip against a host this
 project has already measured as httpx-hostile. A future pass wanting deeper recall on a single
 term should walk `p=2, 3, ...` explicitly rather than assume this module already does.
+CONFIRMED, not assumed (fix round 1, 2026-09-08): `p=2` on a live term ("pusat data") returned
+10 MORE rows, none repeating page 1 -- so this is a real, present ceiling this choice accepts,
+not a page 2 that would have come back empty anyway. See `task-7-report.md` for the multi-term
+live count this produces (order of magnitude below the enumerate-the-whole-gazette lanes --
+Timor-Leste, Laos, Thailand, Singapore -- and closer to `adapter_china.py`'s own search-pass
+count, because both are top-K-per-query search endpoints, not catalogue walks).
 
 WHAT THIS ADAPTER DOES NOT COVER, recorded rather than hidden:
   * Only `peraturan.bpk.go.id`'s own `/Search` endpoint. `jdihn.go.id` (JDIH Nasional, the
@@ -123,6 +145,11 @@ WHAT THIS ADAPTER DOES NOT COVER, recorded rather than hidden:
     are not filtered OUT of results, only scored low relative to national instruments (see
     `_TYPE_WEIGHT`) — a genuinely relevant regional rule is not silently dropped, merely
     ranked below a national one when both are present.
+  * The fetch itself does not self-identify as VeriTrade (see "SCRAPLING'S USER AGENT" above)
+    — the robots DECISION is computed for `settings.crawl_user_agent`, but the HTTP request is
+    made by Scrapling's impersonating fetcher under its own randomised browser fingerprint.
+    Both land in the same permissive wildcard group, but they are not the same identity, and
+    whether this project should change that is a decision above this module's scope.
 """
 from __future__ import annotations
 

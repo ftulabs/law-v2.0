@@ -131,6 +131,90 @@ def test_documents_get_a_real_relevance_score_not_a_flat_one():
     assert on_topic > off_topic
 
 
+def test_search_terms_pulls_from_the_pillar_scoped_query_list():
+    """`_search_terms` must actually READ `src["queries_p6"]`/`src["queries_p7"]`, filtered to
+    the pillar(s) the caller's `indicators` cover -- the same vehicle every other portal-native
+    lane gets its own query vocabulary through. A pillar-6-only call must not leak pillar-7
+    terms, and vice versa; a call covering both pillars must carry both lists."""
+    from backend.rdtii.indicators import get_indicators
+
+    src = {"queries_p6": ["transfer data pribadi ke luar wilayah", "wajib disimpan di dalam wilayah"],
+           "queries_p7": ["pelindungan data pribadi", "keamanan siber"]}
+
+    p6_terms = adapter_indonesia._search_terms("fallback", src, get_indicators(pillar=6))
+    assert p6_terms[:2] == src["queries_p6"]
+    assert not any(t in p6_terms for t in src["queries_p7"])
+    assert p6_terms[-1] == "fallback"          # the passed-in query is appended, not dropped
+
+    p7_terms = adapter_indonesia._search_terms("fallback", src, get_indicators(pillar=7))
+    assert p7_terms[:2] == src["queries_p7"]
+    assert not any(t in p7_terms for t in src["queries_p6"])
+
+    both_terms = adapter_indonesia._search_terms("fallback", src, get_indicators())
+    assert set(src["queries_p6"]) <= set(both_terms)
+    assert set(src["queries_p7"]) <= set(both_terms)
+
+
+def test_search_terms_caps_at_search_max_terms():
+    """`_SEARCH_MAX_TERMS` bounds the pass -- see the module docstring's PAGINATION note for
+    why (each term is a real Scrapling round trip). Dedup-preserving order, first-come-first-
+    served, matching `discovery._source_queries`'s own treatment of query order elsewhere."""
+    from backend.rdtii.indicators import get_indicators
+
+    src = {"queries_p6": [f"term-{i}" for i in range(10)]}
+    terms = adapter_indonesia._search_terms("", src, get_indicators(pillar=6))
+    assert len(terms) == adapter_indonesia._SEARCH_MAX_TERMS
+    assert terms == [f"term-{i}" for i in range(adapter_indonesia._SEARCH_MAX_TERMS)]
+
+
+def test_search_id_bpk_actually_searches_every_pillar_scoped_term(monkeypatch, html):
+    """The mechanism (`_search_terms` reading `src["queries_p6"]`/`["queries_p7"]`) is
+    implemented and `search_id_bpk` genuinely loops over its output -- but a test that only
+    exercises the single-term fallback (`src={"name": ...}`, no query lists) never proves that
+    loop runs. This drives it with a multi-term `src` (P6 + P7 terms together) and asserts every
+    term up to the cap was actually turned into a distinct, correctly-encoded search URL --
+    not just that `_search_terms` LISTED them.
+    """
+    import urllib.parse
+
+    from backend.rdtii.indicators import get_indicators
+
+    calls: list[str] = []
+
+    class _Res:
+        body = html.encode()
+
+    def fake_fetch(url, timeout=None, log=None, **kw):
+        calls.append(url)
+        return _Res()
+
+    monkeypatch.setattr(adapter_indonesia.scrapling_fetch, "available", lambda: True)
+    monkeypatch.setattr(adapter_indonesia.scrapling_fetch, "fetch", fake_fetch)
+
+    src = {
+        "name": "JDIH BPK",
+        "queries_p6": ["transfer data pribadi ke luar wilayah",
+                       "wajib disimpan di dalam wilayah", "pusat data"],
+        "queries_p7": ["pelindungan data pribadi", "keamanan siber",
+                       "jangka waktu penyimpanan data"],
+    }
+    indicators = get_indicators()          # both pillars, so both lists are in scope
+    docs = adapter_indonesia.search_id_bpk(
+        client=None, src=src, query="data pribadi", economy=Economy.ID,
+        indicators=indicators, log=lambda *_: None)
+
+    expected_terms = adapter_indonesia._search_terms("data pribadi", src, indicators)
+    assert len(expected_terms) == adapter_indonesia._SEARCH_MAX_TERMS, (
+        "this src has 6 pillar terms + the fallback query -- the cap should bind")
+    assert len(calls) == len(expected_terms), (
+        "one browser fetch per term expected, not one per call or a flat single fetch")
+    for term in expected_terms:
+        encoded = urllib.parse.quote_plus(term)
+        assert any(encoded in url for url in calls), (
+            f"{term!r} was in _search_terms's output but never turned into a request")
+    assert docs, "a multi-term search over a stubbed fixture should still produce documents"
+
+
 def test_regional_instrument_type_outranks_nothing_it_should_not(html):
     """Every row `_result_rows` parses from the live search fixture gets a real score, and the
     national UU (row 0) must outrank the regional Perbup/Perwali rows the same fixture contains
