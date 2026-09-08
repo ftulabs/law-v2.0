@@ -211,7 +211,7 @@ Register new providers in `backend/providers/llm_factory.py`.
 
 ### Known Gaps
 ✅ **MY robots.txt carve-out shipped (found 2026-08-25, fixed 2026-08-28)** — `lom.agc.gov.my/robots.txt` returns **HTTP 500**; the fetch layer used to treat "robots unreadable" as disallowed, so every statute PDF on the AGC portal was skipped and a MY run survived only on the `pdp.gov.my` secondary lane. Fixed via `UNREACHABLE_OVERRIDE` in `backend/pipeline/robots.py` — the same RFC 9309 §2.3.1.4 carve-out (server error ≠ refusal) the India lane already had. MY's corpus went 489 → 5,931 provisions (`PROJECT_STATE.md` §2).  
-❌ **CN principal statutes depend on network reachability (found 2026-08-25)** — `cac.gov.cn` (the mirror lane) TLS-times-out from some networks and `flk.npc.gov.cn` serves a JS shell with no static text, so PIPL/CSL/DSL can drop out of the corpus; the 2026-08-25 run still completed via `moj.gov.cn`/`mee.gov.cn` mirrors.  
+⚠️ **CN principal statutes only PARTLY survive network reachability (found 2026-08-25, partly mitigated 2026-09-08)** — `cac.gov.cn` (the mirror lane) TLS-times-out from some networks and `flk.npc.gov.cn` serves a JS shell with no static text, so PIPL/CSL/DSL can drop out of the corpus; the 2026-08-25 run still completed via `moj.gov.cn`/`mee.gov.cn` mirrors. Phase 2's `cn_portal` adapter (below) added a second, browser-cleared lane (`search.cac.gov.cn` full-text search by name) that reaches CSL even while `cac.gov.cn`'s own front/section pages are simultaneously robots-blocked — but PIPL is not reached in a real run (the search pass caps at 6 query terms and `queries_p6` lists PIPL 13th) and DSL surfaces only a topically-adjacent commentary, not the Act itself. Fix is query reordering / raising the cap in `data/sources.yaml`, not new code.  
 ✅ **Three portal defects found and fixed (2026-08-15)** — all were SILENT, all cost whole Acts:
   (1) `legislation.gov.au` publishes large Acts as **multi-volume** compilations and 404s on the
   single-file PDF URL — the Telecommunications (Interception and Access) Act 1979 was yielding
@@ -224,7 +224,23 @@ Register new providers in `backend/providers/llm_factory.py`.
   licence, AU's Telecommunications Regulations 2021 (an instrument, not an Act), MY sectoral
   Codes of Practice + PDP Standard 2015. **This is the largest remaining coverage gap, and it
   is a discovery problem, not a retrieval one.**  
-❌ **TH/ID/LA are NOT end-to-end ready** — generic `websearch` lanes only, zero portal-scoped queries, `verified: false` (`data/sources.yaml`). Measured 2026-08-25: TH and ID time out on the DuckDuckGo HTML endpoint. LA's gazette host (`laoofficialgazette.gov.la`) DOES resolve — probed 2026-09-07: HTTP 200, 110 KB, full pagination; the earlier "host does not resolve" reading was wrong or transient, and LA still needs a portal-scoped adapter, not just a reachable host. RU is further along — its document bodies are reachable on `pravo.gov.ru` (see below) but discovery is unsolved. All four need per-portal adapters of the kind CN/IN/MN got, not tuning.  
+✅ **Phase 2 (2026-09-08): TH/ID/LA/SG/CN/TL each have a portal-native discovery lane** — web
+  search now answers HTTP 403 from every engine (Serper spent, DuckDuckGo/Mojeek blocked), so
+  these six economies got their own adapter instead of depending on it: Timor-Leste
+  (`tl_gazette`), Laos (`la_gazette`), Thailand (`th_law_api`), Singapore (`sg_sso`), China
+  (`cn_portal`), Indonesia (`id_bpk`), sharing mechanics in `backend/pipeline/portal.py`. Each
+  reached `EXTRACTED` in `tools/readiness.py` — a live fetch+extract through the real chain
+  produced genuine provisions, not just discovered documents. **No grader is reachable this
+  phase** (local server refuses connections, OpenRouter answers 401 "User not found"), so none
+  of the six is scored or promoted to `MEASURED`. Each carries a disclosed limit: Timor-Leste's
+  gazette index stops at 2012; Laos's crawl walks ~20 of ~89 pages needed for full coverage;
+  Thailand's `content_all` has no newlines, so the line-anchored มาตรา splitter cannot fire and
+  it currently extracts one whole-document provision per Act rather than one per article;
+  Singapore's four sort windows cover current Acts but not its 5,843 subsidiary instruments;
+  China's section indexes do not paginate (see the CN bullet above for its search-pass limit);
+  Indonesia reads page 1 of its portal's own search results only. RU stays unsolved: its document bodies
+  are reachable on `pravo.gov.ru` (see below) but discovery injects rows client-side and has no
+  adapter — Phase 3.  
 ✅ **Three Mongolia defects found and fixed (2026-08-27)** — all SILENT, all cost the run its
   document set. A pillar-6 run returned FOUR documents, of which one was a statute.
   (1) `_matches` assumed a Mongolian stem reaches its declined form by substring, using
@@ -428,7 +444,24 @@ When corpus ≤80 provisions, **every provision is graded by the LLM against eve
 
 The tool is built to be auditable, not hidden:
 
-1. **Live crawling** runs end-to-end for SG/AU/MY/CN/IN/MN (measured 2026-08-25). One caveat remains: CN's principal statutes can vanish when `cac.gov.cn` is unreachable (JS-only `flk.npc.gov.cn` is the fallback). MY's primary portal (`lom.agc.gov.my`) served a broken robots.txt (HTTP 500) that used to skip its statute PDFs — fixed 2026-08-28 via the `UNREACHABLE_OVERRIDE` carve-out in `backend/pipeline/robots.py` (489 → 5,931 provisions). TH/ID have no working lane yet (generic websearch, unverified portals); LA's gazette host resolves (`laoofficialgazette.gov.la`, HTTP 200, probed 2026-09-07) but still needs a portal-scoped adapter; RU can fetch document bodies but cannot yet discover them.
+1. **Live crawling** runs end-to-end for SG/AU/MY/CN/IN/MN (measured 2026-08-25), and Phase 2
+   (2026-09-08) gave TH/ID/LA/SG/CN/TL their own portal-native discovery lane in place of
+   generic web search, which now answers HTTP 403 from every engine. Each of the six reached
+   `EXTRACTED` — a real fetch+extract through the pipeline's own chain, not just documents
+   discovered — but **none is scored**: neither grader is reachable this phase (the local
+   server refuses connections; OpenRouter answers 401 "User not found", revoked), so nothing
+   here is `MEASURED` against the panel's database. Known limits, disclosed rather than fixed:
+   CN's principal statutes still only PARTLY survive `cac.gov.cn` being unreachable — the new
+   `search.cac.gov.cn` full-text pass reaches CSL with production queries but misses PIPL under
+   the current 6-term cap and query order; MY's primary portal (`lom.agc.gov.my`) served a
+   broken robots.txt (HTTP 500) that used to skip its statute PDFs — fixed 2026-08-28 via the
+   `UNREACHABLE_OVERRIDE` carve-out in `backend/pipeline/robots.py` (489 → 5,931 provisions);
+   TH's provisions are whole-document, not article-level (`content_all` has no newlines, so the
+   line-anchored มาตรา splitter cannot fire); TL's gazette index stops at 2012; LA's crawl walks
+   ~20 of ~89 pages needed for full coverage; SG's four sort windows cover current Acts but not
+   its 5,843 subsidiary instruments; ID reads page 1 of its portal's own search results only.
+   RU can fetch document bodies (`pravo.gov.ru`) but cannot yet discover them — its discovery
+   injects rows client-side and needs its own adapter, deliberately left for Phase 3.
 2. **Scanned/image PDFs** are handled by real raster OCR (RapidOCR/Paddle), measured CER on bundled sample is 1.11% (PASS <5%).
 3. **Mock grader** is lexical (offline) and can confuse P6-I1/P6-I4, P7-I1/P7-I2 without a real LLM → always use a real LLM (OpenRouter/Claude) for submission.
 4. **Indicator `legal_test`** are our interpretation of the RDTII methodology; review pending_review rows before submission.

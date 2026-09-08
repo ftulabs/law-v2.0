@@ -65,14 +65,14 @@ C4a handover 8 · C4b no vendor lock-in 7 · C5 live test 10 (discovery 6 + engi
 | SG | portal adapter, verified | yes (14,610 prov) | yes | **cap 80** (prov+law recall 1.000 from k=40) | 2026-08-28 · **7/7** at 760 calls |
 | AU | portal adapter, verified | yes (18,262) | yes | **cap 450** — genuinely needs the depth (1.000 only from k=300) | 2026-08-28 · **8/8** |
 | MY | portal adapter, verified | yes (14,903) | yes | **cap 150** (law recall 1.000 from k=80; prov flat 0.875 at every k) | 2026-08-28 · robots carve-out landed: 489 → 5,931 provisions |
-| CN | 2 portal lanes, unverified | eval, 10 docs / 251 prov (10 shells, 3 dead links) | yes | no | **2026-08-30 · 8/9 answer-key indicators** |
+| CN | `cn_portal` adapter, verified (+ `search.cac.gov.cn` browser-lane pass) | eval, 10 docs / 251 prov (10 shells, 3 dead links) | yes | no | **2026-08-30 · 8/9 answer-key indicators** |
 | IN | 5 lanes, unverified | eval, 11 docs / 222 prov (**20 failed: link rot + robots**) | yes | no | **2026-08-30 · 7/8** |
 | MN | 1 lane, unverified | eval, 4 docs / 397 prov | yes | no | **2026-08-30 · 6/8** |
-| TH | generic websearch only | eval, 6 docs / 206 prov | yes | no | **no** |
-| ID | generic websearch only | eval, 11 docs / 252 prov | yes | no | **no** |
-| LA | generic websearch only | eval, 2 docs / 226 prov | yes | no | **no** |
+| TH | `th_law_api` adapter, verified | eval, 6 docs / 206 prov | yes | no | **no** |
+| ID | `id_bpk` adapter, verified | eval, 11 docs / 252 prov | yes | no | **no** |
+| LA | `la_gazette` adapter, verified | eval, 2 docs / 226 prov | yes | no | **no** |
 | RU | body route open, discovery open | eval, 3 docs / **2 prov** ⚠ garant blocks, IPS unreachable | yes | no | no |
-| **TL** | gazette lane, unverified | no | **impossible** (no database sheet) | no | reachable only |
+| **TL** | `tl_gazette` adapter, verified | no | **impossible** (no database sheet) | no | reachable only |
 
 "Labels" = rows parsed from the panel's own databases by `backend/eval/ground_truth.py`
 (223 rows / 10 economies / 90 indicator-pairs). "eval" corpora are seeded from the panel's own
@@ -245,16 +245,19 @@ Everything else is retrieval or grading, which is where the budget below bites.
 - [ ] Indonesian labels show `Pasal 3O` / `Pasal 4O` — a text-layer misread of 30/40. Left
       alone deliberately: Indonesian articles really do carry letter suffixes ("Pasal 28J"),
       so a rule that rejected them would lose real citations to catch a cosmetic one.
-- [ ] Portal adapters for TH · ID · LA · RU (today: generic websearch, `verified: false`).
-      Measured 2026-08-25: TH and ID time out on the DuckDuckGo HTML endpoint. The 2026-08-25
-      "LA's gazette host does not resolve" reading was wrong or transient: re-probed
-      2026-09-07, `laoofficialgazette.gov.la` answers HTTP 200 (110 KB), a Yii app with a
-      paginated list (`?r=site/index&Document_page=N`), detail pages (`?r=site/display&id=N`),
-      gazette PDFs under `/kcfinder/upload/files/`, and an English toggle
-      (`?r=site/switchpage&lc=en`); still no adapter. Scanned PDFs and Lao legacy fonts that
-      map letters into upper-ASCII (text-layer mojibake) remain open hazards.
-- [ ] Timor-Leste: no lane, no language profile, no OCR path. Carries a scoring bonus.
-- [ ] CN principal statutes must survive `cac.gov.cn` being unreachable (PIPL / CSL / DSL).
+- [ ] Portal adapter for RU. Fetch is solved (`pravo.gov.ru/proxy/ips/?doc_itself=&nd=<id>`,
+      cp1251, frameset trap documented), but discovery injects rows client-side and has no
+      adapter yet — Phase 2 gave TH/ID/LA/SG/CN/TL their own lanes and deliberately left RU for
+      Phase 3, since its problem is not the search engine TH/ID/LA shared.
+- [ ] CN principal statutes (PIPL / CSL / DSL) only PARTLY survive `cac.gov.cn` being
+      unreachable now. Phase 2's `cn_portal` adapter added a second, browser-cleared lane
+      (`search.cac.gov.cn`, full-text search by name) that reaches CSL with production query
+      terms (2025-12-29 amended text, live 2026-09-08) even in a run where the front/section
+      lane was simultaneously blocked by `cac.gov.cn` robots.txt flakiness. PIPL is reachable
+      by the same search endpoint standalone (rank #1 on its own name) but is NOT reached in a
+      real run: `queries_p6` lists it 13th and the search pass caps at 6 terms
+      first-come-first-served. DSL surfaces only a topically-adjacent commentary, not the Act
+      page. Fix is query reordering / raising the cap in `data/sources.yaml`, not new code.
 - [ ] MY: one cited provision never reaches the shortlist at ANY budget (prov-recall flat
       0.875 from k=40 to k=450, `data/retrieval_budget.json` curve). Depth is not the fix —
       find out which provision and why the ranker cannot see it.
@@ -338,6 +341,57 @@ Everything else is retrieval or grading, which is where the budget below bites.
 ---
 
 ## §5 Recently done
+
+- [x] **Phase 2 — ten of eleven economies now reach their own portal** (2026-09-08). Web search
+      answers HTTP 403 from every engine (Serper spent, DuckDuckGo/Mojeek blocked), so six
+      economies that depended on it entirely got a portal-native lane: Timor-Leste
+      (`tl_gazette`), Laos (`la_gazette`), Thailand (`th_law_api`), Singapore (`sg_sso`), China
+      (`cn_portal`), Indonesia (`id_bpk`) — shared mechanics in `backend/pipeline/portal.py`.
+      Two shared-layer defects fixed along the way: a portal-enumerating adapter was being
+      called once per query term instead of once per source, and the search circuit breaker
+      now opens on consecutive failures even with a spent key configured.
+      **Singapore, binding per this task's brief**: its live number was never measured before
+      (SSO was throttling when its own task ran, 202/empty-body, so it was recorded
+      unmeasured rather than carrying an August figure forward). Retried live here,
+      2026-09-08: `sg_sso`'s own `search_sg_sso`, called directly with the pipeline's real
+      crawl headers, enumerated **524/524 current Acts in 15.6s — NOT throttled**. (A first
+      attempt using only a bare User-Agent got HTTP 403 on every window; that was a header
+      mismatch in the check, not a portal throttle — confirmed by re-running with the real
+      `discovery._headers()`.)
+      **Step 3's eleven-economy table, run through the real `discovery.discover()` dispatch,
+      each economy budgeted a few minutes** (this sandbox's outbound network to
+      `html.duckduckgo.com` fails on every call — the same condition Task 8 hit — so any
+      economy with even one `adapter: websearch` source in `data/sources.yaml` stalls in that
+      loop before ever reaching its portal-native lane; LA/MN/TL carry no such source and
+      finish fast):
+
+      | econ | docs | net queries | seconds |
+      |---|---|---|---|
+      | AU | TIMEOUT | ~2 terms stuck | >220 |
+      | CN | TIMEOUT | ~2 terms stuck | >240 |
+      | ID | TIMEOUT | ~2 terms stuck | >220 |
+      | IN | TIMEOUT | ~2 terms stuck | >220 |
+      | LA | 22 | 0 | 48 |
+      | MN | 22 | 0 | 19 |
+      | MY | TIMEOUT | ~2 terms stuck | >220 |
+      | RU | TIMEOUT | ~2 terms stuck | >220 |
+      | SG | TIMEOUT (via `discover()`; `sg_sso` direct: 524 docs, 15.6s) | ~3 terms stuck | >260 |
+      | TH | TIMEOUT | ~2 terms stuck | >220 |
+      | TL | 22 | 0 | 185 |
+
+      22 is `settings.discovery_max_docs`, not a portal ceiling — LA's own adapter enumerated
+      400 documents before the cap. `tools/readiness.py` moves CN/ID/LA/SG/TH/TL to
+      `EXTRACTED` (each backed by a live fetch+extract through the real chain, not just
+      discovery: e.g. LA's Constitution PDF → 47 real provisions, this task, 2026-09-08; TH's
+      Cybersecurity Act 2019 → 1 whole-document provision, `content_all` has no newlines so the
+      line-anchored มาตรา splitter cannot fire, task 4). **None promoted to `MEASURED`** —
+      neither grader is reachable (local server refuses connections, OpenRouter answers 401
+      "User not found", revoked), so nothing this phase is scored.
+      Per-economy limits disclosed in CLAUDE.md: TL's gazette index stops at 2012; LA's crawl
+      sees ~20 of ~89 pages; TH's provisions are whole-document, not article-level; SG's four
+      sort windows cover current Acts but not 5,843 subsidiary instruments; CN's section
+      indexes don't paginate and PIPL misses the search pass's 6-term cap under real query
+      ordering; ID reads page 1 of search results only. RU stays unsolved — Phase 3.
 
 - [x] **Phase 1 — pre-retrieval failures made loud** (2026-09-07). Serper answered HTTP 400
       "Not enough credits" and `_serper()` returned `[]`, so a spent key read as an economy

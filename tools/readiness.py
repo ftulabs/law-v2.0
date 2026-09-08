@@ -42,12 +42,28 @@ DECLARED, REACHABLE, EXTRACTED, MEASURED = "declared", "reachable", "extracted",
 #: inferring it from a stray output file would be exactly the kind of green tick this file
 #: exists to avoid. Update it when a run is actually done, and not before.
 RUN_END_TO_END = {
-    "SG": MEASURED, "AU": MEASURED, "MY": MEASURED,
+    "AU": MEASURED, "MY": MEASURED,
+    # SG WAS carrying a MEASURED tag inherited from the 2026-08-25 six-economy claim, but that
+    # number was never actually re-verified — SSO was throttling when this phase's own SG task
+    # ran (202, empty body, on every window, 2026-09-08 02:04-02:16), so it was deliberately
+    # recorded as unmeasured rather than carrying an August figure forward. Phase 2's gate
+    # (this file) re-tried it: `enumerate_sso` returned 524/524 current Acts in 11s, NOT
+    # throttled (live 2026-09-08); a fetch+extract of one of those Acts (Accountants Act 2004,
+    # via its own `body_url`) through the real `fetch_to_cache` -> `get_document_text` ->
+    # `extraction.extract_provisions` chain produced 126 real, article-level provisions, same
+    # date. That is "provisions produced from its own portal", so EXTRACTED — not MEASURED
+    # (no grader is reachable, so no run this phase was scored) and not "unverified" (the
+    # portal answered and the chain worked, measured, today). The throttle is real and
+    # documented in `adapter_singapore.py` — a judged run must still budget for it — but it is
+    # not permanent, and a single non-burst run gets through.
+    "SG": EXTRACTED,
     # P6: 21 rows / 11 laws, PIPL art.40 -> 6.2 (the panel's own answer).
     # P7: 51 rows / 244s / $0.1377, reaching 网络安全法, 个人信息保护法, 数据安全法,
     #     网络数据安全管理条例 and 网络安全审查办法 — four of the five indicators land on the
     #     laws the panel names. Before queries were scoped per pillar the same run returned 21
-    #     rows about domain-name administration and never fetched any of them.
+    #     rows about domain-name administration and never fetched any of them. Phase 2 also
+    #     gave CN its own portal-native lane (`cn_portal`, replacing `websearch` as primary) —
+    #     confirmed making live, successful calls including the PIPL term (task 6, 2026-09-08).
     "CN": EXTRACTED,
     "IN": EXTRACTED,   # DPDP Act 2023 s.16 -> 6.4, live, matching the panel's answer key
     # Discovery via /sitemap.xml (36,833 lawId), titles from data/catalogues/MN_titles.json,
@@ -60,6 +76,35 @@ RUN_END_TO_END = {
     #       find different instruments (the key cites the Communications Act and the Banking
     #       Law).
     "MN": EXTRACTED,
+    # Timor-Leste: `tl_gazette` walked its six category/language indexes live (851 PDFs seen
+    # in that pass; the adapter's own later re-measure records 1,201 across a fuller run) and
+    # a fetch+extract of one PDF (Law 2002/1, "Publication of Acts") through the same real
+    # chain produced 76 real, article-level provisions (task 2, live 2026-09-07/08). Known
+    # limit: the gazette index this adapter walks stops at 2012.
+    "TL": EXTRACTED,
+    # Indonesia: `id_bpk` search reaches `peraturan.bpk.go.id`; a fetch+extract of the
+    # top-ranked hit (UU No. 27/2022, Indonesia's PDP Law — the panel's own P7-I1 answer) had
+    # its Pasal splitter fire and produced 117 real provisions (Pasal 2..76+) from that one Act
+    # alone (task 7, live 2026-09-08). Known limit: only page 1 of the portal's own search
+    # results is read per query term.
+    "ID": EXTRACTED,
+    # Laos: `la_gazette` walked its two Yii grids live (400 documents across 20 pages, task 3)
+    # with a real relevance spread (70 distinct scores, 0.452-0.990) reaching the Constitution
+    # and the Law on Cybersecurity by category+recency alone, no query string. This gate
+    # re-fetched the top-ranked hit (the Constitution PDF, via its own `/kcfinder/upload/`
+    # link) through the real `fetch_to_cache` -> `get_document_text` -> `extraction.
+    # extract_provisions` chain: 18,260 chars of real text, 47 article-level provisions (live
+    # 2026-09-08, this task). Known limit: `_MAX_PAGES = 20` of ~89 needed for full coverage.
+    "LA": EXTRACTED,
+    # Thailand: `th_law_api` pages the REST API behind the SPA (60 pages, no repeated law_id,
+    # task 4) and seeds the fetch cache with the API's own `content_all` field, since the
+    # citable `law.go.th` page is a bare React shell. A live fetch+extract of the Cybersecurity
+    # Act 2019 (0.99 relevance) through the real chain produced 54,521 chars of genuine Thai
+    # statute text (task 4, live 2026-09-08) — that is "provisions produced from the portal".
+    # Known limit: `content_all` has no newlines, so `ARTICLE_PATTERNS[Economy.TH]`'s
+    # line-anchored มาตรา splitter cannot fire; it currently extracts as 1 whole-document
+    # provision (`article_section == "(document)"`) rather than one per มาตรา.
+    "TH": EXTRACTED,
 }
 
 
