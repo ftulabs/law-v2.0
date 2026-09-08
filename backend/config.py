@@ -155,9 +155,20 @@ class Settings(BaseSettings):
     # llama.cpp, LocalAI…). Point LOCAL_LLM_BASE_URL at the server's /v1. Ollama default
     # below; for a lab box set e.g. LOCAL_LLM_BASE_URL=http://gpu-lab:11434/v1 in .env.
     # Ollama ignores the key, so it stays empty.
+    # Defaults are a PLAIN LOCAL OLLAMA, deliberately: this repository is public and a judge
+    # is expected to clone it and reach a working system in under thirty minutes. A default
+    # pointing at our own machine is one they cannot reach and cannot diagnose, and a key
+    # committed here would live in the public history for good.
+    # The team's own server (llama.cpp on a Tailscale host, serving
+    # Qwen3.8-Flash-Next-Uncensored) is configured per-machine in `.env`, which is gitignored:
+    #   LOCAL_LLM_BASE_URL / LOCAL_LLM_MODEL / LOCAL_LLM_API_KEY
     local_llm_base_url: str = "http://localhost:11434/v1"
     local_llm_model: str = "llama3.1"
     local_llm_api_key: str = ""
+    # A 4B server answering a 4,200-token grading prompt under concurrency runs past
+    # 120s and every call over the line returns APITimeoutError, which reads as a
+    # broken measurement rather than a slow one (2026-09-06: 78 of 90 replay rows).
+    local_llm_timeout_seconds: float = 600.0
 
     # azure ocr
     azure_vision_endpoint: str = ""

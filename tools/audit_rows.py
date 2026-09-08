@@ -61,6 +61,39 @@ SYSTEM = (
 )
 
 
+def graders_of(rows: list[dict]) -> set[str]:
+    """Which model(s) actually graded these rows, as the rows themselves record it."""
+    return {m for m in (r.get("model_version") for r in rows) if m}
+
+
+def is_independent(auditor: str, graders: set[str]) -> bool:
+    """An auditor is independent only of graders it is not one of.
+
+    Checked against the export, not against `settings` — the configured model and the model
+    that graded a stored run drift apart the moment the provider changes, and on 2026-09-06
+    they did.
+    """
+    if not graders:
+        return False
+    low = (auditor or "").strip().lower()
+    return low not in {g.strip().lower() for g in graders}
+
+
+def graders_for_economies(economies) -> set[str]:
+    """Graders recorded in the JSON trace beside each economy's newest export."""
+    out: set[str] = set()
+    for econ in [e.upper() for e in economies]:
+        path = newest(econ)
+        if not path:
+            continue
+        trace = Path(path).with_suffix(".json")
+        if not trace.exists():
+            continue
+        with open(trace, encoding="utf-8") as fh:
+            out |= graders_of(json.load(fh).get("mappings", []))
+    return out
+
+
 def audit_prompt(indicator_id: str, snippet: str) -> str:
     ind = get_indicator(indicator_id)
     return (f"<INDICATOR>{indicator_id} — {ind.title}</INDICATOR>\n"
@@ -105,9 +138,11 @@ def main() -> int:
                     help="a thousand rows at ~20s a call is six hours sequential")
     a = ap.parse_args()
 
-    if a.model == settings.openrouter_model:
-        print(f"refusing: the auditor ({a.model}) is the grader. Two samples of one model "
-              f"agreeing measures the sampling, not the law.")
+    graders = graders_for_economies(a.economies)
+    if not is_independent(a.model, graders):
+        who = ", ".join(sorted(graders)) or "no model_version recorded in the export"
+        print(f"refusing: the auditor ({a.model}) is not independent of the grader ({who}). "
+              f"Two samples of one model agreeing measures the sampling, not the law.")
         return 2
 
     from backend.providers.llm_openrouter import OpenRouterLLM

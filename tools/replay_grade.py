@@ -44,7 +44,10 @@ from backend.schemas import Economy, Provision                       # noqa: E40
 from tools.provision_scorecard import (_same_law, _same_provision,   # noqa: E402
                                        key_provisions, newest, our_rows)
 
-AUDIT_LOGS = ("logs/audit_sg_au_my.json", "logs/audit_cn_in.json", "logs/audit2.json")
+AUDIT_LOGS = ("logs/audit_sg_au_my.json", "logs/audit_cn_in.json", "logs/audit2.json",
+              # last wins: the post-P6-gate audit, and the only one covering pillar 7
+              # at depth (47 P7-I3 rows against the older logs' 12-21).
+              "logs/audit_after_20260831.json")
 IND = {f"{p}.{j}": f"P{p}-I{j}" for p in (6, 7) for j in range(1, 6)}
 
 
@@ -140,7 +143,8 @@ def main() -> int:
 
     from backend.providers import get_llm_provider
     llm = get_llm_provider(settings.llm_provider)
-    print(f"grader: {getattr(llm, 'name', '?')} / {settings.openrouter_model}")
+    _graded_by = getattr(llm, "model_version", None) or settings.openrouter_model
+    print(f"grader: {getattr(llm, 'name', '?')} / {_graded_by}")
 
     def one(row):
         ind = ind_mod.get_indicator(row["indicator"])
@@ -185,7 +189,7 @@ def main() -> int:
 
     out = a.out or f"logs/replay_{a.variant}.json"
     Path(out).parent.mkdir(parents=True, exist_ok=True)
-    Path(out).write_text(json.dumps({"variant": a.variant, "model": settings.openrouter_model,
+    Path(out).write_text(json.dumps({"variant": a.variant, "model": _graded_by,
                                      "rows": results}, indent=1, ensure_ascii=False),
                          encoding="utf-8")
     print("\nwritten:", out)

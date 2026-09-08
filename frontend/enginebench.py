@@ -113,13 +113,13 @@ LLM: dict[str, dict] = {
                   ("Model", "you name it below", "good"), ("Text", "sent to Google", "warn")],
     },
     "local": {
-        "name": "Self-hosted",
+        "name": "Self-hosted · flash-next (team V100)",
         "kind": "local",
-        "role": "Your own server. No key, no network.",
-        "why": "Any OpenAI-compatible server — Ollama, vLLM, LM Studio. Nothing about the documents leaves the building.",
-        "facts": [("Key", "none", "good"), ("Cost", "free", "good"),
-                  ("Model", "whatever you serve", "good"),
-                  ("Text", "never leaves your machine", "good")],
+        "role": "Team host — default.",
+        "why": "Any OpenAI-compatible endpoint you run yourself — Ollama, vLLM, LM Studio, llama.cpp. The default is a local Ollama; set LOCAL_LLM_BASE_URL in .env to point it elsewhere.",
+        "facts": [("Key", "team key set", "good"), ("Cost", "free", "good"),
+                  ("Model", "Qwen3.8-Flash-Next (team)", "good"),
+                  ("Text", "stays on Tailscale", "good")],
     },
     "mock": {
         "name": "Offline stand-in",
@@ -403,16 +403,18 @@ def _llm_setup_body(provider: str, scope: str) -> None:
                    "openrouter.ai/keys", scope)
 
     elif provider == "local":
-        st.markdown('<div class="ttl">Your own server</div>'
-                    '<div class="sub">Any OpenAI-compatible endpoint. Nothing leaves the '
-                    'machine you point this at.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="ttl">Team host — flash-next (team key set)</div>'
+                    '<div class="sub">Default is a local Ollama on <code>localhost:11434</code>; '
+                    'set <code>LOCAL_LLM_BASE_URL</code> in <code>.env</code> for any other endpoint '
+                    '(<code>Qwen3.8-Flash-Next-Uncensored</code>, llama.cpp, Tailscale). Team key is pre-filled; keep it, or point '
+                    'at your own Ollama/vLLM — nothing leaves the machine you point at.</div>', unsafe_allow_html=True)
         c1, c2 = st.columns(2)
         url = c1.text_input("Base URL", value=st.session_state.get("local_base_url")
                             or settings.local_llm_base_url, key=f"{scope}_local_url",
-                            help="Ollama: http://localhost:11434/v1")
+                            help="Ollama: http://localhost:11434/v1  ·  vLLM/llama.cpp: whatever your server exposes")
         model = c2.text_input("Model name", value=st.session_state.get("llm_model")
                               or settings.local_llm_model, key=f"{scope}_local_model",
-                              help="a model your server actually serves, e.g. qwen2.5:14b")
+                              help="Team default: Qwen3.8-Flash-Next-Uncensored  ·  or any model your server serves (e.g. qwen2.5:14b)")
         st.session_state["local_base_url"] = url.strip()
         settings.local_llm_base_url = url.strip()
         st.session_state["llm_model"] = model.strip() or None

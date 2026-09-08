@@ -402,6 +402,52 @@ Everything else is retrieval or grading, which is where the budget below bites.
       `[error]` pair. `tools/cache_gc.py` gives the 1.3 GB cache a lifecycle.
       `tests/test_websearch_diagnostics.py`, `test_empty_discovery.py`, `test_cache_gc.py`.
 
+- **2026-09-06** **P7-I3 gates STAGED (not shipped), and a tool that checks a gate before it ships.**
+  `tools/check_gates.py` scores a candidate gate against the three populations `replay_grade`
+  uses, offline and with no LLM call, by joining `logs/audit_after_20260831.json` to the
+  snippet each verdict was passed on (184 of 184 rows join). Two P7-I3 gates are staged in
+  `tools/candidate_indicators.py`, NOT shipped — the file's own workflow says measure with
+  `replay_grade.py` first and I had it backwards, so they were pulled back out of
+  `indicators.py`. Screened offline: a retention DUTY and a period must both be present (catches 22 of the 34
+  auditor refusals, harms 0 of 9 panel rows and 0 of 13 upheld), and a ceiling is not a
+  minimum (2 of 34, 0 harm). 7.3 was the worst indicator we file — 13 of 47 upheld against the
+  panel's 7 of 9.
+  Three of the four rules READING the refusals suggested were wrong, and only measurement
+  caught them:
+  · "a literal duration must appear" refuses SG Employment Act s.95, a panel row — "keep for
+    the period prescribed" delegates the length while keeping the duty. The duty/power split
+    is the real line, not the presence of a number.
+  · "a ceiling disqualifies" appeared to refuse 2 panel rows; that was the DETECTOR reading
+    penalty boilerplate ("a fine not exceeding $10,000") as a retention ceiling, not a finding
+    about the panel. Scoped to the retention context it is clean. The gate now warns the
+    grader about that trap in as many words.
+  · requiring a modal verb refuses AU Privacy Act s.20X, which sets retention periods in a
+    TABLE and never says "must".
+  **Blocked on a grader.** `replay_grade` needs an LLM and neither is reachable: the
+  self-hosted `leader` serves nothing on 8090 (host pings over Tailscale, port refused),
+  and OpenRouter answers 402 `Insufficient credits` for paid AND `:free` models alike.
+  Note for whoever checks next: `GET /api/v1/key` reporting `limit_remaining: 20` does
+  NOT mean there is money — that field is the DAILY SPEND CAP, and the balance it is
+  drawn from is not in that response. Bring one grader up, then run:
+      python tools/replay_grade.py --variant baseline  --indicators P7-I3
+      python tools/replay_grade.py --variant candidate --indicators P7-I3
+  Ship only if CONTROL and UPHELD hold while REJECTED falls.
+- **2026-09-06** **P7-I5 gets no gate, and that is the result.** Both rules the 19 refusals
+  suggested are refuted by the panel's own rows: "the object reached must be PERSONAL DATA"
+  refuses 19 of its 24 (SG CPC s.39 "Power to access computer", AU DAT Act s.104 "Power to
+  require information and documents" — none says "personal data"), and TIA s.110 "agencies may
+  APPLY for stored communications warrants" is a panel row of exactly the procedural shape we
+  were about to exclude. The panel's test is a state power to COMPEL access to information
+  held by others. **The auditor is stricter than the scoring authority here, so P7-I5's
+  measured 60% precision is itself suspect** — do not act on that number without re-reading.
+- **2026-09-06** **`audit_rows.py` checked independence against the wrong thing.** It compared
+  the auditor to `settings.openrouter_model`. Grading moved to a self-hosted model while
+  `.env` still named an OpenRouter one, so auditing with the local grader would have passed a
+  guard built to stop exactly that — silently, the system marking its own homework. It now
+  reads `model_version` off the rows being audited. Qwen3.8-Flash-Next IS independent of the
+  2026-08-31 export (mistral-small-3.2 graded it); mistral is not.
+  `tests/test_audit_independence.py`, `tests/test_gate_check.py`.
+
 - **2026-08-31** All six economies re-run live on the day's fixes (`outputs/after_fixes/`,
   `logs/rerun_20260831.log`). **$7.39 and 186 minutes**, against $2.07 / 72 min before.
 
