@@ -491,4 +491,14 @@ def search_cn_portals(client, src: dict, query: str, economy: Economy, indicator
     return out
 
 
-portal.register("cn_portal", search_cn_portals)
+# enumerates_portal=True: the front/section/aggregator walk is query-independent by
+# construction, and the shipped `data/sources.yaml` entry's queries_p6/queries_p7 (13 terms
+# each) already exhaust `_search_terms`'s `_SEARCH_MAX_TERMS` (6) cap before the per-call
+# `query` argument is ever appended -- so under the shipped config `query` cannot reach the
+# search pass at all. Registering this without `enumerates_portal=True` made
+# `discover_live` call it once per query term (13x for one pillar), repeating the identical
+# httpx walk and the identical six WAF-gated Scrapling searches against search.cac.gov.cn each
+# time: 78 WAF crossings for a single pillar, against a portal already documented as flaky and
+# WAF-gated. Found in the 2026-09-07 final review. See
+# `tests/test_portal_enumeration_dispatch.py`.
+portal.register("cn_portal", search_cn_portals, enumerates_portal=True)

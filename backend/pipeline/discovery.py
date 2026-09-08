@@ -1406,9 +1406,14 @@ def discover_live(economy: Economy, pillar: int | None = None,
                 # 2h40m for one economy, one pillar) before this guard existed, and 52
                 # consecutive full crawls is exactly the burst SSO's 202-empty-body throttle
                 # exists to stop. `portal.enumerates_portal` is the declaration; an adapter
-                # that never opts in (au_api, my_catalogue, in_dspace, mn_legalinfo, cn_portal,
-                # id_bpk all genuinely consume `query`) keeps being called once per term below,
-                # which is what the round-robin merge assumes.
+                # that never opts in (au_api, my_catalogue, in_dspace, mn_legalinfo, id_bpk all
+                # genuinely consume `query`) keeps being called once per term below, which is
+                # what the round-robin merge assumes. cn_portal opted IN 2026-09-07: its
+                # front/section/aggregator walk is query-independent, and the shipped
+                # queries_p6/queries_p7 (13 terms each) already exhaust the adapter's own
+                # 6-term search cap before `query` is ever appended, so `query` cannot reach it
+                # under the shipped config either -- see `adapter_china.py`'s `portal.register`
+                # call.
                 call_terms = terms
                 if portal.enumerates_portal(src.get("adapter")):
                     call_terms = terms[:1] or [""]

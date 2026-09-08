@@ -163,7 +163,16 @@ sources:
 
   - economy: CN
     name: State Council / Cyberspace Administration (administrative measures)
-    base_url: https://www.gov.cn
+    base_url: https://www.cac.gov.cn/     # fixed 2026-09-07 final review: this was left over
+                                          # from when this entry was `adapter: websearch`
+                                          # (gov.cn), but `cn_portal` reads `base_url` as its
+                                          # cac.gov.cn "front" host (`adapter_china.py`'s
+                                          # `cac_base = src.get("base_url") or _CAC_BASE`) --
+                                          # every measured byte/link count in that module's
+                                          # docstring (2026-09-07/08) is against cac.gov.cn, not
+                                          # gov.cn. The gov.cn aggregator is still reached via
+                                          # the separate `gov_base` (defaults to `_GOV_BASE`
+                                          # when unset here, as it is).
     adapter: cn_portal                    # 2026-09-08 (Task 8): wired to discovery's dispatch —
                                           # see backend/pipeline/adapter_china.py, registered `cn_portal`.
                                           # This adapter's own search pass reads `queries_p6`/`queries_p7`

@@ -281,6 +281,15 @@ def _search_terms(query: str, src: dict, indicators: list) -> list[str]:
     other portal-native lane its own query vocabulary through -- then falls back to the
     `query` argument itself, so a call made before `data/sources.yaml` carries queries for this
     adapter (or a direct call, as the unit tests make) still does something useful.
+
+    ⚠ ORDER IS LOAD-BEARING once `data/sources.yaml`'s `id_bpk` entry grows a `queries_p6`/
+    `queries_p7` list: config terms are appended BEFORE the passed `query`, so once either list
+    reaches `_SEARCH_MAX_TERMS` (6) entries, `query` becomes unreachable dead code -- the same
+    misclassification `adapter_china.py`'s `cn_portal` shipped with (found in the 2026-09-07
+    final review: its `queries_p6`/`queries_p7` each carry 13 terms, so `cn_portal` had to be
+    registered with `enumerates_portal=True` instead of being called once per query term).
+    `query` is only "live" today because this entry has no `queries_p6`/`queries_p7` yet --
+    re-check `portal.register("id_bpk", ...)`'s `enumerates_portal` once one is added.
     """
     terms: list[str] = []
     pillars = {getattr(ind, "pillar", None) for ind in indicators}

@@ -62,6 +62,50 @@ def test_titles_carry_chinese_text(html):
     assert chinese, "no article title contained a Chinese character"
 
 
+def test_shipped_source_entry_fetches_cac_gov_cn_not_gov_cn(html, monkeypatch):
+    """Finding 2, 2026-09-07 final review: `data/sources.yaml`'s `cn_portal` entry carried
+    `base_url: https://www.gov.cn`, left over from when this entry was `adapter: websearch`.
+    `search_cn_portals` reads `cac_base = src.get("base_url") or _CAC_BASE` as its cac.gov.cn
+    "front" host, so production was fetching www.gov.cn there while every measured
+    byte/link/article-URL count in this module's own docstring (dated 2026-09-07/08) describes
+    www.cac.gov.cn -- a different host.
+
+    No fixture-driven test in this file caught it: every other test here passes a bare
+    `src={"name": ...}` dict with no `base_url`, which always falls through to the correct
+    `_CAC_BASE` default and never exercises the shipped value. This test reads the REAL
+    `data/sources.yaml` entry instead -- a local file, not the network.
+    """
+    from backend.pipeline import discovery
+
+    cn_sources = [s for s in discovery.load_sources()
+                  if s.get("economy") == "CN" and s.get("adapter") == "cn_portal"]
+    assert cn_sources, "data/sources.yaml must still carry a cn_portal entry for CN"
+    src = cn_sources[0]
+
+    fetched_urls: list[str] = []
+
+    def _portal_get(client, url, log):
+        fetched_urls.append(url)
+
+        class _R:
+            status_code = 200
+            text = html
+
+        return _R()
+
+    monkeypatch.setattr(adapter_china.portal, "portal_get", _portal_get)
+    adapter_china.search_cn_portals(
+        client=None, src=src, query="", economy=Economy.CN, indicators=[],
+        log=lambda *_: None)
+
+    assert fetched_urls, "search_cn_portals made no portal_get calls at all"
+    front_url = fetched_urls[0]
+    assert front_url.startswith("https://www.cac.gov.cn"), (
+        f"shipped cn_portal base_url produced a front-page fetch against {front_url!r}, not "
+        "cac.gov.cn -- every measured count in adapter_china.py's own docstring is against "
+        "cac.gov.cn, not gov.cn")
+
+
 def test_the_npc_database_is_not_a_fetch_target():
     """flk.npc.gov.cn's API returns "download": 0 -- the operator refusing. That decision
     stands, and this test is what stops a future edit quietly reversing it.

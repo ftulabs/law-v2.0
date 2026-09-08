@@ -84,3 +84,54 @@ def test_query_consuming_adapter_is_still_called_once_per_term(monkeypatch):
         enum_map = getattr(portal, "_ENUMERATES_PORTAL", None)
         if enum_map is not None:
             enum_map.pop("stub_query_consumer", None)
+
+
+def test_cn_portal_real_adapter_and_real_source_is_dispatched_once_not_per_term(monkeypatch):
+    """2026-09-07 final review, Finding 1: `cn_portal` was registered WITHOUT
+    `enumerates_portal=True`. `adapter_china._search_terms` fills its term list from
+    `src["queries_p6"]`/`queries_p7` BEFORE appending the per-call `query` argument, then caps
+    the result at `_SEARCH_MAX_TERMS` (6) -- and the real `data/sources.yaml` `cn_portal` entry
+    carries 13 `queries_p6` terms and 13 `queries_p7` terms (measured by reading that file), so
+    the cap is exhausted by config terms alone and the passed `query` is provably unreachable.
+    Calling the adapter once per query term therefore repeated the identical front/section/
+    aggregator httpx walk AND the identical six WAF-gated Scrapling searches against
+    search.cac.gov.cn thirteen times over for zero additional coverage -- 78 WAF crossings for
+    one pillar, against a portal this project's own docs call flaky and WAF-gated.
+
+    Unlike the two stub-based tests above, this drives the REAL `cn_portal` registration
+    (import-time `portal.register` call in `adapter_china.py`) against the REAL CN source entry
+    from `data/sources.yaml` -- the specific gap the reviewer named: nothing previously
+    exercised the actual adapters' registration, only a synthetic stub. The registered callable
+    is swapped for a counting stand-in so no network call is made; `portal.enumerates_portal`
+    is left exactly as `adapter_china.py` set it, so this fails if that classification
+    regresses.
+    """
+    from backend.pipeline import adapter_china  # noqa: F401 -- runs the real portal.register()
+
+    cn_sources = [s for s in discovery.load_sources()
+                  if s.get("economy") == "CN" and s.get("adapter") == "cn_portal"]
+    assert cn_sources, "data/sources.yaml must still carry a cn_portal entry for CN"
+    src = cn_sources[0]
+    assert len(src.get("queries_p6") or []) >= 6 and len(src.get("queries_p7") or []) >= 6, (
+        "this test's premise -- that config terms alone exhaust the 6-term search cap before "
+        "`query` is appended -- requires >=6 queries_p6 AND >=6 queries_p7 terms in the "
+        "shipped data/sources.yaml entry")
+
+    calls: list[str] = []
+
+    def _counting(client, src, query, economy, indicators, log):
+        calls.append(query)
+        return []
+
+    real_fn = portal.get_adapter("cn_portal")
+    real_enumerates = portal.enumerates_portal("cn_portal")
+    portal.register("cn_portal", _counting, enumerates_portal=real_enumerates)
+
+    try:
+        monkeypatch.setattr(discovery, "load_sources", lambda: [src])
+        discovery.discover_live(Economy.CN, pillar=6, max_docs=50, log=lambda *_: None)
+        assert len(calls) == 1, (
+            f"cn_portal must be dispatched once per source, not once per query term -- got "
+            f"{len(calls)} calls: {calls[:5]}{'...' if len(calls) > 5 else ''}")
+    finally:
+        portal.register("cn_portal", real_fn, enumerates_portal=real_enumerates)
