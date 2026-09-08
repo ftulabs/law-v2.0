@@ -273,4 +273,4 @@ def _json(obj) -> str:
         return "{}"
 
 
-portal.register("sg_sso", search_sg_sso)
+portal.register("sg_sso", search_sg_sso, enumerates_portal=True)

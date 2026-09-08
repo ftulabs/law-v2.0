@@ -25,6 +25,12 @@ Log = Callable[[str], None]
 #: Adapter name (as written in data/sources.yaml `adapter:`) -> callable.
 _REGISTRY: dict[str, "PortalEnumerator"] = {}
 
+#: Adapter name -> True when the callable walks the WHOLE portal on every call and ignores
+#: its `query` argument (sg_sso, tl_gazette, la_gazette, th_law_api -- each says so in its own
+#: module docstring). Absent/False is the safe default: an adapter not declared here is
+#: assumed to consume `query` and must still be called once per query term.
+_ENUMERATES_PORTAL: dict[str, bool] = {}
+
 
 class PortalEnumerator(Protocol):
     """The one shape `discovery.discover_live` dispatches on.
@@ -40,12 +46,37 @@ class PortalEnumerator(Protocol):
         ...
 
 
-def register(name: str, fn: "PortalEnumerator") -> None:
+def register(name: str, fn: "PortalEnumerator", *, enumerates_portal: bool = False) -> None:
+    """Register a portal adapter under `name`.
+
+    `enumerates_portal=True` is a property of how the adapter WORKS, not of the portal's YAML
+    configuration -- it says the callable walks the whole portal on every call and ignores
+    `query`. `discover_live`'s dispatch reads this back via `enumerates_portal(name)` to call
+    such an adapter once per SOURCE instead of once per query term: for a source with no query
+    override, that fallback is the generated ~52-term generic list, and 52 full portal crawls
+    is the difference between a ~3-minute run and a multi-hour one (measured against
+    Timor-Leste: ~183.5s standalone vs. ~2h40m at 52x). A YAML flag would risk disagreeing
+    with the code it describes -- exactly the class of silent defect this phase exists to
+    remove -- so the declaration lives here, next to the function it describes.
+    """
     _REGISTRY[name] = fn
+    _ENUMERATES_PORTAL[name] = enumerates_portal
 
 
 def get_adapter(name: str):
     return _REGISTRY.get(name)
+
+
+def enumerates_portal(name: str | None) -> bool:
+    """True when the adapter registered under `name` walks the whole portal per call and
+    ignores `query` (declared via `register(..., enumerates_portal=True)`).
+
+    False for any name not found here -- including one dispatched through
+    `discovery._ADAPTERS` rather than this registry (au_api, my_catalogue, in_dspace,
+    mn_legalinfo all genuinely consume `query`) -- so an adapter that never opted in keeps
+    being called once per query term, which is what the round-robin budget merge assumes.
+    """
+    return _ENUMERATES_PORTAL.get(name, False)
 
 
 def headers() -> dict:

@@ -357,4 +357,4 @@ def search_tl_gazette(client, src: dict, query: str, economy: Economy, indicator
     return out
 
 
-portal.register("tl_gazette", search_tl_gazette)
+portal.register("tl_gazette", search_tl_gazette, enumerates_portal=True)

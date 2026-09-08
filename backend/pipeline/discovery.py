@@ -1398,8 +1398,22 @@ def discover_live(economy: Economy, pillar: int | None = None,
                 # government access or cybersecurity. Its pillar-7 output was 17 sections of
                 # one Act. Every query now gets its top hits before any query gets its tail.
                 terms = _source_queries(src, pillar) or queries
+                # A portal-ENUMERATING adapter (sg_sso, tl_gazette, la_gazette, th_law_api)
+                # walks the whole portal on every call and ignores `query` — each says so in
+                # its own module docstring. Calling it once per term re-runs a full portal
+                # crawl per term: a source with no query override falls back to the ~52-term
+                # generic list, so a single ~183.5s Timor-Leste crawl became 52 of those (about
+                # 2h40m for one economy, one pillar) before this guard existed, and 52
+                # consecutive full crawls is exactly the burst SSO's 202-empty-body throttle
+                # exists to stop. `portal.enumerates_portal` is the declaration; an adapter
+                # that never opts in (au_api, my_catalogue, in_dspace, mn_legalinfo, cn_portal,
+                # id_bpk all genuinely consume `query`) keeps being called once per term below,
+                # which is what the round-robin merge assumes.
+                call_terms = terms
+                if portal.enumerates_portal(src.get("adapter")):
+                    call_terms = terms[:1] or [""]
                 buckets: list[list[DiscoveredDoc]] = []
-                for q in terms:
+                for q in call_terms:
                     try:
                         buckets.append(list(searcher(client, src, q, economy, indicators,
                                                      log=log)))

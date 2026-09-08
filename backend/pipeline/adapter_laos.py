@@ -331,4 +331,4 @@ def search_la_gazette(client, src: dict, query: str, economy: Economy, indicator
     return out
 
 
-portal.register("la_gazette", search_la_gazette)
+portal.register("la_gazette", search_la_gazette, enumerates_portal=True)

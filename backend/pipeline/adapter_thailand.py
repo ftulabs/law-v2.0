@@ -658,4 +658,4 @@ def search_th_law(client, src: dict, query: str, economy: Economy, indicators: l
     return out
 
 
-portal.register("th_law_api", search_th_law)
+portal.register("th_law_api", search_th_law, enumerates_portal=True)
