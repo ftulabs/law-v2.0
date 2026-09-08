@@ -285,3 +285,110 @@ def test_one_corrupted_row_does_not_discard_a_whole_good_cache(monkeypatch, tmp_
     websearch.search("something new", log=lambda *_: None)
     after = json.loads((tmp_path / "_search.json").read_text(encoding="utf-8"))
     assert "good" in after, "a corrupted neighbour must not evict a healthy entry"
+
+
+# --- circuit breaker must not exempt a configured-but-spent key (2026-09-07) ---------------
+#
+# `settings.serper_api_key` being a non-empty string used to be treated as proof search is
+# reliable, so the circuit's `and not settings.serper_api_key` guard could never fire once a
+# key was set — spent or not. Ours answers HTTP 400 "Not enough credits"; with that guard in
+# place every query in a 48-query round-robin run waited out its full network timeout instead
+# of the circuit opening after _HARD consecutive failures. These tests pin the fix: the
+# circuit opens on consecutive failures regardless of whether a key is configured.
+
+def test_circuit_opens_after_hard_failures_even_with_serper_key_configured(monkeypatch, tmp_path):
+    """The regression this fix exists to prevent: a configured (but dead) key must not
+    suppress the circuit breaker. Counts engine invocations rather than reading
+    `_circuit` directly, so this pins observable behaviour, not the internal counter."""
+    monkeypatch.setattr(websearch.settings, "cache_dir", str(tmp_path))
+    monkeypatch.setattr(websearch.settings, "serper_api_key", "spent-key")
+    websearch.reset_diagnostics()
+    websearch.reset_circuit()
+
+    calls = []
+
+    def always_fails(client, q, n):
+        calls.append(q)
+        return []
+
+    monkeypatch.setattr(websearch, "_engines", lambda: [always_fails])
+
+    for i in range(websearch._HARD):
+        websearch.search(f"query {i}", log=lambda *_: None)
+    assert len(calls) == websearch._HARD, "each of the first _HARD queries must still try the network"
+
+    # One more query past the threshold: with a healthy circuit this must NOT reach the engine.
+    websearch.search("query past threshold", log=lambda *_: None)
+    assert len(calls) == websearch._HARD, (
+        "circuit must open after _HARD consecutive failures even with serper_api_key set — "
+        "a configured key is not proof the key still works")
+
+
+def test_a_healthy_key_never_trips_the_circuit(monkeypatch, tmp_path):
+    """An engine that keeps answering with results must never be blocked, key or no key."""
+    monkeypatch.setattr(websearch.settings, "cache_dir", str(tmp_path))
+    monkeypatch.setattr(websearch.settings, "serper_api_key", "healthy-key")
+    websearch.reset_diagnostics()
+    websearch.reset_circuit()
+
+    calls = []
+
+    def always_succeeds(client, q, n):
+        calls.append(q)
+        return [("https://x", "X", "")]
+
+    monkeypatch.setattr(websearch, "_engines", lambda: [always_succeeds])
+
+    for i in range(websearch._HARD + 3):  # well past the threshold, were it counting
+        out = websearch.search(f"healthy query {i}", log=lambda *_: None)
+        assert out == [("https://x", "X", "")]
+    assert len(calls) == websearch._HARD + 3, "a healthy key must never be blocked by the circuit"
+
+
+def test_a_success_resets_the_failure_streak_so_the_circuit_stays_closed(monkeypatch, tmp_path):
+    """The circuit counts CONSECUTIVE empties. A success partway through must zero the
+    streak, so two runs of (_HARD - 1) failures either side of one success must never open
+    the circuit — only an unbroken run of _HARD failures should."""
+    monkeypatch.setattr(websearch.settings, "cache_dir", str(tmp_path))
+    monkeypatch.setattr(websearch.settings, "serper_api_key", "healthy-key")
+    websearch.reset_diagnostics()
+    websearch.reset_circuit()
+
+    actions = ["fail"] * (websearch._HARD - 1) + ["ok"] + ["fail"] * (websearch._HARD - 1)
+    calls = []
+
+    def scripted(client, q, n):
+        calls.append(q)
+        return [("https://x", "X", "")] if actions[len(calls) - 1] == "ok" else []
+
+    monkeypatch.setattr(websearch, "_engines", lambda: [scripted])
+
+    for i in range(len(actions)):
+        websearch.search(f"streak query {i}", log=lambda *_: None)
+
+    assert len(calls) == len(actions), (
+        "a mid-streak success must reset the consecutive-failure count, so neither run of "
+        "(_HARD - 1) failures on its own should have opened the circuit")
+
+
+def test_circuit_open_log_names_the_spent_key_possibility(monkeypatch, tmp_path):
+    """When the circuit opens WITH a key configured, that is the more urgent case — a
+    reviewer trusts a keyed run as reliable. The log must say the key may be the problem and
+    name the specific engine failure, not repeat the generic "set SERPER_API_KEY" hint."""
+    monkeypatch.setattr(websearch.settings, "cache_dir", str(tmp_path))
+    monkeypatch.setattr(websearch.settings, "serper_api_key", "spent-key")
+    websearch.reset_diagnostics()
+    websearch.reset_circuit()
+
+    def dead_serper(client, q, n):
+        raise websearch.EngineUnavailable("serper", "HTTP 400 Not enough credits")
+
+    monkeypatch.setattr(websearch, "_engines", lambda: [dead_serper])
+    lines = []
+    for i in range(websearch._HARD):
+        websearch.search(f"query {i}", log=lines.append)
+
+    opened = [ln for ln in lines if "circuit OPEN" in ln]
+    assert opened, "expected a circuit-open log line once _HARD consecutive failures hit"
+    assert "spent" in opened[-1].lower(), "must name the spent-key possibility"
+    assert "Not enough credits" in opened[-1], "must use diagnostics() to be specific, not generic"

@@ -169,8 +169,21 @@ _ENGINES_HTTPX_FIRST = [_serper, _ddg_html, _ddg_lite, _mojeek, _scrapling_ddg]
 # queries; each further query then wastes ~60s on Scrapling's 3 retries, so a 48-query
 # round-robin run would hang ~50 min. We count CONSECUTIVE empty results: after _SOFT we drop
 # the slow Scrapling-retry engine (further probes fail in seconds), after _HARD we stop hitting
-# the network entirely and discovery proceeds with the laws already found. A keyed Serper run
-# never trips it (Serper is reliable). State is per-process; reset_circuit() clears it per run.
+# the network entirely and discovery proceeds with the laws already found. State is per-process;
+# reset_circuit() clears it per run.
+#
+# The circuit opens on _HARD consecutive failures REGARDLESS of whether serper_api_key is set.
+# It used to exempt a configured key on the theory that a keyed Serper run is reliable and
+# never trips it. That is false: a key can be configured and SPENT — ours answers
+# HTTP 400 "Not enough credits" (measured 2026-09-07) — and `settings.serper_api_key` is a
+# non-empty string either way, so the exemption made the circuit permanently un-openable
+# whenever a key happened to be set, spent or not. A spent key is WORSE than no key: with no
+# key the circuit opens after _HARD failures and the run moves on; with a dead key every one
+# of the (up to 48) queries in a round-robin run waited out its full network timeout, which is
+# what starved India's `in_dspace` lane of its 600s budget entirely (measured 2026-09-07,
+# `discovery.discover(Economy.IN, 6, use_samples=False)`). A healthy key never accumulates
+# _HARD consecutive failures, so this guard costs nothing when things work — it only fires
+# once search is already useless, keyed or not.
 _circuit = {"empties": 0}
 _SOFT, _HARD = 2, 6
 
@@ -273,7 +286,7 @@ def search(query: str, site: str | None = None, max_results: int = 10, log=print
     if hit is not None:                             # fresh hit — no network, no rate-limit
         _diag["cache_hits"] += 1
         return hit
-    if _circuit["empties"] >= _HARD and not settings.serper_api_key:
+    if _circuit["empties"] >= _HARD:
         return []                                   # circuit open — engines blocked, skip network
     _diag["network_queries"] += 1
 
@@ -313,8 +326,16 @@ def search(query: str, site: str | None = None, max_results: int = 10, log=print
         _circuit["empties"] += 1
         _diag["empty_queries"] += 1
         msg = f"[websearch] all engines empty for '{q}'"
-        if _circuit["empties"] == _HARD and not settings.serper_api_key:
-            msg += " — engines blocked; circuit OPEN. Set SERPER_API_KEY for reliable discovery."
+        if _circuit["empties"] == _HARD:
+            if settings.serper_api_key:
+                # A configured key failing _HARD times running is the more urgent case — it
+                # reads as "reliable" until it silently isn't. Name the specific engines that
+                # failed (diagnostics() already records each one) rather than a generic hint.
+                failures = ", ".join(f"{e}: {d}" for e, d in _diag["engine_failures"].items()) or "no detail captured"
+                msg += (f" — engines blocked; circuit OPEN despite a configured SERPER_API_KEY. "
+                        f"The key may be spent or invalid — {failures}.")
+            else:
+                msg += " — engines blocked; circuit OPEN. Set SERPER_API_KEY for reliable discovery."
         log(msg)
     return results
 
