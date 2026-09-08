@@ -246,3 +246,42 @@ def test_a_timezone_naive_stamp_is_read_as_utc(monkeypatch, tmp_path):
     assert websearch._entry_results(
         {"results": [["https://x", "X", ""]], "fetched_at": fresh_naive, "engine": "serper"}) \
         == [("https://x", "X", "")]
+
+
+def test_a_corrupted_cache_row_is_a_miss_not_an_exception(monkeypatch):
+    """The comprehension that builds the result tuples sat OUTSIDE the try, so a row that is
+    a string, or shorter than two elements, raised instead of being declined.
+
+    Phase 1 widened this from a nuisance to a stopper: _entry_results used to run only when
+    its own key was queried, and since the expiry-prune landed it runs across the whole cache
+    on every successful write. One corrupted row broke every search.
+    """
+    monkeypatch.setattr(websearch.settings, "search_cache_max_age_days", 7.0)
+    fresh = _iso(1)
+    for rows in (["not-a-list"], [[]], [["only-one-element"]], [None], "not-a-list-at-all"):
+        entry = {"results": rows, "fetched_at": fresh, "engine": "serper"}
+        assert websearch._entry_results(entry) is None, f"{rows!r} should be a miss"
+
+
+def test_a_good_row_still_survives_the_hardening(monkeypatch):
+    monkeypatch.setattr(websearch.settings, "search_cache_max_age_days", 7.0)
+    entry = {"results": [["https://x", "X", "snip"]], "fetched_at": _iso(1), "engine": "serper"}
+    assert websearch._entry_results(entry) == [("https://x", "X", "snip")]
+
+
+def test_one_corrupted_row_does_not_discard_a_whole_good_cache(monkeypatch, tmp_path):
+    """The prune walks every entry. A single bad neighbour must not take the good ones with it."""
+    monkeypatch.setattr(websearch.settings, "cache_dir", str(tmp_path))
+    monkeypatch.setattr(websearch.settings, "search_cache_max_age_days", 7.0)
+    monkeypatch.setattr(websearch.settings, "serper_api_key", "")
+    websearch.reset_diagnostics(); websearch.reset_circuit()
+    (tmp_path / "_search.json").write_text(json.dumps({
+        "good": {"results": [["https://good", "G", ""]], "fetched_at": _iso(1), "engine": "s"},
+        "bad": {"results": ["corrupt"], "fetched_at": _iso(1), "engine": "s"},
+    }), encoding="utf-8")
+    monkeypatch.setattr(websearch, "_engines",
+                        lambda: [lambda c, q, n: [("https://new", "N", "")]])
+
+    websearch.search("something new", log=lambda *_: None)
+    after = json.loads((tmp_path / "_search.json").read_text(encoding="utf-8"))
+    assert "good" in after, "a corrupted neighbour must not evict a healthy entry"

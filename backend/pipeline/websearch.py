@@ -234,7 +234,19 @@ def _entry_results(entry, now: float | None = None) -> list | None:
         return None
     if age_days > max_age:
         return None
-    return [(r[0], r[1], r[2] if len(r) > 2 else "") for r in rows]
+    # This comprehension used to sit outside the try above, so a row that was a string (not
+    # a list) or shorter than two elements raised IndexError/TypeError instead of being
+    # declined. That mattered more once the expiry-prune below started calling this on every
+    # entry in the cache on every successful write, not just on the key being queried — one
+    # corrupted neighbour then broke every search, not just its own. A plain string still
+    # answers to r[0]/r[1] without raising (it silently indexes into characters), so this
+    # checks the shape explicitly rather than trusting an exception to catch it.
+    out = []
+    for r in rows:
+        if not isinstance(r, (list, tuple)) or len(r) < 2:
+            return None
+        out.append((r[0], r[1], r[2] if len(r) > 2 else ""))
+    return out
 
 
 def _load_cache() -> dict:
