@@ -47,14 +47,52 @@ def test_the_statute_after_a_premature_close_tag_is_not_lost():
     assert len(text) > 60
 
 
-def test_lxml_alone_really_does_lose_it():
-    """The guard rail for the guard rail. If a future lxml stops honouring the stray tag this
-    test fails, and `_soup`'s fallback becomes dead weight that should be reconsidered rather
-    than left in place uncomprehended."""
+def test_lxml_truncation_is_version_dependent_and_the_fallback_is_still_earned():
+    """The guard rail for the guard rail — and it has already fired once, so read this.
+
+    The original form of this test asserted flatly that lxml truncates here, on the reasoning
+    that if a future lxml stopped honouring the stray tag then `_soup`'s fallback would be dead
+    weight to reconsider rather than leave in place uncomprehended. That reasoning was right and
+    the assertion was wrong: the behaviour is not a property of lxml, it is a property of the
+    **bundled libxml2**, and the two disagree across installs of the same requirement line.
+
+    Measured 2026-09-09 on the same commit:
+      · lxml 6.1.0 / libxml2 2.11.9 (a developer machine)  -> TRUNCATES, 21 characters survive
+      · the lxml CI resolves from `lxml>=5.2`               -> does NOT truncate
+    So the flat assertion passed locally and failed in CI, which is the least useful place for
+    a test to disagree with itself.
+
+    `requirements.txt` pins only `lxml>=5.2`, so an install today can land on either side. The
+    fallback therefore stays, and it is free where it is not needed: `_soup` compares the yield
+    against `_visible_estimate` and returns the lxml parse untouched when nothing collapsed, so
+    a modern libxml2 never pays for the second parse.
+
+    What this test now pins is the honest pair: whichever way this environment's libxml2
+    behaves, the statute must survive `_html_to_text`. The day EVERY supported lxml stops
+    truncating, `requirements.txt` can raise its floor and the fallback can go — this test will
+    say so rather than fail obscurely.
+    """
     from bs4 import BeautifulSoup
 
     lxml_only = BeautifulSoup(PREMATURE_CLOSE, "lxml").get_text(strip=True)
-    assert "第一条" not in lxml_only, "lxml no longer truncates here — re-examine ocr._soup"
+    truncates = "第一条" not in lxml_only
+
+    # Either way, the pipeline's own path must not lose the statute. This is the claim that
+    # actually protects the corpus, and it holds on both sides of the version split.
+    assert "第一条" in _html_to_text(PREMATURE_CLOSE)
+
+    if not truncates:
+        import lxml.etree as _et
+        pytest.skip(
+            f"this libxml2 ({'.'.join(map(str, _et.LIBXML_VERSION))}, lxml {_et.__version__}) "
+            f"no longer honours the premature </html>, so the fallback is not exercised here. "
+            f"It is still earned on older builds — requirements.txt allows lxml>=5.2. Raise "
+            f"that floor and ocr._soup's fallback can be removed.")
+
+    # This environment DOES truncate, so prove the fallback is what saves the document.
+    assert len(lxml_only) < 60, (
+        f"lxml kept {len(lxml_only)} characters — the collapse this test describes is not "
+        f"happening as measured; re-examine ocr._soup rather than adjusting this number")
 
 
 def test_a_genuinely_short_page_stays_short():

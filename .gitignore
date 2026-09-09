@@ -92,3 +92,7 @@ apps/web/src/generated/*.map
 # --- Ledger tenant output ---
 # Derived from the run records; reproduced by `ledger product`.
 bench/out/
+
+# Superpowers session scratch (SDD reports, progress notes). Working notes, not a
+# deliverable — and they quote config diffs verbatim, which has included endpoints and keys.
+.superpowers/
