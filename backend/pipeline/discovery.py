@@ -1475,7 +1475,8 @@ def discover_live(economy: Economy, pillar: int | None = None,
             # kept inside discover_live (not module import time) for the same reason
             # adapter_india's and adapter_mongolia's lazy imports already are.
             from . import (adapter_china, adapter_indonesia, adapter_laos,  # noqa: F401
-                            adapter_singapore, adapter_thailand, adapter_timor)
+                            adapter_russia, adapter_singapore, adapter_thailand,
+                            adapter_timor)
             for src in api_sources:
                 searcher = (_ADAPTERS.get(src.get("adapter"))
                             or portal.get_adapter(src.get("adapter"))

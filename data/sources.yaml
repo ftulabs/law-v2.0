@@ -758,8 +758,31 @@ sources:
   - economy: RU
     name: Законодательство России (IPS) on pravo.gov.ru — full document bodies
     base_url: http://pravo.gov.ru/proxy/ips/
-    adapter: websearch
-    verified: false
+    adapter: ru_ips                       # 2026-09-12: was `websearch`, which with every engine
+                                          # answering 403 returned fifteen documents of which
+                                          # none was on a Russian host — see
+                                          # backend/pipeline/adapter_russia.py
+    verified: true
+    # PRECISE PHRASES ONLY, and that is a measured constraint rather than a style. The IPS list
+    # frame returns the TWENTY OLDEST matches and its URL-driven pagination does not advance
+    # (page=next / 2 / 21 / last all return the same twenty, measured 2026-09-12), so a broad
+    # term spends the whole budget on Soviet-era decrees: "О персональных данных" returns twenty
+    # 1991 USSR Cabinet resolutions, because the stemmer matches "персонального состава" —
+    # personnel composition — as readily as "персональных данных". A narrow statutory phrase
+    # returns a set small enough to fit: "трансграничная передача персональных данных" returns
+    # SIX rows and all six are genuine cross-border-transfer instruments.
+    queries_p6:
+      - трансграничная передача персональных данных
+      - запрет трансграничной передачи персональных данных
+      - базы данных на территории Российской Федерации
+      - локализация персональных данных граждан Российской Федерации
+      - хранение персональных данных на территории
+    queries_p7:
+      - обработка персональных данных оператором
+      - безопасность критической информационной инфраструктуры
+      - защита информации и информационных технологий
+      - хранение информации о фактах приема передачи сообщений
+      - доступ к персональным данным органов государственной власти
     reachable: "2026-08-28: HTTP 200, document body 13.8k chars of real statute text, cp1251, ~2s"
     robots_read: "2026-08-28"
     note: >-
