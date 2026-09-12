@@ -1176,7 +1176,15 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int,
     buckets: list[list[tuple[str, str, str]]] = []
     bucket_query: list[str] = []                   # the query that produced buckets[i]
     for topic in topics:
-        res = websearch.find_law_urls(economy, topic, max_results=(per_query or settings.discovery_per_query), site=site)
+        # `log=log`, not the default `print`. Without it every `[websearch]` diagnostic — which
+        # engine answered 403, why the circuit opened, what a spent key looks like — went to the
+        # SERVER's stdout and never reached the dashboard's technical log. On the web that is a
+        # run that prints three lines and then says nothing for a minute and a half while this
+        # loop works through its queries: indistinguishable, to the person watching, from a
+        # hang. Reported 2026-09-12 against an India pillar-6 run, which was healthy and took
+        # 61.9s to discover 221 sections across 22 Acts.
+        res = websearch.find_law_urls(economy, topic, site=site, log=log,
+                                      max_results=(per_query or settings.discovery_per_query))
         if pdf_only:
             res = [r for r in res if r[0].lower().split("?")[0].endswith(".pdf")]
         if res:
@@ -1440,6 +1448,7 @@ def discover_live(economy: Economy, pillar: int | None = None,
     for s in sources:
         if s.get("adapter") != "websearch":
             continue
+        log(f"[discovery] web-search lane: {s.get('name', s.get('site') or '?')}")
         found = discover_websearch(economy, pillar, max_docs, site=s.get("site"),
                                    queries=_source_queries(s, pillar),
                                    pdf_only=bool(s.get("pdf_only")),
@@ -1478,6 +1487,8 @@ def discover_live(economy: Economy, pillar: int | None = None,
                             adapter_russia, adapter_singapore, adapter_thailand,
                             adapter_timor)
             for src in api_sources:
+                log(f"[discovery] portal lane: {src.get('name', '?')} "
+                    f"(adapter {src.get('adapter')})")
                 searcher = (_ADAPTERS.get(src.get("adapter"))
                             or portal.get_adapter(src.get("adapter"))
                             or _search_one)

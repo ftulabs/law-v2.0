@@ -144,16 +144,23 @@ def _scrapling_ddg(client, q, n):
     """Last-resort engine: fetch DuckDuckGo's HTML via Scrapling's impersonating Fetcher.
     When the httpx engines above are rate-limited/blocked (their TLS fingerprint is flagged),
     Scrapling's real-browser fingerprint often still gets through. Ignores the httpx client."""
+    # RAISE, don't return []. Returning an empty list here is indistinguishable from "this
+    # engine searched and found nothing", so `_retire` never counted a strike against it and it
+    # re-ran its own internal retry on every query for the whole run. Scrapling retries a dead
+    # host three times at 21 seconds, so on an India pillar-6 run (2026-09-12, DuckDuckGo not
+    # answering at all) that was a minute per query spent re-establishing something the previous
+    # query had already established. `_circuit`'s SOFT rule dropped it after two EMPTIES, which
+    # is a different and slower signal than two failures.
     try:
         from . import scrapling_fetch
-    except Exception:
-        return []
+    except Exception as exc:                                  # noqa: BLE001
+        raise EngineUnavailable("scrapling_ddg", f"import failed ({type(exc).__name__})") from exc
     if not scrapling_fetch.available():
-        return []
+        raise EngineUnavailable("scrapling_ddg", "Scrapling is not installed")
     from urllib.parse import quote_plus
     res = scrapling_fetch.fetch(f"https://html.duckduckgo.com/html/?q={quote_plus(q)}", log=lambda *_: None)
     if not res:
-        return []
+        raise EngineUnavailable("scrapling_ddg", "no response from the browser lane")
     return _parse(res.body.decode("utf-8", "ignore"), "a.result__a", n)
 
 
@@ -200,18 +207,54 @@ def reset_diagnostics() -> None:
     """
     _diag.update(cache_hits=0, network_queries=0, empty_queries=0)
     _diag["engine_failures"] = {}
+    _engine_strikes.clear()
 
 
 def reset_circuit() -> None:
     _circuit["empties"] = 0
 
 
+#: engine name -> consecutive failures THIS RUN. Cleared by `reset_diagnostics`, which runs once
+#: per run — NOT by `reset_circuit`, which runs once per lane.
+_engine_strikes: dict[str, int] = {}
+
+#: Failures before an engine is dropped for the rest of the run. Two, not one, so a single
+#: blip does not retire an engine that still works.
+_STRIKES = 2
+
+
+def _retire(name: str, log) -> None:
+    """Count a failure against an engine, and say so the first time it is retired.
+
+    WHY THIS EXISTS. `_diag["engine_failures"]` already recorded which engines had failed and
+    why — and nothing read it. `_engines()` returned the same full list for every query, so an
+    engine that had answered "HTTP 400 — Not enough credits" was asked again on the next query,
+    and the next, for the whole run. That is free when the failure is fast and ruinous when it
+    is not: measured 2026-09-12 on an India pillar-6 run, DuckDuckGo had stopped answering
+    altogether and each attempt cost 21s x 3 retries x 2 endpoints, so ONE query spent about
+    110 seconds discovering something the previous query had already established. India has
+    four web-search sources and `reset_circuit()` runs per LANE, so the empty-counter restarted
+    each time and the run spent minutes re-confirming that a spent key is still spent.
+
+    Neither failure heals inside a run — a spend cap does not refill and a blocked endpoint does
+    not unblock in thirty seconds — so the honest thing is to stop asking.
+    """
+    n = _engine_strikes.get(name, 0) + 1
+    _engine_strikes[name] = n
+    if n == _STRIKES:
+        log(f"[websearch] {name} retired for this run after {n} failures — "
+            f"not asked again")
+
+
 def _engines() -> list:
+    """The engines still worth asking. Takes no arguments on purpose — it is a pure selector,
+    and the unit tests stub it as one."""
     base = (_ENGINES_HTTPX_FIRST if (settings.crawl_fetcher or "scrapling").lower() == "httpx"
             else _ENGINES_SCRAPLING_FIRST)
     if _circuit["empties"] >= _SOFT:
         base = [e for e in base if e is not _scrapling_ddg]   # drop the ~60s retry path
-    return base
+    return [e for e in base
+            if _engine_strikes.get(getattr(e, "__name__", "?"), 0) < _STRIKES]
 
 
 def _cache_file():
@@ -295,19 +338,30 @@ def search(query: str, site: str | None = None, max_results: int = 10, log=print
                "Accept": "text/html,application/xhtml+xml,*/*;q=0.8"}
     results: list[tuple[str, str]] = []
     with httpx.Client(timeout=settings.crawl_timeout_seconds, headers=headers, follow_redirects=True) as client:
-        for engine in _engines():
+        engines = _engines()
+        if not engines and not _engine_strikes.get("_said_all_retired"):
+            # Say it once. An empty engine list is the right answer here — the caller records
+            # an empty result and the circuit opens — but in silence it reads as a no-op.
+            _engine_strikes["_said_all_retired"] = 1
+            log("[websearch] every engine has been retired for this run — no further "
+                "network searches will be attempted")
+        for engine in engines:
+            name = getattr(engine, "__name__", "?")
             try:
                 results = engine(client, q, max_results)
             except EngineUnavailable as e:
                 _diag["engine_failures"][e.engine] = e.detail
                 log(f"[websearch] {e.engine} unavailable — {e.detail}")
+                _retire(name, log)
                 results = []
             except Exception as e:  # noqa: BLE001
-                log(f"[websearch] {engine.__name__} error ({type(e).__name__})")
+                log(f"[websearch] {name} error ({type(e).__name__})")
+                _retire(name, log)
                 results = []
             if results:
                 break
     if results:
+        _engine_strikes.pop(getattr(engine, "__name__", "?"), None)
         _circuit["empties"] = 0
         import datetime as _dt
         cache[q] = {"results": [list(r) for r in results],
