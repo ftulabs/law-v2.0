@@ -98,6 +98,29 @@ _COMMENTARY = re.compile(
     r"|举办|举行"                                  # zh: "…held an event". A Chinese measure is
     #                                                named 办法/条例/规定/法; it does not HOLD things.
     r"|会见|会谈|出席"                              # zh: diplomatic/leadership reporting
+    # Added 2026-09-12 from a live China run on BOTH pillars. The patterns above already
+    # dropped 55 of 66 pillar-6 candidates and 41 of 63 on pillar 7; these are the four
+    # families that still survived, and each is a STRUCTURAL property of the title rather than
+    # a keyword to chase. Measured against that run's own output: 17 of 17 remaining articles
+    # caught, 0 of 17 real instruments wrongly caught.
+    #
+    # (a) COLUMN FORMAT. cac.gov.cn files articles under a masthead separated by a fullwidth
+    #     bar — "一图读懂｜…", "专家解读｜…", "E法同行 兴辽治宁｜…". No Chinese instrument's
+    #     own name contains one.
+    r"|[｜丨]"
+    # (b) A TITLE THAT IS A SENTENCE. A measure is named with a noun phrase. "《中华人民共和国
+    #     网络安全法》修改后有哪些变化？" and "网络安全法施行6周年！重温习近平总书记重要论述"
+    #     are a question and an exclamation, and an anniversary piece is never the statute.
+    r"|[？！]\s*$|周年"
+    # (c) ENFORCEMENT, not regulation. An announcement that a review has been OPENED against a
+    #     named company states an action, not a rule: "关于对美光公司在华销售产品启动网络安全
+    #     审查的公告", "…对“滴滴出行”启动网络安全审查的公告", "…作出行政处罚". Citing one as
+    #     the measure that satisfies an indicator is a false citation.
+    r"|启动[^，。]{0,12}审查|行政处罚|查处|执法典型案例|约谈|立案调查|违法违规"
+    # (d) OUTREACH AND OUTPUT. Training sessions, legal-literacy theatre, test results and
+    #     annual reports are all published on the same feed as the measures.
+    r"|培训活动|专题培训|普法|新知新觉|重温|指明路径|这些话"
+    r"|测试结果|结果发布|成果发布|报告[（(]|报告$"
     r"|\bpress\s+(?:release|conference|statement)\b"
     r"|\bfrequently\s+asked\s+questions\b|\bFAQs?\b"
     r"|\bexplanatory\s+(?:note|memorandum)\b"
@@ -156,7 +179,14 @@ def classify(law_name: str) -> Status:
 #: Both were reaching the submission, the second with the site's navigation menu as its
 #: Verbatim Snippet.
 _QUOTED_INSTRUMENT = re.compile(r"《[^》]{2,60}》")
-_REPORTING_VERB = re.compile(r"发布|公布|签署|印发|出台|下载|施行|实施")
+#: The COMMENTARY verbs (体现 "embodies", 彰显 "demonstrates", 诠释 "interprets", 折射
+#: "reflects", 解析/评析 "analyses") were added 2026-09-12 alongside the publication verbs.
+#: They are what an opinion piece does TO a measure it quotes: "《个人信息出境安全评估办法》
+#: 体现“以人为本”的数据治理理念" is an argument about the Measures, not the Measures. The 《》
+#: quote is still required, so a measure that merely contains one of these words in its own
+#: name is untouched.
+_REPORTING_VERB = re.compile(r"发布|公布|签署|印发|出台|下载|施行|实施"
+                             r"|体现|彰显|诠释|折射|解析|评析")
 
 
 def _reports_on_an_instrument(name: str) -> bool:

@@ -169,3 +169,55 @@ def test_a_real_measure_is_never_mistaken_for_commentary():
                  "个人信息保护影响评估指南", "Personal Data Protection Act 2012",
                  "Cybersecurity Act 2018", "Advisory Guidelines on Key Concepts in the PDPA"):
         assert instrument.classify(name) is instrument.Status.SCOREABLE, name
+
+
+# ── 5. the four families that survived the first China pass ─────────────────────────────────
+#
+# Titles below are VERBATIM from a live China run on both pillars, 2026-09-12, after the first
+# round of commentary patterns had already dropped 55 of 66 pillar-6 candidates and 41 of 63 on
+# pillar 7. What was left was not noise in general — it was four specific shapes, each a
+# STRUCTURAL property of a Chinese government feed rather than a keyword to chase.
+
+@pytest.mark.parametrize("title, why", [
+    ("一图读懂｜《数据安全技术 电子产品信息清除技术要求》强制性国家标准", "column masthead"),
+    ("E法同行 兴辽治宁｜“知E行法”普法小剧场② 数据安全法五周年篇", "column masthead"),
+    ("《中华人民共和国网络安全法》修改后有哪些变化？", "the title is a question"),
+    ("网络安全法施行6周年！重温习近平总书记重要论述", "anniversary piece"),
+    ("关于对派拓公司在华销售产品启动网络安全审查的公告", "enforcement against a named company"),
+    ("网络安全审查办公室关于对“滴滴出行”启动网络安全审查的公告", "enforcement"),
+    ("北京市网信办对三家企业未履行数据安全保护义务作出行政处罚", "administrative penalty"),
+    ("国家网信办依法集中查处一批侵害个人信息权益的违法违规App", "enforcement sweep"),
+    ("国家网信办发布近期网络安全、数据安全、个人信息保护相关执法典型案例", "case digest"),
+    ("吉林省白城市委网信办认真组织开展《中华人民共和国数据安全法》等法律法规专题培训活动",
+     "a training session ABOUT the law"),
+    ("网络安全如何保障，习近平这些话指明路径", "leadership commentary"),
+    ("提升数据安全治理效能（新知新觉）", "newspaper column"),
+    ("《个人信息出境安全评估办法》体现“以人为本”的数据治理理念", "opinion piece about a measure"),
+    ("2025年人工智能技术赋能网络安全应用测试结果发布", "test results"),
+    ("中国个人信息保护报告（2025年）", "an annual report, not a measure"),
+])
+def test_these_are_not_measures(title, why):
+    assert instrument.classify(title) in instrument.UNSCOREABLE, f"{why}: {title}"
+
+
+@pytest.mark.parametrize("title", [
+    # Every one of these was in the same run's output and IS citable.
+    "数据出境安全评估办法",
+    "中华人民共和国个人信息保护法",
+    "中华人民共和国网络安全法",
+    "中华人民共和国数据安全法",
+    "个人信息出境标准合同办法",
+    "网络数据安全管理条例",
+    "粤港澳大湾区（内地、香港）个人信息跨境流动标准合同实施指引",
+    "关于开展个人信息保护负责人信息报送工作的公告",
+    # And these are the near-misses the patterns must not take with them.
+    "网络安全审查办法",                    # the REVIEW MEASURES, not a review being opened
+    "数据安全技术 电子产品信息清除技术要求",  # the standard itself, without its 一图读懂 wrapper
+    "个人信息保护影响评估指南",
+    "关键信息基础设施安全保护条例",
+    "中华人民共和国密码法",
+])
+def test_and_these_still_are(title):
+    """The guard on the guard. 'Enforcement' patterns that also catch 网络安全审查办法 would
+    delete the very Measures the enforcement is carried out under."""
+    assert instrument.classify(title) is instrument.Status.SCOREABLE, title
