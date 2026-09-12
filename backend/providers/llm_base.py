@@ -39,6 +39,20 @@ class LLMProvider(ABC):
         """Return a JSON object. Implementations must be robust to fenced output."""
         raise NotImplementedError
 
+    def suggested_concurrency(self) -> int:
+        """How many grading calls this provider can usefully take at once.
+
+        A single number cannot serve both shapes of backend. `settings.mapping_concurrency` is
+        16, and its own comment records what that was fitted to: "deepseek throughput plateaus
+        ~12" — one cloud endpoint, where the ceiling is the vendor's rate limit and asking for
+        more buys throttling. A SELF-HOSTED CLUSTER is the opposite: its capacity is the number
+        of nodes, it has no rate limit, and 16 threads across thirteen nodes leaves most of them
+        idle. So the provider answers for itself, and the setting remains the answer for
+        everyone who has no better one. See `LocalLLM.suggested_concurrency`.
+        """
+        from ..config import settings                              # noqa: PLC0415
+        return max(1, settings.mapping_concurrency)
+
     @staticmethod
     def _parse_json(raw: str) -> dict[str, Any]:
         raw = raw.strip()

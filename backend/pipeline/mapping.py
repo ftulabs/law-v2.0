@@ -663,7 +663,14 @@ def map_provisions(
 
     _retr_secs = time.perf_counter() - _t_retr   # retrieval + shortlist/work-list build
     _t_grade = time.perf_counter()
-    workers = max(1, min(settings.mapping_concurrency, len(work) or 1))
+    # Ask the PROVIDER, not the setting. A cloud endpoint's ceiling is its rate limit; a
+    # self-hosted pool's is its node count, and the two want different numbers. Falling back to
+    # the setting keeps every provider that has no opinion behaving exactly as before.
+    try:
+        concurrency = int(llm.suggested_concurrency())
+    except Exception:                    # noqa: BLE001 — a provider without the method is fine
+        concurrency = int(settings.mapping_concurrency)
+    workers = max(1, min(concurrency, len(work) or 1))
     if workers > 1 and work:
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=workers) as ex:
