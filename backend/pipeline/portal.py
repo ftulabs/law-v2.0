@@ -155,3 +155,54 @@ def make_doc(economy: Economy, url: str, title: str, portal_name: str, *,
         source_url=url, portal=portal_name, fmt=fmt, relevance_score=score,
         discovery_tag=DiscoveryTag.NEW, law_number=law_number, law_name=law_name,
         amendment_date=amendment_date)
+
+
+# ── ranking a candidate from its TITLE alone ────────────────────────────────────────────────
+#
+# Discovery ranks before it fetches, so a portal-native adapter has only the title. The two
+# helpers below are shared by every such adapter so the ranking cannot drift per economy, and
+# so the defect they replace cannot come back in one adapter while being fixed in another.
+#
+# WHAT THEY REPLACE. Six adapters used to reach into `discovery._score`, which counts how many
+# of an indicator's `query_terms` appear in the text. Those terms are OPERATIVE PROVISION
+# phrases and all forty-three of pillar 6's are multi-word, so a title matched none of them:
+# measured 2026-09-11, "Personal Data Protection Act 2012" and "Animals and Birds Act 1965"
+# both scored 0.000, and with the adapter's constant base weight added, all 524 of Singapore's
+# current Acts tied at exactly 0.4000. `list.sort` is stable, so a constant key preserves input
+# order, and `_cap`'s trim to `discovery_max_docs` kept the first twenty-two in SSO's own
+# alphabetical browse order -- twenty-two Acts starting with "A", with the PDPA, the
+# Cybersecurity Act and the Companies Act all dropped. See `backend/rdtii/title_terms.py`.
+
+def title_relevance(title: str, indicators, *, economy: str | None = None) -> float:
+    """0.0-1.0: how much this TITLE looks like the name of a law relevant to `indicators`.
+
+    Two signals, deliberately in this order:
+
+    1. A NAME FRAGMENT hit ("personal data protection act", "criminal procedure code",
+       个人信息保护, ข้อมูลส่วนบุคคล). These are contiguous title substrings by construction --
+       `keywords.INDICATOR_SEARCH_TERMS[...]["name"]` was written that way for AU's name-only
+       OData API -- so a hit is strong evidence and several hits are stronger. Saturates at
+       three so a long omnibus title cannot outrank a precise one indefinitely.
+    2. DISTINCTIVE WORD coverage over the same vocabulary, as a tie-break only. Without it
+       every Act that matches no fragment ties again, which is the original defect in miniature:
+       ties hand the ordering back to the portal's arrival order.
+
+    Returns 0.0 when nothing matches -- an honest "this title says nothing about the topic",
+    which the caller is free to combine with its own base weight.
+    """
+    from ..rdtii import title_terms as T
+    blob = T.normalise(title)
+    if not blob:
+        return 0.0
+    frags = [T.normalise(f) for f in T.name_fragments(indicators)]
+    frags += [T.normalise(f) for f in T.native_fragments(economy)]
+    frags = [f for f in dict.fromkeys(frags) if f]
+    if not frags:
+        return 0.0
+    hits = sum(1 for f in frags if f in blob)
+    phrase = min(1.0, hits / 3.0)
+    vocab = {w for f in frags for w in f.split() if len(w) > 3}
+    words = sum(1 for w in vocab if w in blob) / len(vocab) if vocab else 0.0
+    # CJK/Thai/Lao fragments do not split into words, so `vocab` is empty or unhelpful there;
+    # the phrase term carries the whole signal in that case, which is correct for those scripts.
+    return round(min(1.0, 0.80 * phrase + 0.20 * min(1.0, words * 4)), 4)

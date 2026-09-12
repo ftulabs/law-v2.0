@@ -1,0 +1,29 @@
+{
+ "_captured": "2026-09-12 from https://www.indiacode.gov.in/server/api/discover/search/objects?query=%22transfer+of+personal+data%22",
+ "_why": "The shipped adapter read dc.title.act_name, which this response does NOT contain, so act_name() returned '' for every hit and India Code contributed zero documents to every run. The hand-written fixtures carried the same wrong key, so the suite was green. This is the portal's own answer, kept so the key can be checked against reality rather than against an assumption.",
+ "metadata_keys": [
+  "dc.date.accessioned",
+  "dc.date.act_year",
+  "dc.identifier.act_id",
+  "dc.identifier.act_name",
+  "dc.identifier.act_number",
+  "dc.identifier.act_repealed",
+  "dc.identifier.collection",
+  "dc.identifier.id",
+  "dc.identifier.ministry_id",
+  "dc.identifier.ministry_name",
+  "dc.identifier.order_number",
+  "dc.identifier.page_from",
+  "dc.identifier.page_number",
+  "dc.identifier.page_to",
+  "dc.identifier.repealed",
+  "dc.identifier.section_id",
+  "dc.identifier.section_number",
+  "dc.identifier.section_page_note",
+  "dc.identifier.state_id",
+  "dc.identifier.state_name",
+  "dc.identifier.uri",
+  "dc.title"
+ ],
+ "act_name_value": "The Digital Personal Data Protection Act, 2023."
+}

@@ -330,11 +330,8 @@ def _relevance(section: str, title: str, indicators: list) -> float:
     base = _SECTION_WEIGHT.get(section, 0.35)
     hits = sum(1 for t in _ZH_TERMS if t in title)
     topic_zh = min(1.0, hits / 2.0) if _ZH_TERMS else 0.0
-    topic_en = 0.0
-    if indicators:
-        from .discovery import _score as _topic_score
-        topic_en = _topic_score(title, indicators)
-    return round(min(0.99, max(0.05, base + 0.35 * topic_zh + 0.10 * topic_en)), 4)
+    topic_title = portal.title_relevance(title, indicators, economy="CN")
+    return round(min(0.99, max(0.05, base + 0.35 * topic_zh + 0.25 * topic_title)), 4)
 
 
 def _search_url(term: str, page: int = 1) -> str:

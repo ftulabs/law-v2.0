@@ -162,13 +162,20 @@ def _body_url(path: str) -> str:
 def _relevance(kind: str, title: str, indicators: list) -> float:
     """How much of the discovery budget this Act deserves, from its TITLE alone (the body is
     not fetched at discovery time). See module docstring's "RELEVANCE SCORING" section.
+
+    TOPICAL FIT comes from `portal.title_relevance`, not `discovery._score`. `_score` counts
+    how many of an indicator's `query_terms` appear in the text, and those terms are OPERATIVE
+    PROVISION phrases -- all forty-three of pillar 6's are multi-word. A TITLE contains none of
+    them, so that signal read 0.000 for every row here and the score collapsed to the constant
+    base weight: `list.sort` is stable, so a constant key handed the ordering back to the
+    portal's own arrival order and `discovery._cap` kept whatever happened to be first.
+    `title_relevance` scores the title against TITLE vocabulary instead -- the name fragments
+    in `keywords.INDICATOR_SEARCH_TERMS[...]["name"]` plus this economy's native ones in
+    `rdtii/title_terms.py`.
     """
-    base = _KIND_WEIGHT.get(kind, 0.40)
-    topic = 0.0
-    if indicators:
-        from .discovery import _score as _topic_score
-        topic = _topic_score(title, indicators)
-    return round(min(0.99, max(0.05, base + 0.35 * topic)), 4)
+    base = _KIND_WEIGHT.get(kind.lower(), 0.40)
+    topic = portal.title_relevance(title, indicators, economy="SG")
+    return round(min(0.99, max(0.05, base + 0.45 * topic)), 4)
 
 
 def enumerate_sso(client, log: Log = safe_log, kinds=("Act",), page_size: int = 500) -> list[dict]:

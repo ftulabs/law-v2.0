@@ -259,10 +259,7 @@ def _relevance(title: str, terms: list[str], indicators: list) -> float:
             break
     term_hits = sum(1 for t in terms if t and t.lower() in low)
     term_fit = min(1.0, term_hits / 2.0) if terms else 0.0
-    topic_en = 0.0
-    if indicators:
-        from .discovery import _score as _topic_score
-        topic_en = _topic_score(title, indicators)
+    topic_en = portal.title_relevance(title, indicators, economy="ID")
     return round(min(0.99, max(0.05, 0.55 * type_weight + 0.30 * term_fit + 0.15 * topic_en)), 4)
 
 

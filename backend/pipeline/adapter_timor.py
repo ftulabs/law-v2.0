@@ -230,11 +230,8 @@ def _relevance(category: str, url: str, title: str, indicators: list) -> float:
     year_bonus = 0.0
     if year is not None:
         year_bonus = 0.08 * max(0.0, min(1.0, (year - _YEAR_MIN) / (_YEAR_MAX - _YEAR_MIN)))
-    topic = 0.0
-    if indicators:
-        from .discovery import _score as _topic_score
-        topic = _topic_score(title, indicators)
-    return round(min(0.99, max(0.05, base + year_bonus + 0.30 * topic)), 4)
+    topic = portal.title_relevance(title, indicators, economy="TL")
+    return round(min(0.99, max(0.05, base + year_bonus + 0.40 * topic)), 4)
 
 
 #: `<meta http-equiv="Content-Type" content="text/html; charset=...">`, read out of the raw

@@ -18,7 +18,7 @@ What the API gives us, and why it matters here more than anywhere else:
                                   citation the submission requires is the unit the portal ships
     dc.identifier.section_number  the section number, already parsed
     dc.title                      the section heading
-    dc.title.act_name             the parent Act
+    dc.identifier.act_name        the parent Act (NOT dc.title.act_name; see ACT_NAME_FIELD)
     dc.identifier.section_page_note   THE OPERATIVE TEXT of the section, as HTML
     dc.identifier.act_repealed    an in-force flag, so repealed Acts can be dropped up front
     dc.identifier.act_number / act_year / ministry_name / state_name
@@ -54,7 +54,7 @@ two reasons that only show up when you look at what it returns:
 So: **stage 1 finds the Act, stage 2 takes the whole Act.**
 
 Stage 1 fires a quoted statutory phrase and tallies the parent Acts of the Central SECTION
-hits. Stage 2 asks `dc.title.act_name:"<act>"` and pages until the Act is exhausted — the
+hits. Stage 2 asks `dc.identifier.act_name:"<act>"` and pages until the Act is exhausted — the
 Information Technology Act 2000 yields its 125 sections, including 43A (security practices),
 67C (preservation) and 69 (interception), none of which the old lane ever reached.
 
@@ -103,6 +103,14 @@ MAX_ACTS_PER_QUERY = 4
 _TAG = re.compile(r"<[^>]+>")
 _WS = re.compile(r"\s+")
 _ALREADY_STRUCTURED = re.compile(r"[\"“”]|\bAND\b|\bOR\b")
+
+
+#: The Solr field holding a section's parent Act. Measured against the live index on
+#: 2026-09-11: a phrase query on `dc.title.act_name` returns 0 hits for the Digital Personal
+#: Data Protection Act and one on `dc.identifier.act_name` returns 50. See `act_name` for what
+#: the wrong name cost. Kept as one constant so the metadata read and the stage-2 search query
+#: cannot drift apart again.
+ACT_NAME_FIELD = "dc.identifier.act_name"
 
 
 def _md(item: dict, *keys: str) -> str:
@@ -154,7 +162,17 @@ def is_central(item: dict) -> bool:
 
 
 def act_name(item: dict) -> str:
-    return _md(item, "dc.title.act_name").strip().rstrip(".")
+    # `dc.identifier.act_name` is the key India Code actually publishes, and reading the
+    # WRONG one is silent by construction: `_md` returns "" for a key that is absent, so
+    # `phrase_acts` skipped every hit ("if name:"), `_search_in_dspace` logged "no in-force
+    # Central sections" for every query, and the whole economy fell through to the web-search
+    # lanes -- whose top results were India Code's own navigation pages. Measured 2026-09-11,
+    # a hit for '"transfer of personal data"' carries
+    #   dc.title.act_name        -> ""                                     (does not exist)
+    #   dc.identifier.act_name   -> "The Digital Personal Data Protection Act, 2023."
+    # Both names are read, the real one first, because a DSpace field rename is exactly the
+    # kind of change that must not silently empty an economy a second time.
+    return _md(item, ACT_NAME_FIELD, "dc.title.act_name").strip().rstrip(".")
 
 
 def _get(client, path: str, **params) -> dict:
@@ -250,7 +268,7 @@ def act_sections(client, act: str, log=lambda _m: None) -> list[dict]:
     them. A phrase search returns at most a handful of an Act's sections — the ones whose text
     happens to contain the phrase — which is not the same thing as the Act.
     """
-    query = 'dc.title.act_name:"%s"' % act.replace('"', " ")
+    query = '%s:"%s"' % (ACT_NAME_FIELD, act.replace('"', " "))
     out: list[dict] = []
     seen: set[str] = set()
     page = 0

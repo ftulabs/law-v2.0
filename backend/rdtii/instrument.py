@@ -79,7 +79,20 @@ _COMMENTARY = re.compile(
     r"|政策问答|法规问答"                            # zh: policy / regulatory Q&A
     r"|解读"                                       # zh: interpretation, incl. 专家解读/权威解读
     r"|新闻发布会|记者会"                            # zh: press conference
-    r"|行业动态|新闻中心"                            # zh: industry news, newsroom
+    r"|行业动态|新闻中心|工作动态"                     # zh: industry news, newsroom
+    # Added 2026-09-11 from a live China pillar-6 run whose twenty-two candidates contained ONE
+    # statute. The patterns above caught fifteen of the twenty-one articles; these are the six
+    # they missed, and each names the statute it is about, so every keyword scorer ranked them
+    # level with the statute itself. None of these words can occur in a Chinese instrument's
+    # own name — a measure is 办法/条例/规定/法, it is not a briefing, a study session or a
+    # contact-details page.
+    r"|宣讲"                                       # zh: outreach/briefing session
+    r"|专题学习|学习贯彻"                            # zh: a body STUDYING the law, not the law
+    r"|联系方式"                                   # zh: "contact details for filing" page
+    r"|座谈会|研讨会|培训班|高峰论坛"                 # zh: seminar, workshop, training, forum
+    r"|举办|举行"                                  # zh: "…held an event". A Chinese measure is
+    #                                                named 办法/条例/规定/法; it does not HOLD things.
+    r"|会见|会谈|出席"                              # zh: diplomatic/leadership reporting
     r"|\bpress\s+(?:release|conference|statement)\b"
     r"|\bfrequently\s+asked\s+questions\b|\bFAQs?\b"
     r"|\bexplanatory\s+(?:note|memorandum)\b"

@@ -28,7 +28,7 @@ def _item(act, sec, heading, *, collection="SECTION", state="CENTRAL", body="Som
             "dc.identifier.section_number": [{"value": sec}],
             "dc.identifier.state_name": [{"value": state}],
             "dc.identifier.act_repealed": [{"value": repealed}],
-            "dc.title.act_name": [{"value": act}],
+            "dc.identifier.act_name": [{"value": act}],
             "dc.identifier.section_page_note": [{"value": body}],
         },
     }
@@ -46,7 +46,7 @@ def _wrap(items, total=None):
     ("cross-border transfer of personal data", '"cross-border transfer of personal data"'),
     ('"personal data" AND "outside India"', '"personal data" AND "outside India"'),
     ("cybersecurity", "cybersecurity"),
-    ('dc.title.act_name:"X"', 'dc.title.act_name:"X"'),
+    ('dc.identifier.act_name:"X"', 'dc.identifier.act_name:"X"'),
 ])
 def test_a_bare_query_is_quoted_and_a_structured_one_is_left_alone(raw, expect):
     """Unquoted, this engine matches a bag of words: `cross-border transfer of personal data`
@@ -99,7 +99,7 @@ def test_stage_two_pages_until_the_act_is_exhausted(monkeypatch):
 
 
 def test_stage_two_rejects_a_longer_act_whose_name_merely_contains_the_query(monkeypatch):
-    """`dc.title.act_name:"…"` is a phrase match, so a longer title can come back with it."""
+    """`dc.identifier.act_name:"…"` is a phrase match, so a longer title can come back with it."""
     items = [_item("IT Act, 2000", "1", "a"),
              _item("IT Act, 2000 (Amendment) Act, 2008", "1", "b")]
     monkeypatch.setattr(A, "_get", lambda *a, **k: _wrap(items))
@@ -115,8 +115,8 @@ def test_the_adapter_returns_a_whole_act_not_just_the_matching_sections(monkeypa
 
     def fake_get(_client, _path, **params):
         q = params.get("query", "")
-        return _wrap(act_items if q.startswith("dc.title.act_name:") else hit_items,
-                     total=len(act_items) if q.startswith("dc.title") else 19)
+        return _wrap(act_items if q.startswith(A.ACT_NAME_FIELD + ":") else hit_items,
+                     total=len(act_items) if q.startswith(A.ACT_NAME_FIELD) else 19)
 
     monkeypatch.setattr(A, "_get", fake_get)
     monkeypatch.setattr("backend.pipeline.fetch.seed_cache", lambda *a, **k: None)
@@ -196,7 +196,7 @@ def _sec(number, text):
         "dc.identifier.collection": [{"value": "SECTION"}],
         "dc.identifier.section_number": [{"value": number}],
         "dc.identifier.section_page_note": [{"value": text}],
-        "dc.title.act_name": [{"value": "The Information Technology Act, 2000"}],
+        "dc.identifier.act_name": [{"value": "The Information Technology Act, 2000"}],
         "dc.identifier.state_name": [{"value": "CENTRAL"}]}}
 
 

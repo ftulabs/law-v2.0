@@ -87,6 +87,109 @@ _FILENAME = re.compile(r'filename="([^"]*)"')
 #: can run over text an unescape produced.
 _TAG = re.compile(r"</?[a-zA-Z][^>]*>|<[!?][^>]*>")
 _WS = re.compile(r"\s+")
+#: A WHOLE-LAW repeal declaration, as legalinfo.mn itself words it. Two forms, both verified
+#: live 2026-09-11:
+#:
+#:   lawId=374  "Энэ хуулийг Нийтийн мэдээллийн ил тод байдлын тухай хууль … хүчин төгөлдөр
+#:               болсон өдрөөс эхлэн хүчингүй болсонд тооцно"     (in the exported body)
+#:   lawId=537  "…21-ний өдөр баталсан Хувь хүний нууцын тухай хуулийг хүчингүй болсонд
+#:               тооцсугай"                                       (on the detail page)
+#:
+#: The 1995 Law on Personal Secrecy (537) is the case that matters: it was repealed by the 2021
+#: data-protection law, the portal strikes it through in red, and its TITLE says nothing — so
+#: the title-only gate below admitted it, and a pillar-7 run could cite a law that has not been
+#: in force since 2021. A repealed instrument scores zero however well it reads.
+_REPEAL_DECLARATION = re.compile(r"хүчингүй\s+болсонд\s+тооц", re.I)
+
+#: What must NOT be in the same sentence. A law still in force says exactly these words about
+#: its OWN amended pieces — "/Энэ заалтыг 2022 оны … хуулиар хүчингүй болсонд тооцсон/" appears
+#: inside the 2021 Public Information Transparency Act, which is current. Reading a provision
+#: note as a whole-law repeal would drop the very laws the panel cites.
+_REPEAL_OF_A_PART = re.compile(r"заалтыг|хэсгийг|дэд\s*заалт", re.I)
+
+#: And what MUST be, so that a law which REPEALS another is not mistaken for a repealed one:
+#: the declaration has to be about THIS instrument — either "Энэ хуулийг" ("this law") or the
+#: document's own title.
+_THIS_LAW = re.compile(r"энэ\s+хуулийг", re.I)
+
+#: Sentence boundary. Mongolian legal text ends a clause with a full stop, a
+#: semicolon or a line break, and the bracketed amendment notes this test has to
+#: tell apart are each on their own line.
+SENTENCE_SPLIT = re.compile(r"[.;\n]")
+
+
+def _declares_itself_repealed(text: str, title: str) -> bool:
+    """True when `text` contains a repeal declaration aimed at THIS law.
+
+    Sentence-scoped on purpose: a single document carries both kinds of sentence, and a
+    document-wide keyword count cannot tell "this law is repealed" from "this law repeals
+    a paragraph of another one".
+    """
+    if not text:
+        return False
+    key = re.findall(r"[\w\-]{4,}", _title_key(title))[:4] if title else []
+    for sentence in re.split(SENTENCE_SPLIT, text):
+        if not _REPEAL_DECLARATION.search(sentence) or _REPEAL_OF_A_PART.search(sentence):
+            continue
+        if _THIS_LAW.search(sentence):
+            return True
+        low = sentence.lower()
+        if key and all(w.lower() in low for w in key):
+            return True
+    return False
+
+
+#: lawId -> in-force verdict, for this process. The detail page is fetched at most once per
+#: instrument even when several queries reach the same law, which they routinely do.
+_REPEAL_CACHE: dict[str, bool] = {}
+
+_STRIP_TAGS = re.compile(r"<[^>]+>")
+
+
+def _is_repealed(client, law_id: str, title: str, body, log) -> bool:
+    """Is this instrument still in force? Ask the portal, not the title.
+
+    The module used to assert that "legalinfo.mn has no in-force field". It does: the portal
+    files every act under one of three browse lists — `/mn/law/` (Хүчинтэй, in force),
+    `/mn/dislaw/` (Хүчингүй, repealed) and `/mn/overlaw/` (operation ceased) — and strikes a
+    repealed one through in red on its own page. What it does NOT do is put that status in the
+    sitemap or in the `Content-Disposition` title, which is all the catalogue carries, so the
+    shipped gate looked for the word ХҮЧИНГҮЙ in the TITLE and admitted every repealed law
+    whose title does not happen to contain it. The 1995 Law on Personal Secrecy (lawId=537) is
+    exactly that case, and it is a plausible pillar-7 citation.
+
+    Two places are read, cheapest first:
+
+    1. The EXPORTED body, which this adapter already has in hand — no extra request. That is
+       enough for lawId=374, whose transitional article says "Энэ хуулийг … хүчингүй болсонд
+       тооцно".
+    2. Only if that is silent, the DETAIL page, where the portal appends the repealing
+       provision — "…Хувь хүний нууцын тухай хуулийг хүчингүй болсонд тооцсугай" for 537.
+
+    A failed detail fetch returns False (keep the document). Guessing "repealed" from a network
+    error would silently delete evidence, which is the worse of the two mistakes.
+    """
+    if _REPEALED_TITLE.search(title or ""):
+        return True
+    cached = _REPEAL_CACHE.get(law_id)
+    if cached is not None:
+        return cached
+    markup = body.decode("utf-8", "replace") if isinstance(body, (bytes, bytearray)) else str(body)
+    verdict = _declares_itself_repealed(export_text(markup.encode("utf-8")), title)
+    if not verdict:
+        try:
+            from . import portal as _portal                          # noqa: PLC0415
+            resp = client.get(DETAIL.format(id=law_id), headers=_portal.headers(),
+                              follow_redirects=True, timeout=45)
+            if resp.status_code == 200:
+                verdict = _declares_itself_repealed(_STRIP_TAGS.sub(" ", resp.text), title)
+        except Exception as exc:                     # noqa: BLE001 — keep the document
+            log(f"[discovery] legalinfo.mn: could not check in-force status for "
+                f"lawId={law_id} ({type(exc).__name__}); keeping it")
+    _REPEAL_CACHE[law_id] = verdict
+    return verdict
+
+
 #: Title carries the repeal flag. legalinfo.mn has no in-force field, but it names a repealed
 #: instrument "... ХҮЧИНГҮЙ" ("… no longer in force") and a repeal declaration "… ХҮЧИНГҮЙ
 #: БОЛСОНД ТООЦОХ ТУХАЙ" — both contain хүчингүй. Citing either scores zero however well the
@@ -423,6 +526,7 @@ def _search_mn_legalinfo(client, src: dict, query: str, economy: Economy, indica
                 hits.append((law_id, title, 0))
 
     out: list[DiscoveredDoc] = []
+    repealed = 0
     for law_id, title, size in hits:
         # The no-catalogue path discovers titles one export at a time; apply the same
         # repealed-title gate in both paths so a probe cannot smuggle in what the catalogue
@@ -436,6 +540,9 @@ def _search_mn_legalinfo(client, src: dict, query: str, economy: Economy, indica
             continue
         if not body:
             continue
+        if _is_repealed(client, law_id, title, body, log):
+            repealed += 1
+            continue
         try:
             from .fetch import seed_cache
             seed_cache(DETAIL.format(id=law_id), body, "text/html", log=lambda _m: None)
@@ -443,5 +550,8 @@ def _search_mn_legalinfo(client, src: dict, query: str, economy: Economy, indica
             log(f"[discovery] could not seed MN lawId={law_id}: {type(exc).__name__}")
         out.append(_doc(law_id, title, economy, portal, size))
 
+    if repealed:
+        log(f"[discovery] legalinfo.mn: dropped {repealed} instrument(s) the portal itself "
+            f"declares repealed (the title did not say so)")
     log(f"[discovery] legalinfo.mn: {len(out)} instruments for {query!r}")
     return out

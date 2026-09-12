@@ -438,6 +438,44 @@ def _cap(docs: list[DiscoveredDoc], max_docs: int, section_unit: bool) -> list[D
     return kept
 
 
+
+def _drop_unscoreable(docs: list[DiscoveredDoc], log) -> list[DiscoveredDoc]:
+    """Drop candidates whose own TITLE says they are not a citable measure.
+
+    `rdtii/instrument.py` has recognised press releases, drafts, repeals and amending acts
+    since Round 2, but only the ORCHESTRATOR and the CSV exporter ever asked it — that is,
+    after the document had been fetched, OCR'd, split into provisions and graded by the LLM.
+    The cost of asking that late is the whole run: a China pillar-6 run on 2026-09-11 filled
+    all twenty-two of its `discovery_max_docs` slots with articles ABOUT the Personal
+    Information Protection Law — eleven "专家解读" commentaries, three briefing-session
+    reports, two "征求意见稿" drafts, a contact-details page — and reached the grader with ONE
+    statute in the set. Every one of those articles names the law it discusses, so a
+    title-keyword scorer cannot separate them from it; only the instrument class can.
+
+    Asking here instead frees those slots for real measures and skips the fetch, the OCR and
+    the LLM calls that the row was going to be discarded for anyway.
+
+    AMENDING acts are the deliberate exception. `orchestrator._drop_unscoreable_rows` keeps
+    them on purpose (the finding is right and only the citation needs re-pointing), and MY
+    depends on that: `lom.agc.gov.my` publishes dated reprints, so an amendment newer than the
+    reprint is not yet consolidated and is real evidence. Dropping them here would silently
+    reverse a decision made two layers down.
+    """
+    from ..rdtii import instrument
+    drop = (instrument.Status.DRAFT, instrument.Status.REPEALED, instrument.Status.COMMENTARY)
+    kept, binned = [], {}
+    for d in docs:
+        status = instrument.classify(d.law_name or d.title)
+        if status in drop:
+            binned[status.value] = binned.get(status.value, 0) + 1
+            continue
+        kept.append(d)
+    if binned:
+        detail = ", ".join(f"{n} {k}" for k, n in sorted(binned.items()))
+        log(f"[discovery] dropped {sum(binned.values())} candidate(s) that are not a citable "
+            f"measure ({detail}) — see rdtii/instrument.py")
+    return kept
+
 def _dedup_by_law_title(docs: list[DiscoveredDoc]) -> list[DiscoveredDoc]:
     """Collapse multiple versions/compilations of the same law into the best one.
 
@@ -1071,9 +1109,39 @@ def _search_my_catalogue(client, src: dict, query: str, economy: Economy, indica
     return out
 
 
+def _host_of(value: str | None) -> str:
+    """The bare host in `value`, whether it arrives as a host, a URL or None."""
+    from urllib.parse import urlsplit                               # noqa: PLC0415
+    if not value:
+        return ""
+    v = value.strip()
+    host = urlsplit(v if "//" in v else "//" + v).netloc or v
+    return host.split("@")[-1].split(":")[0].lower().removeprefix("www.")
+
+
+def _on_official_host(url: str, host: str) -> bool:
+    """Is `url` served by `host` or one of its subdomains?
+
+    The `site:` operator is a REQUEST, not a guarantee. Every engine this pipeline can still
+    reach answers most queries with HTTP 403, and what leaks through a degraded engine is
+    unscoped web results. Measured on Russia, 2026-09-11: a pillar-6 run returned fifteen
+    "documents" and NOT ONE was on a Russian government host — duckduckgo.com (an advert for a
+    VPN subscription), en.wikipedia.org, cloudflare.com, imperva.com, two Vietnamese
+    law-reference sites publishing Vietnam's own 91/2025/QH15, and pdpc.gov.sg, which is
+    SINGAPORE's regulator. Those are not low-quality candidates to be ranked down; they are
+    other countries' law and vendor marketing, and the pipeline downstream would have fetched
+    them, split them into provisions, graded them and been free to cite cloudflare.com as
+    evidence of Russian data-localisation law. An economy's discovery may return nothing, but
+    it may never return another economy's statute.
+    """
+    got = _host_of(url)
+    return bool(got) and (got == host or got.endswith("." + host))
+
+
 def discover_websearch(economy: Economy, pillar: int | None, max_docs: int,
                        site: str | None = None, queries: list[str] | None = None,
-                       pdf_only: bool = False, per_query: int | None = None) -> list[DiscoveredDoc]:
+                       pdf_only: bool = False, per_query: int | None = None,
+                       base_url: str | None = None, log=safe_log) -> list[DiscoveredDoc]:
     """Discover laws via web search (slide A: 'search ... and the web') — portal-agnostic,
     generalises to any economy with an entry in websearch.OFFICIAL_PORTAL.
 
@@ -1083,6 +1151,18 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int,
     portal whose HTML pages are JS/navigation wrappers, so only the document files are extracted."""
     from . import websearch
     from ..rdtii.keywords import portal_search_queries
+    # THE HOST THIS LANE IS ALLOWED TO RETURN. Taken from the source's own `site:`, else its
+    # `base_url`, else the economy's entry in `websearch.OFFICIAL_PORTAL`. Russia, Laos and
+    # Timor-Leste have no OFFICIAL_PORTAL entry, which is how RU's lane came to run completely
+    # unscoped — reading `base_url` closes that gap without a second table to keep in step.
+    official_host = _host_of(site) or _host_of(base_url) or _host_of(
+        websearch.OFFICIAL_PORTAL.get(economy.value))
+    if not official_host:
+        # Refusing is the honest answer. An unscoped engine query cannot be attributed to this
+        # economy at all, so anything it returns is unusable however good it looks.
+        log(f"[websearch] no official host known for {economy.value} — lane skipped rather "
+            f"than searching the open web (set `site:` or `base_url:` in data/sources.yaml)")
+        return []
     websearch.reset_circuit()                      # fresh circuit-breaker state per lane (this
                                                      # runs once per web-search source per pillar)
     # web search is inherently full-text (the engine indexed the law BODIES), so descriptive
@@ -1113,7 +1193,15 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int,
     # below, where the snippet carries no indicator vocabulary to rank on).
     found_by: dict[str, int] = {}
 
+    off_host: dict[str, int] = {}
+
     def _add(url: str, title: str, snippet: str, qi: int = 0) -> None:
+        # The engine was ASKED for `site:<official_host>` and may simply not have obeyed. A hit
+        # on another host is discarded here, before it can become a DiscoveredDoc — see
+        # `_on_official_host` for the run that made this necessary.
+        if not _on_official_host(url, official_host):
+            off_host[_host_of(url)] = off_host.get(_host_of(url), 0) + 1
+            return
         # source_url stays the human-facing LANDING page (judges prefer it); the PDF body
         # URL is resolved only at fetch time (see _resolve_pdf_url).
         su = _clean_source_url(economy, url)
@@ -1153,6 +1241,11 @@ def discover_websearch(economy: Economy, pillar: int | None, max_docs: int,
                 _add(it[0], it[1], it[2] if len(it) > 2 else "", bi)
         if len(by_url) >= max_docs * 3:
             break
+    if off_host:
+        worst = ", ".join(f"{h} x{n}" for h, n in
+                          sorted(off_host.items(), key=lambda kv: -kv[1])[:5])
+        log(f"[websearch] dropped {sum(off_host.values())} result(s) not on "
+            f"{official_host} — the engine ignored `site:` ({worst})")
     # Collapse multiple URL variants of the same law into the most current/in-force version.
     docs = _dedup_by_law_title(list(by_url.values()))
     # For MY: prefer English over Bahasa Malaysia — but NOT for a pdf_only sectoral source: there the
@@ -1350,7 +1443,8 @@ def discover_live(economy: Economy, pillar: int | None = None,
         found = discover_websearch(economy, pillar, max_docs, site=s.get("site"),
                                    queries=_source_queries(s, pillar),
                                    pdf_only=bool(s.get("pdf_only")),
-                                   per_query=s.get("per_query"))
+                                   per_query=s.get("per_query"),
+                                   base_url=s.get("base_url"), log=log)
         if economy.value == "AU":
             # content-lane hits can be bills, budget papers or repealed acts — keep only
             # register ids the OData API confirms as in-force (repealed evidence is penalised)
@@ -1425,6 +1519,23 @@ def discover_live(economy: Economy, pillar: int | None = None,
                     except Exception as exc:            # noqa: BLE001 — one dead query is not fatal
                         log(f"[discovery] {src.get('name', '?')} failed on {q!r}: "
                             f"{type(exc).__name__}: {exc}")
+                # RANK MEANS RANK, NOT ARRIVAL ORDER. The merge below takes each bucket's
+                # rank-N item before any bucket's rank-(N+1), and stops at the budget — so
+                # whatever a bucket happens to return FIRST is what survives. For a search
+                # lane that is right, because the engine already ordered its hits. For a
+                # portal ENUMERATOR it was fatal: `sg_sso` returns all 524 current Singapore
+                # Acts in SSO's own browse order, which is ALPHABETICAL, so the break at
+                # `max_docs * 3` admitted the first sixty-six A-titles and discarded every
+                # Act after them -- the Personal Data Protection Act among them, sitting at
+                # 0.9035 against the 0.6000 of an Act it had just beaten. Measured
+                # 2026-09-11: the adapter's own top three were the PDPA, the Electronic
+                # Transactions Act and the Goods and Services Tax Act; the run's final
+                # twenty-two were "Accountants Act 2004" through "Arbitration Act 2001".
+                # Sorting each bucket by its own score first costs nothing and is a no-op for
+                # web-search buckets, whose documents all carry score 0 by design (they are
+                # ranked later, by content) -- a stable sort leaves the engine's order intact.
+                for bucket in buckets:
+                    bucket.sort(key=lambda d: d.relevance_score, reverse=True)
                 for rank in range(max((len(b) for b in buckets), default=0)):
                     for bucket in buckets:
                         if rank >= len(bucket):
@@ -1459,6 +1570,7 @@ def discover_live(economy: Economy, pillar: int | None = None,
         docs = _drop_amendment_docs(docs)
     elif economy.value == "MY":
         docs = _collapse_my_amendments(docs)
+    docs = _drop_unscoreable(docs, log)
     docs.sort(key=lambda d: d.relevance_score, reverse=True)
     kept = _cap(docs, max_docs, section_unit)
     # Enrich with the portal's own authoritative "last amended" date — only for the final,

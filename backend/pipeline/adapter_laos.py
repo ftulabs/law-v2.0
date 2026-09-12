@@ -271,11 +271,12 @@ def _relevance(category: str, title: str, date_text: str, indicators: list) -> f
         year = int(m.group(3))
         if _YEAR_MIN <= year <= _YEAR_MAX:
             year_bonus = 0.08 * max(0.0, min(1.0, (year - _YEAR_MIN) / (_YEAR_MAX - _YEAR_MIN)))
-    topic = 0.0
-    if indicators and title:
-        from .discovery import _score as _topic_score
-        topic = _topic_score(title, indicators)
-    return round(min(0.99, max(0.05, base + year_bonus + 0.30 * topic)), 4)
+    topic = portal.title_relevance(title, indicators, economy="LA")
+    # `base` is scaled for the same reason `adapter_thailand._relevance` scales its own: a
+    # ກົດໝາຍ (Law) weighs 0.85 against a 0.99 cap, so every Law in the gazette tied and the
+    # ordering fell back to the crawl's page order. The type still separates a Law from an
+    # Order; it no longer decides the whole ranking on its own.
+    return round(min(0.99, max(0.05, 0.60 * base + year_bonus + 0.45 * topic)), 4)
 
 
 def search_la_gazette(client, src: dict, query: str, economy: Economy, indicators: list,

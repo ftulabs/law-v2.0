@@ -24,7 +24,7 @@ S16 = {
         "dc.identifier.act_repealed": [{"value": "false"}],
         "dc.identifier.repealed": [{"value": "false"}],
         "dc.identifier.state_name": [{"value": "CENTRAL"}],
-        "dc.title.act_name": [{"value": "The Digital Personal Data Protection Act, 2023."}],
+        "dc.identifier.act_name": [{"value": "The Digital Personal Data Protection Act, 2023."}],
         "dc.identifier.section_page_note": [{"value":
             '<span style="margin-left: 15px;"></span>(1) The Central Government may, by '
             "notification, restrict the transfer of personal&nbsp;data by a Data Fiduciary "

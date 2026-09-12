@@ -383,12 +383,29 @@ def _relevance(row: dict, indicators: list | None) -> float:
     base = _HIRACHY_WEIGHT.get(hirachy, _DEFAULT_HIRACHY_WEIGHT)
     structure_bonus = 0.05 if "มาตรา" in content else 0.0
     topic = _th_topic(content)
+    title = row.get("law_name_og") or row.get("law_name_th") or ""
     en_topic = 0.0
     if indicators:
+        # `_score` is the RIGHT tool here and the only place it still is: this adapter has the
+        # API's own `content_all`, so the phrases it looks for ("data shall be stored in") are
+        # being matched against the BODY they were written for. Everywhere else they were being
+        # matched against a title, where they can never appear.
         from .discovery import _score as _topic_score
-        title = row.get("law_name_og") or row.get("law_name_th") or ""
         en_topic = _topic_score(f"{title} {content[:4000]}", indicators)
-    score = base + structure_bonus + 0.35 * topic + 0.10 * en_topic
+    # The title is scored separately because it carries the topic even when `content_all` comes
+    # back empty -- which it does API-wide for the Computer-Related Crime Act -- and because
+    # `_score`'s English phrases can never match Thai script. Thai title vocabulary lives in
+    # `rdtii/title_terms.py`.
+    title_topic = portal.title_relevance(title, indicators, economy="TH")
+    # The instrument TYPE is a prior, not the answer. At full weight it was the answer: an Act
+    # scores 0.85 here and the sum is capped at 0.99, so topical fit could move a document by
+    # at most 0.14 and every one of the thousands of พระราชบัญญัติ in this feed tied. Measured
+    # 2026-09-12, a pillar-6 run returned five distinct scores across twenty-two documents, with
+    # the Act establishing the Nakhon Sawan Administrative Court ranked level with the Personal
+    # Data Protection Act. Scaled down, `base` still orders documents of EQUAL relevance by
+    # their place in the hierarchy — which is all it was ever evidence of.
+    score = (0.55 * base + structure_bonus
+             + 0.35 * topic + 0.10 * en_topic + 0.35 * title_topic)
     return round(min(0.99, max(0.05, score)), 4)
 
 
