@@ -368,6 +368,99 @@ def _word_to_text(path: str, metrics: OCRMetrics) -> str:
     return ""
 
 
+#: Economy -> the Unicode block its statutes are actually printed in, as (name, low, high).
+#: Only economies whose script is NOT Latin appear: for a Latin-script economy a text layer of
+#: Latin characters proves nothing either way, so there is nothing to check.
+_EXPECTED_SCRIPT: dict[str, tuple[str, int, int]] = {
+    "LA": ("Lao", 0x0E80, 0x0EFF),
+    "TH": ("Thai", 0x0E00, 0x0E7F),
+    "CN": ("Han", 0x4E00, 0x9FFF),
+    "MN": ("Cyrillic", 0x0400, 0x04FF),
+    "RU": ("Cyrillic", 0x0400, 0x04FF),
+}
+
+#: Below this share of expected-script characters the text layer is not the document's text.
+#: A real Lao statute page is >60% Lao codepoints even counting digits, spaces and the English
+#: words legal drafting borrows; a legacy-font page is 0%.
+_SCRIPT_FLOOR = 0.10
+
+
+def script_coverage(text: str, economy: str | None) -> float | None:
+    """Share of LETTERS in `text` that belong to the script this economy legislates in.
+
+    `None` when there is nothing to check — a Latin-script economy, or too little text to judge.
+    """
+    spec = _EXPECTED_SCRIPT.get((economy or "").upper())
+    if spec is None:
+        return None
+    letters = [c for c in text if c.isalpha()]
+    if len(letters) < 200:
+        return None
+    _name, lo, hi = spec
+    return sum(1 for c in letters if lo <= ord(c) <= hi) / len(letters)
+
+
+def text_layer_is_the_wrong_script(text: str, economy: str | None) -> bool:
+    """True when a PDF's text layer is full of characters, none of them the right ones.
+
+    THE CASE THIS EXISTS FOR. `pdf_inspect.profile_pdf` decides whether a page needs OCR from
+    how much text the layer yields. A page with a legacy, non-Unicode font yields plenty — it is
+    simply the wrong alphabet, because the font maps its Lao glyphs onto Latin codepoints. So
+    the triage says "no OCR needed", pdfplumber returns the layer verbatim, and extraction,
+    retrieval, grading and the Verbatim Snippet column all receive it without anything raising.
+
+    Measured 2026-09-12 on `laoofficialgazette.gov.la`, which publishes exactly this. The Lao
+    Cybersecurity Law's own section 1 reached extraction as:
+
+        "1. bgu (Cyber) muci] aeuucnuianugau 2yu 2oau 2juenauhou cn nnqenmaauaunguin;"
+
+    and its Criminal Procedure Law as "¦¾-ê¾-ì½-­½ìñ© ¯½-§¾-êò-¯½-Äª" — the same defect through a
+    Latin-1 font rather than an ASCII one. Both are 0% Lao characters. Rendering the page and
+    reading the glyphs is the only way to recover the text, which is what OCR does.
+    """
+    cov = script_coverage(text, economy)
+    return cov is not None and cov < _SCRIPT_FLOOR
+
+
+#: Function words a genuine English legal text cannot avoid. Used to tell an ENGLISH TRANSLATION
+#: (which several of these portals publish alongside the native text — `laoofficialgazette.gov.la`
+#: carries "Accounting Law 2013 - engl revised") apart from OCR gibberish. Both score 0% on the
+#: native script; only one of them is a document.
+_EN_FUNCTION_WORDS = frozenset("""
+the of and or to in for by on at as is are be shall may not this that with from any
+article section chapter law act person data information state provisions
+""".split())
+
+
+def looks_like_english(text: str) -> bool:
+    """Is this English prose, rather than characters that merely look Latin?
+
+    OCR run on a script its model does not know does not fail — it transliterates, emitting the
+    closest Latin shapes it has. Measured 2026-09-12, RapidOCR on the Lao Cybersecurity Law
+    produced "144. lani. ./Uun Ueaguyojojj?u, 5un..06.aamn.2025.. nneian Bww 6 1 2ey an ge 1 uan
+    77/awg". That is 100% Latin characters and not one word of any language.
+    """
+    words = re.findall(r"[a-z]{2,}", (text or "").lower())
+    if len(words) < 40:
+        return False
+    return sum(1 for w in words if w in _EN_FUNCTION_WORDS) / len(words) >= 0.10
+
+
+def text_is_unreadable(text: str, economy: str | None) -> bool:
+    """True when the text is in neither the economy's own script nor plain English.
+
+    This is the `js_app_shell` call applied to a different failure. There, an unrendered page
+    carried only site chrome and the pipeline returned "" so that extraction emitted nothing,
+    rather than mapping navigation text as a law. Here the text is OCR transliteration of a
+    script the engine cannot read, and citing it in the Verbatim Snippet column would be a
+    false citation of a real statute — worse than no row, because it looks like evidence.
+    """
+    cov = script_coverage(text, economy)
+    if cov is None or cov >= _SCRIPT_FLOOR:
+        return False
+    return not looks_like_english(text)
+
+
 def _extract_document_text(doc: DiscoveredDoc, ocr_provider: OCRProvider | None = None) -> tuple[str, OCRMetrics]:
     metrics = OCRMetrics()
     path = doc.local_path
@@ -393,7 +486,30 @@ def _extract_document_text(doc: DiscoveredDoc, ocr_provider: OCRProvider | None 
 
     if fmt in (DocFormat.PDF_TEXT, DocFormat.PDF_SCANNED) and path:
         provider = ocr_provider or get_ocr_provider(settings.ocr_provider)
-        return _extract_pdf(path, provider, metrics)
+        text, metrics = _extract_pdf(path, provider, metrics)
+        # A text layer can be present, plentiful, and not the document's text — see
+        # `text_layer_is_the_wrong_script`. Only worth re-reading if OCR has not already run.
+        eco = doc.economy.value if hasattr(doc.economy, "value") else doc.economy
+        if not metrics.used and text_layer_is_the_wrong_script(text, eco):
+            cov = script_coverage(text, eco)
+            ocr_text, ocr_metrics = _run_provider(provider, path)
+            ocr_metrics.notes = (f"{ocr_metrics.notes + '; ' if ocr_metrics.notes else ''}"
+                                 f"text layer re-read by OCR: only {cov:.0%} of its letters "
+                                 f"were in the script {eco} legislates in")
+            # Keep whichever reading is actually in the right script. OCR on a bad scan can do
+            # worse than the layer it replaced, and silently swapping one unusable text for
+            # another would hide that.
+            if (script_coverage(ocr_text, eco) or 0) > (cov or 0):
+                return ocr_text, ocr_metrics
+            metrics.notes = (f"{metrics.notes + '; ' if metrics.notes else ''}"
+                             f"text layer is {cov:.0%} {eco}-script and OCR did no better")
+        if text_is_unreadable(text, eco):
+            # Return nothing rather than transliterated noise — see `text_is_unreadable`.
+            metrics.notes = (f"{metrics.notes + '; ' if metrics.notes else ''}"
+                             f"unreadable_script: the text is neither {eco}'s own script nor "
+                             f"English, so the OCR engine cannot read this document")
+            return "", metrics
+        return text, metrics
 
     return doc.raw_text or "", metrics
 

@@ -465,6 +465,20 @@ def run_pipeline(
             log(f"[extract] {d.title[:70]} -> JS-rendered page, no static law text "
                 f"(set CRAWL_BROWSER=true + run `scrapling install` to render it)")
             return
+        if "unreadable_script" in (ocr_metrics.notes or ""):
+            # The same call as js_app_shell, for a different failure: the document was read,
+            # and what came back is not a language. An OCR engine with no model for the
+            # script transliterates rather than failing, so this would otherwise reach the
+            # Verbatim Snippet column looking like evidence. Say which engine, because the
+            # fix is to change it.
+            log(f"[error] {d.title[:64]} -> {ocr.__name__ if hasattr(ocr, '__name__') else ''}"
+                f"OCR produced no readable text for this script; the document is dropped "
+                f"rather than cited as transliterated noise")
+            log(f"[error] what to do: this economy's documents are scans in a script the "
+                f"current OCR engine cannot read. Set OCR_PROVIDER to an engine with a model "
+                f"for it (Tesseract with the matching language data, or Azure Document "
+                f"Intelligence) and re-run.")
+            return
         if ocr_metrics.used:
             cer_str = (f" CER={ocr_metrics.cer*100:.2f}% {'PASS<5%' if ocr_metrics.cer < 0.05 else 'OVER-5%'}"
                        if ocr_metrics.cer is not None else "")
