@@ -201,6 +201,34 @@ def _queries(src: dict, indicators: list, query: str) -> list[str]:
     return out
 
 
+def _seed_body(client, nd: str, log: Log) -> bool:
+    """Fetch this document and put it in the cache ALREADY DECODED, as UTF-8.
+
+    This is the trap `data/sources.yaml` recorded and the first version of this adapter still
+    walked into. Everything on this host is windows-1251, and `fetch` stores raw bytes and later
+    reads them back with `read_text(encoding="utf-8", errors="ignore")`. cp1251 Cyrillic is not
+    valid UTF-8, so `errors="ignore"` DELETES it — silently, and only the Cyrillic. Measured
+    2026-09-12, a Government resolution on cross-border transfer reached extraction as:
+
+        ", , , , , , 3 - 6, 8 - 11 12 \\" \\" Complex 29 2022 . 2526 , , , , , , 3 - 6, ..."
+
+    Every letter gone, every digit and comma kept. Nothing raised, the provision count was
+    normal, and that string is what the Verbatim Snippet column would have carried — a citation
+    to a Russian statute containing no Russian.
+
+    Decoding here, where the encoding is known, is the same arrangement India Code and
+    legalinfo.mn already use, and it keeps `fetch` from having to guess.
+    """
+    from .fetch import seed_cache                                   # noqa: PLC0415
+    url = body_url(nd)
+    resp = portal.portal_get(client, url, log)
+    if resp is None or not resp.content:
+        return False
+    text = resp.content.decode(ENCODING, "replace")
+    seed_cache(url, text.encode("utf-8"), "text/html; charset=utf-8", log=lambda _m: None)
+    return True
+
+
 def search_ru_ips(client, src: dict, query: str, economy: Economy, indicators: list,
                   log: Log) -> list[DiscoveredDoc]:
     """Adapter entry point, matching the signature `discovery` dispatches on.
@@ -239,6 +267,7 @@ def search_ru_ips(client, src: dict, query: str, economy: Economy, indicators: l
                 row["subject"] or row["designation"], portal_name,
                 law_number=row["designation"] or None,
                 score=_relevance(row, indicators))
+            _seed_body(client, row["nd"], log)
             out.append(doc)
             kept += 1
         log(f"[ru_ips] {term[:46]!r}: {len(rows)} rows, {kept} new in-force")
