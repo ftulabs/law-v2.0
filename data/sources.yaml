@@ -631,6 +631,43 @@ sources:
       keyword search with no enumerable catalogue to walk exhaustively. Already comfortably
       above `discovery_max_docs=22`, so this is not a hard coverage failure, but it is a real,
       disclosed gap rather than an unmeasured one.
+    # SEARCH IN THE PORTAL'S OWN LANGUAGE. This entry carried no queries at all until
+    # 2026-09-12, so `_search_terms` fell back to the generic ENGLISH pillar queries and fired
+    # them at a portal that indexes Indonesian titles. Measured that day, same endpoint, same
+    # fetcher, page 1 of each:
+    #
+    #   "personal data protection"  -> a Sleman Regency housing-aid regulation, the ratification
+    #                                  of the Berne Convention, Jakarta governor's regulations.
+    #                                  Nothing on topic, in any of the ten rows.
+    #   "pelindungan data pribadi"  -> ROW 1 is UU 27/2022, Indonesia's data-protection law,
+    #                                  with Kominfo Reg. 20/2016 third.
+    #
+    # That is the same failure `legalinfo.mn` had (English queries, Mongolian index, zero hits)
+    # and it is fixed the same way, in config, where the language knowledge belongs. Each term
+    # below was run live before being written here; the four that carry the pillars are
+    # "pelindungan data pribadi" (UU 27/2022), "penyelenggaraan sistem dan transaksi
+    # elektronik" (PP 82/2012, which is where localisation lives), "dokumen perusahaan"
+    # (UU 8/1997, record retention) and "keamanan siber" (the BSSN regulations).
+    #
+    # SIX IS THE CEILING, not a preference: `adapter_indonesia._SEARCH_MAX_TERMS` is 6 and the
+    # adapter appends the caller's `query` AFTER these, so a seventh entry here would make
+    # `query` unreachable. The adapter is registered `enumerates_portal=True` for the matching
+    # reason — it runs this whole list itself on one call, so discovery must not also call it
+    # once per term (6 x 6 = 36 searches against a WAF-fronted host).
+    queries_p6:
+      - pelindungan data pribadi
+      - penyelenggaraan sistem dan transaksi elektronik
+      - dokumen perusahaan
+      - informasi dan transaksi elektronik
+      - transfer data pribadi ke luar negeri
+      - pusat data
+    queries_p7:
+      - pelindungan data pribadi
+      - keamanan siber
+      - penyelenggaraan sistem dan transaksi elektronik
+      - informasi dan transaksi elektronik
+      - keterbukaan informasi publik
+      - hukum acara pidana
   - economy: ID
     name: JDIH Nasional (aggregator)
     base_url: https://jdihn.go.id

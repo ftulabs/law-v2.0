@@ -369,4 +369,12 @@ def search_id_bpk(client, src: dict, query: str, economy: Economy, indicators: l
     return out
 
 
-portal.register("id_bpk", search_id_bpk)
+#: `enumerates_portal=True` as of 2026-09-12, when `data/sources.yaml` gained this adapter's
+#: `queries_p6`/`queries_p7`. The flag does not claim the adapter walks a catalogue — it claims
+#: it consumes the WHOLE query list itself on one call and ignores the `query` argument, which
+#: is now true: `_search_terms` fills its six-term budget from the config lists before `query`
+#: is ever appended. Without it `discovery` would call this adapter once per generated query
+#: term, and each call would run all six of its own — thirty-six Scrapling round trips against
+#: a WAF-fronted host, per pillar. `adapter_china.py` opted in on 2026-09-07 for exactly this,
+#: and the docstring of `_search_terms` above predicted this change would be needed.
+portal.register("id_bpk", search_id_bpk, enumerates_portal=True)
