@@ -143,6 +143,35 @@ class LocalLLM(LLMProvider):
         times the failure rate buys lost evidence and a shrinking pool. 39 is the last point
         where the cluster is being worked hard and still answering reliably.
 
+        A BATCHING SERVER IS A THIRD SHAPE, and the failure rate cannot find its knee.
+        Measured 2026-09-14 against the 4x V100 host (`leader`, vLLM 1.2.2 TP4 serving
+        Qwen3.6-35B-A3B, `--max-num-seqs 64 --max-num-batched-tokens 8192`), real grading
+        prompts, 144 DISTINCT ones per level (`tools/sweep_local_concurrency.py`):
+
+            threads   throughput    failed   p50 latency
+                  8     149/min       0 %        3.1 s
+                 16     236/min       0 %        4.0 s
+                 32     316/min       0 %        5.9 s      <- knee
+                 48     307/min       0 %        9.4 s
+
+        vLLM never refuses: past the knee it QUEUES, so 48 threads cost 60 % more latency for
+        no throughput. On the CPU cluster the ERROR RATE marks the ceiling; here errors stay at
+        0 % the whole way and the only sign of overshoot is throughput flattening while latency
+        climbs. So read throughput, not errors, when re-measuring one of these.
+
+        THE KNEE IS NOT `max_num_seqs`. It is 32 against a configured 64, because the limit
+        that binds first is `max_num_batched_tokens` (8192) against a ~3,900-token grading
+        prompt: only about two prompts prefill per scheduler step, so admitting 64 at once
+        just lengthens the queue. Raising `max_num_batched_tokens` moves this knee; the
+        setting is on the SERVER, not here.
+
+        MEASURE WITH DISTINCT PROMPTS OR THE NUMBER IS FICTION. An earlier sweep sent one
+        identical request per level and reported 429/min at 64 threads, and a real run then
+        managed 125/min at that setting. vLLM's prefix cache (77.7 % hit rate on this server)
+        was serving the whole repeated prompt, so the sweep timed a cache rather than the
+        model. The shared SYSTEM prefix is 64 % of this prompt by design, which is exactly why
+        the error was so large.
+
         Bounded below by `settings.mapping_concurrency` so a single-node Ollama on a laptop
         does not end up with LESS concurrency than the shared default.
         """

@@ -1,0 +1,67 @@
+{
+ "model": "Qwen3.6-35B-A3B",
+ "base_url": "http://127.0.0.1:18082/v1",
+ "measured_on": "2026-09-14",
+ "levels": [
+  {
+   "threads": 8,
+   "wall_s": 58.1,
+   "ok": 144,
+   "failed": 0,
+   "calls_per_min": 148.7,
+   "p50": 3.14,
+   "p90": 3.67,
+   "max": 4.33,
+   "out_tok_per_s": 336.4,
+   "errors": []
+  },
+  {
+   "threads": 16,
+   "wall_s": 36.7,
+   "ok": 144,
+   "failed": 0,
+   "calls_per_min": 235.6,
+   "p50": 4.02,
+   "p90": 4.65,
+   "max": 5.41,
+   "out_tok_per_s": 531.2,
+   "errors": []
+  },
+  {
+   "threads": 24,
+   "wall_s": 31.6,
+   "ok": 144,
+   "failed": 0,
+   "calls_per_min": 273.7,
+   "p50": 5.13,
+   "p90": 6.01,
+   "max": 7.08,
+   "out_tok_per_s": 616.1,
+   "errors": []
+  },
+  {
+   "threads": 32,
+   "wall_s": 27.3,
+   "ok": 144,
+   "failed": 0,
+   "calls_per_min": 316.0,
+   "p50": 5.86,
+   "p90": 7.06,
+   "max": 9.38,
+   "out_tok_per_s": 712.9,
+   "errors": []
+  },
+  {
+   "threads": 48,
+   "wall_s": 28.1,
+   "ok": 144,
+   "failed": 0,
+   "calls_per_min": 307.0,
+   "p50": 9.43,
+   "p90": 11.34,
+   "max": 13.54,
+   "out_tok_per_s": 690.3,
+   "errors": []
+  }
+ ]
+}
