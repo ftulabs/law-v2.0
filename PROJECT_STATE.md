@@ -285,6 +285,15 @@ Everything else is retrieval or grading, which is where the budget below bites.
 
 ## §4 Decisions and traps a future session must not re-litigate
 
+- **A concurrency number measured with IDENTICAL prompts is fiction.** `tools/sweep_local_
+  concurrency.py` first sent one repeated request per level and reported 429 calls/min at 64
+  threads on the V100 host; acting on it made a real run SLOWER (191.6s against 151.4s, mean
+  latency 30.6s against 6.0s). vLLM's prefix cache — **77.7% hit rate, read off `/metrics`** —
+  had been serving the whole repeated prompt, so the sweep timed a cache. Re-measured with 144
+  DISTINCT prompts the knee is 32. It is not `max_num_seqs` (64) either: the binding limit is
+  `max_num_batched_tokens` (8192) against a ~3,900-token grading prompt, so about two prompts
+  prefill per scheduler step. The shared SYSTEM prefix is 64% of the prompt BY DESIGN, which is
+  exactly why the error was so large. (`backend/providers/llm_local.py` carries both tables.)
 - **Retrieval parameters are measured, not tuned.** `hybrid_alpha=0.65`, `retrieve_max_top_k`,
   `retrieve_fraction`, `retrieve_per_law_k=0` come from sweeps against the panel's Database.
   Two counter-intuitive results are settled: a law-level prefilter makes recall WORSE, and
@@ -341,6 +350,33 @@ Everything else is retrieval or grading, which is where the budget below bites.
 ---
 
 ## §5 Recently done
+
+- [x] **The live query, profiled stage by stage** (2026-09-14, branch `perf/live-query-speedups`).
+      Live SG pillar-7 against the 4x V100 host (`leader`, vLLM 1.2.2 TP4, Qwen3.6-35B-A3B).
+      Where a warm run's time goes: **grading 151.4s (76%)**, retrieval 12.6s, extraction 9.1s,
+      discovery 24.9s, fetch 0.0s. Cold: extraction **617.1s**, fetch 126.9s, discovery 112.4s.
+      Shipped: grading concurrency 16 → **32** (3.36 vs 2.64 calls/s end to end); the BM25 index
+      is built once per CORPUS instead of once per indicator (19.53s → 6.78s, rankings
+      byte-identical, `tools/bench_bm25_cache.py`); web search now runs AFTER the portal lanes
+      (it was spending 22s of a 24.9s discovery, and 90s of a 112.4s one, proving that every
+      engine still answers 403/202).
+      Measured and REJECTED, so they are not retried: parallelising the per-indicator
+      retrievals is **1.00x** at 2/3/5 workers (the cross-encoder is torch and already saturates
+      the cores — and it is **97.1%** of retrieval time, `tools/profile_retrieval.py`);
+      cross-encoder thread/batch tuning is worth 4%, and 12 threads is WORSE than 6 on a
+      12-core box.
+- [x] **`sso.agc.gov.sg` throttles with an AWS WAF challenge, and the portal lane could not see
+      it** (found and fixed 2026-09-14). A run returned **7 documents instead of 22 and 434
+      provisions instead of 5,276**, exported a clean CSV and logged nothing — while the
+      web-search lane in the SAME run reported its own 202s loudly. SSO answers a burst with
+      HTTP 202 and 2,432 bytes of challenge JavaScript; `portal_get` read "202 with an EMPTY
+      body is a throttle, 202 WITH content is a real response", which was true when written on
+      2026-08-01 and false once the throttle grew a body. Now matched on the vendor's own
+      client-side marker (AWS WAF / Cloudflare / Imperva) rather than on size, and on giving up
+      it says the lane's coverage is INCOMPLETE. `tests/test_portal_challenge.py`.
+      **Operational consequence for 15 Oct:** re-running discovery for the same economy trips
+      this. The panel's own second-pass requirement (engine A then engine B over the SAME
+      documents) is safe because it re-reads the cache, but a repeated FIRST pass is not.
 
 - [x] **Phase 2 — ten of eleven economies now reach their own portal** (2026-09-08). Web search
       answers HTTP 403 from every engine (Serper spent, DuckDuckGo/Mojeek blocked), so six
