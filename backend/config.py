@@ -277,6 +277,15 @@ class Settings(BaseSettings):
     # sequential) so wall-clock scales with the SLOWEST single document, not the sum of all of
     # them. I/O-bound (pdfplumber/MarkItDown release the GIL during parsing), so a thread pool is
     # enough; no process-pool complexity needed.
+    #
+    # DO NOT RAISE THIS TO THE CORE COUNT. The binding constraint is MEMORY, not CPU: an attempt
+    # to measure 16 workers on this 16 GB / 12-core box was killed by the OOM reaper
+    # (2026-09-14, `tools/bench_extraction_concurrency.py`), even though the largest cached
+    # document is 4 MB — MarkItDown/pdfplumber expand a PDF by orders of magnitude while parsing
+    # it, and the peak is per WORKER. Extraction is the largest cold-run stage (617s of a live
+    # SG pillar-7 run), so raising this is a standing temptation; the cost of getting it wrong
+    # is the whole run dying rather than running slowly. Measure peak RSS per worker on the
+    # target machine before changing it.
     extraction_concurrency: int = 8
     # Candidate cap per (economy, pillar). MEASURED against the panel's own SG pillar-7 rows,
     # counting how many of the twelve laws they cite reach the shortlist:
