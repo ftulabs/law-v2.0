@@ -18,7 +18,7 @@ from ..providers import get_llm_provider
 from ..providers.llm_base import LLMProvider, LLMTerminalError
 from ..rdtii import get_indicator, siblings
 from ..schemas import DiscoveryTag, EvidenceMapping, Provision
-from . import confidence, retrieval_budget
+from . import confidence, grade_cache, retrieval_budget
 from .retrieval import Retrieved, retrieve
 
 
@@ -535,24 +535,34 @@ def map_provisions(
             with breaker["lock"]:
                 breaker["skipped"] += 1
             return None
-        try:
-            graded = llm.complete_json(SYSTEM, _user_prompt(ind, prov))
-        except LLMTerminalError as e:
-            # The provider has told us the NEXT call fails the same way. Stop the run's
-            # grading here rather than proving it 900 more times.
-            _trip(str(e)[:200], e.kind, e.hint)
-            return ("FAIL", f"{e.kind}: {e}"[:160], ind.indicator_id, prov.provision_id)
-        except Exception as e:  # noqa: BLE001 — one rate-limited call must not crash the run
-            reason = f"{type(e).__name__}: {e}"[:160]
-            with breaker["lock"]:
-                breaker["bad"] += 1
-                # Nothing has EVER worked and we are this far in: the fault is systemic, not
-                # per-provision. Trip on the count rather than on any one error's wording, so
-                # a provider that reports its outage in prose we have never seen still stops.
-                if breaker["ok"] == 0 and breaker["bad"] >= settings.mapping_failure_breaker:
-                    _trip(reason, "systemic",
-                          "no grading call has succeeded — check the LLM provider, key and network")
-            return ("FAIL", reason, ind.indicator_id, prov.provision_id)
+        user = _user_prompt(ind, prov)
+        # A verdict already given by THIS model for THIS exact prompt. Checked before the call
+        # and before the breaker's accounting, because a cache hit is neither a success nor a
+        # failure of the provider — counting it as `ok` would let a fully-cached run hold the
+        # breaker open on a dead endpoint.
+        cached = grade_cache.get(llm.model_version, SYSTEM, user, llm.name)
+        if cached is not None:
+            graded = cached
+        else:
+            try:
+                graded = llm.complete_json(SYSTEM, user)
+            except LLMTerminalError as e:
+                # The provider has told us the NEXT call fails the same way. Stop the run's
+                # grading here rather than proving it 900 more times.
+                _trip(str(e)[:200], e.kind, e.hint)
+                return ("FAIL", f"{e.kind}: {e}"[:160], ind.indicator_id, prov.provision_id)
+            except Exception as e:  # noqa: BLE001 — one rate-limited call must not crash the run
+                reason = f"{type(e).__name__}: {e}"[:160]
+                with breaker["lock"]:
+                    breaker["bad"] += 1
+                    # Nothing has EVER worked and we are this far in: the fault is systemic,
+                    # not per-provision. Trip on the count rather than on any one error's
+                    # wording, so a provider that reports its outage in prose we have never
+                    # seen still stops.
+                    if breaker["ok"] == 0 and breaker["bad"] >= settings.mapping_failure_breaker:
+                        _trip(reason, "systemic",
+                              "no grading call has succeeded — check the LLM provider, key and network")
+                return ("FAIL", reason, ind.indicator_id, prov.provision_id)
 
         # An empty or unparseable response is a FAILED call, not a considered rejection.
         # Treating it as "not relevant" silently deleted known-good mappings: a reasoning
@@ -570,8 +580,12 @@ def map_provisions(
                           "no grading call has returned parseable JSON — raise "
                           "OPENROUTER_MAX_TOKENS or pick a non-reasoning model")
             return ("FAIL", reason, ind.indicator_id, prov.provision_id)
-        with breaker["lock"]:
-            breaker["ok"] += 1
+        if cached is None:
+            # Only a REAL call counts toward the breaker, and only a real call is worth
+            # storing. Re-writing a hit would rewrite an identical file on every run.
+            with breaker["lock"]:
+                breaker["ok"] += 1
+            grade_cache.put(llm.model_version, SYSTEM, user, graded, llm.name)
 
         # relevant = satisfies the target AND not a mislabel for a better sibling. Prefer the
         # model's explicit `relevant`; else derive it (real LLMs return satisfies_target/
@@ -663,6 +677,7 @@ def map_provisions(
 
     _retr_secs = time.perf_counter() - _t_retr   # retrieval + shortlist/work-list build
     _t_grade = time.perf_counter()
+    grade_cache.reset_stats()
     # Ask the PROVIDER, not the setting. A cloud endpoint's ceiling is its rate limit; a
     # self-hosted pool's is its node count, and the two want different numbers. Falling back to
     # the setting keeps every provider that has no opinion behaving exactly as before.
@@ -678,6 +693,16 @@ def map_provisions(
     else:
         results = [_grade(it) for it in work]
     _grade_secs = time.perf_counter() - _t_grade
+    # Say it out loud. The whole-run result cache taught this lesson the expensive way: a run
+    # served from cache looked exactly like a fast one, and its numbers were reported as
+    # "after the fix" (PROJECT_STATE §4). A cache that is silent about how much it served is
+    # a trap, however sound its keying.
+    _gc = grade_cache.stats()
+    if _gc["hit"]:
+        log(f"[mapping] {_gc['hit']} of {_gc['hit'] + _gc['miss']} verdicts came from the "
+            f"grading cache ({llm.model_version}) — no model call was made for those; "
+            f"delete data/cache/_verdicts to force a re-grade")
+    _grade_cache_hits = _gc["hit"]
     attempted = len(work) - breaker["skipped"]
     log(f"[timing] mapping: retrieval/build {_retr_secs:.1f}s · LLM grading {_grade_secs:.1f}s "
         f"({attempted} calls, {workers}-way, {attempted/_grade_secs:.2f} calls/s"

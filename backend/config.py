@@ -273,6 +273,12 @@ class Settings(BaseSettings):
     # (same bytes, common across repeat/nearby-in-time live runs within fetch_ttl_hours) skips the
     # OCR/pdfplumber pass entirely instead of re-parsing every page from scratch.
     extraction_cache_enabled: bool = True
+    # Grading verdicts, keyed on (model_version + SYSTEM + user prompt) — see
+    # `pipeline/grade_cache.py`. Grading was the only expensive stage without a cache, and so
+    # the only one that cost the same on every run: 151.4s of a 200s warm Singapore pillar-7
+    # run, measured 2026-09-14. An engine swap MISSES by construction (model_version is in the
+    # key), which is what keeps the panel's two-engine comparison honest.
+    grading_cache_enabled: bool = True
     # Documents are extracted independently of each other — run them concurrently (was strictly
     # sequential) so wall-clock scales with the SLOWEST single document, not the sum of all of
     # them. I/O-bound (pdfplumber/MarkItDown release the GIL during parsing), so a thread pool is
