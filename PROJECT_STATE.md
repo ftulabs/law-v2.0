@@ -351,6 +351,37 @@ Everything else is retrieval or grading, which is where the budget below bites.
 
 ## §5 Recently done
 
+- [x] **Grading verdicts are cached, and grading was the only stage that wasn't** (2026-09-15).
+      Keyed on `(model_version, SYSTEM, user prompt)`; two consecutive live SG pillar-6 runs:
+      **289.0s → 30.6s (9.4x), grading 113.7s → 0.1s, 320 calls → 0**, CSVs byte-for-byte
+      identical. An ENGINE SWAP misses by construction, so the 15 Oct two-engine comparison
+      re-grades everything and stays honest. The mock grader is never cached (it is free, and
+      the offline demo's determinism must come from its code). A failed call is never stored.
+      The hit count is logged every run — §4's result-cache lesson applied.
+      `backend/pipeline/grade_cache.py`, `tests/test_grade_cache.py`.
+      Found wiring it: **the test suite was contaminating itself through the filesystem** —
+      `test_crosscheck.py` pins three different answers to one model id for one prompt, so the
+      first test's verdict was served to the rest. Off by default under test now
+      (`tests/conftest.py`); it would have persisted between suite runs, which is worse.
+- [x] **Three economies re-measured on pillar 6 through three different portal adapters**
+      (2026-09-15, 28 min total, $0). SG **reproduces the panel's own citations exactly** —
+      PDPA §26 → 6.4 and Companies Act §199(4) → 6.2. AU finds My Health Records Act s.77 under
+      **both** P6-I1 and P6-I2, which is what `indicators.py` says the methodology requires.
+      MY files PDPA 2010 §129 under 6.4 where the panel scores 6.1 — the documented deliberate
+      disagreement, reproducing unchanged.
+
+      | | docs | prov | calls | rows | disc | fetch | extract | retr | grade | total |
+      |---|---|---|---|---|---|---|---|---|---|---|
+      | AU P6 | 8 | 1,883 | 380 | 7 | 34.6 | 72.5 | 239.6 | 81.0 | 148.6 | 578s |
+      | MY P6 | 9 | 2,670 | 536 | 12 | 10.3 | 20.3 | 307.5 | 111.4 | 198.0 | 650s |
+      | SG P6 | 18 | 3,807 | 320 | 5 | 14.9 | 228.6 | 34.7 | 47.3 | 123.4 | 450s |
+
+      **Four constants reproduce across all three and predict a run to within 4%:** cold
+      extraction ~8.4 prov/s · cold retrieval ~0.21s per candidate per indicator (so it tracks
+      **k**, not corpus size) · grading ~2.6 calls/s at 32-way · warm extraction 110-543 prov/s.
+      `T ≈ discovery + docs×fetch + prov/8.4 + 0.21×k×indicators + calls/2.6` predicted AU at
+      557s against 578 actual and MY at 668s against 650.
+
 - [x] **The live query, profiled stage by stage** (2026-09-14, branch `perf/live-query-speedups`).
       Live SG pillar-7 against the 4x V100 host (`leader`, vLLM 1.2.2 TP4, Qwen3.6-35B-A3B).
       Where a warm run's time goes: **grading 151.4s (76%)**, retrieval 12.6s, extraction 9.1s,
