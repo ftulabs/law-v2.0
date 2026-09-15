@@ -262,15 +262,24 @@ def _pdf_page_texts(path: str, pages: list[int] | None = None) -> dict[int, str]
     return out
 
 
-def _pdf_text_layer(path: str) -> str:
-    # x_tolerance infers spaces from glyph gaps — without it, legal PDFs come out with
-    # words jammed together ("Anorganisationmustnot"), which wrecks the Character Error
-    # Rate and the downstream matching. pdfplumber preserves spacing + line structure.
-    texts = _pdf_page_texts(path)
+def _pdf_text_layer_from(texts: dict[int, str]) -> str:
+    """Assemble the text layer from page texts ALREADY extracted.
+
+    Split out from `_pdf_text_layer` so triage and extraction can share one parse — see
+    `_extract_pdf`. Chrome stripping needs the whole page set, which is why it lives here and
+    not in `_pdf_page_texts`.
+    """
     if not texts:
         return ""
     ordered = [texts[k] for k in sorted(texts)]
     return _join_pages(_strip_running_chrome(ordered))
+
+
+def _pdf_text_layer(path: str) -> str:
+    # x_tolerance infers spaces from glyph gaps — without it, legal PDFs come out with
+    # words jammed together ("Anorganisationmustnot"), which wrecks the Character Error
+    # Rate and the downstream matching. pdfplumber preserves spacing + line structure.
+    return _pdf_text_layer_from(_pdf_page_texts(path))
 
 
 def _content_key(doc: DiscoveredDoc) -> str | None:
@@ -524,13 +533,27 @@ def _extract_pdf(path: str, provider, metrics: OCRMetrics) -> tuple[str, OCRMetr
     """
     from . import pdf_inspect
 
-    prof = pdf_inspect.profile_pdf(path)
+    # ONE parse of the file, shared by triage and the text layer. The density fallback used
+    # to call `_pdf_text_layer(path)` to decide whether OCR was needed, and this function then
+    # called it again — two full pdfplumber passes of the same PDF, each costing the same
+    # (measured: 7.17s vs 7.25s on a 121-page Act; 28.5s vs 29.7s on a 599-page one). The
+    # supplier is lazy, so a document that turns out to be fully scanned does not pay for a
+    # text layer nobody will read, and an installed `pdf_inspector` never triggers it at all.
+    _cached_pages: dict[int, str] | None = None
+
+    def _pages() -> dict[int, str]:
+        nonlocal _cached_pages
+        if _cached_pages is None:
+            _cached_pages = _pdf_page_texts(path)
+        return _cached_pages
+
+    prof = pdf_inspect.profile_pdf(path, page_texts_fn=_pages)
     metrics.pages = prof.page_count or _page_count(path)
     metrics.notes = (f"{metrics.notes + '; ' if metrics.notes else ''}"
                      f"triage={prof.engine}:{prof.doc_type}")
 
     if not prof.needs_any_ocr:
-        return _pdf_text_layer(path), metrics
+        return _pdf_text_layer_from(_pages()), metrics
 
     if prof.is_fully_scanned or not prof.text_pages():
         text, m = _run_provider(provider, path)
@@ -539,7 +562,9 @@ def _extract_pdf(path: str, provider, metrics: OCRMetrics) -> tuple[str, OCRMetr
 
     # ── hybrid: text layer for the readable pages, OCR only for the scanned ones ──────────
     ocr_pages = sorted(prof.pages_needing_ocr)
-    page_text = _pdf_page_texts(path, prof.text_pages())
+    # Reuse the shared parse when it exists; otherwise ask for just the readable pages.
+    page_text = ({p: t for p, t in _cached_pages.items() if p in set(prof.text_pages())}
+                 if _cached_pages is not None else _pdf_page_texts(path, prof.text_pages()))
     ocr_text, ocr_metrics = _run_provider(provider, path, pages=ocr_pages)
     for page, chunk in zip(ocr_pages, _split_pages(ocr_text, len(ocr_pages))):
         page_text[page] = chunk
