@@ -104,6 +104,21 @@ SYSTEM = (
     "test, set satisfies_target=false (a precise MISS beats a wrong OVER-ASSIGN).\n"
     "rationale <=300 chars, EXACT format: 'This [section] [prohibits/requires/permits/"
     "establishes] [what]. Maps to [indicator] because [one-sentence legal logic].'\n\n"
+    # `operative_rule` IS A SPEED LEVER, AND MUST NOT BE CUT WITHOUT MEASURING FIRST.
+    # Measured 2026-09-15 on the V100 host: decode costs 10 ms per output token and a typical
+    # answer is 152 tokens, so generation is 1.45 s of a 2.22 s call — output length, not the
+    # 3,900-token prompt, is what a call actually costs. Nothing downstream reads
+    # `operative_rule`: it appears in this contract and nowhere else in the codebase, so
+    # dropping it would cut roughly 12% off every first-time grading call for free.
+    #
+    # "For free" is the part that needs proving. It is STEP 1 of a nine-step chain that ends in
+    # the verdict, so it is plausibly working as a reasoning scaffold rather than as
+    # documentation, and removing it could move `satisfies_target` on the borderline rows this
+    # whole prompt exists to get right. `tools/replay_grade.py` answers that without a crawl —
+    # it re-grades already-exported rows under a proposed prompt and reports whether CONTROL
+    # and UPHELD hold. Stage the change in `tools/candidate_indicators.py`, replay it, and only
+    # then cut. The repo has been here before: three of the four P7-I3 rules that READING the
+    # refusals suggested were wrong, and only measurement caught them.
     "Return ONLY this JSON: {operative_rule:str, satisfies_target:bool, better_sibling:str|null, "
     "relevant:bool, legal_match:0..1, scope_alignment:0..1, scope_flag:str|null, "
     "subsection:str|null, rationale:str}\n\n"

@@ -159,11 +159,28 @@ class LocalLLM(LLMProvider):
         0 % the whole way and the only sign of overshoot is throughput flattening while latency
         climbs. So read throughput, not errors, when re-measuring one of these.
 
-        THE KNEE IS NOT `max_num_seqs`. It is 32 against a configured 64, because the limit
-        that binds first is `max_num_batched_tokens` (8192) against a ~3,900-token grading
-        prompt: only about two prompts prefill per scheduler step, so admitting 64 at once
-        just lengthens the queue. Raising `max_num_batched_tokens` moves this knee; the
-        setting is on the SERVER, not here.
+        THE KNEE IS NOT `max_num_seqs` — it is 32 against a configured 64 — and WHY is not
+        established. This paragraph first asserted `max_num_batched_tokens` (8192 against a
+        ~3,900-token prompt, so ~2 prompts prefill per scheduler step). Splitting the call
+        afterwards refuted that as the main cost (2026-09-15, `tools/`-driven, nonce per
+        request so the prefix cache cannot serve it):
+
+            prefill, ~3,900 tokens, uncached    0.76 s   (~5,100 tok/s — healthy)
+            decode, per output token              10 ms  (104.6 tok/s single stream)
+            a real 152-token answer             2.22 s   = 0.76 prefill + 1.45 decode
+
+        DECODE IS TWO THIRDS OF A CALL, so prefill scheduling cannot be the whole story and
+        raising `max_num_batched_tokens` is not the lever it was billed as. Two candidates
+        remain untested: decode saturation on sm_70 (no INT4 tensor-core path, so AWQ weights
+        dequantise to FP16 every forward pass), and MoE expert routing — 32 concurrent streams
+        buy roughly 12x throughput rather than 32x, and a batch that routes to many different
+        experts touches far more than the 3B "active" parameters, so it gets little of the
+        weight-read amortisation a dense model would. Distinguishing them needs a dense model
+        of similar quality benchmarked on the same box. Until then the number stands on the
+        throughput curve above, which is measurement, and not on the explanation.
+
+        The practical consequence is that OUTPUT LENGTH, not prompt length, is the per-call
+        lever: every token the grader writes costs 10 ms, and 152 of them cost 1.45 s.
 
         MEASURE WITH DISTINCT PROMPTS OR THE NUMBER IS FICTION. An earlier sweep sent one
         identical request per level and reported 429/min at 64 threads, and a real run then
