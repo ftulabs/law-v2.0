@@ -81,7 +81,9 @@ def test_an_empty_base_url_still_raises_with_guidance():
 
 def test_every_node_gets_the_configured_timeout():
     llm = LocalLLM("http://127.0.0.1:9/v1,http://127.0.0.2:9/v1", "m", "k")
-    assert all(c.timeout == settings.local_llm_timeout_seconds for c in llm._clients)
+    # `.read` because the handshake has had its own, much shorter budget since
+    # 2026-09-17; a vanished node used to cost the full read timeout to discover.
+    assert all(c.timeout.read == settings.local_llm_timeout_seconds for c in llm._clients)
 
 
 # ─────────────────── a sick node must not throttle the whole run ───────────────────

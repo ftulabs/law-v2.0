@@ -169,6 +169,16 @@ class Settings(BaseSettings):
     # 120s and every call over the line returns APITimeoutError, which reads as a
     # broken measurement rather than a slow one (2026-09-06: 78 of 90 replay rows).
     local_llm_timeout_seconds: float = 600.0
+    # How long to wait for the TCP handshake, as opposed to the answer. These are different
+    # questions and collapsing them into one number is expensive: a node that has left the
+    # tailnet does not refuse the connection, it swallows the SYN, so the client waits out the
+    # kernel's own retry ladder. Measured from the deploy host 2026-09-17 against three
+    # addresses still listed in its pool: 133.3s, 135.2s, 135.2s to fail — each, and the pool
+    # re-offers a benched node every QUARANTINE_SECONDS, so the toll recurs all run. A healthy
+    # node on the same tailnet completes the handshake in about a second, relay included, so
+    # five seconds is generous for a live node and cheap for a dead one. Reaching the server
+    # is separately allowed to take `local_llm_timeout_seconds`; this bounds only reaching it.
+    local_llm_connect_timeout_seconds: float = 5.0
 
     # azure ocr
     azure_vision_endpoint: str = ""

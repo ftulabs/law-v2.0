@@ -670,6 +670,13 @@ def map_provisions(
         concurrency = int(llm.suggested_concurrency())
     except Exception:                    # noqa: BLE001 — a provider without the method is fine
         concurrency = int(settings.mapping_concurrency)
+    # Say what the pool turned out to be. Twelve of the thirteen addresses configured on the
+    # deploy host had left the network, and the run's only symptom was that grading took hours
+    # — "slow" and "gone" are indistinguishable from the outside unless something says so.
+    try:
+        log(llm.pool_report())
+    except Exception:                    # noqa: BLE001 — a provider without one says nothing
+        pass
     workers = max(1, min(concurrency, len(work) or 1))
     if workers > 1 and work:
         from concurrent.futures import ThreadPoolExecutor

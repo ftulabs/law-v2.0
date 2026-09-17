@@ -32,6 +32,44 @@ def parse_base_urls(raw: str | None) -> list[str]:
     return [u.strip().rstrip("/") for u in (raw or "").split(",") if u.strip()]
 
 
+def _timeout(read_seconds: float):
+    """Separate the handshake budget from the answer budget.
+
+    A grading call legitimately takes minutes, so the read timeout has to be generous. The
+    CONNECT timeout must not inherit that: a node that has left the tailnet never answers the
+    SYN, so a single connect budget of 600s is a node that costs ten minutes to discover is
+    gone. Falls back to the plain float if httpx is somehow unavailable, which only restores
+    the previous behaviour rather than failing the provider.
+    """
+    try:
+        import httpx                                            # noqa: PLC0415
+    except ImportError:                                         # pragma: no cover
+        return read_seconds
+    connect = max(0.5, float(settings.local_llm_connect_timeout_seconds))
+    return httpx.Timeout(read_seconds, connect=connect)
+
+
+def _probe_slots(base_url: str) -> int | None:
+    """`total_slots` from a llama.cpp server, or None if it is not one / is not there.
+
+    `/props` sits beside the OpenAI surface rather than inside it, so `/v1` is stripped. Kept
+    deliberately cheap: this runs once per process and must never be what delays a run, so a
+    node that does not answer promptly is simply one that did not say.
+    """
+    import urllib.error                                            # noqa: PLC0415
+    import urllib.request                                          # noqa: PLC0415
+
+    root = base_url.rstrip("/")
+    root = root[: -len("/v1")] if root.endswith("/v1") else root
+    try:
+        with urllib.request.urlopen(root + "/props", timeout=6) as resp:
+            import json                                            # noqa: PLC0415
+            slots = json.load(resp).get("total_slots")
+    except Exception:                                              # noqa: BLE001
+        return None
+    return int(slots) if isinstance(slots, int) and slots > 0 else None
+
+
 class LocalLLM(LLMProvider):
     name = "local"
 
@@ -46,17 +84,21 @@ class LocalLLM(LLMProvider):
                 "(e.g. http://gpu-lab:11434/v1 for Ollama, or a comma-separated list "
                 "of nodes serving the same model)"
             )
+        read_timeout = (timeout if timeout is not None
+                        else settings.local_llm_timeout_seconds)
         self._clients = [
             OpenAI(
                 base_url=u,
                 api_key=api_key or "not-needed",  # Ollama ignores it; the SDK requires non-empty
                 max_retries=1,
-                timeout=timeout if timeout is not None else settings.local_llm_timeout_seconds,
+                timeout=_timeout(read_timeout),
             )
             for u in urls
         ]
+        self._url_of = {id(c): u for c, u in zip(self._clients, urls)}
         self._lock = threading.Lock()
         self._benched: dict[int, tuple[Any, float]] = {}   # id(client) -> (client, benched at)
+        self._slots: dict[str, int | None] | None = None   # url -> total_slots, probed once
         self._reset_rotation()
         self.model_version = model
 
@@ -145,10 +187,68 @@ class LocalLLM(LLMProvider):
 
         Bounded below by `settings.mapping_concurrency` so a single-node Ollama on a laptop
         does not end up with LESS concurrency than the shared default.
+
+        SUPERSEDED where the server answers for itself, 2026-09-17. The table above counts
+        NODES, which was the right unit for thirteen interchangeable boxes but says nothing
+        about how many requests any one of them will run at once. llama.cpp publishes that as
+        `total_slots` on `/props`, and a server started without `--parallel` reports 1: it
+        queues everything else, so threads past the first buy nothing at all. Measured from the
+        deploy host against the two surviving servers, eight real grading calls each:
+
+            node              1 thread   2 threads   4 threads   8 threads
+            Qwen3.5-4B          28.5s       31.0s       30.9s       29.0s   per call
+            Qwen3.6-35B-A3B     15.0s       15.7s       17.5s       15.6s   per call
+
+        Flat, both of them, because both report `total_slots = 1`. Sixteen threads at a
+        one-slot server is not concurrency, it is a queue with a longer name. Asking the server
+        makes the number honest, and makes it FOLLOW: raise `--parallel` on the server and the
+        run picks the capacity up by itself, with nothing to re-tune here.
         """
         from ..config import settings                              # noqa: PLC0415
         per_node = max(1, int(settings.local_llm_calls_per_node))
-        return max(int(settings.mapping_concurrency), per_node * len(self._clients))
+        fallback = max(int(settings.mapping_concurrency), per_node * len(self._clients))
+
+        slots = self.pool_slots()
+        if not slots or any(s is None for s in slots.values()):
+            # Ollama, vLLM and LocalAI do not publish `/props`; an unreachable node does not
+            # either. Either way we have not been told, so nothing is assumed.
+            return fallback
+        # One queued request per slot, so a slot is never idle across the HTTP round trip.
+        # Never below 2: a pool that drops to one thread cannot overlap anything at all.
+        return max(2, sum(s + 1 for s in slots.values()))
+
+    def pool_slots(self) -> dict[str, int | None]:
+        """Per node, how many requests it says it runs at once — None when it does not say.
+
+        Probed once per process and cached: the answer changes only when someone restarts the
+        server, and `mapping` asks for it on every run.
+        """
+        with self._lock:
+            if self._slots is not None:
+                return self._slots
+        probed = {u: _probe_slots(u) for u in self._url_of.values()}
+        with self._lock:
+            self._slots = probed
+        return probed
+
+    def pool_report(self) -> str:
+        """One line naming what the pool actually is, for the run log.
+
+        The pool had no voice: twelve of the thirteen addresses on the deploy host had left the
+        tailnet and the only symptom was that grading took hours. A run should be able to say
+        how many nodes answered and how much parallelism they offer, because "slow" and "gone"
+        look identical from the outside.
+        """
+        slots = self.pool_slots()
+        live = {u: s for u, s in slots.items() if s is not None}
+        total = sum(live.values()) if live else 0
+        parts = [f"{len(live)}/{len(slots)} node(s) answered"]
+        if live:
+            parts.append(f"{total} parallel slot(s)")
+        dead = [u for u, s in slots.items() if s is None]
+        if dead and live:
+            parts.append(f"unreachable or not llama.cpp: {', '.join(dead)}")
+        return f"[llm] pool {self.model_version}: " + "; ".join(parts)
 
     def complete_json(self, system: str, user: str) -> dict[str, Any]:
         # Many local models don't honour response_format=json_object, so we instruct

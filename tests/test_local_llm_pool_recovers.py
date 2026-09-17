@@ -73,6 +73,11 @@ def _provider(monkeypatch, clients):
     obj._clients = list(clients)
     obj._lock = threading.Lock()
     obj._benched = {}
+    # Stub clients have no address to ask, so `pool_slots` has nothing to probe and
+    # `suggested_concurrency` takes its node-count fallback — which is what these tests are
+    # about. The slot-aware path has its own file.
+    obj._url_of = {}
+    obj._slots = None
     obj._reset_rotation()
     obj.model_version = "stub"
     return obj
@@ -144,7 +149,11 @@ def test_resetting_the_rotation_also_clears_the_bench(monkeypatch):
 def test_a_cluster_gets_concurrency_proportional_to_its_nodes(monkeypatch):
     """16 threads across thirteen nodes leaves most of them idle. Measured 2026-09-12 with the
     real grading prompt: 13 threads -> 2.6 calls/min, 39 threads -> 12.3 calls/min at the same
-    7.7% failure rate."""
+    7.7% failure rate.
+
+    This is now the FALLBACK, taken when the servers do not publish their own capacity — see
+    `tests/test_local_llm_slot_aware_concurrency.py`. A node count is a guess about
+    parallelism; `total_slots` is the server's answer, and it wins where it is given."""
     from backend.config import settings
     p = _provider(monkeypatch, [_Client(f"n{i}") for i in range(13)])
     assert p.suggested_concurrency() == 13 * settings.local_llm_calls_per_node == 39
