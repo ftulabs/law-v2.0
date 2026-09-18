@@ -177,11 +177,27 @@ SYSTEM = (
     "P7-I5 :: 'A police officer or an authorised person investigating an arrestable offence may... "
     "access, inspect and check the operation of a computer... to search any data contained... and "
     "to make a copy of any such data.' → {\"operative_rule\":\"Empowers police to access, search "
-    "and copy data on a computer when investigating an arrestable offence\",\"satisfies_target\":"
+    "and copy data on a computer when investigating an arrestable offence, on the officer's own "
+    "authority\",\"satisfies_target\":"
     "true,\"better_sibling\":null,\"relevant\":true,\"legal_match\":0.9,\"scope_alignment\":1.0,"
     "\"scope_flag\":null,\"rationale\":\"This Section gives police power to access, search and copy "
-    "data for law-enforcement. Maps to P7-I5 because it enables government access to data, not a "
-    "cybersecurity duty on private entities (P7-I2).\"}\n"
+    "personal data with no warrant or court order required. Maps to P7-I5 because the access is "
+    "not conditioned on authorisation by an independent judicial body.\"}\n"
+    # 5b — the SAME indicator refusing the SAME subject matter, because a judge stands in the
+    # way. 7.5 measures the ABSENCE of judicial oversight, so this pair is the only way to show
+    # where the line falls; every other example in this block is an acceptance, and an
+    # acceptance-only block taught the old reading, under which an economy scored worse for
+    # HAVING due-process safeguards.
+    "P7-I5 :: 'A Magistrate may, on application and on being satisfied that there are reasonable "
+    "grounds, issue a warrant authorising a police officer to search the premises and seize any "
+    "personal data found there. No search under this section may be carried out except under the "
+    "authority of a warrant issued by a Magistrate.' → {\"operative_rule\":\"Allows search and "
+    "seizure of personal data only under a warrant issued by a Magistrate\",\"satisfies_target\":"
+    "false,\"better_sibling\":null,\"relevant\":false,\"legal_match\":0.3,\"scope_alignment\":1.0,"
+    "\"scope_flag\":null,\"rationale\":\"This Section permits access to personal data only on a "
+    "Magistrate's warrant. Does not map to P7-I5 because the indicator asks for access WITHOUT "
+    "the authorisation of an independent judicial body, and that authorisation is mandatory "
+    "here.\"}\n"
     # 6 — India, Digital Personal Data Protection Act 2023, s10 → 7.4 DPO/DPIA
     "P7-I4 :: 'The Significant Data Fiduciary shall (a) appoint a Data Protection Officer...; (b) "
     "appoint an independent data auditor...; (c) undertake... Data Protection Impact Assessment.' "

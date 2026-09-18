@@ -149,15 +149,27 @@ RUBRICS: dict[str, IndicatorRubric] = {
         ),
         binary=True,
         note=("The duration must be explicitly stated to score 1. A bare 'cease retaining when no "
-              "longer needed' with no fixed period scores 0. " + _GOV_EXC),
+              "longer needed' with no fixed period scores 0 — the guide (p.60) calls that a "
+              "MAXIMUM period and does not score it in version 2.1. A PERMANENT retention duty "
+              "scores 1. The period may be fixed by a regulation or a regulator's order made "
+              "under a statutory power; the rank of the instrument does not matter. " + _GOV_EXC),
     ),
     "P7-I4": IndicatorRubric(
         "P7-I4", "DPO / DPIA requirements",
         (
             ScoreTier(1.0, "DPO and DPIA, OR a DPO requirement only, applied to all sectors"),
             ScoreTier(0.5, "DPO and DPIA, OR a DPO requirement only, applied to a specific sector"),
+            ScoreTier(0.25, "ONLY a DPIA is required, with no DPO appointment duty"),
             ScoreTier(0.0, "No requirement (e.g. a DPIA merely contemplated/recommended, not mandated)"),
         ),
+        # The 0.25 tier is the guide's own (p.61): "the scoring metric focuses more on the
+        # presence of the DPO requirement. The score of '0.25' would be applied if only DPIA is
+        # required." It was missing here, so a mandated DPIA with no DPO fell through to the 0
+        # tier — whose wording is about a DPIA that is merely RECOMMENDED, a different thing.
+        # The guide notes no economy has yet been found in this state; it is reachable (a firm
+        # outsourcing the DPIA), and a tier that exists in the methodology should exist here.
+        note="A mandated DPIA with no DPO duty is 0.25, not 0 — 0 is for a DPIA that is only "
+             "recommended or contemplated.",
     ),
     "P7-I5": IndicatorRubric(
         "P7-I5", "Requirements to allow government access to personal data",
