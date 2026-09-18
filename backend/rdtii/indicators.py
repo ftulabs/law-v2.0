@@ -38,12 +38,25 @@ INDICATORS: list[Indicator] = [
         title="Ban and local processing requirements",
         description="Does the law BAN cross-border data transfer, or require data to be PROCESSED locally?",
         legal_test=(
-            "The operative rule is either (a) a BAN on transferring personal data abroad, or (b) a "
-            "requirement to PROCESS personal data within the country. This is the most restrictive case — "
-            "it prevents or strongly constrains cross-border data use. Distinguish from P6-I4 (Conditional "
-            "flow): if transfer REMAINS legally possible once conditions (consent/adequacy/etc.) are met, it "
-            "is NOT a total ban → map to P6-I4, not here. Distinguish from P6-I2 (storage of data in-country, "
-            "which may still permit transfer of a copy) and P6-I3 (local servers/infrastructure). "
+            "The operative rule is either (a) a BAN on transferring data abroad, or (b) a requirement to "
+            "PROCESS data within the country. These are TWO INDEPENDENT LIMBS and only limb (a) is about "
+            "bans: a local-processing mandate satisfies this indicator outright, whether or not transfer is "
+            "also restricted. "
+            "'PROCESSING' IS BROAD. The RDTII 2.1 guide (p.50) takes it from the GDPR sense — collection, "
+            "organisation, structuring, STORAGE, adaptation, use, disclosure and dissemination — so a rule "
+            "compelling any of those activities to happen domestically is limb (b). "
+            "THE DATA NEED NOT BE PERSONAL. The guide scores a measure covering personal data or applying "
+            "horizontally at 1 and one covering non-personal data or a specific data set at 0.5, so BOTH are "
+            "in scope: do not reject a ban on exporting map data, survey data, credit data, health records "
+            "or accounting records for not being 'personal data'. "
+            "GOVERNMENT DATA IS EXCLUDED. A measure applying only to the Government's own data is not scored "
+            "— the indicator is about measures affecting commercial transactions. "
+            "Distinguish from P6-I4 (Conditional flow): where transfer REMAINS legally possible once "
+            "conditions (consent / adequacy / approval) are met, limb (a) is not made out — that is a "
+            "conditional regime, and P6-I4 is where it belongs. This does NOT touch limb (b): a duty to "
+            "process locally stays here even though data may also be transferable under conditions. "
+            "Distinguish from P6-I2 (storage of data in-country, which may still permit transfer of a copy) "
+            "and P6-I3 (local servers/infrastructure). "
             # Added 2026-08-31. An independent auditor (tools/audit_rows.py) refused 83% of the
             # rows we filed here; reading them, the commonest fault by far was that the provision
             # was not about data at all. India's Chemical Weapons Convention Act s.15-16 bans the
@@ -72,18 +85,25 @@ INDICATORS: list[Indicator] = [
         title="Local storage requirements",
         description="Does the law require personal data to be STORED in a database located in the country?",
         legal_test=(
-            "The operative rule requires personal data to be STORED / kept (a copy) in a database or facility "
-            "located within the territory (data-localisation for storage). Example: 'personal data shall be "
-            "stored in a database located in the territory of [country]'. The rule may equally be phrased "
-            "NEGATIVELY — 'records must not be held / kept / taken outside the country' imposes the same "
-            "obligation (the data must remain stored in-country) and SATISFIES this indicator. Such a "
-            "prohibition typically satisfies BOTH P6-I1 (ban) and P6-I2 (local storage) — the RDTII "
-            "methodology scores it under both, so judge this indicator on its own terms and do NOT treat "
-            "P6-I1 as a better fit. A CONDITIONAL / partial form also satisfies (the methodology scores it "
-            "0.5): rules that permit records to be kept ABROAD only if copies, accounts or returns are sent "
-            "to and KEPT IN-COUNTRY (classic companies/tax accounting-records drafting) — the mandatory "
-            "local copy IS a storage-localisation measure; do not reject it for permitting the originals "
+            "The operative rule requires data to be STORED / kept (a copy) in a database or facility "
+            "located within the territory (data-localisation for storage). The RDTII 2.1 guide (p.50) "
+            "defines it as a mandate 'that A COPY of certain data be stored within the economy' — data may "
+            "still cross the border, so long as a copy stays. Example: 'personal data shall be stored in a "
+            "database located in the territory of [country]'. The rule may equally be phrased NEGATIVELY — "
+            "'records must not be held / kept / taken outside the country' imposes the same obligation (the "
+            "data must remain stored in-country) and SATISFIES this indicator. "
+            "THE DATA NEED NOT BE PERSONAL. The guide scores personal-data or horizontal measures at 1 and "
+            "non-personal or specific-data-set measures at 0.5 — both are in scope, so accounting, tax, "
+            "health or telecom records qualify without being labelled 'personal data'. "
+            "GOVERNMENT DATA IS EXCLUDED: a measure applying only to the Government's own data is not "
+            "scored. "
+            "Because a mandatory local copy is the whole test, rules that permit records to be kept ABROAD "
+            "only if copies, accounts or returns are sent to and KEPT IN-COUNTRY (classic companies/tax "
+            "accounting-records drafting) SATISFY it — do not reject them for permitting the originals "
             "offshore. "
+            "Where the SAME measure imposes both local processing and local storage, the guide records it "
+            "under both indicators (its worked example is Australia's health records), so judge this "
+            "indicator on its own terms and do NOT treat P6-I1 as a better fit. "
             # Added 2026-08-31 alongside the P6-I1 gate above, from the same audit. Six refusals
             # here were record-keeping duties that name no place — SG Income Tax Act s.67(1)(a),
             # Confiscation of Benefits Act s.43 — and the auditor's own words, five times over,
@@ -128,9 +148,22 @@ INDICATORS: list[Indicator] = [
         title="Infrastructure requirements",
         description="Does the law require local servers / data centres / infrastructure as a condition to supply a service?",
         legal_test=(
-            "The operative rule requires LOCAL servers, data centres, or local data infrastructure AS A "
-            "CONDITION for supplying a service. Example: 'providers of websites, social networks and online "
-            "games must maintain at least one local server'. "
+            "The operative rule requires the provider to ESTABLISH, own or dedicate LOCAL physical "
+            "infrastructure — a data centre, server or computing facility — AS A PRECONDITION for supplying "
+            "a service. Example: 'providers of websites, social networks and online games must maintain at "
+            "least one local server'. "
+            "THE PRECONDITION, NOT THE LOCATION, IS WHAT SEPARATES THIS FROM P6-I2. The RDTII 2.1 guide "
+            "(p.51) puts it squarely: local storage 'only mandates that data be stored within the economy "
+            "but does not require the service provider to build or own a data centre; the provider may rent "
+            "or use an existing local facility or server', whereas an infrastructure requirement 'requires "
+            "the service provider to establish or use dedicated local physical infrastructure as a "
+            "precondition for offering services'. So asking only where data sits is P6-I2; compelling the "
+            "provider to stand up or dedicate the facility itself is this indicator. "
+            "OPERATIONAL AND TECHNICAL RULES FOR DATA CENTRES ARE NOT SCORED. The guide says so explicitly: "
+            "the indicator looks for infrastructure mandated as a BARRIER to data movement, not for "
+            "security, certification, uptime or engineering standards that apply to a data centre once it "
+            "exists. "
+            "GOVERNMENT DATA IS EXCLUDED. "
             # Added 2026-08-31, same audit. Both refusals here were a provision setting out what a
             # MINISTRY does — China's domain-name measures art.4, Mongolia's public-information law
             # art.32 — read as an infrastructure mandate. Describing an agency's functions is not
@@ -148,7 +181,14 @@ INDICATORS: list[Indicator] = [
         ),
         scope="national",
         query_terms=["local server", "maintain at least one server", "data centre located", "establish a server",
-                     "infrastructure within the country", "place servers in", "local data centre"],
+                     "infrastructure within the country", "place servers in", "local data centre",
+                     # The guide's own examples are phrased as an obligation to STAND UP a facility as
+                     # a precondition of service (Chile's contingency processing centre, Viet Nam's
+                     # "at least one local server", Kazakhstan's local management system). The
+                     # location-only terms above rank those below ordinary storage rules.
+                     "contingency data processing centre", "shall establish a data centre",
+                     "physically located within", "servers located within the territory",
+                     "as a condition for providing the service", "local system of centralized management"],
     ),
     Indicator(
         indicator_id="P6-I4",          # ≡ Methodology 6.4
@@ -156,12 +196,20 @@ INDICATORS: list[Indicator] = [
         title="Conditional flow regimes",
         description="Is cross-border transfer ALLOWED ONLY IF conditions are met (consent, adequacy, contract, approval, evaluation)?",
         legal_test=(
-            "The operative rule ALLOWS cross-border transfer provided CONDITIONS are satisfied — e.g. the "
-            "individual's consent, the destination's adequate level of protection, contractual safeguards, "
-            "prior approval, or an evaluation/assessment. Because transfer remains legally possible once the "
-            "condition is met, this is NOT a total ban (do not map to P6-I1). A provision listing SEVERAL "
-            "alternative gateways (consent OR adequacy OR contract) maps here. Distinguish from P6-I1 (outright "
-            "ban with no liftable condition). "
+            "The operative rule ALLOWS cross-border transfer provided CONDITIONS are satisfied. THE JOB HERE "
+            "IS TO IDENTIFY THE CONDITION AND SAY WHAT IT IS — not to decide whether the provision is a ban. "
+            "Name the gateway in `operative_rule`: whose consent, whose assessment, whose approval, which "
+            "standard the destination must meet. The RDTII 2.1 guide (p.52) organises the indicator by WHO "
+            "decides, and all four shapes satisfy it: (i) the DATA SUBJECT consents; (ii) the BUSINESS itself "
+            "evaluates whether the destination's protection is adequate or equivalent; (iii) the GOVERNMENT "
+            "determines which destinations are adequate, or authorises the transfer in advance; (iv) a "
+            "prescribed contract, certification or security assessment stands in for any of these. A "
+            "provision listing SEVERAL alternative gateways (consent OR adequacy OR contract) maps here. "
+            "THE DATA NEED NOT BE PERSONAL: the guide scores a regime covering personal data at 1, a "
+            "horizontal regime at 1 even for non-personal data, and a non-personal or sector-specific regime "
+            "at 0.5 — all are in scope. GOVERNMENT DATA IS EXCLUDED. "
+            "Distinguish from P6-I1 only in this narrow sense: where NO condition can ever unlock the "
+            "transfer, it is a ban and belongs there instead. "
             # Added after a live India run rejected the panel's OWN answer. DPDP 2023 s.16 reads
             # "The Central Government may, by notification, restrict the transfer of personal data
             # ... to such country or territory outside India as may be so notified", and every
@@ -191,13 +239,25 @@ INDICATORS: list[Indicator] = [
         title="Comprehensive legal framework for data protection",
         description="Does a personal-data-protection legal framework exist (horizontal, OR a sectoral data-privacy law)?",
         legal_test=(
-            "The provision establishes or constitutes a personal-DATA-PROTECTION framework: its scope/application, "
-            "core obligations to obtain consent and to protect personal data, definitions, or the regulator. RDTII "
-            "records BOTH a horizontal/comprehensive data-protection law (governs personal data generally) AND a "
-            "SECTORAL data-privacy law — e.g. one protecting telecom data or health data specifically — so a "
-            "sectoral privacy provision STILL maps here (mark Coverage = Sectoral; it does not disqualify). "
-            "Distinguish from P7-I2 (CYBERSECURITY, a different subject) and from the SPECIFIC obligations P7-I3 "
-            "(retention), P7-I4 (DPIA/DPO) and P7-I5 (government access)."
+            "The provision establishes or constitutes a personal-DATA-PROTECTION framework: its "
+            "scope/application, core obligations to obtain consent and to protect personal data, definitions, "
+            "the regulator, or — equally — any of the DATA-SUBJECT RIGHTS that make a framework comprehensive. "
+            "The RDTII 2.1 guide (p.58) states the criteria: 'broad, cross-sectoral (i.e., horizontal) "
+            "applicability and detailed provisions on the scope and application of rights and obligations of "
+            "data subjects… empowers individuals to control their personal data, such as the RIGHT TO ACCESS, "
+            "RECTIFICATION, ERASURE, and DATA PORTABILITY, and encompasses various activities, such as data "
+            "collection, data processing and the transfer of personal data across borders'. A section "
+            "conferring any one of those rights, or governing any of those activities, is part of the "
+            "framework and satisfies this indicator. "
+            "COMPREHENSIVENESS IS SHOWN BY ENUMERATION, so cite every qualifying provision rather than one "
+            "keystone section, and do not reject a provision for being 'only' one right among many — the "
+            "framework may also be spread across SEVERAL instruments rather than one Act. "
+            "RDTII records BOTH a horizontal/comprehensive data-protection law (governs personal data "
+            "generally) AND a SECTORAL data-privacy law — e.g. one protecting telecom data or health data "
+            "specifically — so a sectoral privacy provision STILL maps here (mark Coverage = Sectoral; it "
+            "does not disqualify, it is what separates a score of 0.5 from 0). "
+            "Distinguish from P7-I2 (CYBERSECURITY, a different subject) and from the SPECIFIC obligations "
+            "P7-I3 (retention), P7-I4 (DPIA/DPO) and P7-I5 (government access)."
         ),
         scope="national",
         query_terms=["personal data protection act", "this act applies to", "processing of personal data",
@@ -219,11 +279,22 @@ INDICATORS: list[Indicator] = [
         title="Dedicated legal framework for cybersecurity",
         description="Does a dedicated cybersecurity legal framework / set of cybersecurity obligations exist?",
         legal_test=(
-            "The provision is a CYBERSECURITY obligation — more than scattered data-security clauses: protection of "
-            "critical information infrastructure, ENCRYPTION / cryptographic controls, secure remote access, "
-            "network-security architecture, duties to secure systems or report cyber incidents, or a cybersecurity "
-            "authority. A dedicated cybersecurity framework is the strongest case. Distinguish from P7-I1 "
-            "(personal-DATA protection) — encryption / network-security duties are cybersecurity, not data-privacy."
+            "The provision is a CYBERSECURITY obligation: protection of critical information infrastructure, "
+            "ENCRYPTION / cryptographic controls, secure remote access, network-security architecture, duties "
+            "to monitor, detect, prevent, mitigate or manage incidents, duties to report them, or a "
+            "cybersecurity authority. "
+            "'DEDICATED' IS A PROPERTY OF THE INSTRUMENT, NOT OF THE CLAUSE. The RDTII 2.1 guide (p.59) "
+            "defines a dedicated framework as one where the economy 'establishes broadly applicable "
+            "cybersecurity-specific laws (horizontal) OR cybersecurity-focused laws applicable to specific "
+            "sectors (sectoral)', and a NON-dedicated one as an economy that 'does not implement specific "
+            "cybersecurity laws but relies on OTHER laws to govern threats arising from cybercrime'. So say "
+            "in the rationale which kind you are looking at: a Cybersecurity Act, a critical-infrastructure "
+            "law or a sector cybersecurity regulation is dedicated (and a sectoral one still counts, scoring "
+            "0.5 rather than 0); a stray security clause inside a banking, companies or privacy Act is the "
+            "non-dedicated case. Both are recorded — being non-dedicated lowers the score, it does not make "
+            "the provision irrelevant. "
+            "Distinguish from P7-I1 (personal-DATA protection) — encryption and network-security duties are "
+            "cybersecurity, not data-privacy."
         ),
         scope="national",
         query_terms=["cybersecurity", "critical information infrastructure", "strong encryption",
@@ -236,12 +307,20 @@ INDICATORS: list[Indicator] = [
         title="Minimum period of data retention requirements",
         description="Does the law require data/records to be retained for AT LEAST a specified minimum period?",
         legal_test=(
-            "The operative rule mandates a MINIMUM RETENTION DURATION — data, records or information must be kept "
-            "for AT LEAST a stated period ('keep for not less than N years'; e.g. business e-commerce records kept "
-            "6 years). It is NOT the same as 'do not keep data longer than necessary' (a purpose-/storage-"
-            "limitation rule) — that is the OPPOSITE and does NOT satisfy this indicator. Distinguish from P6-I2 "
-            "(WHERE data is stored, not how long). (RDTII exception: retention applied only to GOVERNMENT data is "
-            "out of scope.)"
+            "The operative rule mandates a MINIMUM RETENTION DURATION — data, records or information must be "
+            "kept for AT LEAST a stated period ('keep for not less than N years'; e.g. business e-commerce "
+            "records kept 6 years). It is NOT the same as 'do not keep data longer than necessary' (a "
+            "purpose-/storage-limitation rule): the RDTII 2.1 guide (p.60) calls that a MAXIMUM period and "
+            "says it is not scored in version 2.1. A requirement that exists but fixes no period likewise "
+            "scores 0. A PERMANENT retention duty does satisfy the indicator. "
+            "THE RANK OF THE INSTRUMENT DOES NOT MATTER. The guide does not require the period to sit in "
+            "primary legislation, so a duty to retain 'for the prescribed period' — where the period is set "
+            "by regulations, by a ministerial or regulatory order, or by a licence condition issued under a "
+            "proper statutory power — SATISFIES this indicator. The binding obligation is what counts, not "
+            "which kind of instrument states the number; do not reject such a provision because the figure "
+            "is fixed elsewhere. "
+            "Distinguish from P6-I2 (WHERE data is stored, not how long). Retention applied only to "
+            "GOVERNMENT data is out of scope."
         ),
         scope="national",
         query_terms=["retain for at least", "kept for a period of", "minimum period", "not less than",
@@ -261,8 +340,16 @@ INDICATORS: list[Indicator] = [
         legal_test=(
             "The operative rule requires appointing a DATA PROTECTION OFFICER (DPO) and/or conducting a DATA "
             "PROTECTION IMPACT ASSESSMENT (DPIA) — either obligation satisfies the indicator (related "
-            "accountability such as a mandated data auditor tied to the DPO/DPIA regime counts too). Distinguish "
-            "from the general framework (P7-I1) — the trigger here is specifically the DPO/DPIA duty."
+            "accountability such as a mandated data auditor tied to the DPO/DPIA regime counts too). "
+            "THE DPO DUTY IS THE ONE THAT WEIGHS. The RDTII 2.1 guide (p.61) scores a DPO requirement (alone "
+            "or with DPIA) applying horizontally at 1, the same requirement confined to a specific sector at "
+            "0.5, and a DPIA-only requirement at 0.25 — 'the scoring metric focuses more on the presence of "
+            "the DPO requirement'. So say in the rationale WHICH duty the provision imposes and whether it "
+            "binds all sectors or one; a DPIA-only rule still maps here but must not be described as a DPO "
+            "requirement. A duty framed functionally — 'designate one or more individuals responsible for "
+            "ensuring compliance' — is a DPO requirement whatever the title used. "
+            "Distinguish from the general framework (P7-I1) — the trigger here is specifically the DPO/DPIA "
+            "duty."
         ),
         scope="national",
         query_terms=["data protection officer", "data protection impact assessment", "appoint a data protection officer",
@@ -281,18 +368,37 @@ INDICATORS: list[Indicator] = [
         title="Requirements to allow government access to personal data",
         description="Does the legal framework enable or require GOVERNMENT / law-enforcement access to personal data?",
         legal_test=(
-            "The operative rule ENABLES or REQUIRES the government, police, or a public authority to ACCESS, search, "
-            "inspect, copy, intercept, or compel disclosure of personal data — often for law-enforcement, "
-            "surveillance, or national-security purposes. Such measures live BEYOND privacy law: in criminal "
-            "procedure codes, surveillance / lawful-access / interception laws, telecom law, etc. (e.g. a police "
-            "officer investigating an arrestable offence may access and copy any data on a computer). The strongest "
-            "case is access WITHOUT a court order. Distinguish from P7-I2 (cybersecurity duties on private entities, "
-            "not state access)."
+            "The operative rule lets the government, police or a public authority ACCESS, search, inspect, copy, "
+            "intercept or compel disclosure of PERSONAL DATA — and does so WITHOUT requiring the explicit "
+            "authorisation of an INDEPENDENT JUDICIAL BODY. That second half is the test, not a strengthening "
+            "factor: the RDTII 2.1 guide (p.62) asks 'whether the Government can access personal data without the "
+            "explicit authorization of an independent judicial body, such as a court decision, a judicial warrant "
+            "or an equivalent order issued by a truly independent tribunal with due process safeguards'. So a power "
+            "exercisable only on a court order or judicial warrant does NOT satisfy this indicator, however "
+            "sweeping the access it grants; the absence of judicial oversight is what the indicator measures. "
+            "AUTHORISATION BY A NON-JUDICIAL BODY STILL SATISFIES IT, and so does the PROCEDURE for obtaining such "
+            "authorisation: a minister, a regulator, a commission, a police superintendent or an undefined "
+            "'competent authority' is not an independent tribunal, and the guide's own examples are of exactly "
+            "that shape (Cambodia's undefined 'legitimate authority'; India's ISPs handing subscriber logs to "
+            "intelligence agencies on demand; Sri Lanka's operators opening their databases to the "
+            "telecommunications regulator on request). Such measures live BEYOND privacy law: in criminal procedure "
+            "codes, surveillance / lawful-access / interception laws and telecom law. "
+            "THE OBJECT MUST BE PERSONAL DATA. A power to seize goods, premises or things generally is out of "
+            "scope; where a production power is worded broadly ('any document or other thing'), it counts only "
+            "when it reaches data about identifiable individuals. "
+            "Distinguish from P7-I2 (cybersecurity duties on private entities, not state access)."
         ),
         scope="national",
         query_terms=["police officer", "authorised person", "arrestable offence", "access, inspect", "search any data",
                      "make a copy of any such data", "lawful interception", "without a warrant", "law enforcement",
-                     "production order", "require the production of", "national security"],
+                     "production order", "require the production of", "national security",
+                     # What the indicator actually measures is access NOT authorised by a court, so
+                     # the discriminating words are the non-judicial authoriser and the bare demand.
+                     # (RDTII 2.1 guide p.62 — Cambodia's undefined "legitimate authority", India's
+                     # subscriber logs on demand, Sri Lanka's regulator-initiated database access.)
+                     "upon request by the", "on the direction of the Minister", "competent authority may require",
+                     "shall provide access to", "furnish such information as may be required",
+                     "subscriber information", "authorised by the Commission", "intelligence agencies"],
     ),
 ]
 
