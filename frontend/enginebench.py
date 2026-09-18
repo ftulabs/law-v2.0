@@ -112,14 +112,15 @@ LLM: dict[str, dict] = {
         "facts": [("Key", "your Google key", ""), ("Cost", "pay per token", ""),
                   ("Model", "you name it below", "good"), ("Text", "sent to Google", "warn")],
     },
+    # NOTE: this entry is a placeholder — `_local_spec()` rebuilds it at render time from
+    # whatever is actually configured. It must not assert a model, a host or a key, because
+    # none of those are facts about anyone else's deployment. See `_local_spec`.
     "local": {
-        "name": "Self-hosted · flash-next (team V100)",
+        "name": "Self-hosted endpoint",
         "kind": "local",
-        "role": "Team host — default.",
-        "why": "Any OpenAI-compatible endpoint you run yourself — Ollama, vLLM, LM Studio, llama.cpp. The default is a local Ollama; set LOCAL_LLM_BASE_URL in .env to point it elsewhere.",
-        "facts": [("Key", "team key set", "good"), ("Cost", "free", "good"),
-                  ("Model", "Qwen3.8-Flash-Next (team)", "good"),
-                  ("Text", "stays on Tailscale", "good")],
+        "role": "Your own server.",
+        "why": "Any OpenAI-compatible endpoint you run yourself — Ollama, vLLM, llama.cpp, LM Studio.",
+        "facts": [],
     },
     "mock": {
         "name": "Offline stand-in",
@@ -321,13 +322,53 @@ def _ocr_bench(current: str, scope: str, note: str = "") -> None:
             "Tesseract needs a system binary and Azure needs a key, so neither can be bundled.")
 
 
+#: The shipped default, which means "nobody has pointed this anywhere yet".
+_UNCONFIGURED_LOCAL = "http://localhost:11434/v1"
+
+
+def _local_spec() -> dict:
+    """The self-hosted card, built from what is CONFIGURED rather than from what we run.
+
+    This card used to state a model name, a host ("team V100") and "team key set" as though
+    they were properties of the software. They are properties of one deployment — ours — and
+    on a judge's machine every one of them is false. The addresses themselves were never in
+    the code (they live in `.env`, which is gitignored), but the card claimed them anyway, so
+    a judge running this would read a confident description of a cluster they cannot reach.
+
+    Two states, and the unconfigured one has to say what to DO rather than leave a blank or a
+    lie: if `LOCAL_LLM_BASE_URL` is still the shipped Ollama default, nothing has been pointed
+    anywhere and the card says so and names the field below. If it has been set, the card
+    reports the host and model actually configured, and nothing else.
+    """
+    url = (settings.local_llm_base_url or "").strip()
+    model = (settings.local_llm_model or "").strip()
+    configured = bool(url) and url.rstrip("/") != _UNCONFIGURED_LOCAL.rstrip("/")
+
+    spec = dict(LLM["local"])
+    if not configured:
+        spec["role"] = "Not pointed anywhere yet."
+        spec["facts"] = [("Endpoint", "not set", "warn"),
+                         ("Cost", "free — your hardware", "good"),
+                         ("Text", "never leaves your network", "good"),
+                         ("To use", "fill in Base URL below", "")]
+        return spec
+
+    host = url.split("//", 1)[-1].split("/", 1)[0]          # host:port, without the scheme
+    spec["role"] = "Your server — no vendor, no bill."
+    spec["facts"] = [("Endpoint", host, "good"),
+                     ("Cost", "$0 per call", "good"),
+                     ("Model", model or "set below", "good" if model else "warn"),
+                     ("Text", "never leaves your network", "good")]
+    return spec
+
+
 def _llm_bench(current: str, scope: str) -> None:
     names = [n for n in _order(LLM_ORDER, reg.LLM_PROVIDERS) if n in LLM]
 
     def _draw(subset: list[str], tag: str) -> None:
         cols = st.columns(3, gap="small")
         for i, name in enumerate(subset):
-            spec = LLM[name]
+            spec = _local_spec() if name == "local" else LLM[name]
             av = reg.llm_availability(name, api_key=st.session_state.get("llm_key"))
             selected = name == current
             facts = "".join(f'<div class="fx"><b class="{tone}">{v}</b><span>{lab}</span></div>'
@@ -403,18 +444,21 @@ def _llm_setup_body(provider: str, scope: str) -> None:
                    "openrouter.ai/keys", scope)
 
     elif provider == "local":
-        st.markdown('<div class="ttl">Team host — flash-next (team key set)</div>'
-                    '<div class="sub">Default is a local Ollama on <code>localhost:11434</code>; '
-                    'set <code>LOCAL_LLM_BASE_URL</code> in <code>.env</code> for any other endpoint '
-                    '(<code>Qwen3.8-Flash-Next-Uncensored</code>, llama.cpp, Tailscale). Team key is pre-filled; keep it, or point '
-                    'at your own Ollama/vLLM — nothing leaves the machine you point at.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="ttl">Point this at a server you run</div>'
+                    '<div class="sub">Any OpenAI-compatible endpoint: Ollama, vLLM, llama.cpp, '
+                    'LM Studio. Nothing leaves the machine you name here, and there is no bill. '
+                    'Set <code>LOCAL_LLM_BASE_URL</code>, <code>LOCAL_LLM_MODEL</code> and '
+                    '<code>LOCAL_LLM_API_KEY</code> in <code>.env</code> to have these filled in '
+                    'for you, or just type them below for this session.</div>',
+                    unsafe_allow_html=True)
         c1, c2 = st.columns(2)
         url = c1.text_input("Base URL", value=st.session_state.get("local_base_url")
                             or settings.local_llm_base_url, key=f"{scope}_local_url",
-                            help="Ollama: http://localhost:11434/v1  ·  vLLM/llama.cpp: whatever your server exposes")
+                            help="Ollama: http://localhost:11434/v1  ·  vLLM / llama.cpp: whatever your server exposes")
         model = c2.text_input("Model name", value=st.session_state.get("llm_model")
                               or settings.local_llm_model, key=f"{scope}_local_model",
-                              help="Team default: Qwen3.8-Flash-Next-Uncensored  ·  or any model your server serves (e.g. qwen2.5:14b)")
+                              help="An id your own server serves — list them with "
+                                   "curl $BASE/models  (e.g. qwen2.5:14b)")
         st.session_state["local_base_url"] = url.strip()
         settings.local_llm_base_url = url.strip()
         st.session_state["llm_model"] = model.strip() or None

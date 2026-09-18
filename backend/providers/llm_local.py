@@ -49,25 +49,63 @@ def _timeout(read_seconds: float):
     return httpx.Timeout(read_seconds, connect=connect)
 
 
-def _probe_slots(base_url: str) -> int | None:
-    """`total_slots` from a llama.cpp server, or None if it is not one / is not there.
-
-    `/props` sits beside the OpenAI surface rather than inside it, so `/v1` is stripped. Kept
-    deliberately cheap: this runs once per process and must never be what delays a run, so a
-    node that does not answer promptly is simply one that did not say.
-    """
-    import urllib.error                                            # noqa: PLC0415
-    import urllib.request                                          # noqa: PLC0415
-
+def _root_of(base_url: str) -> str:
+    """The server's own root. `/props` and `/metrics` sit BESIDE the OpenAI surface, not in it."""
     root = base_url.rstrip("/")
-    root = root[: -len("/v1")] if root.endswith("/v1") else root
+    return root[: -len("/v1")] if root.endswith("/v1") else root
+
+
+def _get(url: str, timeout: float = 6.0) -> str | None:
+    """A short, failure-tolerant GET. Probing must never be what delays a run."""
+    import urllib.request                                          # noqa: PLC0415
     try:
-        with urllib.request.urlopen(root + "/props", timeout=6) as resp:
-            import json                                            # noqa: PLC0415
-            slots = json.load(resp).get("total_slots")
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            return resp.read(200_000).decode("utf-8", "replace")
     except Exception:                                              # noqa: BLE001
         return None
-    return int(slots) if isinstance(slots, int) and slots > 0 else None
+
+
+def _probe_concurrency(base_url: str) -> int | None:
+    """How many grading calls to keep in flight at this server, or None if it does not say.
+
+    Two engines answer, and they answer differently, so both are asked:
+
+    llama.cpp publishes `total_slots` on `/props` — a HARD count, fixed by `--parallel` at
+    startup. A server started without it reports 1 and queues everything else, so the number is
+    exactly the useful thread count and there is nothing to measure.
+
+    vLLM publishes no such field: it batches continuously and the ceiling is whatever the
+    scheduler can fit in KV cache, which it will not state. So the number here is MEASURED
+    rather than read. Against the deploy host's own vLLM (Qwen3.6-35B-A3B-AWQ), the run's real
+    prompt, 2026-09-18:
+
+        threads    2      4      8     16     32     64
+        calls/s  0.80   1.33   2.36   4.02   5.03   4.09
+
+    It climbs to 32 and turns over by 64 — past the peak the scheduler is holding more requests
+    than it can keep resident, and queueing time is added for no throughput. 32 is the peak and
+    it is what `local_llm_vllm_concurrency` defaults to.
+    """
+    import json                                                    # noqa: PLC0415
+
+    root = _root_of(base_url)
+
+    props = _get(root + "/props")
+    if props:
+        try:
+            slots = json.loads(props).get("total_slots")
+        except ValueError:
+            slots = None
+        if isinstance(slots, int) and slots > 0:
+            # One queued request per slot, so a slot is never idle across the HTTP round trip.
+            return slots + 1
+
+    # vLLM's Prometheus surface is the reliable tell: `/v1/models` says `owned_by: vllm` only
+    # for models it happens to label that way, whereas these counters exist on every build.
+    metrics = _get(root + "/metrics")
+    if metrics and "vllm:num_requests_running" in metrics:
+        return max(1, int(settings.local_llm_vllm_concurrency))
+    return None
 
 
 class LocalLLM(LLMProvider):
@@ -213,12 +251,11 @@ class LocalLLM(LLMProvider):
             # Ollama, vLLM and LocalAI do not publish `/props`; an unreachable node does not
             # either. Either way we have not been told, so nothing is assumed.
             return fallback
-        # One queued request per slot, so a slot is never idle across the HTTP round trip.
         # Never below 2: a pool that drops to one thread cannot overlap anything at all.
-        return max(2, sum(s + 1 for s in slots.values()))
+        return max(2, sum(slots.values()))
 
     def pool_slots(self) -> dict[str, int | None]:
-        """Per node, how many requests it says it runs at once — None when it does not say.
+        """Per node, how many calls to keep in flight there — None when the node does not say.
 
         Probed once per process and cached: the answer changes only when someone restarts the
         server, and `mapping` asks for it on every run.
@@ -226,7 +263,7 @@ class LocalLLM(LLMProvider):
         with self._lock:
             if self._slots is not None:
                 return self._slots
-        probed = {u: _probe_slots(u) for u in self._url_of.values()}
+        probed = {u: _probe_concurrency(u) for u in self._url_of.values()}
         with self._lock:
             self._slots = probed
         return probed
@@ -244,7 +281,7 @@ class LocalLLM(LLMProvider):
         total = sum(live.values()) if live else 0
         parts = [f"{len(live)}/{len(slots)} node(s) answered"]
         if live:
-            parts.append(f"{total} parallel slot(s)")
+            parts.append(f"{total} parallel call(s)")
         dead = [u for u, s in slots.items() if s is None]
         if dead and live:
             parts.append(f"unreachable or not llama.cpp: {', '.join(dead)}")

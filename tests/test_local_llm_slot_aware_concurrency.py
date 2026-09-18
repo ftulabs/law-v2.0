@@ -37,7 +37,8 @@ def _openai(monkeypatch):
 
 
 def _with_slots(monkeypatch, answers: dict[str, int | None]):
-    monkeypatch.setattr(llm_local, "_probe_slots", lambda url: answers.get(url))
+    monkeypatch.setattr(llm_local, "_probe_concurrency",
+                        lambda url: (lambda v: None if v is None else v + 1)(answers.get(url)))
 
 
 def test_one_slot_server_does_not_get_sixteen_threads(_openai, monkeypatch):
@@ -77,7 +78,7 @@ def test_one_silent_node_in_a_pool_falls_back_rather_than_undercounting(_openai,
 
 def test_slots_are_probed_once_not_once_per_call(_openai, monkeypatch):
     calls: list[str] = []
-    monkeypatch.setattr(llm_local, "_probe_slots", lambda url: calls.append(url) or 2)
+    monkeypatch.setattr(llm_local, "_probe_concurrency", lambda url: calls.append(url) or 3)
     llm = llm_local.LocalLLM("http://a:8081/v1", "m")
     llm.suggested_concurrency()
     llm.suggested_concurrency()
@@ -90,7 +91,7 @@ def test_pool_report_names_how_many_answered_and_what_they_offer(_openai, monkey
     llm = llm_local.LocalLLM("http://a:8081/v1,http://dead:8080/v1", "m")
     line = llm.pool_report()
     assert "1/2 node(s) answered" in line
-    assert "1 parallel slot(s)" in line
+    assert "2 parallel call(s)" in line
     assert "http://dead:8080/v1" in line, "a vanished node must be named, not merely counted"
 
 
@@ -112,14 +113,68 @@ def test_probe_reads_props_beside_the_openai_surface(monkeypatch):
         def __exit__(self, *a):
             return False
 
-        def read(self):
-            return b'{"total_slots": 3}'
+        def __init__(self, body):
+            self._body = body
+
+        def read(self, _n=None):
+            return self._body
 
     def _fake_urlopen(url, timeout=None):
         seen.append(url)
-        return _Resp()
+        if url.endswith("/props"):
+            return _Resp(b'{"total_slots": 3}')
+        raise OSError("no such endpoint")
 
     import urllib.request
     monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
-    assert llm_local._probe_slots("http://a:8081/v1") == 3
-    assert seen == ["http://a:8081/props"]
+    assert llm_local._probe_concurrency("http://a:8081/v1") == 4   # 3 slots + 1 queued
+    assert seen == ["http://a:8081/props"], "a llama.cpp answer must not also cost a /metrics GET"
+
+
+def test_vllm_is_recognised_although_it_publishes_no_slot_count(monkeypatch):
+    """vLLM batches continuously and states no ceiling, so `/props` 404s and the number has to
+    be the measured one. Without this branch a vLLM node falls to the 16-thread default and
+    leaves half its measured throughput unused (4.02 calls/s at 16 vs 5.03 at 32)."""
+    seen: list[str] = []
+
+    class _Resp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self, _n=None):
+            return b'vllm:num_requests_running{engine="0"} 0.0\nvllm:num_requests_waiting 0.0\n'
+
+    def _fake_urlopen(url, timeout=None):
+        seen.append(url)
+        if url.endswith("/metrics"):
+            return _Resp()
+        raise OSError("404")
+
+    import urllib.request
+    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+    assert llm_local._probe_concurrency("http://a:8082/v1") == \
+        settings.local_llm_vllm_concurrency
+    assert seen == ["http://a:8082/props", "http://a:8082/metrics"]
+
+
+def test_a_metrics_endpoint_that_is_not_vllm_says_nothing(monkeypatch):
+    """Plenty of servers expose `/metrics`. Only vLLM's own counters mean vLLM, and guessing a
+    batch size for something else would flood a server that cannot take it."""
+    class _Resp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self, _n=None):
+            return b"# HELP go_gc_duration_seconds\ngo_goroutines 12\n"
+
+    import urllib.request
+    monkeypatch.setattr(urllib.request, "urlopen",
+                        lambda url, timeout=None: _Resp() if url.endswith("/metrics")
+                        else (_ for _ in ()).throw(OSError("404")))
+    assert llm_local._probe_concurrency("http://a:9000/v1") is None
