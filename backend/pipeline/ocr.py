@@ -78,6 +78,32 @@ def _soup(html: str):
     return alt if len(alt.get_text(strip=True)) > got else soup
 
 
+_META_CHARSET = re.compile(rb"""<meta[^>]+charset\s*=\s*["']?\s*([A-Za-z0-9_-]+)""", re.I)
+
+
+def _read_html(path: str) -> str:
+    """An HTML body decoded in the charset it declares, UTF-8 when it declares none.
+
+    Every page used to be read as UTF-8 with errors ignored. For a windows-1251 page that does
+    not raise: each Cyrillic byte is simply dropped. pravo.gov.ru bodies reached the grader as
+    ", ,   ()   ," — punctuation and digits, no words — whenever adapter_russia's decoded
+    seed was missing from the cache (measured 2026-09-25, 44 documents, 43 provisions).
+    """
+    data = Path(path).read_bytes()
+    try:
+        # Valid UTF-8 wins over any declaration: some portals (mj.gov.tl) declare windows-1252
+        # and serve UTF-8, and cp1251 Cyrillic is essentially never valid UTF-8 by accident.
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        pass
+    m = _META_CHARSET.search(data[:4096])
+    enc = m.group(1).decode("ascii").lower() if m else "utf-8"
+    try:
+        return data.decode(enc, errors="replace" if enc != "utf-8" else "ignore")
+    except LookupError:                            # an unknown label: fall back, as before
+        return data.decode("utf-8", errors="ignore")
+
+
 def _html_to_text(html: str) -> str:
     soup = _soup(html)
     for tag in soup(["script", "style", "nav", "header", "footer", "aside", "noscript"]):
@@ -191,6 +217,18 @@ def _is_bold_heading(text: str, chars: list) -> bool:
     return bold / len(glyphs) >= 0.6
 
 
+#: A line that is nothing but an article heading, after `_norm` has masked its number. Such a
+#: line recurs at page tops because statutes start articles at page tops, and once masked every
+#: one of them reads "Pasal #" — so the chrome test took the heading of EVERY article for a
+#: running header and deleted them all. Measured 2026-09-25 on Indonesia's PP 82/2012 from
+#: peraturan.bpk.go.id: the PDF's text layer has 211 line-start "Pasal N" headings, the
+#: pipeline's text had 8, and the Regulation split into 8 provisions (three of them "Pasal
+#: 73" cross-references). "Section"/"Division"/"Part" are NOT exempt: legislation.gov.au
+#: prints "Section 77A" banners as real running headers, which this function exists to drop.
+_BARE_ARTICLE_HEAD = re.compile(
+    r"^(?:Pasal|Artigo|Article|Art\.|Статья|มาตรา|Điều)\s*#\s*[A-Za-z]{0,2}\s*[º°.]?$", re.I)
+
+
 def _strip_running_chrome(pages: list[str]) -> list[str]:
     """General page running-header/footer removal — the robust alternative to per-law patterns.
 
@@ -215,7 +253,7 @@ def _strip_running_chrome(pages: list[str]) -> list[str]:
             if 0 < len(n) <= 80:
                 counts[n] += 1
     thresh = max(3, int(0.25 * len(pages)))            # recurs on ≥¼ of pages → chrome
-    chrome = {n for n, c in counts.items() if c >= thresh}
+    chrome = {n for n, c in counts.items() if c >= thresh and not _BARE_ARTICLE_HEAD.match(n)}
     if not chrome:
         return pages
     return ["\n".join(l for l in pg.split("\n") if _norm(l) not in chrome) for pg in pages]
@@ -301,7 +339,9 @@ def _content_key(doc: DiscoveredDoc) -> str | None:
 # statute should be — and a rebuild would keep serving it, because the cache key is the
 # document's bytes and those did not change. Rebuilding China's corpus after the fix, with
 # --force, still produced ten shells for exactly this reason.
-EXTRACT_FORMAT_VERSION = "v5"
+# v6 (2026-09-25): `_strip_running_chrome` no longer deletes bare article headings — every text
+# cached under v5 from a PDF whose articles start at page tops is missing its "Pasal N" lines.
+EXTRACT_FORMAT_VERSION = "v6"
 
 
 def _extract_cache_path(key: str, provider_name: str) -> Path:
@@ -467,7 +507,7 @@ def _extract_document_text(doc: DiscoveredDoc, ocr_provider: OCRProvider | None 
     fmt = doc.fmt
 
     if fmt == DocFormat.HTML or (path and path.endswith(".html")):
-        raw = Path(path).read_text(encoding="utf-8", errors="ignore") if path and Path(path).exists() else (doc.raw_text or "")
+        raw = _read_html(path) if path and Path(path).exists() else (doc.raw_text or "")
         text = _html_to_text(raw)
         # An unrendered SPA shell (e.g. legislation.gov.au) carries only site chrome — return
         # empty so extraction emits no provisions instead of mapping navigation text as a law.

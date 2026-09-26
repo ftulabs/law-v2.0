@@ -386,5 +386,10 @@ TRANSLATION_COLUMNS = [
     "Verbatim Snippet (machine translation)",
 ]
 
+#: `law_name` of the rows written for an indicator with no evidence: "No provision found" when
+#: the run graded it and found nothing, "Not assessed" when grading calls were lost and the run
+#: cannot say. Neither is a law; every consumer that skips placeholders must skip both.
+PLACEHOLDER_LAW_NAMES = frozenset({"No provision found", "Not assessed"})
+
 # Statuses that belong in a submission (exclude rejected/quarantined by default)
 SUBMITTABLE_STATUSES = {"auto_accepted", "approved", "corrected", "pending_review"}

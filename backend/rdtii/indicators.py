@@ -210,6 +210,15 @@ INDICATORS: list[Indicator] = [
             "at 0.5 — all are in scope. GOVERNMENT DATA IS EXCLUDED. "
             "Distinguish from P6-I1 only in this narrow sense: where NO condition can ever unlock the "
             "transfer, it is a ban and belongs there instead. "
+            "WHAT IS TRANSFERRED MUST BE DATA. The provision has to condition the movement of data, "
+            "information, records or personal information to another country. A conditional "
+            "transfer of anything ELSE does NOT satisfy this indicator, however it is worded: the "
+            "transfer of a BUSINESS or undertaking (banking and insurance transfer schemes), of a "
+            "licence, shares, securities, assets, property, goods or funds; opening a branch or "
+            "place of business; recognising foreign certificates or authorities. Do not infer that "
+            "data moves 'as part of' such a transfer — if you cannot quote words that condition "
+            "DATA leaving the country, answer false. Nor is a general consent, notice or "
+            "data-subject-rights provision a transfer regime unless it speaks to transfer abroad. "
             # Added after a live India run rejected the panel's OWN answer. DPDP 2023 s.16 reads
             # "The Central Government may, by notification, restrict the transfer of personal data
             # ... to such country or territory outside India as may be so notified", and every

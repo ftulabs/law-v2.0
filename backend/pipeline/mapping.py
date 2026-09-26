@@ -8,6 +8,7 @@ extraction, not generation. That separation is the core anti-hallucination contr
 """
 from __future__ import annotations
 
+import collections
 import hashlib
 import re
 import threading
@@ -458,7 +459,14 @@ def map_provisions(
     top_k: int = 5,
     min_retrieval: float = 0.05,
     log=lambda *_: None,
+    gaps: dict | None = None,
 ) -> list[EvidenceMapping]:
+    """Grade every (indicator, shortlisted provision) pair and return the accepted mappings.
+
+    `gaps`, when given, is filled with {indicator_id: (calls that failed or were never sent,
+    calls planned)} for every indicator that lost at least one call — so the caller can tell
+    "graded and found nothing" from "could not grade", which the CSV must not conflate.
+    """
     llm = llm or get_llm_provider()
     source_texts = source_texts or {}
     doc_tags = doc_tags or {}
@@ -550,7 +558,7 @@ def map_provisions(
         if breaker["stop"].is_set():
             with breaker["lock"]:
                 breaker["skipped"] += 1
-            return None
+            return ("SKIP", ind.indicator_id)
         try:
             graded = llm.complete_json(SYSTEM, _user_prompt(ind, prov))
         except LLMTerminalError as e:
@@ -709,10 +717,16 @@ def map_provisions(
         f"[timing] mapping: retrieval/build {_retr_secs:.1f}s · {attempted} grading calls")
 
     first_reason = ""
+    planned = collections.Counter(ind.indicator_id for ind, _r in work)
+    lost: collections.Counter = collections.Counter()
     for res in results:
         if res is None:
             continue
+        if isinstance(res, tuple) and res[0] == "SKIP":
+            lost[res[1]] += 1
+            continue
         if isinstance(res, tuple):  # ("FAIL", reason, ind, prov)
+            lost[res[2]] += 1
             failures += 1
             first_reason = first_reason or res[1]
             if failures <= 3:
@@ -743,6 +757,8 @@ def map_provisions(
         else:
             hint = "possible rate limits — try a paid key or fewer pillars"
         log(f"[warn] {failures} of {len(work)} LLM call(s) failed and were skipped ({hint})")
+    if gaps is not None:
+        gaps.update({i: (n, planned[i]) for i, n in lost.items()})
     # most confident first
     mappings.sort(key=lambda m: m.confidence_score, reverse=True)
     return mappings

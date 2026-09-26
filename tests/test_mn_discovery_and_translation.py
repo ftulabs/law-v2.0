@@ -224,7 +224,7 @@ def test_placeholder_rows_are_not_translated():
             calls.append(user)
             return {"translation": "should not happen"}
 
-    m = _mapping("MN", law_name=translate.PLACEHOLDER_LAW,
+    m = _mapping("MN", law_name="No provision found",
                  verbatim_snippet="No evidence found for this indicator.")
     translate.translate_mappings([m], llm=_Spy())
     assert calls == []

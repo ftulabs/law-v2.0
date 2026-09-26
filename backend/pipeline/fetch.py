@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import time
 from dataclasses import dataclass
@@ -57,7 +58,31 @@ def _load_index() -> dict:
 
 
 def _save_index(idx: dict) -> None:
-    _index_file().write_text(json.dumps(idx, indent=2, sort_keys=True), encoding="utf-8")
+    # Atomic: a reader never sees a half-written file. `_load_index` answers {} for a file it
+    # cannot parse, so a torn write read by another process used to become an EMPTY index,
+    # and that process's next save wiped every entry.
+    f = _index_file()
+    tmp = f.with_suffix(f".{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(idx, indent=2, sort_keys=True), encoding="utf-8")
+    os.replace(tmp, f)
+
+
+def _index_put(url: str, entry: dict, idx: dict) -> None:
+    """Record ONE entry, merged into the index as it is on disk now, under a cross-process lock.
+
+    The index used to be saved from the copy `fetch_to_cache` loaded when it started, so any
+    entry another process wrote while this one was downloading was erased — measured
+    2026-09-25: with several economies running at once, every one of India's API-seeded
+    sections vanished from the index before fetch looked for it, fetch went to the web front
+    end instead, and 1,106 sections collapsed into one "India Code" JS shell. The Streamlit
+    dashboard serving two researchers at once is the same race.
+    """
+    from filelock import FileLock          # noqa: PLC0415
+    with FileLock(str(_index_file()) + ".lock", timeout=120):
+        fresh = _load_index()
+        fresh[url] = entry
+        _save_index(fresh)
+    idx[url] = entry                        # keep the caller's copy consistent too
 
 
 def _polite_wait(host: str, url: str | None = None) -> None:
@@ -164,6 +189,11 @@ def fetch_to_cache(url: str, log: Callable[[str], None] = print) -> FetchResult 
             res = FetchResult(str(cached), DocFormat(prior["fmt"]), prior["sha256"],
                               prior.get("content_type", ""), True)
             res = _maybe_resolve_embedded_pdf(url, res, idx, log)
+            # The same landing-page -> instrument step the network path takes. Without it a
+            # repeat run inside the TTL cited the LANDING page: measured 2026-09-25, Indonesia's
+            # 34 peraturan.bpk.go.id documents went from 3,283 provisions (first run) to 62
+            # (second run, every body a cache hit), one "(document)" block per regulation.
+            res = _maybe_resolve_portal_body(url, res, idx, log)
             return _maybe_render_spa(url, res, idx, log)
     engines = _engine_order()
     if _tls_relaxed(parsed.netloc):
@@ -459,9 +489,9 @@ def _store(url, data: bytes, content_type: str, idx: dict, etag, last_mod, log,
         import os
         os.utime(path)                          # renew the TTL window on revalidation
         log(f"[fetch] dedup (same content) -> {fname}  ({url})")
-    idx[url] = {"file": fname, "sha256": sha, "fmt": fmt.value, "content_type": content_type,
-                "etag": etag, "last_modified": last_mod, "bytes": len(data), "engine": engine}
-    _save_index(idx)
+    _index_put(url, {"file": fname, "sha256": sha, "fmt": fmt.value, "content_type": content_type,
+                     "etag": etag, "last_modified": last_mod, "bytes": len(data),
+                     "engine": engine}, idx)
     return FetchResult(str(path), fmt, sha, content_type, False)
 
 

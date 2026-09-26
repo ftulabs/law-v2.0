@@ -16,7 +16,7 @@ from ..console import safe_log
 from ..schemas import ECONOMY_UN_NAME
 from ..providers import get_llm_provider, get_ocr_provider
 from ..rdtii import get_indicators
-from ..schemas import Economy, OCRReport, RunMeta, RunResult
+from ..schemas import PLACEHOLDER_LAW_NAMES, Economy, OCRMetrics, OCRReport, RunMeta, RunResult
 from ..storage import db
 from . import discovery, extraction, mapping, scoring, translate, websearch
 from .ocr import get_document_text
@@ -153,7 +153,7 @@ def _searched_laws(provisions, limit: int = 4) -> list[str]:
 
 
 def _no_evidence_placeholders(run_id, economy, indicators, mappings, log,
-                              provisions=None) -> list:
+                              provisions=None, gaps=None) -> list:
     """Explicit 'No evidence' row per indicator with no submittable mapping.
 
     The Notes column names the laws that WERE read. Without that, a correct negative is
@@ -171,8 +171,36 @@ def _no_evidence_placeholders(run_id, economy, indicators, mappings, log,
     read = _searched_laws(provisions)
     read_note = (" Laws read for this run: " + "; ".join(read) + "." if read else "")
     out = []
+    gaps = gaps or {}
     for ind in indicators:
         if ind.indicator_id in covered:
+            continue
+        if ind.indicator_id in gaps:
+            # Some of this indicator's grading calls never came back. "Nothing found" would
+            # be a legal finding the run did not make: on 2026-09-25 the grading server went
+            # down mid-run and India's CSV reported "No provision found" for all nine
+            # indicators after 9 of 9 calls had failed. Say what happened, and hold the row for
+            # a human instead of auto-accepting it.
+            lost, planned = gaps[ind.indicator_id]
+            out.append(EvidenceMapping(
+                mapping_id=f"map-notassessed-{ind.indicator_id.lower()}",
+                run_id=run_id, economy=economy, pillar=ind.pillar,
+                indicator_id=ind.indicator_id,
+                law_name="Not assessed", law_number=None, last_amended=None,
+                article_section="N/A", location_ref=None,
+                verbatim_snippet="Not assessed — grading incomplete",
+                mapping_rationale=(f"{lost} of {planned} grading call(s) for {ind.indicator_id} "
+                                   f"({ind.title}) failed or were never sent, and none that "
+                                   f"returned found evidence. This is NOT a finding that no "
+                                   f"such provision exists; re-run the economy."),
+                source_url=(f"https://{portal}/" if portal else ""),
+                confidence_score=0.0, discovery_tag=DiscoveryTag.NEW, coverage=None,
+                notes=("Grading incomplete — the LLM provider failed during this run." + read_note),
+                # PENDING_REVIEW, not QUARANTINED: a quarantined row is left out of the CSV,
+                # and an indicator with no row at all reads as a blank to the panel.
+                review_status=ReviewStatus.PENDING_REVIEW,
+                provision_id=f"not-assessed-{ind.indicator_id.lower()}",
+            ))
             continue
         out.append(EvidenceMapping(
             mapping_id=f"map-noevidence-{ind.indicator_id.lower()}",
@@ -453,8 +481,17 @@ def run_pipeline(
     provisions, source_texts, doc_tags, ocr_reports = [], {}, {}, []
 
     def _extract_one(d):
-        raw, ocr_metrics = get_document_text(d, ocr_provider=ocr)
-        provs = extraction.extract_provisions(d, raw, ocr_metrics)
+        try:
+            raw, ocr_metrics = get_document_text(d, ocr_provider=ocr)
+            provs = extraction.extract_provisions(d, raw, ocr_metrics)
+        except Exception as exc:          # noqa: BLE001 — one document must not end the run
+            # Measured 2026-09-25: one page of a Lao gazette PDF timed out at the VLM OCR
+            # endpoint, the exception left this worker, and the whole run exited with a
+            # traceback after twenty-four documents had already been fetched. Drop the ONE
+            # document, loudly, and keep the rest.
+            log(f"[error] extraction failed for {d.title[:70]} — {type(exc).__name__}: "
+                f"{str(exc)[:160]}; document skipped, run continues")
+            return d, "", OCRMetrics(notes="extraction_failed"), []
         return d, raw, ocr_metrics, provs
 
     def _record_extraction(d, raw, ocr_metrics, provs) -> None:
@@ -517,6 +554,7 @@ def run_pipeline(
     _t = time.perf_counter()
     indicators = [i for pillar in pillars for i in get_indicators(pillar)]
     log(f"[map] {len(provisions)} provisions × {len(indicators)} indicators (LLM={llm.name})")
+    grading_gaps: dict = {}
     mappings = mapping.map_provisions(
         run_id=run_id,
         provisions=provisions,
@@ -527,6 +565,7 @@ def run_pipeline(
         llm=llm,
         top_k=top_k,
         log=log,
+        gaps=grading_gaps,
     )
     log(f"[timing] mapping total {time.perf_counter() - _t:.1f}s")
     # A run that had to leave the pinned provider is still a valid run, but it is no longer a
@@ -560,7 +599,7 @@ def run_pipeline(
     if has_baseline or kit is not None:
         n_known = 0
         for m in mappings:
-            if m.law_name == "No provision found":
+            if m.law_name in PLACEHOLDER_LAW_NAMES:
                 continue                      # a placeholder is neither found nor handed to us
             economy_name = ECONOMY_UN_NAME.get(m.economy.value, m.economy.value)
             tag, note = baseline.classify(economy_name, m.indicator_id, m.law_name,
@@ -574,7 +613,7 @@ def run_pipeline(
             if note:
                 m.notes = f"{m.notes}  {note}".strip() if m.notes else note
             n_known += tag == "KNOWN"
-        scored = [m for m in mappings if m.law_name != "No provision found"]
+        scored = [m for m in mappings if m.law_name not in PLACEHOLDER_LAW_NAMES]
         log(f"[tag] provision-level vs 2025 baseline — KNOWN={n_known} "
             f"NEW={len(scored) - n_known}")
 
@@ -591,7 +630,7 @@ def run_pipeline(
 
     # indicators with no evidence still need an explicit placeholder row (blank = penalty)
     mappings.extend(_no_evidence_placeholders(run_id, economy, indicators, mappings, log,
-                                              provisions))
+                                              provisions, grading_gaps))
 
     # Working translation of Law Name + Verbatim Snippet, for a reviewer who does not read the
     # statute language. LAST, and after the placeholders, on purpose: it reads the final row

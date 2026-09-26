@@ -13,15 +13,15 @@ from pathlib import Path
 
 from ..config import settings
 from ..rdtii import codes, instrument
-from ..schemas import (ECONOMY_UN_NAME, SUBMISSION_COLUMNS, SUBMITTABLE_STATUSES,
-                       TRANSLATION_COLUMNS, EvidenceMapping)
+from ..schemas import (ECONOMY_UN_NAME, PLACEHOLDER_LAW_NAMES, SUBMISSION_COLUMNS,
+                       SUBMITTABLE_STATUSES, TRANSLATION_COLUMNS, EvidenceMapping)
 
 
 def _row(m: EvidenceMapping) -> dict[str, str]:
     # "No provision found" placeholder rows follow the judges' Q&A exactly: Confidence and
     # Discovery Tag are "N/A" (neither NEW nor KNOWN applies, and 0.00 would read as a scored
     # mapping); Source URL stays the searched portal to prove Zone 1 ran.
-    placeholder = m.law_name == "No provision found"
+    placeholder = m.law_name in PLACEHOLDER_LAW_NAMES
     # EXACT official template: the Round-1 13 columns PLUS the Round-2 "Language of Source"
     # (14 total, schemas.SUBMISSION_COLUMNS). Pillar/Coverage/OCR/CER — and the Zone-3 RDTII
     # raw_score — are deliberately NOT written here: the official template (Output Data sheet)

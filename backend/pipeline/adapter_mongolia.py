@@ -545,7 +545,14 @@ def _search_mn_legalinfo(client, src: dict, query: str, economy: Economy, indica
             continue
         try:
             from .fetch import seed_cache
-            seed_cache(DETAIL.format(id=law_id), body, "text/html", log=lambda _m: None)
+            # Seed the CLEANED text, not the raw export. Seeding the HTML sent it through the
+            # generic HTML reader, so `export_text`'s repair for doubly-escaped exports never
+            # ran at run time: lawId=16759949645981 reached extraction as 458,529 characters
+            # beginning `<meta http-equiv=…` (measured 2026-09-25) instead of 47,329 of
+            # Mongolian. Ordinary exports read identically either way (Cyber Security Law:
+            # 30,416 characters and 25 articles through both paths).
+            seed_cache(DETAIL.format(id=law_id), export_text(body).encode("utf-8"),
+                       "text/plain; charset=utf-8", log=lambda _m: None)
         except Exception as exc:                    # noqa: BLE001 — discovery still stands
             log(f"[discovery] could not seed MN lawId={law_id}: {type(exc).__name__}")
         out.append(_doc(law_id, title, economy, portal, size))

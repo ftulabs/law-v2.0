@@ -347,6 +347,35 @@ _NUMBERED_RE = re.compile(
 MAX_SNIPPET = 20000  # the template asks for the FULL, exact provision text — quote the
                      # whole section; only a pathological multi-page section is capped here.
 
+#: Size of one passage when a long document has no article marker to split on. Big enough to
+#: hold a whole clause in context, small enough for the grader to read closely.
+PASSAGE_CHARS = 4000
+_PASSAGE_BREAKS = (r"\n\s*\n", r"\n", r"(?<=[.;:。；！？])\s", r"\s")
+
+
+def _passages(body: str, size: int = PASSAGE_CHARS) -> list[tuple[int, int]]:
+    """Spans of about `size` characters, each ending at the strongest break available.
+
+    Preference runs paragraph > line > sentence > any whitespace, searched in the back half of
+    each window so a passage is never cut short to a sliver. Text with no whitespace at all
+    (possible in Chinese) is cut at `size` exactly.
+    """
+    spans, a, n = [], 0, len(body)
+    while a < n:
+        b = min(a + size, n)
+        if b < n:
+            window = body[a + size // 2:b]
+            cut = None
+            for rx in _PASSAGE_BREAKS:
+                hits = [m.end() for m in re.finditer(rx, window)]
+                if hits:
+                    cut = a + size // 2 + hits[-1]
+                    break
+            b = cut or b
+        spans.append((a, b))
+        a = b
+    return spans
+
 
 # ── SG SSO page chrome ───────────────────────────────────────────────────────
 # Consolidated SSO PDFs print running headers/footers BETWEEN provisions that are NOT part of
@@ -1049,11 +1078,26 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
             if callable(log):
                 log(f"[extract] skipped (commentary, no articles): {law_name[:70]}")
             return provisions
-        # whole-doc fallback: still emit one provision so nothing is silently dropped
-        snippet = PAGE_MARK_RE.sub("", text.replace(HEADING_MARK, "")).strip()[:MAX_SNIPPET]
-        if snippet:
-            loc = _location_ref(ocr, 0, total, "(document)", text)
-            provisions.append(_mk(doc, "(document)", snippet, (0, len(snippet)), loc, ocr, 0, law_name))
+        # whole-doc fallback: still emit the text so nothing is silently dropped
+        body = PAGE_MARK_RE.sub("", text.replace(HEADING_MARK, "")).strip()
+        if len(body) <= MAX_SNIPPET:
+            if body:
+                loc = _location_ref(ocr, 0, total, "(document)", text)
+                provisions.append(_mk(doc, "(document)", body, (0, len(body)), loc, ocr, 0,
+                                      law_name))
+            return provisions
+        # A LONG unnumbered text used to be cut to its first MAX_SNIPPET characters and the
+        # rest discarded without a word. law.go.th's `content_all` strips the มาตรา heading
+        # off every article not inserted by amendment (measured 2026-09-25 on the
+        # Administrative Reorganisation Act B.E. 2534: 69,154 characters, not one heading for
+        # its original articles), so a Thai Act kept its opening clauses and lost the rest.
+        # Passages keep every word gradeable, and the label says plainly that this is a
+        # position in the document, not an article — the citation must not claim more.
+        parts = _passages(body)
+        for i, (a, b) in enumerate(parts):
+            label = f"(passage {i + 1} of {len(parts)})"
+            loc = _location_ref(ocr, a, len(body), label, body)
+            provisions.append(_mk(doc, label, body[a:b].strip(), (a, b), loc, ocr, i, law_name))
         return provisions
 
     # A bare numbered marker ("11.—(1)", "26. Foo") is preceded by its own marginal heading and

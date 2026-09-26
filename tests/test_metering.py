@@ -72,7 +72,8 @@ def test_paid_ocr_would_dominate_the_bill_at_real_prices(meter):
     from backend.config import settings
     prices = json.loads((ROOT / "data" / "pricing.json").read_text(encoding="utf-8"))
     meter.record_ocr("azure", pages=50)
-    meter.record_llm(settings.openrouter_model, 160_000, 45_000)
+    # the SHIPPED default, not whatever model this machine's .env selects
+    meter.record_llm(type(settings).model_fields["openrouter_model"].default, 160_000, 45_000)
     r = meter.report(prices)
     ocr = next(x["cost_usd"] for x in r["ocr"])
     llm = next(x["cost_usd"] for x in r["llm"])

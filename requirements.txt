@@ -8,6 +8,7 @@ rich>=13.7
 pyyaml>=6.0
 python-dotenv>=1.0
 httpx>=0.27
+filelock>=3.12              # cross-process lock on the fetch cache index (backend/pipeline/fetch.py)
 
 # --- Frontend ---
 # 1.42+ for st.login/st.user (Google OIDC); 1.45+ for [theme.light]/[theme.dark] and

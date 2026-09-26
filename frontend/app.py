@@ -64,7 +64,7 @@ from backend.pipeline.orchestrator import run_pipeline  # noqa: E402
 from backend.providers import registry as reg  # noqa: E402
 from backend.rdtii import get_indicators  # noqa: E402
 from backend.review import workflow  # noqa: E402
-from backend.schemas import ECONOMY_UN_NAME, Economy, RunResult, SUBMISSION_COLUMNS  # noqa: E402
+from backend.schemas import ECONOMY_UN_NAME, PLACEHOLDER_LAW_NAMES, Economy, RunResult, SUBMISSION_COLUMNS  # noqa: E402
 from backend.storage import db  # noqa: E402
 
 from frontend import auth_ui, enginebench, geo, home, livetest, matrix, runview, theme  # noqa: E402
@@ -668,7 +668,7 @@ def is_no_evidence(m) -> bool:
     """Placeholder rows the pipeline writes for an indicator with no submittable finding.
     These carry confidence 0.0 but review_status=auto_accepted (a *confident negative*),
     so the normal traffic-light card renders a contradiction — render them differently."""
-    return (m.verbatim_snippet or "").strip().startswith("No evidence") or m.law_name == "No provision found"
+    return (m.verbatim_snippet or "").strip().startswith("No evidence") or m.law_name in PLACEHOLDER_LAW_NAMES
 
 
 def _host(url: str) -> str:

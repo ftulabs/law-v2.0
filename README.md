@@ -242,8 +242,8 @@ and on 15 October five tools read the same government sites within the same hour
 | Setting | Value | Where it is set |
 | :--- | :--- | :--- |
 | Max requests per second per host | 0.5 (a 2-second gap) | [`config.py:250`](backend/config.py#L250) `crawl_delay_seconds` |
-| Parallel requests per host | 1 | [`fetch.py:63`](backend/pipeline/fetch.py#L63) `_polite_wait` |
-| robots.txt respected | yes | [`robots.py`](backend/pipeline/robots.py), enforced at [`fetch.py:141`](backend/pipeline/fetch.py#L141) |
+| Parallel requests per host | 1 | [`fetch.py:88`](backend/pipeline/fetch.py#L88) `_polite_wait` |
+| robots.txt respected | yes | [`robots.py`](backend/pipeline/robots.py), enforced at [`fetch.py:166`](backend/pipeline/fetch.py#L166) |
 
 A host's own `Crawl-delay` wins when larger than ours; an unreadable robots.txt denies; a
 skipped document is logged by URL and reason, never silently dropped.

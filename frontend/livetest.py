@@ -41,7 +41,7 @@ import streamlit as st
 
 from backend.config import settings
 from backend.providers import registry as reg
-from backend.schemas import LIVE_TEST_POOL
+from backend.schemas import LIVE_TEST_POOL, PLACEHOLDER_LAW_NAMES
 
 from .home import MEASURED_PILLARS, PILLAR_SHORT
 
@@ -344,7 +344,7 @@ def capture(state: dict, slot: str, result, started: str, finished: str) -> None
     whatever a shared output directory happens to hold.
     """
     meta = result.meta
-    rows = [m for m in result.mappings if m.law_name != "No provision found"]
+    rows = [m for m in result.mappings if m.law_name not in PLACEHOLDER_LAW_NAMES]
     state["runs"][slot] = {
         "model": meta.model_version or meta.llm_provider,
         "provider": meta.llm_provider,

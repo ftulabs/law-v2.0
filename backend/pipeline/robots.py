@@ -168,18 +168,33 @@ def parse(text: str) -> Robots:
     return robots
 
 
+#: How long an UNREADABLE robots.txt is remembered before it is asked again. The readable
+#: answer is kept for `_TTL_SECONDS`; the unreadable one was kept just as long, so a single
+#: network blip decided a whole run: measured 2026-09-25, laoofficialgazette.gov.la's
+#: robots.txt timed out once, answered 200 in 1.9s a minute later, and the run had already
+#: recorded "0 documents" for Laos. Still treated as disallowed while unreadable (RFC 9309).
+_UNKNOWN_TTL_SECONDS = 60
+_ATTEMPTS = 3
+
+
 def _fetch(base: str) -> Robots:
     url = base.rstrip("/") + "/robots.txt"
-    try:
-        import httpx
-        with httpx.Client(follow_redirects=True, timeout=15,
-                          headers={"User-Agent": settings.crawl_user_agent}) as c:
-            r = c.get(url)
-    except Exception:
+    r = None
+    for attempt in range(_ATTEMPTS):
+        try:
+            import httpx
+            with httpx.Client(follow_redirects=True, timeout=15,
+                              headers={"User-Agent": settings.crawl_user_agent}) as c:
+                r = c.get(url)
+        except Exception:
+            r = None
+        if r is not None and r.status_code < 500:
+            break
+        if attempt + 1 < _ATTEMPTS:
+            time.sleep(2 * (attempt + 1))
+    if r is None or r.status_code >= 500:
         # Could not ask. Treat as unknown rather than as permission — but see `for_url`, which
         # degrades to ALLOW when robots enforcement is switched off entirely.
-        return Robots(unknown=True, fetched_at=time.monotonic(), source=url)
-    if r.status_code >= 500:
         return Robots(unknown=True, fetched_at=time.monotonic(), source=url)
     if r.status_code >= 400:
         return Robots(fetched_at=time.monotonic(), source=url)      # absent → everything allowed
@@ -193,7 +208,8 @@ def for_url(url: str) -> Robots:
     p = urlparse(url)
     base = f"{p.scheme}://{p.netloc}"
     cached = _CACHE.get(base)
-    if cached and (time.monotonic() - cached.fetched_at) < _TTL_SECONDS:
+    ttl = _UNKNOWN_TTL_SECONDS if cached is not None and cached.unknown else _TTL_SECONDS
+    if cached and (time.monotonic() - cached.fetched_at) < ttl:
         return cached
     _CACHE[base] = _fetch(base)
     return _CACHE[base]

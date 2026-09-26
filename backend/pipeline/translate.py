@@ -43,12 +43,11 @@ from ..config import settings
 from ..providers import get_llm_provider
 from ..providers.llm_base import LLMProvider
 from ..providers.ocr_languages import profile_for
-from ..schemas import EvidenceMapping
+from ..schemas import PLACEHOLDER_LAW_NAMES, EvidenceMapping
 
-#: Rows the exporter writes for an indicator with no evidence. Their "snippet" is the fixed
-#: English phrase "No provision found", so translating it would spend a call to return the
-#: input. Matched on law_name because that is what `_no_evidence_placeholders` sets.
-PLACEHOLDER_LAW = "No provision found"
+#: Rows the exporter writes for an indicator with no evidence carry a fixed English phrase, so
+#: translating them would spend a call to return the input. Matched on law_name (see
+#: `schemas.PLACEHOLDER_LAW_NAMES`) because that is what `_no_evidence_placeholders` sets.
 
 TRANSLATE_SYSTEM = (
     "You are a legal translator working on statutory text for a regulatory review. "
@@ -84,12 +83,22 @@ def _cache_dir() -> Path:
     return d
 
 
-def _key(text: str, target: str) -> str:
-    return hashlib.sha256(f"{target}\x00{text}".encode("utf-8")).hexdigest()[:32]
+def _key(text: str, target: str, model: str = "") -> str:
+    # The translating MODEL is part of the key. It was not until 2026-09-25, and a Mongolian
+    # run on a strong model then served law-name translations cached a month earlier by a weak
+    # one: ЦАХИМ ГАРЫН ҮСГИЙН ТУХАЙ (On Electronic Signature) read "On the Approval of the
+    # Chemical Industry", ХАРИЛЦАА ХОЛБООНЫ ТУХАЙ (On Communications) read "On Parties to the
+    # Contract" — five of sixteen law names, while the model in use translated all five
+    # correctly when asked. A better model must be able to replace a worse model's answer.
+    return hashlib.sha256(f"{model}\x00{target}\x00{text}".encode("utf-8")).hexdigest()[:32]
 
 
-def _cache_get(text: str, target: str) -> str | None:
-    f = _cache_dir() / f"{_key(text, target)}.json"
+def _model_id(llm: LLMProvider) -> str:
+    return f"{getattr(llm, 'name', '')}:{getattr(llm, 'model_version', '')}"
+
+
+def _cache_get(text: str, target: str, model: str = "") -> str | None:
+    f = _cache_dir() / f"{_key(text, target, model)}.json"
     if not f.exists():
         return None
     try:
@@ -98,9 +107,9 @@ def _cache_get(text: str, target: str) -> str | None:
         return None
 
 
-def _cache_put(text: str, target: str, translation: str) -> None:
+def _cache_put(text: str, target: str, translation: str, model: str = "") -> None:
     try:
-        (_cache_dir() / f"{_key(text, target)}.json").write_text(
+        (_cache_dir() / f"{_key(text, target, model)}.json").write_text(
             json.dumps({"translation": translation}, ensure_ascii=False), encoding="utf-8")
     except Exception:                       # noqa: BLE001 — an unwritable cache is not fatal
         pass
@@ -117,7 +126,8 @@ def _translate_one(llm: LLMProvider, text: str, target: str, log) -> str:
     text = (text or "").strip()
     if not text:
         return ""
-    cached = _cache_get(text, target)
+    model = _model_id(llm)
+    cached = _cache_get(text, target, model)
     if cached is not None:
         return cached
     payload = text
@@ -134,7 +144,7 @@ def _translate_one(llm: LLMProvider, text: str, target: str, log) -> str:
     got = re.sub(r"\s+\n", "\n", got)
     if len(payload) < len(text):
         got += TRUNCATION_MARK
-    _cache_put(text, target, got)
+    _cache_put(text, target, got, model)
     return got
 
 
@@ -155,7 +165,7 @@ def translate_mappings(
     target = (target or settings.translation_target_lang).strip()
 
     todo = [m for m in mappings
-            if m.law_name != PLACEHOLDER_LAW and needs_translation(m.economy.value, target)]
+            if m.law_name not in PLACEHOLDER_LAW_NAMES and needs_translation(m.economy.value, target)]
     if not todo:
         log(f"[translate] nothing to translate — sources are already in {target}")
         return mappings
