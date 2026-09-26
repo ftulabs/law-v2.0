@@ -554,7 +554,7 @@ def quote_in_snippet(quote: str | None, snippet: str) -> bool:
     return True
 
 
-def _check_once(ind, prov: Provision, llm) -> tuple[str, str]:
+def _check_once(ind, prov: Provision, llm) -> tuple[str, str, dict]:
     """One checker call → (outcome, reason); outcome is one of
          "pass"     every element quoted, every quote really in the snippet, verdict not false
          "doubt"    every element quoted and found, but the checker still said false
@@ -564,9 +564,9 @@ def _check_once(ind, prov: Provision, llm) -> tuple[str, str]:
     try:
         g = llm.complete_json(VERIFY_SYSTEM, _verify_prompt(ind, prov))
     except Exception as e:  # noqa: BLE001 — a check must never crash the run
-        return "error", f"check failed: {type(e).__name__}"
+        return "error", f"check failed: {type(e).__name__}", {}
     if not g or g.get("_parse_error"):
-        return "error", "check returned no parseable answer"
+        return "error", "check returned no parseable answer", {}
     quotes = {}
     for el in g.get("elements") or []:
         try:
@@ -578,14 +578,15 @@ def _check_once(ind, prov: Provision, llm) -> tuple[str, str]:
     null = [i for i in range(1, n + 1) if not quotes.get(i)]
     if null:
         why = f"element {', '.join(map(str, null))} not shown by the text"
-        return "absent", f"{why}: {reason}" if reason else why
+        return "absent", (f"{why}: {reason}" if reason else why), quotes
     unfound = [i for i in range(1, n + 1) if not quote_in_snippet(quotes[i], prov.verbatim_snippet)]
     if unfound:
-        return "unfound", f"quote for element {', '.join(map(str, unfound))} is not in the snippet"
+        return ("unfound", f"quote for element {', '.join(map(str, unfound))} is not in the snippet",
+                quotes)
     shown = "; ".join(f"{i}: “{str(quotes[i])[:80]}”" for i in range(1, n + 1))
     if g.get("verdict") is False:
-        return "doubt", reason or shown
-    return "pass", shown
+        return "doubt", reason or shown, quotes
+    return "pass", shown, quotes
 
 
 def verify_mapping(ind, prov: Provision, llm) -> tuple[bool | None, str]:
@@ -606,20 +607,77 @@ def verify_mapping(ind, prov: Provision, llm) -> tuple[bool | None, str]:
         shape of nearly every wrong row read (a business transfer under 6.4, a filing deadline
         under 7.3), and it did not remove a panel answer on any of the three economies."""
     if not ind.verify_elements:
-        return None, "no element list for this indicator"
-    outcome, why = _check_once(ind, prov, llm)
+        return _Verdict(None, "no element list for this indicator")
+    outcome, why, quotes = _check_once(ind, prov, llm)
     if outcome == "doubt":
-        outcome2, why2 = _check_once(ind, prov, llm)
+        outcome2, why2, quotes2 = _check_once(ind, prov, llm)
         if outcome2 == "pass":
-            return True, why2
+            return _Verdict(True, why2, quotes2)
         if outcome2 in ("doubt", "absent"):
-            return False, why
-        return None, f"checker split: {why}"
+            return _Verdict(False, why)
+        return _Verdict(None, f"checker split: {why}")
     if outcome == "pass":
-        return True, why
+        return _Verdict(True, why, quotes)
     if outcome == "absent":
-        return False, why
-    return None, why
+        return _Verdict(False, why)
+    return _Verdict(None, why)
+
+
+class _Verdict(tuple):
+    """(verdict, reason) — unpacks as a pair — carrying the VERIFIED quotes of a pass, which is
+    what `subsection_from_quotes` narrows the citation with."""
+    def __new__(cls, verdict, reason, quotes=None):
+        self = super().__new__(cls, (verdict, reason))
+        self.quotes = quotes or {}
+        return self
+
+
+# A subsection marker opens a line or follows the section's own "N.—": "(2) Subject to…",
+# "16I.—(1) A designated…". Paragraph letters "(a)" are deliberately not subsections.
+_SUBSECTION_MARK_RE = re.compile(r"(?:^|[—–-]|(?<=[.;:]))[ \t]*\((\d{1,3}[A-Z]{0,2})\)[ \t]",
+                                 re.M)
+
+
+def _quote_position(quote: str, snippet: str) -> int | None:
+    """Where in `snippet` the first words of `quote` start — whitespace-tolerant, enumerators
+    dropped as in quote_in_snippet — or None."""
+    words = _QWORD_RE.findall(_ENUM_RE.sub(" ", _norm_quote(quote)))[:6]
+    if len(words) < 3:
+        return None
+    pat = r"\W+(?:\(\s*\w{1,5}\s*\)\W*)?".join(re.escape(w) for w in words)
+    m = re.search(pat, snippet, re.I)
+    return m.start() if m else None
+
+
+def subsection_from_quotes(quotes: dict, snippet: str) -> str | None:
+    """The one subsection every verified quote sits in, or None.
+
+    Why: deepseek-v4-flash answers `subsection: null` far more than qwen did — on 2026-09-26
+    the share of kept SG/MY/AU rows cited below section level fell from ~90% to ~15%, while the
+    panel cites "Companies Act s199(4)", "PDPA s26(1)", "s11(3)". The quotes the check verified
+    locate the operative words exactly, so the subsection is READ OFF the text rather than
+    asked for. When the quotes fall in different subsections, the rule spans them and the
+    citation stays at section level — never guessed."""
+    marks = [(m.start(1), m.group(1)) for m in _SUBSECTION_MARK_RE.finditer(snippet)]
+    if not marks:
+        return None
+
+    def _sub(q):
+        pos = _quote_position(str(q or ""), snippet)
+        before = [label for at, label in marks if pos is not None and at <= pos]
+        return before[-1] if before else None
+
+    # ALL quotes in one subsection, or no subsection. Measured 2026-09-26 on 87 SG/AU/MY rows
+    # that qwen had cited below section level: this rule agreed with qwen on 26 of 26 it
+    # answered and left the rest at section level. "Take the subsection of the LAST (operative)
+    # element" answered 79 but disagreed on 10 — including Companies Act s199(4), the panel's
+    # own 6.2 citation, derived as (3). A wrong subsection is a false citation; section level
+    # is merely coarse, so coarse wins.
+    subs = {i: _sub(q) for i, q in quotes.items()}
+    found = {s for s in subs.values() if s}
+    if len(found) == 1 and None not in subs.values():
+        return f"({found.pop()})"
+    return None
 
 
 def _mapping_id(run_id: str, indicator_id: str, provision_id: str) -> str:
@@ -814,6 +872,11 @@ def map_provisions(
         # appears in the snippet — same "carried from extraction, not generation" rule as the law
         # text itself applies to citations: never let the model invent a subsection number.
         subsection = (graded.get("subsection") or "").strip()
+        check = None
+        if settings.verify_enabled and ind.verify_elements:
+            check = verify_mapping(ind, prov, llm)
+            if not subsection and check[0] is True:
+                subsection = subsection_from_quotes(check.quotes, prov.verbatim_snippet) or ""
         article_section = prov.article_section
         if subsection and re.fullmatch(r"(?:\(\w{1,4}\))+", subsection):
             first_group = subsection[:subsection.index(")") + 1]
@@ -840,8 +903,8 @@ def map_provisions(
             apply_scope_cap=apply_scope_cap, topical_ok=topical_ok,
         )
         check_note = None
-        if settings.verify_enabled and ind.verify_elements:
-            verdict, why = verify_mapping(ind, prov, llm)
+        if check is not None:
+            verdict, why = check
             breakdown = confidence.apply_verification(breakdown, verdict, why)
             if verdict is False:
                 check_note = f"Second-pass check refused: {why}"[:300]

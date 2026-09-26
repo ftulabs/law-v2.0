@@ -119,3 +119,17 @@ def test_the_check_decides_the_band():
         == "pending_review"
     assert confidence.route(confidence.apply_verification(_b(), True, "q").final).value \
         == "auto_accepted"
+
+
+def test_subsection_is_read_off_the_verified_quotes_only_when_they_agree():
+    from backend.pipeline.mapping import subsection_from_quotes
+    s199 = ("199.—(1) Every company must cause to be kept such accounting and other records as "
+            "will sufficiently explain the transactions.\n(2) The company must retain the records "
+            "for a period of not less than 5 years.\n(4) If accounting records are kept outside "
+            "Singapore, the company must send to and keep at a place in Singapore such statements.")
+    assert subsection_from_quotes({1: "The company must retain the records",
+                                   2: "for a period of not less than 5 years"}, s199) == "(2)"
+    # quotes in different subsections → the rule spans them → section level, never a guess
+    assert subsection_from_quotes({1: "accounting and other records as will sufficiently",
+                                   2: "send to and keep at a place in Singapore"}, s199) is None
+    assert subsection_from_quotes({1: "a quote that is nowhere in it"}, s199) is None
