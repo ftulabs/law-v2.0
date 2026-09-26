@@ -637,9 +637,9 @@ sources:
     # elektronik" (PP 82/2012, which is where localisation lives), "dokumen perusahaan"
     # (UU 8/1997, record retention) and "keamanan siber" (the BSSN regulations).
     #
-    # SIX IS THE CEILING, not a preference: `adapter_indonesia._SEARCH_MAX_TERMS` is 6 and the
-    # adapter appends the caller's `query` AFTER these, so a seventh entry here would make
-    # `query` unreachable. The adapter is registered `enumerates_portal=True` for the matching
+    # SIX PER PILLAR IS THE CEILING: `adapter_indonesia._SEARCH_MAX_TERMS` is 6 per list. Each
+    # multi-word term is searched as a quoted phrase first — "informasi dan transaksi
+    # elektronik" unquoted returned PPATK rules, quoted the ITE Law. The adapter is registered `enumerates_portal=True` for the matching
     # reason — it runs this whole list itself on one call, so discovery must not also call it
     # once per term (6 x 6 = 36 searches against a WAF-fronted host).
     queries_p6:
@@ -648,7 +648,7 @@ sources:
       - dokumen perusahaan
       - informasi dan transaksi elektronik
       - transfer data pribadi ke luar negeri
-      - pusat data
+      - penyelenggara sistem elektronik lingkup privat
     queries_p7:
       - pelindungan data pribadi
       - keamanan siber

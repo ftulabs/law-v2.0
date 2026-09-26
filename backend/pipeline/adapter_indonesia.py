@@ -155,6 +155,7 @@ from __future__ import annotations
 
 import re
 import urllib.parse
+from itertools import zip_longest
 from typing import Callable
 
 from bs4 import BeautifulSoup
@@ -189,6 +190,9 @@ _TYPE_WEIGHT: tuple[tuple[str, float], ...] = (
     ("peraturan pemerintah", 0.85),
     ("peraturan presiden", 0.80),
     ("peraturan menteri", 0.65),
+    # a national agency's regulation (BSSN, BPOM …) sits with ministerial regulations; at the
+    # 0.35 default the BSSN cyber regulations lost the budget to state-enterprise PPs (2026-09-26)
+    ("peraturan badan", 0.60),
     ("peraturan bank indonesia", 0.55),
     ("peraturan ojk", 0.55),
     ("keputusan presiden", 0.45),
@@ -231,9 +235,17 @@ def _result_rows(html: str, base_url: str) -> list[tuple[str, str]]:
             continue
         if absolute in seen:
             continue
-        name = " ".join(a.get_text(" ", strip=True).split())
         type_div = card.select_one("div.fw-semibold")
         type_number = " ".join(type_div.get_text(" ", strip=True).split()) if type_div else ""
+        # By 2026-09-26 the card had moved the type+number INTO a first anchor and put the name
+        # ("Dokumen Perusahaan") in a second anchor to the same page. Taking the first anchor
+        # gave "UU No. 8 Tahun 1997 — UU No. 8 Tahun 1997": no subject in any title, every
+        # search-term match 0, and the trim to the discovery budget kept Foreign Ministry
+        # regulations over UU 8/1997 and Kominfo 20/2016. Same href only, so the nested
+        # "Dicabut dengan" link to a different regulation still cannot become the name.
+        texts = [" ".join(x.get_text(" ", strip=True).split())
+                 for x in card.find_all("a", href=href)]
+        name = next((t for t in texts if t and t != type_number), texts[0] if texts else "")
         title = f"{type_number} — {name}" if type_number else name
         seen.add(absolute)
         out.append((absolute, title))
@@ -251,13 +263,15 @@ def _relevance(title: str, terms: list[str], indicators: list) -> float:
     `adapter_timor.py` already use: `discovery.py` imports sibling adapters INSIDE its dispatch
     function rather than at its own module top, to avoid a circular import.
     """
-    low = title.lower()
+    # "perlindungan" is the pre-2022 spelling of "pelindungan": Kominfo 20/2016, "Perlindungan
+    # Data Pribadi dalam Sistem Elektronik", never matched the term "pelindungan data pribadi".
+    low = title.lower().replace("perlindungan", "pelindungan")
     type_weight = _DEFAULT_TYPE_WEIGHT
     for needle, weight in _TYPE_WEIGHT:
         if needle in low:
             type_weight = weight
             break
-    term_hits = sum(1 for t in terms if t and t.lower() in low)
+    term_hits = sum(1 for t in terms if t and t.lower().replace("perlindungan", "pelindungan") in low)
     term_fit = min(1.0, term_hits / 2.0) if terms else 0.0
     topic_en = portal.title_relevance(title, indicators, economy="ID")
     return round(min(0.99, max(0.05, 0.55 * type_weight + 0.30 * term_fit + 0.15 * topic_en)), 4)
@@ -288,22 +302,66 @@ def _search_terms(query: str, src: dict, indicators: list) -> list[str]:
     `query` is only "live" today because this entry has no `queries_p6`/`queries_p7` yet --
     re-check `portal.register("id_bpk", ...)`'s `enumerates_portal` once one is added.
     """
-    terms: list[str] = []
+    # The cap is PER PILLAR, so a call carrying both pillars' indicators runs both lists.
+    # (`discovery` calls this once per pillar, so production runs were never short of pillar-7
+    # terms; a combined call used to stop after queries_p6's six.)
     pillars = {getattr(ind, "pillar", None) for ind in indicators}
-    for p in (6, 7):
-        if p in pillars:
-            terms.extend(src.get(f"queries_p{p}") or [])
+    lists = [(src.get(f"queries_p{p}") or [])[:_SEARCH_MAX_TERMS]
+             for p in (6, 7) if p in pillars]
+    terms = [t for group in zip_longest(*lists) for t in group if t]
     if query:
         terms.append(query)
+    cap = _SEARCH_MAX_TERMS * max(1, len(lists))
     seen: set[str] = set()
     out: list[str] = []
     for t in terms:
         if t and t not in seen:
             seen.add(t)
             out.append(t)
-        if len(out) >= _SEARCH_MAX_TERMS:
+        if len(out) >= cap:
             break
     return out
+
+
+#: BPK's search ranks by loose full-text match unless the term is quoted. Measured 2026-09-26:
+#: "informasi dan transaksi elektronik" returned ten PPATK financial-reporting rules and not
+#: the ITE Law; the same words in quotes returned UU 11/2008, UU 19/2016 and UU 1/2024 as rows
+#: 1, 2 and 4. A phrase that returns almost nothing quoted ("transfer data pribadi ke luar
+#: negeri": 0 rows) is searched again unquoted.
+_PHRASE_MIN_ROWS = 3
+
+
+def _fetch_rows(url: str, label: str, log: Log) -> list[tuple[str, str]] | None:
+    res = scrapling_fetch.fetch(url, timeout=settings.crawl_timeout_seconds, log=log)
+    if res is None:
+        log(f"[id_bpk] {label} -> no response from the browser lane")
+        return None
+    try:
+        return _result_rows(res.body.decode("utf-8", errors="replace"), url)
+    except Exception as exc:                          # noqa: BLE001 -- one dead term is not fatal
+        log(f"[id_bpk] {label} parse failed: {type(exc).__name__}: {exc}")
+        return []
+
+
+def _search_rows(base: str, term: str, i: int, n: int, log: Log) -> list[tuple[str, str]] | None:
+    """Result rows for one term: the quoted phrase first, the bare words if that finds little."""
+    label = f"term {i + 1}/{n}"
+    tries = [f'"{term}"', term] if " " in term.strip() else [term]
+    rows: list[tuple[str, str]] | None = None
+    for q in tries:
+        url = _search_url(base, q)
+        ok, why = robots.allowed(url, settings.crawl_user_agent)
+        if not ok:
+            log(f"[id_bpk] robots refused {label} ({url[:80]}) -- {why}")
+            return None
+        got = _fetch_rows(url, label, log)
+        if got is None:
+            continue
+        if rows is None or len(got) > len(rows):
+            rows = got
+        if len(got) >= _PHRASE_MIN_ROWS:
+            break
+    return rows
 
 
 def search_id_bpk(client, src: dict, query: str, economy: Economy, indicators: list,
@@ -339,21 +397,9 @@ def search_id_bpk(client, src: dict, query: str, economy: Economy, indicators: l
     out: list[DiscoveredDoc] = []
     seen_ids: set[str] = set()
     for i, term in enumerate(terms):
-        url = _search_url(base, term)
-        ok, why = robots.allowed(url, settings.crawl_user_agent)
-        if not ok:
-            log(f"[id_bpk] robots refused term {i + 1}/{len(terms)} ({url[:80]}) -- {why}")
+        rows = _search_rows(base, term, i, len(terms), log)
+        if rows is None:
             continue
-        res = scrapling_fetch.fetch(url, timeout=settings.crawl_timeout_seconds, log=log)
-        if res is None:
-            log(f"[id_bpk] term {i + 1}/{len(terms)} -> no response from the browser lane")
-            continue
-        try:
-            body = res.body.decode("utf-8", errors="replace")
-            rows = _result_rows(body, url)
-        except Exception as exc:                      # noqa: BLE001 -- one dead term is not fatal
-            log(f"[id_bpk] term {i + 1}/{len(terms)} parse failed: {type(exc).__name__}: {exc}")
-            rows = []
         added = 0
         for link_url, title in rows:
             score = _relevance(title, terms, indicators)

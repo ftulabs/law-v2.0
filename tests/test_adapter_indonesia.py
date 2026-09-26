@@ -215,8 +215,8 @@ def test_search_id_bpk_actually_searches_every_pillar_scoped_term(monkeypatch, h
         indicators=indicators, log=lambda *_: None)
 
     expected_terms = adapter_indonesia._search_terms("data pribadi", src, indicators)
-    assert len(expected_terms) == adapter_indonesia._SEARCH_MAX_TERMS, (
-        "this src has 6 pillar terms + the fallback query -- the cap should bind")
+    assert len(expected_terms) == 7, (
+        "6 pillar terms + the fallback query, under a cap of 6 PER PILLAR -- all seven run")
     assert len(calls) == len(expected_terms), (
         "one browser fetch per term expected, not one per call or a flat single fetch")
     for term in expected_terms:
@@ -290,3 +290,44 @@ def test_regional_instrument_type_outranks_nothing_it_should_not(html):
     regional_scores = [s for u, t, s in scored if "perbup" in u or "perwali" in u]
     assert regional_scores, "fixture should contain at least one regional instrument"
     assert all(uu_score > s for s in regional_scores)
+
+
+def test_a_full_pillar_6_list_does_not_starve_pillar_7():
+    """A call carrying both pillars' indicators runs both lists — the cap is per pillar."""
+    from backend.rdtii.indicators import get_indicators
+
+    src = {"queries_p6": [f"p6-{i}" for i in range(6)], "queries_p7": ["keamanan siber"]}
+    assert "keamanan siber" in adapter_indonesia._search_terms("", src, get_indicators())
+
+
+def test_a_phrase_is_searched_quoted_and_falls_back_to_bare_words(monkeypatch, html):
+    urls: list[str] = []
+
+    class _Empty:
+        body = b"<html></html>"
+
+    class _Full:
+        body = html.encode()
+
+    def fake_fetch(url, timeout=None, log=None, **kw):
+        urls.append(url)
+        return _Empty() if "%22" in url else _Full()
+
+    monkeypatch.setattr(adapter_indonesia.scrapling_fetch, "fetch", fake_fetch)
+    monkeypatch.setattr(adapter_indonesia.robots, "allowed", lambda *a, **k: (True, ""))
+    rows = adapter_indonesia._search_rows("https://peraturan.bpk.go.id", "data pribadi", 0, 1,
+                                          lambda *_: None)
+    assert urls[0].endswith("%22data+pribadi%22") and urls[1].endswith("=data+pribadi")
+    assert rows
+
+
+def test_the_2026_09_card_layout_still_yields_the_subject_name():
+    """The type+number moved into its own anchor; the name is a second anchor to the same page."""
+    card = ('<div class="card"><div class="col-lg-8 fw-semibold fs-5">'
+            '<a href="/Details/45929/uu-no-8-tahun-1997">Undang-undang (UU) No. 8 Tahun 1997</a>'
+            '</div><div class="col-lg-10 fs-2 fw-bold pe-4">'
+            '<a href="/Details/45929/uu-no-8-tahun-1997">Dokumen Perusahaan</a></div>'
+            '<a href="/Details/1/other">Dicabut dengan</a></div>')
+    rows = adapter_indonesia._result_rows(card, "https://peraturan.bpk.go.id/Search")
+    assert rows == [("https://peraturan.bpk.go.id/Details/45929/uu-no-8-tahun-1997",
+                     "Undang-undang (UU) No. 8 Tahun 1997 — Dokumen Perusahaan")]
