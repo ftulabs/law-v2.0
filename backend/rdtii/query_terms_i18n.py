@@ -110,6 +110,81 @@ NATIVE_QUERY_TERMS: dict[str, dict[str, list[str]]] = {
         "P7-I5": ["autoridade judiciária", "autoridades competentes",
                   "acesso pelas autoridades", "investigação criminal", "ordem judicial"],
     },
+    # th / ru / id were mapped in ECONOMY_QUERY_LANG above with NO block here, so from their
+    # first live run until 2026-09-26 their lexical side matched English terms against Thai,
+    # Cyrillic and Indonesian text — near-zero BM25 on every provision, ranking by the dense
+    # stage alone. Measured cost: Thailand's PDPA มาตรา 28 (cross-border transfer, the 6.4
+    # answer) was extracted as its own article and still never reached the 6.4 shortlist; its
+    # retrieval score was 0.28. These are SEED vocabularies written from the operative wording
+    # of each economy's own statutes — drafting phrases, never law titles — and carry the same
+    # caveat as "mn": validate with tools/audit_native_terms.py before trusting them.
+    "th": {
+        # Thai is unsegmented; retrieval indexes it as character bigrams (retrieval._tok), so a
+        # phrase matches wherever its characters run together — no word segmenter needed.
+        "P6-I1": ["ห้ามส่งหรือโอน", "ห้ามโอนข้อมูล", "ประมวลผลภายในราชอาณาจักร",
+                  "ภายในราชอาณาจักร"],
+        "P6-I2": ["จัดเก็บไว้ในราชอาณาจักร", "เก็บรักษาไว้ในราชอาณาจักร", "ในราชอาณาจักร",
+                  "ศูนย์ข้อมูลในประเทศ"],
+        "P6-I3": ["ศูนย์ข้อมูล", "เครื่องแม่ข่าย", "ระบบคอมพิวเตอร์ตั้งอยู่ในราชอาณาจักร"],
+        "P6-I4": ["ส่งหรือโอนข้อมูลส่วนบุคคลไปยังต่างประเทศ", "ไปยังต่างประเทศ",
+                  "มาตรฐานการคุ้มครองข้อมูลส่วนบุคคลที่เพียงพอ", "ได้รับความยินยอม",
+                  "องค์การระหว่างประเทศ"],
+        "P7-I1": ["ข้อมูลส่วนบุคคล", "เจ้าของข้อมูลส่วนบุคคล", "ผู้ควบคุมข้อมูลส่วนบุคคล",
+                  "การเก็บรวบรวม ใช้ หรือเปิดเผย"],
+        "P7-I2": ["การรักษาความมั่นคงปลอดภัยไซเบอร์", "ภัยคุกคามทางไซเบอร์",
+                  "โครงสร้างพื้นฐานสำคัญทางสารสนเทศ", "ความมั่นคงปลอดภัยไซเบอร์"],
+        "P7-I3": ["เก็บรักษาข้อมูลจราจรทางคอมพิวเตอร์", "ไม่น้อยกว่า", "เก็บรักษาไว้ไม่น้อยกว่า",
+                  "ระยะเวลาการเก็บรักษา"],
+        "P7-I4": ["เจ้าหน้าที่คุ้มครองข้อมูลส่วนบุคคล", "ประเมินผลกระทบ",
+                  "การประเมินความเสี่ยง"],
+        "P7-I5": ["พนักงานเจ้าหน้าที่", "พนักงานสอบสวน", "มีหนังสือเรียก", "ให้ส่งข้อมูล",
+                  "เข้าถึงข้อมูล", "โดยไม่ต้องมีหมาย"],
+    },
+    "ru": {
+        # Inflected: BM25 matches the surface form, so the forms listed are the ones statutes
+        # actually print (genitive "персональных данных" far more than nominative).
+        "P6-I1": ["запрещается передача", "не допускается", "за пределы территории Российской Федерации"],
+        "P6-I2": ["баз данных, находящихся на территории Российской Федерации",
+                  "находящихся на территории Российской Федерации", "обеспечить запись, систематизацию, накопление, хранение",
+                  "хранение на территории Российской Федерации"],
+        "P6-I3": ["на территории Российской Федерации", "технических средств",
+                  "центров обработки данных"],
+        "P6-I4": ["трансграничная передача персональных данных",
+                  "трансграничной передачи персональных данных", "иностранных государств",
+                  "адекватной защиты прав субъектов персональных данных",
+                  "уведомить уполномоченный орган"],
+        "P7-I1": ["персональных данных", "субъекта персональных данных",
+                  "обработка персональных данных", "оператор"],
+        "P7-I2": ["критической информационной инфраструктуры", "безопасности критической",
+                  "компьютерных атак", "компьютерных инцидентов", "защиты информации"],
+        "P7-I3": ["хранить", "в течение", "не менее", "срок хранения", "хранению"],
+        "P7-I4": ["лицо, ответственное за организацию обработки персональных данных",
+                  "ответственного за организацию обработки", "оценки вреда"],
+        "P7-I5": ["оперативно-розыскной деятельности", "органам, осуществляющим оперативно-розыскную",
+                  "по запросу", "предоставлять", "органов федеральной службы безопасности"],
+    },
+    "id": {
+        # Latin script, space-segmented; Indonesian drafting is highly formulaic ("wajib …",
+        # "dalam wilayah Negara Republik Indonesia"), which is what makes a seed list useful.
+        "P6-I1": ["dilarang mentransfer", "tidak boleh dikirim ke luar", "wajib diproses di dalam negeri"],
+        "P6-I2": ["wajib ditempatkan dalam wilayah", "di wilayah Indonesia", "dalam wilayah hukum Negara Republik Indonesia",
+                  "melakukan penyimpanan", "disimpan di wilayah"],
+        "P6-I3": ["pusat data", "pusat pemulihan bencana", "wajib menempatkan pusat data",
+                  "di wilayah Indonesia"],
+        "P6-I4": ["transfer Data Pribadi", "ke luar wilayah hukum Negara Republik Indonesia",
+                  "tingkat Pelindungan Data Pribadi yang setara", "persetujuan Subjek Data Pribadi",
+                  "pengiriman Data Pribadi"],
+        "P7-I1": ["Pelindungan Data Pribadi", "Subjek Data Pribadi", "Pengendali Data Pribadi",
+                  "pemrosesan Data Pribadi"],
+        "P7-I2": ["keamanan siber", "Badan Siber dan Sandi Negara", "insiden siber",
+                  "keamanan informasi", "infrastruktur informasi vital"],
+        "P7-I3": ["wajib menyimpan", "paling singkat", "jangka waktu penyimpanan",
+                  "retensi", "paling sedikit"],
+        "P7-I4": ["penilaian dampak Pelindungan Data Pribadi", "pejabat atau petugas yang melaksanakan fungsi Pelindungan Data Pribadi",
+                  "wajib menunjuk"],
+        "P7-I5": ["aparat penegak hukum", "atas permintaan", "memberikan akses",
+                  "penyidik", "wajib memberikan"],
+    },
 }
 
 
