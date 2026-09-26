@@ -191,9 +191,15 @@ _RESOLUTION_MIN = 2
 # character from the degree sign U+00B0 an OCR pass may emit — both are accepted, because
 # rejecting the mis-read one would lose the article rather than flag it.
 _ARTICLE_RE_ID = re.compile(r"(?m)^[ \t]*(Pasal\s+\d{1,3}[A-Z]{0,2})\b")
-_ARTICLE_RE_RU = re.compile(r"(?m)^[ \t]*(Статья\s+\d{1,3}(?:\.\d{1,2})?)")
+# "Статья 10.2-1" is its own article (149-FZ inserts them); without the "-1" it was labelled
+# "Статья 10.2" and 149-FZ carried duplicate 10.2 / 15.x labels (measured 2026-09-26).
+_ARTICLE_RE_RU = re.compile(r"(?m)^[ \t]*(Статья\s+\d{1,3}(?:\.\d{1,2}(?:-\d{1,2})?)?)")
+# ทวิ / ตรี / จัตวา … are Thai bis / ter / quater: "มาตรา ๗ ทวิ" is a different article from
+# "มาตรา ๗", and without the suffix both were labelled "มาตรา ๗" (measured 2026-09-26: 3 shared
+# labels in the District Courts Act, 2 in the Revenue Code).
 _ARTICLE_RE_TH = re.compile(
-    r"(?m)^[ \t]*(มาตรา[ \t]*[๐-๙\d]{1,4}(?:/[๐-๙\d]{1,3})?)")
+    r"(?m)^[ \t]*(มาตรา[ \t]*[๐-๙\d]{1,4}(?:/[๐-๙\d]{1,3})?"
+    r"(?:[ \t]*(?:ทวิ|ตรี|จัตวา|เบญจ|ฉ|สัตต|อัฏฐ|นว|ทศ)(?![ก-๛]))?)")
 _ARTICLE_RE_TL = re.compile(r"(?m)^[ \t]*(Artigo\s+\d{1,3}\.?[º°]?(?:-[A-Z])?)")
 
 #: economy → its article pattern. Membership of this table is what routes an economy down the
@@ -1016,6 +1022,41 @@ def _stated_amendment_date(text: str, economy) -> str | None:
     return iso[-1]
 
 
+# Common-law drafting names schedules by ORDINAL WORD on a line of its own ("FIRST SCHEDULE",
+# "THE SCHEDULE"), which the "Schedule N" boundary rule cannot see. So the numbered paragraphs
+# inside a schedule — "1.—(1) Subject to sub-paragraphs (2)…" — were read as SECTIONS: on
+# 2026-09-25, 17 of Singapore's 59 PDPA rows for 7.1 cited "Section 1", "Section 2" … for
+# paragraphs of the First to Ninth Schedules. That is a false citation, not a label nicety: PDPA
+# s1 is the short title. Upper-case only, because a schedule heading is set in capitals and
+# the same words in prose ("the First Schedule applies") are not.
+_ORDINALS = ("FIRST|SECOND|THIRD|FOURTH|FIFTH|SIXTH|SEVENTH|EIGHTH|NINTH|TENTH|ELEVENTH|"
+             "TWELFTH|THIRTEENTH|FOURTEENTH|FIFTEENTH|SIXTEENTH")
+_ORDINAL_SCHEDULE_RE = re.compile(
+    rf"(?m)^[ \t]*((?:THE[ \t]+)?(?:(?:{_ORDINALS})[ \t]+)?SCHEDULE)[ \t]*$")
+# "FIRST SCHEDULE — continued": SSO's running header on every schedule page. It landed inside
+# snippets ("FIRST SCHEDULE — continued 2. The collection…") and must not open a schedule twice.
+_SCHEDULE_CONTINUED_RE = re.compile(
+    rf"(?m)^[ \t]*(?:THE[ \t]+)?(?:(?:{_ORDINALS})[ \t]+)?SCHEDULE[ \t]*[—–-][ \t]*continued[ \t]*$",
+    re.I)
+# SSO appends the Law Revision Commission's legislative history after the last schedule; its
+# numbered entries ("1. Act 26 of 2012 — Bill: 24/2012, First Reading …") became "Section 1".
+_LEGISLATIVE_HISTORY_RE = re.compile(r"(?m)^[ \t]*LEGISLATIVE HISTORY[ \t]*$")
+# A Part/Division/Chapter heading and nothing else — title words, an amendment note — with no
+# sentence in it. It became a provision whenever an amendment note made it long enough to pass
+# the minimum-length test (SG Cybersecurity Act "PART 3A" — "PROVIDERS OF ESSENTIAL SERVICE …
+# [Act 19 of 2024 wef 31/10/2025]" — graded under 7.2 at 0.84).
+_STRUCTURAL_LABEL_RE = re.compile(r"^(?:part|division|chapter)\b", re.I)
+_HAS_SENTENCE_RE = re.compile(r"[a-z)][.;:](?:\s|$)")
+
+
+def _schedule_starts(text: str) -> list[tuple[int, str]]:
+    """(offset, "First Schedule") for every schedule heading in the back of the document. A
+    heading in the first 30% is a table-of-contents line or a cross-reference, not the schedule."""
+    floor = int(len(text) * 0.3)
+    return [(m.start(), m.group(1).title()) for m in _ORDINAL_SCHEDULE_RE.finditer(text)
+            if m.start() >= floor]
+
+
 def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> list[Provision]:
     text = raw_text or ""
     # A dead/redirected portal URL (e.g. an uncommenced act whose PDF 404s) yields a short
@@ -1054,6 +1095,13 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
         fm = text.find(HEADING_MARK)
         if fm > 0:
             text = text[fm:]
+    schedules: list[tuple[int, str]] = []
+    if doc.economy != Economy.AU:                        # AU schedules are "Schedule 1—…", handled above
+        text = _SCHEDULE_CONTINUED_RE.sub("", text)
+        hist = _LEGISLATIVE_HISTORY_RE.search(text)
+        if hist and hist.start() > len(text) * 0.5:
+            text = text[:hist.start()]
+        schedules = _schedule_starts(text)
     total = len(text)
     bounds = _boundaries(text, doc.economy)
     provisions: list[Provision] = []
@@ -1129,6 +1177,11 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
             continue
         snippet = body[:MAX_SNIPPET]
         norm = _normalise_label(raw_label, marked=marked)
+        if _STRUCTURAL_LABEL_RE.match(norm) and len(body) < 400 and not _HAS_SENTENCE_RE.search(body):
+            continue
+        in_schedule = [name for pos, name in schedules if pos <= bstart]
+        if in_schedule and _numbered(raw_label, marked):
+            norm = f"{in_schedule[-1]}, paragraph {norm.removeprefix('Section ')}"
         if norm.startswith("Schedule "):
             current_schedule = norm                     # subsequent sections belong to this schedule
         if marked:
