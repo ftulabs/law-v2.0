@@ -388,11 +388,40 @@ def _phrase_bonus(ind, provisions: list[Provision], native: list[str] | None = N
     phrases = _phrases(ind, native)
     if not phrases:
         return bonuses
+    full = _full_text_phrases(provisions)
     for i, p in enumerate(provisions):
-        text_lower = p.verbatim_snippet[:_RETRIEVAL_SNIPPET_LEN].lower()
+        text_lower = _phrase_text(p, full)
         count = sum(1 for ph in phrases if ph in text_lower)
         bonuses[i] = min(0.30, count * 0.10)
     return bonuses
+
+
+def _full_text_phrases(provisions: list[Provision]) -> bool:
+    """Whether literal phrases are looked for in the WHOLE provision — only for an economy that
+    retrieves on native-language phrases (see _phrase_text for why, and for the measurement
+    that keeps the English economies on the capped text)."""
+    from ..rdtii.query_terms_i18n import has_native_terms
+    return has_native_terms(_economy_of(provisions))
+
+
+def _phrase_text(p: Provision, full: bool = False) -> str:
+    """The provision text a literal phrase is looked for in.
+
+    For a NATIVE-LANGUAGE economy: all of it, whitespace collapsed. Cutting it at the embedding
+    window (_RETRIEVAL_SNIPPET_LEN) made the rule in the back half of a long article invisible
+    — measured 2026-09-26, Russia's 152-FZ art. 18 part 5 (the localisation rule, the panel's
+    6.2 answer) sits at character 2,861 of 3,187 and ranked 195th of 538 for 6.2; with the whole
+    text it ranks 10th. Whitespace is collapsed because pravo.gov.ru separates words with
+    NO-BREAK SPACES (1,217 in that one law) and PDF text breaks lines mid-phrase.
+
+    For SG/AU/MY: unchanged, capped. tools/validate_retrieval.py with the whole-text rule kept
+    law and provision recall at 1.0 / 1.0 / 0.875 but pushed the median rank of a target from
+    2 to 4 (AU) and 4 to 8 (MY) and lost one per-evidence hit on AU — long English sections
+    carry more of the indicator's phrases whether or not they are the answer. Those economies'
+    parameters were swept on the capped text, so they stay on it."""
+    if full:
+        return re.sub(r"\s+", " ", p.verbatim_snippet).lower()
+    return p.verbatim_snippet[:_RETRIEVAL_SNIPPET_LEN].lower()
 
 
 def _economy_of(provisions: list[Provision]) -> str | None:
@@ -437,13 +466,14 @@ def _sibling_penalty(ind, provisions: list[Provision]) -> list[float]:
     econ = _economy_of(provisions)
     target_phrases = _phrases(ind, native_terms(ind.indicator_id, econ))
     penalties = [0.0] * len(provisions)
+    full = _full_text_phrases(provisions)
 
     for sib in sibs:
         sib_phrases = _phrases(sib, native_terms(sib.indicator_id, econ))
         if not sib_phrases:
             continue
         for i, p in enumerate(provisions):
-            text_lower = p.verbatim_snippet[:_RETRIEVAL_SNIPPET_LEN].lower()
+            text_lower = _phrase_text(p, full)
             sib_hits = sum(1 for ph in sib_phrases if ph in text_lower)
             target_hits = sum(1 for ph in target_phrases if ph in text_lower)
             if sib_hits > 0 and sib_hits > target_hits:
