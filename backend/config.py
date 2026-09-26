@@ -79,6 +79,10 @@ class Settings(BaseSettings):
     # (16 × 8192 tokens ≈ $0.02 at deepseek-v4-flash prices). complete_json also retries once
     # with 4× the cap if a response still comes back truncated/unparseable.
     openrouter_max_tokens: int = 8192
+    # Reasoning ("thinking") for hybrid models on OpenRouter: "" leaves the model's default,
+    # "off" disables it, "low"/"medium"/"high" set its effort. Billed as output tokens, so for a
+    # reasoning model it is most of the cost of a grading call.
+    openrouter_reasoning: str = ""
     # Retries against the SAME model when it returns 429, before considering another one.
     # Five with jittered exponential backoff covers a burst from sixteen concurrent workers.
     # See llm_openrouter._is_rate_limited for why a rate limit must not trigger model failover.

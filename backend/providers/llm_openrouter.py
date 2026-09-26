@@ -37,6 +37,18 @@ def _is_key_quota_exhausted(e: Exception) -> bool:
             or "credit limit" in body or "monthly limit" in body)
 
 
+def _is_out_of_credit(e: Exception) -> bool:
+    """HTTP 402 'Insufficient credits': the ACCOUNT behind the key has no balance left.
+
+    Measured 2026-09-26: the shared account reached 1,050 of 1,050 USD mid-run. 402 was not
+    classified, so every call walked the whole failover pool (each model answering the same
+    402) and the run reported "possible rate limits" — 206 of Thailand's 621 calls lost that
+    way before anyone could tell the account was empty. No model on this key can answer it."""
+    code = (getattr(e, "status_code", None)
+            or getattr(getattr(e, "response", None), "status_code", None))
+    return code == 402 or "insufficient credits" in str(getattr(e, "body", None) or e)[:300].lower()
+
+
 def _is_rate_limited(e: Exception) -> bool:
     """A 429 from OpenRouter or the upstream provider.
 
@@ -95,10 +107,17 @@ class OpenRouterLLM(LLMProvider):
         """
         msgs = [{"role": "system", "content": sys_msg}, {"role": "user", "content": user}]
         pin = self._provider_pin()
+        extra: dict[str, Any] = {}
+        mode = (settings.openrouter_reasoning or "").strip().lower()
+        if mode == "off":
+            extra["reasoning"] = {"enabled": False}
+        elif mode in ("low", "medium", "high"):
+            extra["reasoning"] = {"effort": mode}
         try:
             return self._client.chat.completions.create(
                 model=model, temperature=0, max_tokens=cap, messages=msgs,
-                **({"extra_body": {"provider": pin}} if pin else {}),
+                **({"extra_body": {**extra, "provider": pin}} if pin else
+                   {"extra_body": extra} if extra else {}),
             )
         except Exception as e:                     # noqa: BLE001 — classified right here
             # Only a ROUTING refusal is worth un-pinning for. A 429 is the pinned provider
@@ -108,7 +127,8 @@ class OpenRouterLLM(LLMProvider):
                 raise
             self._pin_lost = True
             return self._client.chat.completions.create(
-                model=model, temperature=0, max_tokens=cap, messages=msgs)
+                model=model, temperature=0, max_tokens=cap, messages=msgs,
+                **({"extra_body": extra} if extra else {}))
 
     def _ask(self, model: str, sys_msg: str, user: str) -> dict[str, Any]:
         """One model, one answer. Raises on any transport failure so the caller classifies it.
@@ -168,6 +188,15 @@ class OpenRouterLLM(LLMProvider):
                                    * (1.0 + random.random()))
             except Exception as e:  # noqa: BLE001 — this model is out; try the next one
                 last_err = e
+                if _is_out_of_credit(e):
+                    raise LLMTerminalError(
+                        "OpenRouter says the account behind this key has no credit left "
+                        f"(HTTP 402): {str(getattr(e, 'body', None) or e)[:160]}",
+                        kind="quota",
+                        hint="the key is valid; the ACCOUNT balance is used up. Top up at "
+                             "openrouter.ai/settings/credits — no other model on this key "
+                             "can answer until then.",
+                    ) from e
                 # An AUTH failure (401/403) is the same for every model — the key itself is
                 # invalid/revoked/out-of-credit. Don't churn the whole pool per call; fail fast
                 # with a message that names the real cause (not "rate limits").

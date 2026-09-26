@@ -387,9 +387,14 @@ INDICATORS: list[Indicator] = [
                      "retain the accounting records", "keep the records for"],
         verify_elements=[
             "the data, records or information that must be retained",
-            "the MINIMUM period: 'for N years', 'not less than', 'at least', 'for the prescribed "
-            "period', or 'permanently' — null if no period is stated or if the rule only caps how "
-            "LONG data may be kept",
+            # "Prescribed" spelled out because deepseek-v4-flash refused SG Employment Act s95
+            # ("keep for the period prescribed") on every run as "no duration stated". The
+            # legal expert (Q-A3) is explicit that a period fixed by regulation counts.
+            "the MINIMUM period the data must be kept: 'for N years', 'not less than', 'at "
+            "least', 'permanently', OR a period left to regulations or an authority — 'for the "
+            "prescribed period', 'for the period prescribed', 'for such period as may be "
+            "prescribed' COUNTS and must be quoted — null only if no retention period of any kind "
+            "is stated, or if the rule only caps how LONG data may be kept",
         ],
     ),
     Indicator(
@@ -422,8 +427,13 @@ INDICATORS: list[Indicator] = [
                      "individual responsible for ensuring compliance", "responsible for ensuring the organisation complies",
                      "person responsible for data protection", "assessment of the impact on the privacy"],
         verify_elements=[
-            "the words REQUIRING a data protection officer (or a person designated as responsible for "
-            "data-protection compliance) to be appointed, or a data protection impact assessment to be "
+            # A regulator's power to DIRECT an assessment is a DPIA requirement: AU Privacy Act
+            # s33D ("the Commissioner may … direct an agency to give … a privacy impact
+            # assessment") is the panel's 7.4 answer, and deepseek-v4-flash refused it every run.
+            "the words REQUIRING a data protection officer (or a person designated as responsible "
+            "for data-protection compliance) to be appointed, or an impact assessment of the "
+            "processing of personal data — DPIA, privacy impact assessment, risk assessment of "
+            "processing — to be conducted, including a regulator's power to DIRECT that one be "
             "conducted — null for a table-of-contents line or a heading with no requirement",
         ],
     ),
@@ -470,8 +480,10 @@ INDICATORS: list[Indicator] = [
             "information, documents or communications RELATING TO INDIVIDUALS — null if only goods, "
             "premises or persons are reached",
             "the words showing who authorises the access: a non-judicial authoriser, 'without a "
-            "warrant', or the power as granted with no authoriser named — null ONLY if the access "
-            "requires a court, judge or magistrate's warrant or order",
+            "warrant', OR — when the provision names NO authoriser at all — the words granting the "
+            "power itself (e.g. 'a police officer … may, at any time'), because a power needing no "
+            "authorisation is the clearest case — null ONLY if the access requires a court, judge "
+            "or magistrate's warrant or order",
         ],
     ),
 ]
