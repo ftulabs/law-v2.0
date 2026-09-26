@@ -50,12 +50,19 @@ _PILLAR_CONCEPT_TERMS = {
         "transfer", "transmit", "export", "another country", "other country", "third country",
         "within the country", "in-country", "locally", "local processing", "domestic", "territory",
         "jurisdiction", "server", "data centre", "data center", "datacentre", "infrastructure",
-        "stored", "store", "storage", "located", "reside", "hosted", "premises", "process"),
+        "stored", "store", "storage", "located", "reside", "hosted", "premises", "process",
+        # Indonesian. It is Latin script, so the non-Latin exemption below never covered it, and
+        # PP 71/2019 art. 20 — "wajib melakukan … penyimpanan … Data Elektronik di wilayah
+        # Indonesia", the localisation rule itself — was quarantined as off-topic on 2026-09-26.
+        "wilayah", "luar negeri", "dalam negeri", "pusat data", "penyimpanan", "disimpan",
+        "pemrosesan", "pengiriman", "transfer", "yurisdiksi"),
     7: ("personal data", "personal information", "data protection", "privacy", "process", "collect",
         "disclos", "consent", "security", "secur", "cyber", "encrypt", "breach", "retain",
         "retention", "store", "storage", "period", "officer", "impact assessment", "assessment",
         "access", "law enforcement", "enforcement", "surveillance", "intercept", "warrant",
-        "data", "information"),
+        "data", "information",
+        # Indonesian (see pillar 6)
+        "informasi", "keamanan", "siber", "penyimpanan", "jangka waktu", "akses", "penyadapan"),
 }
 
 

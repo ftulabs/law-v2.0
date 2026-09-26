@@ -190,7 +190,60 @@ _RESOLUTION_MIN = 2
 # dot before it ("Artigo 1º", "Artigo 2.º", "Artigo 11.º-A"), and U+00BA is a distinct
 # character from the degree sign U+00B0 an OCR pass may emit — both are accepted, because
 # rejecting the mis-read one would lose the article rather than flag it.
-_ARTICLE_RE_ID = re.compile(r"(?m)^[ \t]*(Pasal\s+\d{1,3}[A-Z]{0,2})\b")
+# Same-line space only between "Pasal" and its number: with \s the catchword "Pasal" ending one
+# page took the NEXT page's number ("Pasal\n\n\x0c53") and PP 71/2019 grew a second "Pasal 53".
+# The text layer of these gazettes misreads digits as letters ("Pasal 7O", "Pasal 2l"); those
+# are accepted after a first real digit and repaired in the LABEL only (`_id_label`).
+_ARTICLE_RE_ID = re.compile(r"(?m)^[ \t]*(Pasal[ \t]+\d[\dOl]{0,2}[A-Z]{0,2})\b")
+# What follows the number ON THE SAME LINE tells a heading from a cross-reference wrapped onto
+# a new line — "…sebagaimana dimaksud dalam ⏎ Pasal 3 wajib ditempatkan…" split Permenkominfo
+# 20/2016 art. 17(1) in two and filed its data-centre rule under a "Pasal 3". Measured
+# 2026-09-26 over 44 BPK documents: 3,638 headings stand alone on their line; 458 lines carry
+# text after the number, and every one continues lower-case or with a comma.
+_NOT_A_HEADING_ID = re.compile(r"[ \t]*[a-z,;]")
+
+
+def _id_label(raw: str) -> str:
+    """'Pasal 7O' → 'Pasal 70', 'Pasal 2l' → 'Pasal 21'. No real suffix is O or l."""
+    return re.sub(r"(?<=\d)[Ol]", lambda c: "0" if c.group() == "O" else "1", raw)
+
+
+def _drop_catchwords_id(out: list[tuple]) -> list[tuple]:
+    """The gazette ends a page with a catchword naming the next page's first article ("Pasal 17
+    . . ."), so that article is found twice within a page header's distance. Keep the real
+    heading. A lone catchword stays: when the real heading is misread (PP 71/2019 art. 27 on
+    2026-09-26) it is the only correct boundary left."""
+    keep = []
+    for i, b in enumerate(out):
+        nxt = out[i + 1] if i + 1 < len(out) else None
+        if nxt and nxt[2] == b[2] and nxt[0] - b[0] < 400:
+            continue
+        keep.append(b)
+    return keep
+
+
+# The official elucidation ("PENJELASAN ATAS UNDANG-UNDANG …") follows the signatures and
+# numbers its notes "Pasal 1 Cukup jelas." again. It explains; it does not bind, and inside
+# the last article it made PP 82/2012 "Pasal 90" — its commencement clause — a 6.3 answer
+# because the general elucidation mentions data centres. Some gazettes letter-space the
+# heading; UU 27/2022's text layer lost it entirely, and there "I. UMUM" (general part) and
+# "II. PASAL DEMI PASAL" (article by article) are what is left to find it by.
+_ELUCIDATION_ID = re.compile(
+    r"(?m)^[ \t]*P[ \t]*E[ \t]*N[ \t]*J[ \t]*E[ \t]*L[ \t]*A[ \t]*S[ \t]*A[ \t]*N[ \t]*\n[ \t]*ATAS\b")
+_ELUCIDATION_GENERAL_ID = re.compile(r"(?m)^[ \t]*I\.?[ \t]*UMUM[ \t]*$")
+_ELUCIDATION_ARTICLES_ID = re.compile(r"(?m)^[ \t]*(?:II\.?[ \t]*)?PASAL[ \t]*DEMI[ \t]*PASAL[ \t]*$")
+
+
+def _elucidation_start_id(text: str) -> int | None:
+    """Where the elucidation begins, looking only past the first 30% (the body comes first)."""
+    floor = int(len(text) * 0.3)
+    art = _ELUCIDATION_ARTICLES_ID.search(text, floor)
+    hits = [m.start() for m in (_ELUCIDATION_ID.search(text, floor), art) if m]
+    if art:
+        gen = _ELUCIDATION_GENERAL_ID.search(text, floor, art.start())
+        if gen:
+            hits.append(gen.start())
+    return min(hits) if hits else None
 # "Статья 10.2-1" is its own article (149-FZ inserts them); without the "-1" it was labelled
 # "Статья 10.2" and 149-FZ carried duplicate 10.2 / 15.x labels (measured 2026-09-26).
 _ARTICLE_RE_RU = re.compile(r"(?m)^[ \t]*(Статья\s+\d{1,3}(?:\.\d{1,2}(?:-\d{1,2})?)?)")
@@ -1146,7 +1199,10 @@ def _boundaries(text: str, economy=None) -> list[tuple]:
         # from real statute text and Russia one. Nothing raised — the run simply had no
         # article-level citation to make, which is criterion C2b.
         out = [(m.start(), m.end(), m.group(1).strip(), False)
-               for m in ARTICLE_PATTERNS[economy].finditer(text)]
+               for m in ARTICLE_PATTERNS[economy].finditer(text)
+               if not (economy == Economy.ID and _NOT_A_HEADING_ID.match(text, m.end()))]
+        if economy == Economy.ID:
+            out = _drop_catchwords_id([(s0, e0, _id_label(lab), mk) for s0, e0, lab, mk in out])
         if economy == Economy.TH:
             # A notification cites the Act it is made under ("อาศัยอำนาจตามความในมาตรา ๖๐"),
             # and a wrapped PDF line can open on that "มาตรา ๖๐" — so its clauses win whenever
@@ -1327,6 +1383,10 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
         hist = _LEGISLATIVE_HISTORY_RE.search(text)
         if hist and hist.start() > len(text) * 0.5:
             text = text[:hist.start()]
+        if doc.economy == Economy.ID:
+            elu = _elucidation_start_id(text)
+            if elu:
+                text = text[:elu]
         schedules = _schedule_starts(text)
     total = len(text)
     bounds = _boundaries(text, doc.economy)
