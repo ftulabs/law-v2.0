@@ -208,6 +208,43 @@ def _id_label(raw: str) -> str:
     return re.sub(r"(?<=\d)[Ol]", lambda c: "0" if c.group() == "O" else "1", raw)
 
 
+# An annex (LAMPIRAN) follows the signatures and is part of the instrument, but it carries no
+# "Pasal": before this it ran inside the LAST article, and Permen Komdigi 15/2025's 240,000
+# characters of licensing standards were cited as "Pasal 8 (part 6 of 13)" — the 3-month
+# usage-record retention duty it imposes on each telecoms licence came out five times under
+# one article that says nothing of the kind (2026-09-27). Its heading is "LAMPIRAN [I, II …]"
+# on its own line with the instrument's title block right under it — which is what separates
+# it from a form inside an annex headed "LAMPIRAN KASUS POSISI PERKARA".
+_ANNEX_HEAD_ID = re.compile(
+    r"(?m)^[ \t]*(LAMPIRAN(?:[ \t]+[IVX]{1,5})?)[ \t]*\n(?:[^\n]*\n){0,2}?[ \t]*"
+    r"(?:PERATURAN|KEPUTUSAN|SALINAN)\b")
+# Inside it: sector letters ("A. SEKTOR POS, TELEKOMUNIKASI …") and upper-case numbered entries
+# ("12. STANDAR KEGIATAN USAHA …"). The entry's own sub-items are mixed case ("1. Ruang
+# Lingkup"), so upper case is what keeps them inside their entry.
+_ANNEX_PART_ID = re.compile(
+    r"(?m)^[ \t]*(?:(?P<sec>[A-Z])|(?P<num>\d{1,3}))\.[ \t]+[A-Z][A-Z0-9 ,/()&.\-]{7,}$")
+
+
+def _annexes_id(text: str, out: list[tuple]) -> list[tuple]:
+    """Article boundaries up to the first annex, then one boundary per annex entry."""
+    heads = list(_ANNEX_HEAD_ID.finditer(text))
+    if not heads:
+        return out
+    keep = [b for b in out if b[0] < heads[0].start()]
+    for i, h in enumerate(heads):
+        end = heads[i + 1].start() if i + 1 < len(heads) else len(text)
+        name = f"Lampiran {h.group(1)[len('LAMPIRAN'):].strip()}".rstrip()
+        keep.append((h.start(), h.start(), name, False))
+        sec = ""
+        for m in _ANNEX_PART_ID.finditer(text, h.end(), end):
+            if m.group("sec"):
+                sec = m.group("sec")
+                continue
+            n = m.group("num")
+            keep.append((m.start(), m.start(), f"{name}, {sec + '.' if sec else 'angka '}{n}", False))
+    return keep
+
+
 def _drop_catchwords_id(out: list[tuple]) -> list[tuple]:
     """The gazette ends a page with a catchword naming the next page's first article ("Pasal 17
     . . ."), so that article is found twice within a page header's distance. Keep the real
@@ -1203,6 +1240,7 @@ def _boundaries(text: str, economy=None) -> list[tuple]:
                if not (economy == Economy.ID and _NOT_A_HEADING_ID.match(text, m.end()))]
         if economy == Economy.ID:
             out = _drop_catchwords_id([(s0, e0, _id_label(lab), mk) for s0, e0, lab, mk in out])
+            out = _annexes_id(text, out)
         if economy == Economy.TH:
             # A notification cites the Act it is made under ("อาศัยอำนาจตามความในมาตรา ๖๐"),
             # and a wrapped PDF line can open on that "มาตรา ๖๐" — so its clauses win whenever

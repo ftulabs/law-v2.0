@@ -56,3 +56,17 @@ def test_an_indonesian_localisation_rule_is_on_topic_for_pillar_6():
          "pemrosesan, dan/atau penyimpanan Sistem Elektronik dan Data Elektronik di wilayah "
          "Indonesia.")
     assert topical_grounded(s, 6)
+
+
+def test_an_annex_is_split_into_its_own_entries_not_left_in_the_last_article():
+    body = _body(7) + "Pasal 8\nPeraturan Menteri ini mulai berlaku pada tanggal diundangkan.\n"
+    annex = ("LAMPIRAN I\nPERATURAN MENTERI KOMUNIKASI DAN DIGITAL\nNOMOR 15 TAHUN 2025\n"
+             "A. SEKTOR POS, TELEKOMUNIKASI, DAN PENYIARAN\n"
+             "1. STANDAR KEGIATAN USAHA AKTIVITAS KURIR\n" + FILL * 3 +
+             "2. STANDAR KEGIATAN USAHA JASA TELEPONI\n1. Ruang Lingkup layanan telepon.\n"
+             "Penyelenggara wajib merekam dan menyimpan data penggunaan pelanggan paling "
+             "singkat 3 (tiga) bulan.\n" + FILL * 2)
+    ps = {p.article_section: p.verbatim_snippet for p in _split(body + annex)}
+    assert "Lampiran I, A.2" in ps and "paling singkat 3" in ps["Lampiran I, A.2"]
+    assert "LAMPIRAN" not in ps["Pasal 8"]
+    assert "Lampiran I, A.1" in ps          # the mixed-case "1. Ruang Lingkup" stays inside A.2

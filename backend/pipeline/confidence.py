@@ -55,14 +55,19 @@ _PILLAR_CONCEPT_TERMS = {
         # PP 71/2019 art. 20 — "wajib melakukan … penyimpanan … Data Elektronik di wilayah
         # Indonesia", the localisation rule itself — was quarantined as off-topic on 2026-09-26.
         "wilayah", "luar negeri", "dalam negeri", "pusat data", "penyimpanan", "disimpan",
-        "pemrosesan", "pengiriman", "transfer", "yurisdiksi"),
+        "pemrosesan", "pengiriman", "transfer", "yurisdiksi",
+        # Portuguese (Timor-Leste) — also Latin script, so the same blind spot
+        "território", "estrangeiro", "transferência", "armazena", "servidor", "centro de dados",
+        "infraestrutura", "tratamento"),
     7: ("personal data", "personal information", "data protection", "privacy", "process", "collect",
         "disclos", "consent", "security", "secur", "cyber", "encrypt", "breach", "retain",
         "retention", "store", "storage", "period", "officer", "impact assessment", "assessment",
         "access", "law enforcement", "enforcement", "surveillance", "intercept", "warrant",
         "data", "information",
         # Indonesian (see pillar 6)
-        "informasi", "keamanan", "siber", "penyimpanan", "jangka waktu", "akses", "penyadapan"),
+        "informasi", "keamanan", "siber", "penyimpanan", "jangka waktu", "akses", "penyadapan",
+        # Portuguese (Timor-Leste)
+        "dados", "informação", "segurança", "ciber", "conserva", "prazo", "acesso"),
 }
 
 
