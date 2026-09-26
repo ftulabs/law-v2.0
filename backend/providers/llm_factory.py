@@ -32,6 +32,16 @@ class MockLLM(LLMProvider):
         # deterministic mock scorer so the offline pipeline still produces raw scores.
         if "<SCORE_INDICATOR>" in user:
             return _mock_score(user)
+        # The second-pass check (mapping.verify_mapping) asks for a quote per element. A
+        # lexical mock cannot judge an element, so it passes every one with the snippet's
+        # opening words — offline runs keep the first grader's verdict, which is all the mock
+        # was ever able to give. It must not refuse: that would quarantine the sample corpus.
+        if "<REQUIRED_ELEMENTS>" in user:
+            n = len([ln for ln in _between(user, "<REQUIRED_ELEMENTS>", "</REQUIRED_ELEMENTS>")
+                     .splitlines() if ln.strip()])
+            opening = " ".join(_between(user, "<SNIPPET>", "</SNIPPET>").split()[:12])
+            return {"elements": [{"element": i, "quote": opening} for i in range(1, n + 1)],
+                    "verdict": True, "reason": "mock check: not judged"}
         # The mapper packs a compact, parseable block into `user`. We read it back
         # rather than free-text parse, keeping the mock deterministic.
         snippet = _between(user, "<SNIPPET>", "</SNIPPET>").lower()

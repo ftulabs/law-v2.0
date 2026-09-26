@@ -443,6 +443,185 @@ def _crosscheck_rejection(ind, prov, xc, log) -> dict | None:
     return g2
 
 
+# ── second pass: check an ACCEPTANCE by quotation ─────────────────────────────────────────
+# Why a second pass at all. Reading every row of the 2026-09-25 SG/MY/AU runs, about half of
+# the accepted 6.x, 7.3 and 7.5 rows were wrong — a bank's transfer of BUSINESS as a 6.4 data
+# transfer, a court-warrant search as 7.5 access, a bail section as 7.5 — and the confidence
+# score could not tell them apart: the grader's own legal_match was 1.0 on PDPA s14(1)(b) filed
+# under 6.4, and the wrong rows scored 0.81-0.86 like the right ones. A number the model
+# chooses is not evidence. A QUOTE is: it either sits in the snippet or it does not, and the
+# code — not the model — decides which.
+#
+# Why this is not the acceptance vote reverted on 2026-08-27 (see the note in _grade). That
+# vote asked the same question again and took a majority, so a blind spot in the legal test
+# was ratified rather than cancelled. This asks a DIFFERENT question — show me the words for
+# each element — and the element list is written from the legal test, so where the test is
+# right the check is anchored to it rather than to a second opinion. The element lists live
+# beside each legal test in rdtii/indicators.py (`verify_elements`).
+VERIFY_SYSTEM = (
+    "You CHECK a finding made by another grader. It said the provision below satisfies the "
+    "TARGET indicator of the UNESCAP RDTII 2.1 framework. Do not re-decide from impressions: "
+    "for EACH required element, copy the exact words from the SNIPPET that establish it, or "
+    "null if the snippet contains no such words. Judge ONLY the listed elements: do not add "
+    "requirements of your own, and do not refuse a provision because it also does something "
+    "else.\n"
+    "Rules for quotes: copy CHARACTER-FOR-CHARACTER from the SNIPPET, in the snippet's own "
+    "language, at most 40 words, one contiguous span. Never paraphrase, translate, or quote "
+    "the legal test or the element description. A heading, a table-of-contents line or a "
+    "definition alone does not establish an element.\n"
+    "verdict = true only if EVERY element has a quote. reason: one English sentence naming the "
+    "missing element if verdict is false, else what the provision does.\n"
+    "Return ONLY JSON: {\"elements\":[{\"element\":int,\"quote\":str|null}],"
+    "\"verdict\":bool,\"reason\":str}"
+)
+
+
+def _verify_prompt(ind, prov: Provision) -> str:
+    elements = "\n".join(f"{i}. {e}" for i, e in enumerate(ind.verify_elements, 1))
+    return (
+        # No LEGAL_TEST here, on purpose. With it, the checker re-read the whole test and added
+        # requirements the elements do not state — it refused 39 of SG's 59 PDPA rows for 7.1
+        # for "not establishing access, rectification, erasure AND portability".
+        f"<TARGET_INDICATOR>{ind.indicator_id} — {ind.title}</TARGET_INDICATOR>\n"
+        f"<REQUIRED_ELEMENTS>\n{elements}\n</REQUIRED_ELEMENTS>\n"
+        f"<LAW>{prov.law_name} — {prov.article_section}</LAW>\n"
+        f"<SNIPPET_LANGUAGE>{_snippet_language(prov)}</SNIPPET_LANGUAGE>\n"
+        f"<SNIPPET>{prov.verbatim_snippet}</SNIPPET>\n"
+        "Return the JSON object only."
+    )
+
+
+def _norm_quote(s: str) -> str:
+    # Whitespace and the extraction sentinels differ between what the model echoes and what the
+    # snippet holds (line breaks inside a sentence, a page mark mid-section); quotes and dashes
+    # get "smartened" on the way back. None of that is a different quotation.
+    s = re.sub(r"[\x1e\x0c]\d*\x0c?", " ", s)
+    s = s.translate(str.maketrans({"‘": "'", "’": "'", "“": '"', "”": '"',
+                                   "‑": "-", "–": "-", "—": "-"}))
+    return re.sub(r"\s+", " ", s).strip().casefold()
+
+
+# Paragraph enumerators — "(a)", "(ii)", "1." at a clause start. Models drop them when they
+# splice a quote together ("may — issue a written order" for "may —\n(a) issue a written order"),
+# and that is still the statute's wording.
+_ENUM_RE = re.compile(r"\(\s*[a-z0-9]{1,5}\s*\)|(?<![\w.])\d{1,3}\.(?=\s)", re.I)
+_QWORD_RE = re.compile(r"\w+", re.U)
+
+
+def _in_order_cover(piece: list[str], hay: list[str]) -> float:
+    """Best fraction of `piece`'s words found IN ORDER inside one window of `hay` no longer than
+    1.5x the piece — so a quote whose words are scattered across a whole section does not pass."""
+    import difflib
+    n = len(piece)
+    if not n or not hay:
+        return 0.0
+    width = max(n + 2, int(n * 1.5))
+    best = 0.0
+    firsts = {w for w in piece[:3]}
+    for start in (i for i, w in enumerate(hay) if w in firsts):
+        win = hay[start:start + width]
+        sm = difflib.SequenceMatcher(None, piece, win, autojunk=False)
+        best = max(best, sum(b.size for b in sm.get_matching_blocks()) / n)
+        if best >= 0.999:
+            break
+    return best
+
+
+def quote_in_snippet(quote: str | None, snippet: str) -> bool:
+    """True when `quote` is really in `snippet`. Exact after normalisation, or — because models
+    drop enumerators and occasionally swap two words — at least 90% of its words in order inside
+    one short window. An ellipsis-joined quote is checked piece by piece, and a piece of under 3
+    characters is not evidence of anything."""
+    if not quote:
+        return False
+    hay = _ENUM_RE.sub(" ", _norm_quote(snippet))
+    hay = re.sub(r"\s+", " ", hay)
+    hay_words = _QWORD_RE.findall(hay)
+    parts = [p for p in (re.sub(r"\s+", " ", _ENUM_RE.sub(" ", _norm_quote(x))).strip()
+                         for x in re.split(r"\.\.\.|…", quote)) if p]
+    if not parts:
+        return False
+    for p in parts:
+        if len(p) < 3:
+            return False
+        if p in hay:
+            continue
+        words = _QWORD_RE.findall(p)
+        # No-space scripts (Chinese, Thai, Lao) come back as one "word" per clause, so the
+        # word-level fallback cannot help them; they must match exactly.
+        if len(words) < 4 or _in_order_cover(words, hay_words) < 0.9:
+            return False
+    return True
+
+
+def _check_once(ind, prov: Provision, llm) -> tuple[str, str]:
+    """One checker call → (outcome, reason); outcome is one of
+         "pass"     every element quoted, every quote really in the snippet, verdict not false
+         "doubt"    every element quoted and found, but the checker still said false
+         "absent"   the checker could quote nothing for some element (it answered null)
+         "unfound"  quotes were given but at least one is not in the snippet
+         "error"    no usable answer"""
+    try:
+        g = llm.complete_json(VERIFY_SYSTEM, _verify_prompt(ind, prov))
+    except Exception as e:  # noqa: BLE001 — a check must never crash the run
+        return "error", f"check failed: {type(e).__name__}"
+    if not g or g.get("_parse_error"):
+        return "error", "check returned no parseable answer"
+    quotes = {}
+    for el in g.get("elements") or []:
+        try:
+            quotes[int(el.get("element"))] = el.get("quote")
+        except (TypeError, ValueError, AttributeError):
+            continue
+    n = len(ind.verify_elements)
+    reason = str(g.get("reason") or "")[:240]
+    null = [i for i in range(1, n + 1) if not quotes.get(i)]
+    if null:
+        why = f"element {', '.join(map(str, null))} not shown by the text"
+        return "absent", f"{why}: {reason}" if reason else why
+    unfound = [i for i in range(1, n + 1) if not quote_in_snippet(quotes[i], prov.verbatim_snippet)]
+    if unfound:
+        return "unfound", f"quote for element {', '.join(map(str, unfound))} is not in the snippet"
+    shown = "; ".join(f"{i}: “{str(quotes[i])[:80]}”" for i in range(1, n + 1))
+    if g.get("verdict") is False:
+        return "doubt", reason or shown
+    return "pass", shown
+
+
+def verify_mapping(ind, prov: Provision, llm) -> tuple[bool | None, str]:
+    """(verdict, reason). None means the check could not settle it and the caller must leave the
+    primary verdict alone rather than read silence as a refusal.
+
+    Measured on the 2026-09-25 SG/AU/MY rows, and each rule below is there because the simpler
+    rule lost a panel answer:
+      • a quote the code cannot find is NOT a refusal. AU's PDF extraction interleaves columns,
+        so TIA Act s178 reads "may authorise the came into existence before…"; the checker quoted
+        the sentence as it should read, and refusing on that deleted the panel's own 7.5 answer.
+        Unverifiable is None.
+      • "every element quoted, verdict false" is asked AGAIN before it counts. My Health Records
+        s77 was refused for 6.2 on one call and passed on the next with the same quotes; a
+        refusal that does not repeat is noise. One that does repeat — a court-warrant search
+        quoted for 7.5, a "not exceeding 5 years" cap quoted for 7.3 — is a refusal.
+      • an element the checker cannot quote at all is a refusal on the first call: that is the
+        shape of nearly every wrong row read (a business transfer under 6.4, a filing deadline
+        under 7.3), and it did not remove a panel answer on any of the three economies."""
+    if not ind.verify_elements:
+        return None, "no element list for this indicator"
+    outcome, why = _check_once(ind, prov, llm)
+    if outcome == "doubt":
+        outcome2, why2 = _check_once(ind, prov, llm)
+        if outcome2 == "pass":
+            return True, why2
+        if outcome2 in ("doubt", "absent"):
+            return False, why
+        return None, f"checker split: {why}"
+    if outcome == "pass":
+        return True, why
+    if outcome == "absent":
+        return False, why
+    return None, why
+
+
 def _mapping_id(run_id: str, indicator_id: str, provision_id: str) -> str:
     h = hashlib.sha1(f"{run_id}|{indicator_id}|{provision_id}".encode()).hexdigest()[:12]
     return f"map-{h}"
@@ -484,7 +663,8 @@ def map_provisions(
     # the run stopped dead with no error, which is a worse failure than the one this whole
     # mechanism exists to report.
     breaker = {"stop": threading.Event(), "lock": threading.RLock(),
-               "ok": 0, "bad": 0, "skipped": 0, "reason": "", "hint": "", "kind": ""}
+               "ok": 0, "bad": 0, "skipped": 0, "reason": "", "hint": "", "kind": "",
+               "verified": 0, "refused": 0, "unsettled": 0}
 
     def _trip(reason: str, kind: str, hint: str) -> None:
         with breaker["lock"]:
@@ -547,13 +727,13 @@ def map_provisions(
             else:
                 candidates = _diverse_shortlist(ind.indicator_id, provisions, eff_top_k,
                                                 settings.retrieve_per_law_k, log)
-        for r in candidates:
+        for rank, r in enumerate(candidates, 1):
             if grade_all or r.score >= min_retrieval:
-                work.append((ind, r))
+                work.append((ind, r, rank))
 
     # ── grade each pairing (one independent LLM call) concurrently ────────────────────────
     def _grade(item):
-        ind, r = item
+        ind, r, rank = item
         prov = r.provision
         if breaker["stop"].is_set():
             with breaker["lock"]:
@@ -659,6 +839,15 @@ def map_provisions(
             scope_alignment=scope_alignment, scope_flag=scope_flag,
             apply_scope_cap=apply_scope_cap, topical_ok=topical_ok,
         )
+        check_note = None
+        if settings.verify_enabled and ind.verify_elements:
+            verdict, why = verify_mapping(ind, prov, llm)
+            breakdown = confidence.apply_verification(breakdown, verdict, why)
+            if verdict is False:
+                check_note = f"Second-pass check refused: {why}"[:300]
+            with breaker["lock"]:
+                breaker["verified" if verdict else
+                        "refused" if verdict is False else "unsettled"] += 1
         _last_amended = _format_last_amended(prov.amendment_date, prov.law_name)
         status = confidence.route(breakdown.final)
         if status.value == "auto_accepted":
@@ -677,12 +866,13 @@ def map_provisions(
             mapping_rationale=(rationale or "")[:300], confidence_score=breakdown.final,
             discovery_tag=doc_tags.get(prov.doc_id, DiscoveryTag.KNOWN),
             coverage=("Sectoral" if scope_flag else "Horizontal"),
-            notes=" ".join(filter(None, [_build_notes(prov, scope_flag, topical_ok), xc_note])) or None,
+            notes=" ".join(filter(None, [_build_notes(prov, scope_flag, topical_ok), xc_note,
+                                         check_note])) or None,
             review_status=status,
             provision_id=prov.provision_id, source_pdf_path=prov.source_pdf_path,
             raw_context=r.raw_context, raw_context_before=ctx_before, raw_context_after=ctx_after,
             confidence=breakdown, ocr=prov.ocr, model_version=llm.model_version,
-            retrieval_log=r.log, scope_flag=scope_flag,
+            retrieval_log=[*r.log, f"shortlist rank={rank}"], scope_flag=scope_flag,
         )
 
     _retr_secs = time.perf_counter() - _t_retr   # retrieval + shortlist/work-list build
@@ -717,7 +907,7 @@ def map_provisions(
         f"[timing] mapping: retrieval/build {_retr_secs:.1f}s · {attempted} grading calls")
 
     first_reason = ""
-    planned = collections.Counter(ind.indicator_id for ind, _r in work)
+    planned = collections.Counter(ind.indicator_id for ind, _r, _k in work)
     lost: collections.Counter = collections.Counter()
     for res in results:
         if res is None:
@@ -759,6 +949,20 @@ def map_provisions(
         log(f"[warn] {failures} of {len(work)} LLM call(s) failed and were skipped ({hint})")
     if gaps is not None:
         gaps.update({i: (n, planned[i]) for i, n in lost.items()})
+    if breaker["verified"] or breaker["refused"] or breaker["unsettled"]:
+        log(f"[verify] second-pass check on accepted rows: {breaker['verified']} quoted, "
+            f"{breaker['refused']} refused (quarantined), {breaker['unsettled']} unsettled "
+            f"(held for review)")
+    # Where in the shortlist each surviving row came from — the evidence any change to the
+    # shortlist size has to be argued from (see retrieve_max_top_k in config).
+    for ind in indicators:
+        ranks = sorted(int(m.retrieval_log[-1].rsplit("=", 1)[1]) for m in mappings
+                       if m.indicator_id == ind.indicator_id
+                       and m.review_status.value != "quarantined"
+                       and m.retrieval_log and m.retrieval_log[-1].startswith("shortlist rank="))
+        if ranks:
+            log(f"[rank] {ind.indicator_id}: kept rows came from shortlist ranks "
+                f"{','.join(map(str, ranks))} of {planned[ind.indicator_id]}")
     # most confident first
     mappings.sort(key=lambda m: m.confidence_score, reverse=True)
     return mappings

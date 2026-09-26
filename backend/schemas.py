@@ -160,6 +160,9 @@ class Indicator(BaseModel):
     legal_test: str                           # what makes a provision *legally* (not just semantically) relevant
     scope: str = "national"                   # national | sectoral — guards against scope confusion
     query_terms: list[str] = Field(default_factory=list)
+    # What the second-pass check must find QUOTED in the snippet before an acceptance stands —
+    # one entry per element of the legal test (mapping.verify_mapping).
+    verify_elements: list[str] = Field(default_factory=list)
 
 
 # ─────────────────────────── zone 1: discovery ───────────────────────────

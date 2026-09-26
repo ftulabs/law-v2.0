@@ -78,6 +78,12 @@ INDICATORS: list[Indicator] = [
         query_terms=["shall not transfer", "prohibited from transferring", "may not be transferred",
                      "must be processed within", "processed locally", "ban on cross-border transfer",
                      "transfer is prohibited"],
+        verify_elements=[
+            "the DATA, information or records the rule applies to (not goods, funds, a business or a licence)",
+            "the words that PROHIBIT that data leaving the country, or that COMPEL it to be processed or "
+            "stored inside the country — null if a consent, approval or other condition can unlock the "
+            "transfer, because that is a conditional regime, not a ban",
+        ],
     ),
     Indicator(
         indicator_id="P6-I2",          # ≡ Methodology 6.2
@@ -141,6 +147,12 @@ INDICATORS: list[Indicator] = [
                      "accounting records", "books of account", "kept at the registered office",
                      "records kept at a place", "kept at a place in the country",
                      "accounting records kept outside", "business records kept", "financial records kept"],
+        verify_elements=[
+            "the data or records that must be kept",
+            "the words naming WHERE they must be kept inside the country (in the country, at the "
+            "registered office in the country, on domestic premises, accessible from within it) or "
+            "forbidding holding them outside it — null if the rule is silent about the place",
+        ],
     ),
     Indicator(
         indicator_id="P6-I3",          # ≡ Methodology 6.3
@@ -189,6 +201,13 @@ INDICATORS: list[Indicator] = [
                      "contingency data processing centre", "shall establish a data centre",
                      "physically located within", "servers located within the territory",
                      "as a condition for providing the service", "local system of centralized management"],
+        verify_elements=[
+            "the physical infrastructure required: server, data centre, node, equipment, computing "
+            "facility or premises",
+            "the words placing that infrastructure inside the country",
+            "the words making it an obligation on a provider of a service (not a function of a ministry "
+            "or regulator)",
+        ],
     ),
     Indicator(
         indicator_id="P6-I4",          # ≡ Methodology 6.4
@@ -240,6 +259,19 @@ INDICATORS: list[Indicator] = [
         query_terms=["may be transferred unless", "with the consent of the individual", "adequate level of protection",
                      "prescribed country", "subject to conditions", "with the approval of", "comparable standard of protection",
                      "binding corporate rules", "standard contractual clauses", "where the recipient ensures"],
+        verify_elements=[
+            "the words about DATA, personal data, information or records being transferred, sent or "
+            "disclosed to ANOTHER COUNTRY or outside the country — null if what moves is a business, "
+            "licence, asset or funds, or if no foreign destination is mentioned",
+            # Worded as "when is it allowed" after the first wording ("the condition … that
+            # governs that transfer") refused MY PDPA s129 twice running: the checker quoted
+            # "unless to such place as specified by the Minister" and then called it a
+            # restriction rather than a condition.
+            "the words saying WHEN or ON WHAT CONDITION the transfer is allowed — an 'unless', "
+            "'except', 'only if' or 'provided that' clause, consent, an adequacy or comparable-"
+            "protection standard, an approval, a contract, or a government power to specify, "
+            "permit or restrict destinations",
+        ],
     ),
     # ───────────── Pillar 7 — Domestic Data Protection & Privacy ─────────────
     Indicator(
@@ -281,6 +313,13 @@ INDICATORS: list[Indicator] = [
                      "privacy principle", "privacy principles", "breaches a privacy principle",
                      "breaches an australian privacy principle",
                      "interference with the privacy of an individual"],
+        # NO second-pass check for 7.1 (empty verify_elements), on purpose. The legal expert
+        # (docs/legal_expert_answer_1.md, Q-A6) asks for EVERY provision of the framework to be
+        # listed, and every element list tried refused sections the panel cites: demanding the
+        # words "personal data" refused 20 of SG's 59 PDPA rows including s4 "Application of
+        # Act", and even "any rule, definition or regulator power" still refused s4(1) and the
+        # s2 definitions. The rows 7.1 should lose — legislative-history notes, bare headings —
+        # are extraction faults, and are fixed there.
     ),
     Indicator(
         indicator_id="P7-I2",          # ≡ Methodology 7.2
@@ -309,6 +348,12 @@ INDICATORS: list[Indicator] = [
         query_terms=["cybersecurity", "critical information infrastructure", "strong encryption",
                      "cryptographic controls", "network security", "secure remote access",
                      "mitigate cybersecurity risks", "cybersecurity incident", "secure computer systems"],
+        verify_elements=[
+            "the words naming the cybersecurity subject: cybersecurity, computer or network security, "
+            "critical information infrastructure, a cyber incident or threat, or encryption",
+            "the duty, power or authority the provision establishes about it — null for a bare heading, "
+            "a definition, or an offence of damaging a computer",
+        ],
     ),
     Indicator(
         indicator_id="P7-I3",          # ≡ Methodology 7.3
@@ -340,6 +385,12 @@ INDICATORS: list[Indicator] = [
                      # years", SG Companies Act s199(2)), which the duration-only terms above under-rank.
                      "accounting records", "books of account", "retain the records for",
                      "retain the accounting records", "keep the records for"],
+        verify_elements=[
+            "the data, records or information that must be retained",
+            "the MINIMUM period: 'for N years', 'not less than', 'at least', 'for the prescribed "
+            "period', or 'permanently' — null if no period is stated or if the rule only caps how "
+            "LONG data may be kept",
+        ],
     ),
     Indicator(
         indicator_id="P7-I4",          # ≡ Methodology 7.4
@@ -370,6 +421,11 @@ INDICATORS: list[Indicator] = [
                      "designate an individual responsible", "designate one or more individuals",
                      "individual responsible for ensuring compliance", "responsible for ensuring the organisation complies",
                      "person responsible for data protection", "assessment of the impact on the privacy"],
+        verify_elements=[
+            "the words REQUIRING a data protection officer (or a person designated as responsible for "
+            "data-protection compliance) to be appointed, or a data protection impact assessment to be "
+            "conducted — null for a table-of-contents line or a heading with no requirement",
+        ],
     ),
     Indicator(
         indicator_id="P7-I5",          # ≡ Methodology 7.5
@@ -408,6 +464,15 @@ INDICATORS: list[Indicator] = [
                      "upon request by the", "on the direction of the Minister", "competent authority may require",
                      "shall provide access to", "furnish such information as may be required",
                      "subscriber information", "authorised by the Commission", "intelligence agencies"],
+        verify_elements=[
+            "the government body, officer or public authority that obtains access",
+            "the words giving it access to, production of, interception of or disclosure of data, "
+            "information, documents or communications RELATING TO INDIVIDUALS — null if only goods, "
+            "premises or persons are reached",
+            "the words showing who authorises the access: a non-judicial authoriser, 'without a "
+            "warrant', or the power as granted with no authoriser named — null ONLY if the access "
+            "requires a court, judge or magistrate's warrant or order",
+        ],
     ),
 ]
 

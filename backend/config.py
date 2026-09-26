@@ -222,6 +222,13 @@ class Settings(BaseSettings):
     # confidence routing
     conf_auto_accept: float = 0.85
     conf_review_floor: float = 0.60
+    # Second-pass check of every ACCEPTED row by quotation (mapping.verify_mapping). Measured
+    # 2026-09-26 on the 2026-09-25 rows of seven economies: it refused 50/164 SG, 101/291 AU and
+    # 107/234 MY rows outside 7.1 — nearly all of them rows a reading had already judged wrong —
+    # and kept every panel answer checked on all seven (one borderline MY CPC s116 aside). It
+    # costs one call per accepted row, about a fifth of the grading calls. Off → the confidence
+    # score goes back to not separating right rows from wrong ones.
+    verify_enabled: bool = True
 
     # storage / outputs
     veritrade_db: str = "outputs/veritrade.db"

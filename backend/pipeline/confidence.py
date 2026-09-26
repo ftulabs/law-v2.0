@@ -139,6 +139,31 @@ def score(
     )
 
 
+VERIFY_REFUSED_CAP = 0.45     # the second-pass check found an element the text does not show
+VERIFY_UNSETTLED_CAP = 0.84   # the check could not settle it → a person looks, never auto-accept
+
+
+def apply_verification(b: ConfidenceBreakdown, verdict: bool | None,
+                       reason: str) -> ConfidenceBreakdown:
+    """Fold the second-pass check into the score.
+
+    The four signals above cannot separate a right row from a wrong one on a live run: grounding
+    and scope are ~1.0 on every accepted row and the grader's legal_match was 1.0 on rows that
+    were plainly wrong, so the score moved only with retrieval. The check is the discriminating
+    signal, so it decides the band — a refusal lands in quarantine, an unsettled check can reach
+    review but not auto-accept — and a pass leaves the blend as it was."""
+    final, note = b.final, b.explanation
+    if verdict is False:
+        final = min(final, VERIFY_REFUSED_CAP)
+        note += f"  [refused by second-pass check: {reason}]"
+    elif verdict is None:
+        final = min(final, VERIFY_UNSETTLED_CAP)
+        note += f"  [second-pass check unsettled: {reason}]"
+    else:
+        note += f"  [second-pass check quoted {reason}]"
+    return b.model_copy(update={"final": round(final, 3), "explanation": note[:1500]})
+
+
 def route(final: float) -> ReviewStatus:
     if final >= settings.conf_auto_accept:
         return ReviewStatus.AUTO_ACCEPTED
