@@ -64,7 +64,19 @@ def _save_index(idx: dict) -> None:
     f = _index_file()
     tmp = f.with_suffix(f".{os.getpid()}.tmp")
     tmp.write_text(json.dumps(idx, indent=2, sort_keys=True), encoding="utf-8")
-    os.replace(tmp, f)
+    # On Windows the rename is REFUSED (WinError 5) while any other process has the index open
+    # to read it — and readers do not take the lock. Measured 2026-09-26: three copies of the
+    # eight-writer test run side by side failed 3 of 3 this way, each losing a writer. A read
+    # holds the file for milliseconds, so wait it out rather than lose the entry.
+    import time                            # noqa: PLC0415
+    for attempt in range(100):
+        try:
+            os.replace(tmp, f)
+            return
+        except PermissionError:
+            if attempt == 99:
+                raise
+            time.sleep(0.02 * (1 + attempt % 5))
 
 
 def _index_put(url: str, entry: dict, idx: dict) -> None:

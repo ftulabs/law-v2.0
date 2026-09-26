@@ -207,11 +207,24 @@ def enumerate_sso(client, log: Log = safe_log, kinds=("Act",), page_size: int = 
         for sort_by, order in _SG_SORTS:
             url = (f"{SG_BASE}/Browse/{kind}/Current/All?PageSize={page_size}"
                    f"&SortBy={sort_by}&SortOrder={order}&CurrentPage=1")
-            resp = portal.portal_get(client, url, log)
+            # A listing with NO rows is a refusal, not an answer: SSO has 500+ current Acts. On
+            # 2026-09-26 all four windows came back with a body and zero rows, the run went on
+            # with ONE document (the PDPA, from web search) where the day before it had 29, and
+            # the only trace was "0 enumerated". The same URL answered 1.8 MB minutes later —
+            # so wait and ask again before believing an empty index.
+            resp, text = None, ""
+            for attempt in range(3):
+                resp = portal.portal_get(client, url, log)
+                text = resp.text if resp is not None else ""
+                if _browse_rows(text) or client is None:
+                    break
+                if attempt < 2:
+                    log(f"[sg_sso] {kind}: window {sort_by}/{order} returned no rows — "
+                        f"retrying (attempt {attempt + 2}/3)")
+                    time.sleep(settings.crawl_delay_seconds * (5 if attempt == 0 else 15))
             if resp is None:
                 log(f"[sg_sso] {kind}: window {sort_by}/{order} unavailable")
                 continue
-            text = resp.text
             if total is None:
                 m = _COUNT_RE.search(re.sub(r"<[^>]+>", " ", text))
                 total = int(m.group(1).replace(",", "")) if m else None
@@ -236,6 +249,10 @@ def enumerate_sso(client, log: Log = safe_log, kinds=("Act",), page_size: int = 
                 f"(SSO ignores CurrentPage; raise PageSize or add sort windows)")
         elif total:
             log(f"[sg_sso] {kind}: complete — {len(seen)}/{total}")
+        elif not seen:
+            log(f"[warn] [sg_sso] {kind}: the portal returned NO rows in any window after "
+                f"retries — this run's Singapore corpus is web-search only and is NOT evidence "
+                f"of what Singapore's statute book contains")
         else:
             log(f"[sg_sso] {kind}: {len(seen)} enumerated (no total reported by the portal)")
     return rows
