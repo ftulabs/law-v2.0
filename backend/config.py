@@ -233,6 +233,12 @@ class Settings(BaseSettings):
     # costs one call per accepted row, about a fifth of the grading calls. Off → the confidence
     # score goes back to not separating right rows from wrong ones.
     verify_enabled: bool = True
+    # OpenRouter model for that check; empty = the grader's own model. The check is where a
+    # stronger model pays: it runs only on ACCEPTED rows. Measured 2026-09-27 on 42 real accepted
+    # rows (24 right, 18 wrong, x2): deepseek-v4-flash kept 46/48 right and refused 20/36 wrong
+    # — it accepted "di luar wilayah Indonesia" (OUTSIDE Indonesia) as proof of in-country
+    # storage; deepseek-v4-pro-0813 kept 48/48 and refused 31/36, about $0.15 more per economy.
+    verify_model: str = "deepseek/deepseek-v4-pro-0813"
 
     # storage / outputs
     veritrade_db: str = "outputs/veritrade.db"

@@ -241,7 +241,7 @@ and on 15 October five tools read the same government sites within the same hour
 
 | Setting | Value | Where it is set |
 | :--- | :--- | :--- |
-| Max requests per second per host | 0.5 (a 2-second gap) | [`config.py:261`](backend/config.py#L261) `crawl_delay_seconds` |
+| Max requests per second per host | 0.5 (a 2-second gap) | [`config.py:267`](backend/config.py#L267) `crawl_delay_seconds` |
 | Parallel requests per host | 1 | [`fetch.py:88`](backend/pipeline/fetch.py#L88) `_polite_wait` |
 | robots.txt respected | yes | [`robots.py`](backend/pipeline/robots.py), enforced at [`fetch.py:166`](backend/pipeline/fetch.py#L166) |
 

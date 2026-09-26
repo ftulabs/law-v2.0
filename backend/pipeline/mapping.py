@@ -105,6 +105,11 @@ SYSTEM = (
     "test, set satisfies_target=false (a precise MISS beats a wrong OVER-ASSIGN).\n"
     "rationale <=300 chars, EXACT format: 'This [section] [prohibits/requires/permits/"
     "establishes] [what]. Maps to [indicator] because [one-sentence legal logic].'\n\n"
+    # NOT added here: "describe THIS snippet; never reuse an example's wording". Measured
+    # 2026-09-27, it made deepseek-v4-flash accept 2 of 36 PDPA 7.1 gradings where the plain
+    # prompt accepted 9 — and 7.1 has no second-pass check to fall back on. Copied example
+    # rationales (28 of 51 kept 6.2 rows on 2026-09-26, none in 7.1) are replaced by the
+    # checker's own rationale in `_grade` instead.
     "Return ONLY this JSON: {operative_rule:str, satisfies_target:bool, better_sibling:str|null, "
     "relevant:bool, legal_match:0..1, scope_alignment:0..1, scope_flag:str|null, "
     "subsection:str|null, rationale:str}\n\n"
@@ -471,8 +476,13 @@ VERIFY_SYSTEM = (
     "definition alone does not establish an element.\n"
     "verdict = true only if EVERY element has a quote. reason: one English sentence naming the "
     "missing element if verdict is false, else what the provision does.\n"
+    "rationale (only when verdict is true, else null): at most 300 characters of English, "
+    "'This [Article/Section] [requires/prohibits/permits/empowers] [what THIS snippet enacts — "
+    "its own data, actor, place or period]. Maps to [indicator id] because [what your quotes "
+    "show].' Write it from your quotes alone; a sentence that would fit any other provision is "
+    "wrong.\n"
     "Return ONLY JSON: {\"elements\":[{\"element\":int,\"quote\":str|null}],"
-    "\"verdict\":bool,\"reason\":str}"
+    "\"verdict\":bool,\"reason\":str,\"rationale\":str|null}"
 )
 
 
@@ -586,6 +596,9 @@ def _check_once(ind, prov: Provision, llm) -> tuple[str, str, dict]:
     shown = "; ".join(f"{i}: “{str(quotes[i])[:80]}”" for i in range(1, n + 1))
     if g.get("verdict") is False:
         return "doubt", reason or shown, quotes
+    rationale = g.get("rationale")
+    if isinstance(rationale, str) and rationale.strip():
+        quotes = {**quotes, "_rationale": " ".join(rationale.split())[:300]}
     return "pass", shown, quotes
 
 
@@ -628,7 +641,10 @@ class _Verdict(tuple):
     what `subsection_from_quotes` narrows the citation with."""
     def __new__(cls, verdict, reason, quotes=None):
         self = super().__new__(cls, (verdict, reason))
-        self.quotes = quotes or {}
+        quotes = dict(quotes or {})
+        #: the checker's own account of the row, written from its quotes (see `_grade`)
+        self.rationale = quotes.pop("_rationale", "")
+        self.quotes = quotes
         return self
 
 
@@ -685,6 +701,20 @@ def _mapping_id(run_id: str, indicator_id: str, provision_id: str) -> str:
     return f"map-{h}"
 
 
+def _checker_llm(llm, log):
+    """The model for the second-pass check: `settings.verify_model` on OpenRouter, else the
+    grader itself (a mock or a local model is never swapped for a paid remote one)."""
+    model = (settings.verify_model or "").strip()
+    try:
+        from ..providers.llm_openrouter import OpenRouterLLM
+    except Exception:  # noqa: BLE001
+        return llm
+    if not model or not isinstance(llm, OpenRouterLLM) or model == getattr(llm, "_chosen", None):
+        return llm
+    log(f"[verify] second-pass check on {model}")
+    return OpenRouterLLM(settings.openrouter_api_key, model)
+
+
 def map_provisions(
     run_id: str,
     provisions: list[Provision],
@@ -705,6 +735,7 @@ def map_provisions(
     "graded and found nothing" from "could not grade", which the CSV must not conflate.
     """
     llm = llm or get_llm_provider()
+    checker = _checker_llm(llm, log)
     source_texts = source_texts or {}
     doc_tags = doc_tags or {}
     mappings: list[EvidenceMapping] = []
@@ -874,9 +905,15 @@ def map_provisions(
         subsection = (graded.get("subsection") or "").strip()
         check = None
         if settings.verify_enabled and ind.verify_elements:
-            check = verify_mapping(ind, prov, llm)
+            check = verify_mapping(ind, prov, checker)
             if not subsection and check[0] is True:
                 subsection = subsection_from_quotes(check.quotes, prov.verbatim_snippet) or ""
+            # The grader's rationale is replaced by the checker's on a pass. deepseek-v4-flash
+            # copied worked-example rationales (31 of 1,204 kept rows on 2026-09-26 began with an
+            # example's exact sentence) and wrote "requires appointing a DPO" for a
+            # law-enforcement access rule; the checker writes from the quotes it just proved.
+            if check[0] is True and check.rationale:
+                rationale = check.rationale
         article_section = prov.article_section
         if subsection and re.fullmatch(r"(?:\(\w{1,4}\))+", subsection):
             first_group = subsection[:subsection.index(")") + 1]

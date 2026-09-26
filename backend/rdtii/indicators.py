@@ -205,8 +205,12 @@ INDICATORS: list[Indicator] = [
             "the physical infrastructure required: server, data centre, node, equipment, computing "
             "facility or premises",
             "the words placing that infrastructure inside the country",
-            "the words making it an obligation on a provider of a service (not a function of a ministry "
-            "or regulator)",
+            # "requirement", not "a provider of a service": MN's security rule 3.2 says only "the
+            # processing server shall meet the following conditions" and a stricter checker
+            # refused it for naming no provider (2026-09-27).
+            "the words making it a REQUIREMENT (must, shall, is required, 'shall meet the following "
+            "conditions' — passive wording with no named bearer counts) — null only if it describes "
+            "a ministry's or regulator's own function or a government facility",
         ],
     ),
     Indicator(

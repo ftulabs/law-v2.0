@@ -133,3 +133,22 @@ def test_subsection_is_read_off_the_verified_quotes_only_when_they_agree():
     assert subsection_from_quotes({1: "accounting and other records as will sufficiently",
                                    2: "send to and keep at a place in Singapore"}, s199) is None
     assert subsection_from_quotes({1: "a quote that is nowhere in it"}, s199) is None
+
+
+def test_a_pass_carries_the_checkers_rationale_and_a_refusal_does_not():
+    a = _ans("transfer any personal data of a data subject to a place outside Malaysia",
+             "unless to such place as specified by the Minister")
+    a["rationale"] = "This Section permits transfer abroad only to Minister-specified places."
+    v = verify_mapping(IND["P6-I4"], _prov(PDPA129, "MY"), _Scripted(a))
+    assert v[0] is True and v.rationale.startswith("This Section permits")
+    assert "_rationale" not in v.quotes
+    r = verify_mapping(IND["P6-I4"], _prov(BANK55C), _Scripted(_ans(None, "x", verdict=False)))
+    assert r.rationale == ""
+
+
+def test_the_checker_model_is_only_swapped_on_openrouter(monkeypatch):
+    from backend.config import settings
+    from backend.pipeline.mapping import _checker_llm
+    monkeypatch.setattr(settings, "verify_model", "deepseek/deepseek-v4-pro-0813")
+    mock = object()
+    assert _checker_llm(mock, lambda *_: None) is mock
