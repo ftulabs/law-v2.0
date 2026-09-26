@@ -208,6 +208,23 @@ jobs:
 
       - uses: android-actions/setup-android@v3
         if: matrix.platform == 'android'
+        with:
+          # Accept the licences ourselves in the next step instead. The action's own
+          # acceptance broke when the runner image changed its preinstalled cmdline-tools:
+          # on 2026-09-12 sdkmanager opened with "Accept? (y/N):" and the action's reply
+          # landed; from 2026-09-17 it opens with "Review licenses that have not been
+          # accepted (y/N)?", the reply no longer matches, and the job dies after printing
+          # six licence agreements. Nothing in this repository changed — only the image did,
+          # which is why the android leg went red while web, all four desktop legs and iOS
+          # stayed green.
+          accept-android-sdk-licenses: false
+
+      - name: Accept the Android SDK licences
+        if: matrix.platform == 'android'
+        # `yes` answers every prompt whatever its wording, so this cannot break again the next
+        # time the tooling rephrases the question. sdkmanager's own exit status is the one
+        # bash reports here (no pipefail), so a genuine licence failure still fails the job.
+        run: yes | sdkmanager --licenses > /dev/null
 
       - name: Install the NDK
         if: matrix.platform == 'android'

@@ -41,13 +41,28 @@ jobs:
         # dashboard was only ever asking the first. This asks the second, against the
         # container that is now serving, so a revoked key is a red deploy rather than a
         # dashboard that looks healthy and fails on every run.
+        # Retried, because the question is "can the configured grader answer" and a single
+        # dropped connection is not an answer to it. 2026-09-18: this step failed the deploy
+        # with APIConnectionError while the grader was in fact healthy — the same call
+        # succeeded three times in a row minutes later, and the container it was testing was
+        # serving correctly the whole time. A revoked key or a misconfigured endpoint still
+        # fails, because it fails on every attempt; only the blip is absorbed.
         run: |
-          docker exec veritrade python -c "
+          for attempt in 1 2 3; do
+            if docker exec veritrade python -c "
           from backend.providers import get_llm_provider
           llm = get_llm_provider()
           print('grader:', llm.name, llm.model_version)
+          print(llm.pool_report())
           print(llm.complete_json('Return ONLY JSON.', 'Answer with {\"ok\": true}'))
-          "
+          "; then
+              exit 0
+            fi
+            echo "⚠️  grader check failed on attempt ${attempt}/3"
+            sleep 15
+          done
+          echo "::error::the configured grader did not answer in three attempts"
+          exit 1
 
       - name: Health check
         run: |
