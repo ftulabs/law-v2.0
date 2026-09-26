@@ -202,6 +202,112 @@ _ARTICLE_RE_TH = re.compile(
     r"(?:[ \t]*(?:ทวิ|ตรี|จัตวา|เบญจ|ฉ|สัตต|อัฏฐ|นว|ทศ)(?![ก-๛]))?)")
 _ARTICLE_RE_TL = re.compile(r"(?m)^[ \t]*(Artigo\s+\d{1,3}\.?[º°]?(?:-[A-Z])?)")
 
+# ── subordinate instruments: points, not articles ─────────────────────────────────────────
+# Only a STATUTE numbers "มาตรา N" / "Статья N". The instruments made under one number their
+# operative units differently, and until 2026-09-26 every one of them reached the grader as a
+# single "(document)" or as "(passage k of N)" blocks — measured in that day's runs: Thailand's
+# National Cybersecurity Committee notifications (the answer key's 7.2 citations, 39,754 chars,
+# 18 "ข้อ" clauses) and a Bank of Thailand IT-outsourcing notice; Russia's Government
+# resolutions on cross-border transfer (Nos. 6 and 24 of 2023 — 6.4 evidence) and its FSB and
+# ministry orders.
+#
+# THAILAND. A notification (ประกาศ) or regulation (ระเบียบ) numbers its clauses "ข้อ ๑". The
+# digit is REQUIRED — "ข้อมูล" (data) also opens with ข้อ and starts many a line.
+_CLAUSE_RE_TH = re.compile(
+    r"(?m)^[ \t]*(ข้อ[ \t]*([๐-๙\d]{1,3})(?:/[๐-๙\d]{1,3})?"
+    r"(?:[ \t]*(?:ทวิ|ตรี|จัตวา)(?![ก-๛]))?)(?=[ \t]|$)")
+# law.go.th's `content_all` has no line breaks at all, so a notice kept only as that text shows
+# its numbering INLINE: "1. เหตุผลในการออกประกาศ … 2. อำนาจตามกฎหมาย …". Taken only as an
+# unbroken run 1, 2, 3 … (see _in_sequence), so a year, a decimal or a nested list is not.
+_INLINE_ITEM_TH = re.compile(r"(?<![\d๐-๙./])([๐-๙\d]{1,2})\.[ \t]+(?=\S)")
+# RUSSIA. A resolution (постановление) or order (приказ) numbers its operative points "1.",
+# "2." at line start, sub-points "1.1." inside them; the instrument it approves — Правила,
+# Порядок, Положение … — follows as an annex whose points restart at 1. "1." followed by a
+# digit is a sub-point and is not a boundary.
+# [^\S\n], not [ \t]: pravo.gov.ru puts a NO-BREAK SPACE after the point number
+# ("1.\xa0Утвердить"), and a pattern allowing only space and tab found no point at all in the
+# Government's cross-border-transfer resolutions.
+_POINT_RE_RU = re.compile(r"(?m)^[^\S\n]*(\d{1,3})\.(?!\d)(?=[^\S\n]*\S)")
+_ANNEX_RE_RU = re.compile(r"(?m)^[^\S\n]*(?:(УТВЕРЖДЕН[АЫО]?|Приложение)[^\S\n]*$|"
+                          r"(Приложение[^\S\n]*№[^\S\n]*\d+)\b)")
+_ANNEX_TITLE_RE_RU = re.compile(
+    r"(?m)^[ \t]*(ПРАВИЛА|ПОРЯДОК|ПОЛОЖЕНИЕ|ТРЕБОВАНИЯ|ПЕРЕЧЕНЬ|РЕГЛАМЕНТ|МЕТОДИКА|СОСТАВ|"
+    r"Правила|Порядок|Положение|Требования|Перечень|Регламент|Методика|Технические условия)\b")
+_THAI_DIGITS = str.maketrans("๐๑๒๓๔๕๖๗๘๙", "0123456789")
+# A notification's annex restarts its clause numbering at ข้อ ๑ under a heading of its own.
+# Without scoping, the last body clause swallowed the whole annex: the Cybersecurity
+# Committee's threat-levels notification became ข้อ ๑–๔ plus a "ข้อ ๕" of 20,000 characters.
+_ANNEX_HEAD_TH = re.compile(r"(ภาคผนวก|เอกสารแนบท้าย|บัญชีท้าย|แนบท้าย)")
+
+
+def _clauses_th(text: str) -> list[tuple]:
+    """ข้อ clauses in 1, 2, 3 … runs; a run that restarts at ๑ after a real run is an annex,
+    labelled with the annex heading found just before it ("ภาคผนวก, ข้อ ๑")."""
+    out, want, scope = [], 1, None
+    for m in _CLAUSE_RE_TH.finditer(text):
+        n = int(m.group(2).translate(_THAI_DIGITS))
+        if n == 1 and want > 3:
+            h = None
+            for h in _ANNEX_HEAD_TH.finditer(text, max(0, m.start() - 600), m.start()):
+                pass
+            scope, want = (h.group(1) if h else "ภาคผนวก"), 1
+        if n == want:
+            label = m.group(1).strip()
+            out.append((m.start(), m.end(), f"{scope}, {label}" if scope else label, False))
+            want += 1
+    return out
+
+
+def _in_sequence(matches, number_of) -> list:
+    """The matches that form an unbroken 1, 2, 3 … run, in order. A number that is not the
+    next one expected is skipped rather than accepted, so a year, a cross-reference ("see 5.")
+    or a nested list cannot start or break the count."""
+    out, want = [], 1
+    for m in matches:
+        try:
+            n = int(number_of(m).translate(_THAI_DIGITS))
+        except ValueError:
+            continue
+        if n == want:
+            out.append(m)
+            want += 1
+    return out
+
+
+def _points_ru(text: str) -> list[tuple]:
+    """Resolution/order points, each labelled with the scope it belongs to: "Пункт 2" in the
+    resolution itself, "Правила, пункт 3" or "Приложение № 1, пункт 3" inside an annex — the
+    way a Russian citation reads ("пункт 3 Правил"). Boundaries START at the marker, so the
+    snippet keeps its own "3." (end == start)."""
+    scopes = [(0, None)]
+    for m in _ANNEX_RE_RU.finditer(text):
+        head = (m.group(1) or m.group(2) or "").strip()
+        name = (re.sub(r"\s+", " ", head)
+                if head.startswith("Приложение") and "№" in head else None)
+        t = _ANNEX_TITLE_RE_RU.search(text, m.end(), m.end() + 800)
+        if t and not name:
+            name = t.group(1).capitalize()
+        scopes.append((m.start(), name or "Приложение"))
+    out = []
+    for i, (s0, name) in enumerate(scopes):
+        s1 = scopes[i + 1][0] if i + 1 < len(scopes) else len(text)
+        want, restarts = 1, 0
+        for m in _POINT_RE_RU.finditer(text, s0, s1):
+            n = int(m.group(1))
+            if n == 1 and want > 3:
+                # Numbering restarted inside one scope: an annex whose heading we did not
+                # recognise. Continuing the count would label ITS point 3 as the order's
+                # point 3 — the failure seen on FSB order No. 553 before its "Приложение
+                # №\xa01" heading was matched — so open an unnamed annex scope instead.
+                restarts += 1
+                name, want = ("Приложение" if not name else f"{name}, приложение"), 1
+            if n != want:
+                continue
+            label = f"{name}, пункт {n}" if name else f"Пункт {n}"
+            out.append((m.start(), m.start(), label, False))
+            want += 1
+    return out
+
 #: economy → its article pattern. Membership of this table is what routes an economy down the
 #: civil-law branch in `_boundaries`, so adding a language is one line plus its evidence above.
 ARTICLE_PATTERNS = {
@@ -1041,6 +1147,21 @@ def _boundaries(text: str, economy=None) -> list[tuple]:
         # article-level citation to make, which is criterion C2b.
         out = [(m.start(), m.end(), m.group(1).strip(), False)
                for m in ARTICLE_PATTERNS[economy].finditer(text)]
+        if economy == Economy.TH:
+            # A notification cites the Act it is made under ("อาศัยอำนาจตามความในมาตรา ๖๐"),
+            # and a wrapped PDF line can open on that "มาตรา ๖๐" — so its clauses win whenever
+            # they form a longer 1, 2, 3 … run than the article markers do.
+            clauses = _clauses_th(text)
+            if len(clauses) >= 3 and len(clauses) > len(out):
+                out = clauses
+            if len(out) < 3 and "\n" not in text.strip()[:4000]:
+                items = _in_sequence(_INLINE_ITEM_TH.finditer(text), lambda m: m.group(1))
+                if len(items) >= 3:
+                    out = [(m.start(), m.start(), f"ข้อ {m.group(1)}", False) for m in items]
+        if economy == Economy.RU and len(out) < 3:
+            pts = _points_ru(text)
+            if len(pts) >= 3:
+                out = pts
         if len(out) < 3:
             # An English translation of the same instrument. This is not hypothetical: the Lao
             # gazette publishes them, and its documents already split on "Article N" through
@@ -1271,6 +1392,10 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
         # the page count keep indexing the same string. `confidence.snippet_grounding`
         # normalises both sides, so a provision spanning a page break still verifies exactly.
         body = PAGE_MARK_RE.sub("", text[start:end].replace(HEADING_MARK, "")).strip()
+        if doc.economy == Economy.RU:
+            # "Статья 12. Трансграничная передача…": the label consumes "Статья 12" and left
+            # every Russian snippet opening on ". Трансграничная" (measured 2026-09-26).
+            body = body.lstrip(". ")
         if i == len(bounds) - 1:
             body = _trim_trailing_furniture(body)
         if len(body) < _min_provision_chars(body):
@@ -1306,7 +1431,22 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
         # narrows it to "Section 26(2)" per-mapping once the grader identifies the operative
         # subsection, falling back to the bare section (this norm) when it spans the whole thing.
         loc = _location_ref(ocr, start, total, norm, text)
-        provisions.append(_mk(doc, norm, snippet, (start, start + len(snippet)), loc, ocr, i, law_name))
+        if len(body) <= MAX_SNIPPET:
+            provisions.append(_mk(doc, norm, snippet, (start, start + len(snippet)), loc, ocr, i,
+                                  law_name))
+            continue
+        # A provision longer than MAX_SNIPPET used to be cut there and the rest dropped without
+        # a word — the same loss the unnumbered-document fallback above was written to stop.
+        # Measured 2026-09-26: Thailand's threat-levels notification carries a 34,000-character
+        # unnumbered attachment after its last clause, and everything past 20,000 characters of
+        # it (the notification and reporting duties per threat level) never reached the grader.
+        # Each part keeps the provision's own label, so the citation still names the unit.
+        parts = _passages(body, MAX_SNIPPET)
+        for k, (a, b) in enumerate(parts):
+            label = f"{norm} (part {k + 1} of {len(parts)})"
+            provisions.append(_mk(doc, label, body[a:b].strip(), (start + a, start + b),
+                                  _location_ref(ocr, start + a, total, label, text), ocr,
+                                  i if k == 0 else f"{i}.{k}", law_name))
     return provisions
 
 
