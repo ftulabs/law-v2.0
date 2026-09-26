@@ -1,266 +1,140 @@
 r"""Thailand — law.go.th's own REST API, recovered from its published JS bundle.
 
-`data/sources.yaml` used to carry Thailand as *"PDF, frequently scanned … this is the
-OCR-heavy lane"* (see the superseded `krisdika.go.th` entry, kept for the record). That was
-false, and it is why Thailand sat among the hardest economies for a fortnight: the country's
-central legal database, `law.go.th`, is a React single-page app whose data comes from a plain
-JSON REST API, not from scanned gazette PDFs. `content_all` on every row IS the statute's full
-operative text — no PDF, no OCR, no scan, making Thailand one of the two cleanest sources of
-the eleven alongside India (`adapter_india.py`).
+`law.go.th` is a React single-page app whose data comes from a plain JSON REST API, not from
+scanned gazette PDFs: no PDF, no OCR, no scan. (`data/sources.yaml` used to call Thailand "the
+OCR-heavy lane"; the superseded `krisdika.go.th` entry is kept there for the record.)
 
-ROUTE, verified live 2026-09-07 (recovered from the app's own published static bundle —
-`https://www.law.go.th/static/js/main.7a41c7a0.js` — not from defeating any protection; this
-is the same JS every visitor's browser downloads to render the page):
+ROUTE — recovered from the app's own published static bundle
+(`https://www.law.go.th/static/js/main.7a41c7a0.js`, the JS every visitor's browser downloads;
+its API class is `nj`, whose methods are quoted below), not from defeating any protection:
 
     base    https://apig.law.go.th/
     header  x-api-key: <public bundle constant, see data/sources.yaml>
-    POST    dga-user-service-phase2/law     -> 200, rows[] with content_all (this adapter)
-    GET     dga-user-service-phase2/law/master   -> 200, agencies + law types + categories
-    GET     dga-user-service-phase2/law/detail/{id}
-    POST    dga-user-service-phase2/law/searchResult  -> 400, payload shape not recovered
+    POST    dga-user-service-phase2/law/searchResult   TITLE / FULL-TEXT search   (PASS 1)
+    GET     dga-user-service-phase2/law/detail/{table_of_law_id}   per-มาตรา items (PASS 2)
+    POST    dga-user-service-phase2/law            browse feed, `hirachy` filter  (fallback)
 
 `apig.law.go.th` is an AWS API Gateway; an unauthenticated request to a route that does not
-exist answers `{"message":"Missing Authentication Token"}` — that is route-not-found, not a
-refusal, and the `x-api-key` is a constant compiled into the JS bundle, not a credential issued
-to anyone. `robots.allowed()` was checked LIVE against both hosts with the project's own
-`crawl_user_agent` (2026-09-07): `www.law.go.th` answers its own `/robots.txt` with HTTP 403
-(a WAF page, not a robots file) and `apig.law.go.th` answers `{"message":"Missing
-Authentication Token"}` (also non-2xx) — `backend.pipeline.robots._fetch` treats any 4xx as "no
-rules published" per RFC 9309 ("an empty file grants"), so `robots.allowed()` returns
-`(True, "")` for both, confirmed by calling it directly rather than assumed from the raw HTTP
-codes. This is the OPPOSITE of the MY/India "server error -> proceed" carve-out — no override
-table entry was needed because the ordinary 4xx-grants rule already covers it.
+exist answers `{"message":"Missing Authentication Token"}` — route-not-found, not a refusal.
+`robots.allowed()` was checked LIVE against both hosts with the project's own
+`crawl_user_agent` (2026-09-07): `www.law.go.th/robots.txt` is a 403 WAF page and
+`apig.law.go.th/robots.txt` the Gateway's 403 — `robots._fetch` treats any 4xx as "no rules
+published" per RFC 9309, so `robots.allowed()` returns `(True, "")` for both, confirmed by
+calling it rather than assumed from the raw status codes.
 
-STEP 1 RECON — the two questions this task's brief requires answered before writing a line of
-adapter code, both measured live 2026-09-07 against `POST …/law` with `{"page": N, "limit": 20}`:
+WHY THIS FILE WAS REWRITTEN (2026-09-26). A live pillar run on 2026-09-25 found 22 documents,
+of which 20 were irrelevant, in 7-11 minutes, and every provision it produced was cited as a
+whole document or a "(passage k of N)" block — never "มาตรา 28". Both had one root cause each,
+and neither was the one the previous version of this docstring recorded.
 
-  1. Does `content_all` carry มาตรา (article) markers?  YES AS A SUBSTRING, but NOT usable by
-     `extraction.ARTICLE_PATTERNS`'s Thai splitter without more work than "split for free" —
-     found only at Step 6's LIVE verification, not the static-fixture Step 1 probe, so it is
-     recorded here rather than left for the report alone. The sampled Cybersecurity Act 2019
-     (54,521 chars fetched live) carries 58 `มาตรา` occurrences, and every sampled row in the
-     saved fixture is the same: `content_all` has ZERO `\n` characters — none, in any row,
-     including the 69,154-char Administrative Reorganisation Act B.E. 2534 (law_id 1700, 76
-     `มาตรา` occurrences). `ARTICLE_PATTERNS[Economy.TH]` requires a `มาตรา` marker at the START
-     OF A LINE (`(?m)^[ \t]*มาตรา…`) specifically so it does NOT also match a mid-sentence
-     cross-reference like "ตามมาตรา ๗" (see extraction.py's own docstring on this exact hazard).
-     With no line breaks at all, that anchor can only ever match position 0 of the string, which
-     is never a `มาตรา` marker in a real Act (Thai statutes open with the enacting/citation
-     clause, not the first substantive section) — so every document from this lane currently
-     extracts as ONE `(document)` block (confirmed live in Step 6: 1 provision, `article_section
-     == "(document)"`), not per-provision, even though real per-provision text is sitting right
-     there in the string. Reconstructing genuine article boundaries from a newline-free blob
-     without misfiring on "ตามมาตรา"/"ในมาตรา"/"แห่งมาตรา" cross-references is a real parsing
-     problem (not a one-line regex change) and is OUT OF SCOPE for this adapter file — recorded
-     here as a disclosed follow-up rather than attempted with a heuristic nobody has verified.
-  2. Does paging work?  YES. `{"page": 1}` and `{"page": 2}` returned ZERO overlapping
-     `law_id`s (15 rows each, both pages, `limit` requested was 20 but the API always answers
-     15 rows/page regardless of the requested `limit` — measured, not assumed; `limit` turned
-     out to be the wrong field name entirely, see "DETERMINISM" below). Separately (Step 6,
-     live full-adapter run): the feed's OWN ordering is not stable between separate calls
-     minutes apart — a law seen on page 10 or 57 in one call was not on the same page in a
-     later call. Paging itself still works within a single run (no duplicate ids were ever
-     seen across one run's own pages); it is the feed's page ASSIGNMENT that drifts between
-     separate calls, the same "content moving between requests" property `adapter_timor.py`'s
-     docstring records for its own portal. **This drift is FIXED for the instruments that
-     matter — see "DETERMINISM" below, added in a review round after this adapter's first
-     version shipped with the drift only disclosed, not fixed.**
+  1. IRRELEVANT DISCOVERY. The previous primary pass fetched the whole Act tier
+     (`{"hirachy": 1}`, 1,114 rows) and DROPPED every row whose `content_all` was empty. Measured
+     live 2026-09-26: **19 of the 1,114 Act rows carry `content_all`** — 1.7%. The Computer-
+     Related Crime Act, the Accounting Act, the Criminal Procedure Code, the National
+     Intelligence Act, the Credit Information Act, the Telecommunications Business Act and the
+     PDPA's own principal row are all among the 98% dropped. The 22 slots were therefore filled
+     by whatever happened to carry text: the 19 survivors (the Nakhon Sawan Administrative
+     Court Act, the Cheque Offences Act …) plus the secondary browse walk's newest-first
+     Notifications. The browse walk was also the wall-time: 60 pages x (request + the 2 s
+     politeness gap), then a fetch-cache seed — one full rewrite of the cache index — for each
+     of the ~700 documents it produced, when discovery keeps 22.
 
-Because paging works, this adapter uses the `law` endpoint directly and never touches
-`searchResult` (whose payload shape 400s on every guess tried: `keyword`, `search`,
-`search_text`, `law_name`, `text`, `category_id`, `hirachy_of_law_id` — none change the
-response even on the *working* `law` endpoint either — see "WHAT THIS ADAPTER DOES NOT COVER").
-Two OTHER fields, found only in the fix round below by reading the app's request payload
-rather than guessing field names, DO work: `size` (the real page-size field) and `hirachy` (a
-real, working type filter) — see "DETERMINISM".
+     `law/searchResult` was recorded here as "400s on every payload shape tried". Its shape is
+     in the same bundle (`nj.getSearchResult` is called with `{type:null, agency:null,
+     hirachy:null, searchType, searchText, size, page}`), and it works — verified live
+     2026-09-26: `searchType: 1` searches law TITLES across all 11,406 rows ("ข้อมูลเครดิต" -> 11
+     rows, one family, the Credit Information Business Act), `searchType: 2` searches the
+     `content_all` BODY ("ข้อมูลส่วนบุคคลไปยังต่างประเทศ" -> the PDPA and a Bank of Thailand IT-
+     outsourcing notification), `searchType: 3` answers 400. So this adapter now SEARCHES, with
+     pillar vocabulary in Thai (`_TITLE_TERMS` / `_BODY_TERMS`), instead of walking the feed.
 
-WHAT THIS ADAPTER DOES NOT COVER — recorded rather than hidden (the lesson the Timor-Leste
-adapter cost this phase: a lane that reads part of a portal and reports success anyway).
-`POST …/law` is a BROWSE-ALL feed sorted newest-updated-first, not a search: passing `keyword`,
-`search`, `category_id`, `hirachy_of_law_id`, `search_text` or `law_name` in the POST body was
-tried against it directly (2026-09-07) and every one of them returned the identical 15 rows and
-identical `total: 11406` as no filter at all — none of these fields subset the corpus. The
-SUBORDINATE tier (Notifications, Ministerial Regulations, Orders — everything outside
-`_LEGISLATIVE_HIRACHY_TIERS`, roughly 10,231 of the 11,406 rows) still has no working filter
-and is still walked page-by-page, bounded by `_MAX_PAGES`, RANKED by `_relevance` rather than
-searched for, and NOT deterministic — see "DETERMINISM" for what changed and what did not. A
-subordinate instrument that `_relevance` ranks low AND that never gets updated recently enough
-to surface within `_MAX_PAGES` pages of the newest-first feed will not be seen by a single run
-— the same "narrow page budget under-reaches an older foundational statute" trade-off
-`adapter_laos.py`'s docstring names for its own `_MAX_PAGES`, not solved here either. The
-LEGISLATIVE-GRADE tier (Act and above — where every RDTII citation this adapter has found
-actually lives) no longer has this problem; see "DETERMINISM".
+  2. NO ARTICLE-LEVEL CITATIONS. `content_all` is one newline-free string, and the headings of
+     the ORIGINAL articles are not in it at all — the PDPA row (table_of_law_id 382) opens
+     "พระราชบัญญัตินี้เรียกว่า …" with no "มาตรา ๑" in front of it; only amendment-inserted
+     articles carry a marker. No splitter, however clever, can recover a number the text does
+     not contain. The DETAIL endpoint does contain it: `rows[i].content_list_process` is the
+     statute as a list of structured items, `{content_type: "มาตรา", content_number: "28",
+     content_desc: "<p>…</p>", seq}` — measured 2026-09-26: PDPA 94-96 มาตรา items (both of
+     its table ids), Cybersecurity Act 83, Computer-Related Crime Act 38, Criminal Procedure
+     Code up to 364. `_articles_text` rebuilds the statute with ONE ARTICLE PER LINE, each
+     opening with its มาตรา heading, which is exactly what `extraction.ARTICLE_PATTERNS
+     [Economy.TH]` (line-anchored so it never fires on a "ตามมาตรา ๗" cross-reference) was
+     written to split. No change to extraction.py was needed.
 
-DETERMINISM — added in a fix round after review found the gap: a first version of this
-adapter disclosed the browse feed's page-order drift (above) but did not fix it, and the
-timed live-verification run in that version found only 1 of the 3 RDTII-cited Thai Acts
-(Cybersecurity Act 2019) — the Personal Data Protection Act 2019 and the Computer-Related
-Crime Act 2007, both present in the Step 1 recon minutes earlier, were simply not in the pages
-that particular run happened to walk. Disclosure was the right first step but was not enough:
-completeness against the panel's own citations is the deliverable.
+     THE NUMBER IS ALWAYS THE SOURCE'S. Where `content_desc` already opens with its heading
+     ("มาตรา ๒๘ ในกรณีที่…", the 8668 representation) the text is used verbatim. Where it does
+     not (the 382 representation stores the heading only in `content_number`), the line is
+     prefixed "มาตรา {content_number}" — the portal's own number for that item, never a
+     counter, never inferred from position. An item with no number is not given one.
 
-The fix has two parts, both found by reading the app's own bundle request payload rather than
-guessing field names (`main.7a41c7a0.js`: `nj.getUpdated({...T, size:l>a?a:l, page:d})`):
+WHAT IS NOT CARRIED OVER from `content_list_process`, and why:
+  * structural headings (หมวด chapter, ส่วน part, บทเฉพาะกาล transitional) — they carry a title
+    and no rule, and, placed between articles, they would be glued onto the END of the previous
+    article's verbatim snippet (the same reason extraction does not split Chinese 章/节);
+  * everything after the last article (หมายเหตุ the enactment note, ผู้รับสนองพระบรมราชโองการ the
+    countersignature) — same reason, onto the last article;
+  * an appended AMENDING act. The detail row the list endpoint points at (e.g. the Computer-
+    Related Crime Act's law_id 19250) carries the amending act's own ชื่อกฎหมาย and its
+    transitional มาตรา 2, 20, 21 after the principal's มาตรา 31. Kept, they would produce a
+    second "มาตรา ๒" under the principal's name — a citation to the wrong instrument. Reading
+    stops at a second ชื่อกฎหมาย item.
 
-  * `size`, not `limit`, is the real page-size field — `limit` silently did nothing in every
-    round-1 probe. Verified live 2026-09-08: `size=20` -> 20 rows, `size=500` -> 500 rows,
-    `size=8000` -> 8000 rows in 14.7s. `size=9000`/`9500` answered a Gateway timeout at least
-    once while `size=9998` (near the full 11,406-row corpus) succeeded once — a FLAKY
-    boundary, not a documented hard cap, so this adapter caps its own requests at
-    `_TIER_FETCH_SIZE_CAP` (3,000), comfortably inside the range measured reliable.
-  * `hirachy` is a REAL, working server-side filter (unlike `hirachy_of_law_id`, tried in
-    round 1 and silently ignored). Verified live 2026-09-08: `{"hirachy": 1}` dropped `total`
-    from 11,406 to 1,113 and the first row was immediately an actual Act. Every RDTII citation
-    this adapter's own recon has found — the Computer-Related Crime Act, the Cybersecurity
-    Act, the PDPA — carries `hirachy_of_law_id=1` (Act). `_LEGISLATIVE_HIRACHY_TIERS` is the
-    FULL "force of an Act or higher" tier from `GET …/law/master`: Act, Organic Act,
-    Emergency Decree, Code, Revenue Code, Constitution.
+A document whose detail carries NO มาตรา item (a Notification numbers its clauses "ข้อ", or the
+detail is empty) falls back to the row's own `content_all`, unchanged — the pre-2026-09-26
+behaviour; one with no text anywhere is emitted as its Royal Gazette PDF (`announce_url`) when
+it has one, and dropped otherwise rather than emitted empty.
 
-Combined, `size` + `hirachy` mean a WHOLE legislative-grade tier fits in one atomic request
-(probe `total` at `size=1`, then fetch at `size=total`) — there is no multi-request window left
-for the feed's reordering to act in. `search_th_law` now runs this as PASS 1, deterministic,
-before the original bounded browse walk (now PASS 2, secondary, still non-deterministic, kept
-only for subordinate instruments the tier list does not reach).
+RANKING — `_family_score`, per LAW FAMILY rather than per row. The search answers one row per
+VERSION: the Criminal Procedure Code alone is 77 rows under table_of_law_id 9280, most titled
+"พระราชบัญญัติแก้ไขเพิ่มเติมประมวลกฎหมายวิธีพิจารณาความอาญา (ฉบับที่ N)". Rows are grouped by
+`table_of_law_id` and the family is named by its principal title (the one that is not an
+"แก้ไขเพิ่มเติม" amendment and carries no "(ฉบับที่ N)"). Signals, all from the search rows:
+  * which of the run's pillar terms the principal TITLE carries, and whether it carries it
+    DIRECTLY — "พระราชกฤษฎีกาออกตามความในประมวลรัษฎากร …" names the Revenue Code only as the
+    Act it is issued under (`_REFERENCE_MARKERS`), and such a title is not ABOUT the topic;
+  * how much of the title's core the term covers — a tie-break that puts the Criminal Procedure
+    Code (core = the term) above the District Courts Act that also mentions criminal procedure;
+  * body-search hits (`_BODY_TERMS`) — how a Notification with no topical title is found;
+  * the instrument type (`_HIRACHY_WEIGHT`) as a prior, not the answer;
+  * a family whose only titles are amendments is penalised, one titled "(ยกเลิก)" (repealed)
+    is dropped.
+NO LAW IS NAMED ANYWHERE IN THIS FILE AS AN ANSWER. `_TITLE_TERMS` are subject-matter words a
+relevant law's title is drafted with — personal data, cybersecurity, computer, credit
+information, criminal procedure, accounting — the same kind of vocabulary
+`rdtii/keywords.py` holds in English ("criminal procedure code", "companies act"). A
+jurisdiction without such a law matches nothing.
 
-MEASURED, live 2026-09-08, two separate `search_th_law` calls roughly 3 minutes apart (the
-first call's own 165s runtime, back to back with the second's): **identical results** — 739
-documents both times, the exact same 739 `doc_id`s (0 only-in-run-1, 0 only-in-run-2). PASS 1
-alone: `hirachy=1` -> 1,113 rows -> 19 new documents; `hirachy=883` (Emergency Decree) -> 49
-rows -> 1 new document; the other four tiers contributed 0 NEW documents (their real content,
-where present, was already reached by `hirachy=1`'s superset in these two runs). This is a
-measured result for THIS pair of calls, not a guarantee the mechanism can give for all time —
-PASS 2 remains architecturally order-dependent even though it happened not to visibly drift in
-this particular ~3-minute window; the guarantee this fix actually provides is that PASS 1's
-documents do not depend on PASS 2's ordering at all (pinned by
-`tests/test_adapter_thailand.py::test_tier_walk_documents_survive_the_browse_walk_reordering`,
-which drives a fake feed that DOES reorder between calls and confirms PASS 1's document is
-unaffected).
+WALL TIME. Discovery keeps `settings.discovery_max_docs` (22) documents, so only that many
+detail pages are requested, and each rebuilt text is kept for `fetch_ttl_hours` under
+`cache/_th_articles/` so the second pillar of a run re-requests none of them. Measured live
+2026-09-26 (adapter call only, 2 s politeness gap kept): 88 s for pillar 6 and 124-129 s for
+pillar 7 with an empty article cache, 26-41 s with it warm — against 7-11 min on 2026-09-25.
 
-Of the three RDTII-cited Acts specifically, PASS 1 now reliably finds two on every run:
+KNOWN LIMIT, not fixed here: an article inserted by amendment as "มาตรา ๗ ทวิ" (bis) is split
+correctly but LABELLED "มาตรา ๗", because `extraction._ARTICLE_RE_TH` captures digits and an
+optional "/N" but not the ทวิ/ตรี/จัตวา suffix — two provisions then share a label (measured: 3
+in the District Courts Act, 2 in the Revenue Code). The fix is one optional group in that regex,
+in extraction.py, which this change deliberately did not touch.
 
-    พระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562  (PDPA 2019)                    -> 0.99
-    พระราชบัญญัติการรักษาความมั่นคงปลอดภัยไซเบอร์ พ.ศ. 2562  (Cybersecurity Act 2019) -> 0.99
+`source_url` is still the human-openable `www.law.go.th/DetailLawPage?table_of_law_id=<id>`
+(the app's own router path and its own "share this law" link), never `apig.law.go.th`, which
+answers only with the key header. That page is a bare Create-React-App shell (`<div
+id="root">`, 1,256 bytes, which `ocr.is_js_app_shell` does NOT recognise), so fetching it would
+yield an empty "(document)" block; the adapter instead SEEDS the fetch cache for that URL
+(`fetch.seed_cache`, as `adapter_india.py` does) and the orchestrator's ordinary
+`fetch_to_cache` gets a cache hit. `DiscoveredDoc.raw_text` is not used: the orchestrator's
+fetch stage never reads it.
 
-The THIRD, the Computer-Related Crime Act B.E. 2550 (2007), is a SEPARATE, deeper problem that
-PASS 1's determinism does not fix and cannot fix: its `content_all` is EMPTY — not merely on
-this row, but on every representation of this law found anywhere in the API. Verified live
-2026-09-08 three ways: (1) inside the full 1,113-row `hirachy=1` dump, `content_all` is `""`;
-(2) `GET …/law/detail/{table_of_law_id}` for the SAME law also returns `content_all: ""`; (3)
-a full-corpus scan (two requests, `size=6000` each, covering all 11,406 rows) found exactly
-ONE row titled with this Act's name, and it is the same empty one. Its real text is not
-missing from the SITE — `GET …/law/detail/9000`'s `content_list_process` field carries 47
-structured per-clause objects (`content_type`/`content_number`/`content_desc`) — but reading
-THAT field is the same kind of per-clause reconstruction work as the มาตรา-splitting problem
-this file's "STEP 1 RECON" Q1 answer already found and left out of scope, and is left out of
-scope here for the same reason (a future task, not this adapter file). The PDPA had the SAME
-symptom on its `hirachy=1` row (`content_all: ""`) but turned out to have a SECOND, DUPLICATE
-row elsewhere in the same tier (a Thai-numeral-year title variant, "๒๕๖๒" vs "2562") whose
-`content_all` genuinely is populated (78,093 chars) — `_rows_to_docs`'s existing "drop empty,
-keep populated" rule (unchanged, already tested) resolves the duplicate correctly on its own,
-which is why the PDPA above shows a real score and the Computer-Related Crime Act does not.
-
-`fetch.seed_cache` tags the cache entry `engine="api"` (see `_store`'s `engine` parameter),
-but `FetchResult` itself carries no `engine` field, so nothing downstream can currently tell a
-seeded entry from a genuinely fetched one. This is inherited from `adapter_india.py`'s
-existing `_seed()`, not introduced here, and is left unfixed (noted for whoever next touches
-`fetch.py`, not a Task 4 regression).
-
-ARTICLE SPLITTING, measured live (Step 6): the Cybersecurity Act 2019 fetched above (54,521
-chars, 58 `มาตรา` occurrences) currently extracts as ONE `(document)` block, not 58 provisions
-— see the "STEP 1 RECON" section's Q1 answer above for why (`content_all` has zero `\n`
-characters, and the Thai splitter is deliberately line-anchored so it does not also fire on
-"ตามมาตรา" cross-references). This is disclosed, not silently shipped: the documents this lane
-finds ARE the right ones (title, citation, relevance all measured live and correct), but until
-a future task teaches extraction a newline-free Thai boundary rule, they reach the grader with
-one whole-Act citation instead of article-level ones.
-
-DESIGN DECISION — raw_text vs. seed_cache vs. "just emit the URL" (the brief's own named
-question): `DiscoveredDoc.raw_text` is declared "filled by extraction" and IS read as a
-fallback inside `ocr._extract_document_text`, but ONLY when `doc.local_path` is falsy AND the
-document reaches extraction at all. `orchestrator.py`'s fetch stage (`if d.local_path: ...
-continue`) never inspects `raw_text` — for every live-discovered document with no `local_path`
-it unconditionally calls `fetch_to_cache(fetch_url)`, and if that fetch fails the document is
-DROPPED before extraction ever runs (`if not fr: continue` — never falls back to `raw_text`).
-So setting `raw_text` alone, with `source_url` left as the plain detail page, would NOT bypass
-the network fetch — confirmed by reading both functions, not assumed from the brief's framing.
-
-That would already be reason enough to "emit the URL and let fetch do its job" per the brief's
-literal fallback — except doing so here hits a SECOND, worse problem this recon also found:
-`https://www.law.go.th/` is a pure Create-React-App shell (`<div id="root"></div>`, verified
-live 2026-09-07, 1,256 bytes, no server-rendered content at all) and `ocr.is_js_app_shell`'s
-`_SPA_MARKERS` list (`ng-version=`, `<app-root`, `data-reactroot`, `__next_data__`,
-`window.__nuxt`, `id="__nuxt"`, `src="/assets/index-`, `<div id="app"></div>`) does NOT include
-Create React App's own `<div id="root">` convention. A plain fetch of the detail page would
-therefore NOT be caught by the existing shell detector — it would be read as ordinary HTML,
-de-chromed to a handful of characters of site chrome, and emitted as one real-looking,
-citation-bearing, EMPTY "(document)" provision block per law. That is a SILENT coverage gap of
-exactly the kind this phase exists to remove, worse than the detected-shell case (which at
-least logs `js_app_shell` and returns nothing).
-
-The resolution used here is `fetch.seed_cache` — written for exactly this shape of problem
-(`adapter_india.py`'s own `_seed`, whose docstring says "the text arrived with the search
-result and the citable HTML page 502s today"; Thailand's citable HTML page does not 502, it
-just never carries the text at all, but the fix is the same). `search_th_law` seeds the fetch
-cache, keyed by the document's own `source_url`, with `content_all` as `text/plain` BEFORE
-returning. `orchestrator.py`'s fetch stage then calls `fetch_to_cache(d.source_url)` exactly as
-it would for any other document, gets a cache HIT (no network request, no SPA shell ever
-touched), and extraction reads real Thai statute text — no code outside this adapter had to
-change. `DiscoveredDoc.raw_text` itself is left unset: it would be dead weight once the cache
-is seeded (the fetch stage does not consult it), and setting it anyway risks implying to a
-future reader that it is load-bearing when it is not.
-
-`source_url` is still the human-openable `www.law.go.th` page (never `apig.law.go.th`, which
-answers only with the `x-api-key` header) — recovered from the SAME published JS bundle:
-`main.7a41c7a0.js` react-router's the detail view at `/DetailLawPage?table_of_law_id=<id>` and
-its own "share this law" links build the identical URL
-(``${window.location.origin}/DetailLawPage?table_of_law_id=${k}``). A reviewer who opens it
-sees the real page load (client-side) the same content this adapter already read from the API.
-
-CHARACTER ENCODING: `httpx`'s `response.json()` decodes the body as UTF-8 by the `Content-Type:
-application/json; charset=utf-8` header the API actually sends (verified live 2026-09-07), and
-every Thai string sampled round-trips correctly — printed via a UTF-8-wrapped stdout, titles
-read as real Thai (e.g. "พระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562"), not mojibake. Unlike
-`adapter_timor.py`'s HTML pages (which declare `windows-1252`/`iso-8859-1` in a `<meta>` tag
-httpx never reads), a JSON API has no separate declared-vs-actual encoding to get wrong.
-
-RELEVANCE SCORING — `content_all` is this adapter's real advantage over `adapter_timor.py` and
-`adapter_laos.py`, which can only score a row's TITLE (no body text available at discovery
-time). `_relevance` combines three signals, all computed from the row alone (no extra fetch):
-  1. `hirachy_of_law_id` (the portal's own instrument-type code, from `GET …/law/master`,
-     verified live 2026-09-07) — a `พระราชบัญญัติ` (Act, id 1) or `พระราชกำหนด` (Emergency
-     Decree, id 883) outranks a `ประกาศ` (Notification, id 2) or `คำสั่ง` (Order, id 885), which
-     make up most of the browse feed (routine tax/customs circulars).
-  2. presence of `มาตรา` markers in `content_all` — a small bonus for "this is structured
-     legislation", not a one-paragraph administrative notice.
-  3. `_TH_SEED_TERMS` hits against the FULL `content_all` body (not just the title) — a small,
-     adapter-local Thai vocabulary. `query_terms_i18n.py` has no `"th"` entry yet (`TH` maps to
-     `"th"` in `ECONOMY_QUERY_LANG` but `NATIVE_QUERY_TERMS` carries no `"th"` key — a staged,
-     unvalidated gap recorded in that module's own docstring), so this is intentionally NOT
-     wired into the shared multilingual retrieval vocabulary; it is scoped to this adapter only,
-     sourced directly from the three Acts' own operative titles found in the Step 1 recon above
-     plus generic P6/P7 phrasing (cross-border transfer, storage/retention, DPO). UNVALIDATED
-     against a full crawl, the same caveat Mongolia's seed list carries — a term that never
-     fires here should be found and dropped by whoever builds a Thai equivalent of
-     `tools/audit_native_terms.py`.
-  4. `indicators`' own ENGLISH `query_terms`, via `discovery._score`, when `indicators` is
-     passed in — included for consistency with `adapter_timor.py`/`adapter_laos.py` and the
-     rare English loanword/acronym, but expected to read near-zero for Thai-only text, the same
-     known bias those two modules record for non-English titles.
-A flat `relevance_score=1.0` (the `portal.make_doc` default) would make `discovery._cap`'s trim
-to `discovery_max_docs` (22) arbitrary among however many documents a `_MAX_PAGES` walk turns
-up; these four signals give it something real to sort on instead.
-
-A ROW WITH NO USABLE TEXT is dropped, not emitted empty: `content_all` is blank for roughly a
-third of rows sampled in Step 1 (a landing record whose text has not been re-published, or a
-notification that references another instrument rather than stating one) — `_rows_to_docs`
-drops these before scoring rather than emitting a document that fetches to nothing and reaches
-the grader as one blank "(document)" block (the same shell problem `is_js_app_shell` and
-`corpus.build._looks_like_a_shell` both exist to catch downstream; here it is caught upstream,
-at the source).
+CHARACTER ENCODING: the API sends `application/json; charset=utf-8` and httpx decodes it as
+such; Thai titles round-trip correctly (verified 2026-09-07).
 """
 from __future__ import annotations
 
+import html as _html
+import json
+import re
 import time
+from pathlib import Path
 from typing import Callable
 
 from ..config import settings
@@ -269,149 +143,128 @@ from . import portal, robots
 
 Log = Callable[[str], None]
 
-#: See the module docstring's "`_MAX_PAGES` measurement" section: all three RDTII-relevant Acts
-#: found within the first 57 of the browse feed's 761 total pages (11,406 laws / 15 rows-page,
-#: measured live 2026-09-07). 60 = 5 pages of margin past the furthest measured hit, not a
-#: round number chosen without evidence. Raising it is a one-line change, traded here for a
-#: bounded single-run wall-clock/request count exactly as `adapter_laos.py`'s own `_MAX_PAGES`
-#: docstring explains for the same trade-off. AS OF 2026-09-08 this walk is SECONDARY — see
-#: `_LEGISLATIVE_HIRACHY_TIERS` below for the deterministic primary walk that replaced it for
-#: the instruments RDTII actually cites; this bounded, order-dependent walk now exists only to
-#: pick up subordinate instruments (Notifications, Ministerial Regulations) outside that tier,
-#: and its own non-determinism is disclosed in the module docstring's "DETERMINISM" section.
-_MAX_PAGES = 60
+# ── vocabulary ──────────────────────────────────────────────────────────────────────────────
+#
+# Title terms per pillar. Each is a phrase a RELEVANT law's own title is drafted with, keyed to
+# the indicator that needs it; every one was checked live 2026-09-26 against `searchType: 1`
+# and returns a small, topical result set (counts are rows, i.e. versions, not laws). A term
+# that is merely the Act a routine instrument is "issued under" is caught by
+# `_REFERENCE_MARKERS`, not by leaving the term out.
+_TITLE_TERMS: dict[int, tuple[str, ...]] = {
+    6: (
+        "ข้อมูลส่วนบุคคล",            # personal data — 6.1-6.4 (3 rows)
+        "ความมั่นคงปลอดภัยไซเบอร์",    # cybersecurity — 6.3 infrastructure duties (11)
+        "ธุรกรรมทางอิเล็กทรอนิกส์",     # electronic transactions — 6.2/6.3 (12)
+        "โทรคมนาคม",                 # telecommunications — 6.2/6.3 licensing (28)
+        "ข้อมูลเครดิต",               # credit information — 6.1 (11)
+        "ระบบการชำระเงิน",            # payment systems — 6.1/6.2 (11)
+        "คอมพิวเตอร์",                # computer — 6.2 traffic-data localisation (20)
+        # NOT "สถาบันการเงิน" (financial institutions): tried 2026-09-26, it put nine
+        # bail-out and loan-guarantee Emergency Decrees of 1997-2015 into the pillar-6 top 22.
+        # The one financial-sector instrument that matters here — a Bank of Thailand
+        # notification on outsourcing IT abroad — is found by its BODY instead (_BODY_TERMS).
+    ),
+    7: (
+        "ข้อมูลส่วนบุคคล",            # personal data — 7.1, 7.4
+        "ความมั่นคงปลอดภัยไซเบอร์",    # cybersecurity — 7.2
+        "คอมพิวเตอร์",                # computer(-related crime) — 7.2, 7.3, 7.5
+        "ธุรกรรมทางอิเล็กทรอนิกส์",     # electronic transactions — 7.1, 7.3
+        "โทรคมนาคม",                 # telecommunications — 7.1, 7.2
+        "ข้อมูลเครดิต",               # credit information — 7.1, 7.3
+        "ข่าวกรอง",                  # intelligence — 7.5 (6)
+        "วิธีพิจารณาความอาญา",         # criminal procedure — 7.5 (97)
+        "สอบสวนคดีพิเศษ",             # special investigation — 7.5 (6)
+        "ฟอกเงิน",                   # money laundering — 7.3 record keeping, 7.5 (19)
+        "การบัญชี",                  # accounting — 7.3 retention (10)
+        "ประมวลรัษฎากร",              # revenue code — 7.3 retention, 7.5 tax access
+        "ข้อมูลข่าวสารของราชการ",      # official information — 7.5
+    ),
+}
 
-#: THE FIX for the page-order-drift finding (see the module docstring's "DETERMINISM" section
-#: for the full story and measurements). `hirachy` is a REAL, working server-side filter on
-#: `POST …/law` — verified live 2026-09-08: `{"hirachy": 1}` dropped `total` from 11,406 to
-#: 1,113 and the first row was immediately an actual Act — unlike every field Task 4's first
-#: pass tried (`hirachy_of_law_id`, `category_id`, `keyword`…), which changed nothing. Combined
-#: with `size` (see `_TIER_FETCH_SIZE_CAP`), a whole tier fits in ONE atomic request, so there
-#: is no multi-request window left for the feed's own reordering to act in. These six ids are
-#: the FULL "has the force of an Act or higher" tier from `GET …/law/master` (verified live
-#: 2026-09-07): Act, Organic Act, Emergency Decree, Code, Revenue Code, Constitution — every
-#: RDTII P6/P7 citation this adapter's own recon has found (PDPA, Cybersecurity Act,
-#: Computer-Related Crime Act) carries hirachy=1 (Act). Totals measured live 2026-09-08:
-#: 1=1113, 926=4, 883=49, 893=8, 889=0, 887=1 (1,175 total) — never hard-coded here, because a
-#: stale count would silently under- or over-fetch; `_fetch_tier` re-probes every call.
-_LEGISLATIVE_HIRACHY_TIERS: tuple[int, ...] = (1, 926, 883, 893, 889, 887)
+# Body phrases, matched by `searchType: 2` against `content_all`. Operative wording, so they
+# find an instrument whose TITLE says nothing about the topic — a Bank of Thailand
+# notification on IT outsourcing is the measured example. Each was checked live 2026-09-26 to
+# return a handful of rows, not hundreds ("เก็บรักษาข้อมูล" returned 58 and was left out).
+_BODY_TERMS: dict[int, tuple[str, ...]] = {
+    6: (
+        "ข้อมูลส่วนบุคคลไปยังต่างประเทศ",   # personal data to a foreign country (2 rows)
+        "ไว้ในประเทศไทย",                 # kept in Thailand (3 rows)
+    ),
+    7: (
+        "เจ้าหน้าที่คุ้มครองข้อมูลส่วนบุคคล",  # data protection officer (1 row)
+        "ข้อมูลจราจรทางคอมพิวเตอร์",        # computer traffic data (1 row)
+    ),
+}
 
-#: The real page-size field is `size`, not `limit` — a genuinely separate finding from the
-#: `hirachy` filter, made investigating it. `limit` silently did nothing in every Task 4
-#: round-1 probe: the API always answered its own internal default of 15 rows regardless of
-#: the `limit` value sent, which is WHY round 1 never noticed `size` existed. `size` was
-#: recovered from the app's own bundle (`main.7a41c7a0.js`:
-#: `nj.getUpdated({...T, size:l>a?a:l, page:d})`) and verified live 2026-09-08: `size=20` -> 20
-#: rows, `size=500` -> 500 rows, `size=8000` -> 8000 rows in 14.7s. `size=9000`/`9500` answered
-#: a Gateway "timeout exceeded when trying to connect" at least once while `size=9998` (a
-#: near-full-corpus single request) succeeded once — the boundary is FLAKY, not a documented
-#: hard cap, so this adapter never asks for more than `_TIER_FETCH_SIZE_CAP`, comfortably
-#: inside the range measured reliable and far above the largest legislative tier (1,113).
-_TIER_FETCH_SIZE_CAP = 3000
+#: A term after one of these names the PARENT Act an instrument is issued under or refers to,
+#: not the instrument's own subject: "พระราชกฤษฎีกาออกตามความในประมวลรัษฎากร …" (a Royal Decree
+#: issued under the Revenue Code) is one of 1,634 rows a Revenue-Code search returns. "แห่ง"
+#: alone is NOT a marker: "…ไซเบอร์แห่งชาติ" ("national") is part of a committee's own name.
+_REFERENCE_MARKERS = ("ออกตามความใน", "ตามความใน", "ตามพระราชบัญญัติ", "ตามประมวล",
+                      "แห่งพระราชบัญญัติ", "แห่งประมวล", "ตามกฎหมายว่าด้วย")
+
+_AMENDING = re.compile(r"แก้ไขเพิ่มเติม|\(ฉบับที่\s*[๐-๙\d]+\)")
+_REPEALED = re.compile(r"\(\s*ยกเลิก\s*\)")
+_THAI_DIGITS = str.maketrans("๐๑๒๓๔๕๖๗๘๙", "0123456789")
 
 #: The portal's own `hirachy_of_law_id` codes, from `GET dga-user-service-phase2/law/master`
-#: (verified live 2026-09-07 — the full list, not a guess). `พระราชบัญญัติ` (Act) is id 1;
-#: `ประกาศ` (Notification, id 2) is the single most common code in the browse feed and is a
-#: routine administrative notice far more often than a data-protection/cybersecurity measure.
+#: (verified live 2026-09-07 — the full list, not a guess).
 _HIRACHY_WEIGHT: dict[int, float] = {
-    1: 0.85,      # พระราชบัญญัติ — Act (both target Acts found in Step 1 carry this code)
+    1: 0.85,      # พระราชบัญญัติ — Act
     926: 0.85,    # พ.ร.บ.ประกอบรัฐธรรมนูญ — Organic Act
     883: 0.80,    # พระราชกำหนด — Emergency Decree (force of an Act)
-    893: 0.78,    # ประมวลกฎหมาย — Code (e.g. Criminal/Civil and Commercial Code)
-    889: 0.75,    # ประมวลรัษฎากร — Revenue Code
+    893: 0.85,    # ประมวลกฎหมาย — Code (the Criminal Procedure Code, the Revenue Code)
+    889: 0.80,    # ประมวลรัษฎากร — Revenue Code
     887: 0.65,    # รัฐธรรมนูญ — Constitution
     884: 0.55,    # พระราชกฤษฎีกา — Royal Decree
     888: 0.50,    # กฎกระทรวง — Ministerial Regulation
+    886: 0.40,    # ระเบียบ — Regulation
     885: 0.30,    # คำสั่ง — Order
-    2: 0.25,      # ประกาศ — Notification (bulk of the feed; routine administrative notices)
+    2: 0.35,      # ประกาศ — Notification (the panel cites several for 6.4 and 7.2)
 }
-_DEFAULT_HIRACHY_WEIGHT = 0.20
+_DEFAULT_HIRACHY_WEIGHT = 0.25
 
-#: Adapter-local Thai vocabulary — NOT wired into `query_terms_i18n.py` (see the module
-#: docstring's "RELEVANCE SCORING" section for why and its provenance). Matched against the
-#: FULL `content_all` body, which is this adapter's real advantage over a title-only lane.
-_TH_SEED_TERMS: tuple[str, ...] = (
-    "ข้อมูลส่วนบุคคล",          # personal data — พ.ร.บ.คุ้มครองข้อมูลส่วนบุคคล's own title
-    "คุ้มครองข้อมูล",            # data protection
-    "ไซเบอร์",                   # cyber — พ.ร.บ.การรักษาความมั่นคงปลอดภัยไซเบอร์'s own title
-    "ความมั่นคงปลอดภัย",         # security
-    "คอมพิวเตอร์",                # computer — พ.ร.บ.ว่าด้วยการกระทำความผิดเกี่ยวกับคอมพิวเตอร์
-    "ส่งข้อมูลไปยังต่างประเทศ",   # transferring data abroad (cross-border transfer, generic P6)
-    "โอนข้อมูลไปต่างประเทศ",      # transfer of data abroad (alternative phrasing)
-    "จัดเก็บข้อมูล",              # store/hold data (P6 localisation phrasing)
-    "เก็บรักษาข้อมูล",            # retain data (P7 retention phrasing)
-    "เจ้าหน้าที่คุ้มครองข้อมูลส่วนบุคคล",  # Data Protection Officer (P7-I4 phrasing)
-)
+#: The Act-and-above tiers, used only by the FALLBACK walk (`_fetch_tier`) when the search
+#: endpoint answers nothing at all. Totals measured live 2026-09-26: 1=1114, 926=4, 883=49,
+#: 893=8, 889=0, 887=1.
+_LEGISLATIVE_HIRACHY_TIERS: tuple[int, ...] = (1, 926, 883, 893, 889, 887)
+#: `size=8000` answered in 14.7 s and `size=9000` timed out at least once (2026-09-08), so no
+#: single request asks for more than this.
+_TIER_FETCH_SIZE_CAP = 3000
+#: Rows per search request. The widest term here ("ประมวลรัษฎากร") matches ~1,600 rows, almost
+#: all of them Revenue Department notifications; the principal Code is among the first 300
+#: (measured 2026-09-26), and ranking — not the request — decides what is kept.
+_SEARCH_SIZE = 300
+#: Bump when `_articles_text` changes what it writes, so a cached rebuild is not reused.
+_ARTICLES_FORMAT = "a3"
 
 
 def _detail_url(row: dict) -> str:
-    """The human-openable `www.law.go.th` page for this row — NEVER `apig.law.go.th`, which
-    answers only with the `x-api-key` header and is not something a reviewer can open (one of
-    this task's own tests pins that). Recovered from the app's own published bundle: its
-    react-router pushes `/DetailLawPage?table_of_law_id=<id>` for a law-detail navigation and
-    builds the IDENTICAL url for its own "share this law" links — not a guessed pattern.
+    """The human-openable `www.law.go.th` page for this row — NEVER `apig.law.go.th`.
 
-    Prefers `table_of_law_id` (what the JS actually keys the route on — verified against
-    several `Link to=` call sites in `main.7a41c7a0.js`) over `law_id`, which is a DIFFERENT
-    id on the same row (e.g. one sampled row carried `law_id=19639` but
-    `table_of_law_id=12306`) and would point at the wrong law's page if used here.
+    Keyed on `table_of_law_id` (what the app's router keys the detail route on) rather than
+    `law_id`, which is a different id on the same row and would open another law's page.
     """
     tid = row.get("table_of_law_id") or row.get("law_id") or ""
     return f"https://www.law.go.th/DetailLawPage?table_of_law_id={tid}"
 
 
-def _th_topic(content: str) -> float:
-    """Fraction (capped at 1.0) of `_TH_SEED_TERMS` present anywhere in `content_all`."""
-    if not content:
-        return 0.0
-    hits = sum(1 for term in _TH_SEED_TERMS if term in content)
-    return min(1.0, hits / 4)
+def _title(row: dict) -> str:
+    # Titles arrive with a trailing "\n" on some rows ("…พ.ศ. 2562\n", measured on 8668).
+    return re.sub(r"\s+", " ", row.get("law_name_og") or row.get("law_name_th")
+                  or row.get("tableoflaw_name") or "").strip()
 
 
-def _relevance(row: dict, indicators: list | None) -> float:
-    """A real, differentiated score for one row — see the module docstring's "RELEVANCE
-    SCORING" section for what each signal is and why. `indicators` is optional (default None)
-    so `_rows_to_docs` stays callable with exactly the 3 positional arguments this task's own
-    tests use; `search_th_law` passes the run's real indicator list through.
-    """
-    content = row.get("content_all") or ""
-    raw_hirachy = row.get("hirachy_of_law_id")
+def _hirachy(row: dict) -> int | None:
+    raw = row.get("hirachy_of_law_id")
     try:
-        hirachy = int(raw_hirachy) if raw_hirachy not in (None, "") else None
+        return int(raw) if raw not in (None, "") else None
     except (TypeError, ValueError):
-        hirachy = None
-    base = _HIRACHY_WEIGHT.get(hirachy, _DEFAULT_HIRACHY_WEIGHT)
-    structure_bonus = 0.05 if "มาตรา" in content else 0.0
-    topic = _th_topic(content)
-    title = row.get("law_name_og") or row.get("law_name_th") or ""
-    en_topic = 0.0
-    if indicators:
-        # `_score` is the RIGHT tool here and the only place it still is: this adapter has the
-        # API's own `content_all`, so the phrases it looks for ("data shall be stored in") are
-        # being matched against the BODY they were written for. Everywhere else they were being
-        # matched against a title, where they can never appear.
-        from .discovery import _score as _topic_score
-        en_topic = _topic_score(f"{title} {content[:4000]}", indicators)
-    # The title is scored separately because it carries the topic even when `content_all` comes
-    # back empty -- which it does API-wide for the Computer-Related Crime Act -- and because
-    # `_score`'s English phrases can never match Thai script. Thai title vocabulary lives in
-    # `rdtii/title_terms.py`.
-    title_topic = portal.title_relevance(title, indicators, economy="TH")
-    # The instrument TYPE is a prior, not the answer. At full weight it was the answer: an Act
-    # scores 0.85 here and the sum is capped at 0.99, so topical fit could move a document by
-    # at most 0.14 and every one of the thousands of พระราชบัญญัติ in this feed tied. Measured
-    # 2026-09-12, a pillar-6 run returned five distinct scores across twenty-two documents, with
-    # the Act establishing the Nakhon Sawan Administrative Court ranked level with the Personal
-    # Data Protection Act. Scaled down, `base` still orders documents of EQUAL relevance by
-    # their place in the hierarchy — which is all it was ever evidence of.
-    score = (0.55 * base + structure_bonus
-             + 0.35 * topic + 0.10 * en_topic + 0.35 * title_topic)
-    return round(min(0.99, max(0.05, score)), 4)
+        return None
 
 
 def _iso_date(row: dict) -> str | None:
-    """The row's own `effective_startdate`/`annouce_date`, trimmed to its date portion, when
-    that field is a recognisable ISO-ish timestamp. `None` otherwise — never a guess."""
+    """The row's own `effective_startdate`/`annouce_date`, date part only — never a guess."""
     for key in ("effective_startdate", "annouce_date"):
         raw = row.get(key) or ""
         if len(raw) >= 10 and raw[4:5] == "-" and raw[7:8] == "-":
@@ -419,175 +272,312 @@ def _iso_date(row: dict) -> str | None:
     return None
 
 
-def _rows_to_docs(payload: dict, economy: Economy, portal_name: str,
-                   indicators: list | None = None) -> list[DiscoveredDoc]:
-    """One page of `POST …/law`'s `rows[]` -> `DiscoveredDoc`s. Pure: no network, no
-    filesystem — the test suite drives this directly against the saved fixture.
+def _core(title: str) -> str:
+    """A title without its instrument-type word, its year and its edition number — what the
+    law is ABOUT. "ประมวลกฎหมายวิธีพิจารณาความอาญา" -> "วิธีพิจารณาความอาญา"."""
+    t = re.sub(r"พ\.\s*ศ\.\s*[๐-๙\d]{4}.*$", "", title)
+    t = re.sub(r"\(ฉบับที่[^)]*\)", "", t)
+    t = re.sub(r"^(พระราชบัญญัติ|พระราชกำหนด|ประมวลกฎหมาย|พระราชกฤษฎีกา|กฎกระทรวง|ประกาศ)",
+               "", t.strip())
+    t = re.sub(r"^(ว่าด้วย|การ)", "", t.strip())
+    return re.sub(r"\s+", "", t)
 
-    A row with no usable `content_all` (or no title) is DROPPED, not emitted empty — see the
-    module docstring's "A ROW WITH NO USABLE TEXT" section. `indicators` is optional so this
-    keeps the exact 3-positional-argument shape this task's tests call it with; `search_th_law`
-    passes the real run's indicators through for the extra English-term signal in `_relevance`.
+
+def _direct(term: str, title: str) -> bool:
+    """True when `term` names this title's OWN subject, not a parent Act it refers to."""
+    at = title.find(term)
+    if at < 0:
+        return False
+    marks = [title.find(m) for m in _REFERENCE_MARKERS if m in title]
+    return not marks or at < min(marks)
+
+
+def _principal(rows: list[dict]) -> dict:
+    """The row that names the law itself rather than one of its amendments."""
+    plain = [r for r in rows if not _AMENDING.search(_title(r))]
+    pool = plain or rows
+    return min(pool, key=lambda r: (len(_title(r)), -len(r.get("content_all") or "")))
+
+
+def _family_score(rows: list[dict], title_terms, body_hits: int) -> float:
+    """Relevance of one law family (all rows sharing a table_of_law_id) — see the module
+    docstring's RANKING section for each signal."""
+    head = _principal(rows)
+    title = _title(head)
+    prior = _HIRACHY_WEIGHT.get(_hirachy(head), _DEFAULT_HIRACHY_WEIGHT)
+    hits = [t for t in title_terms if t in title]
+    direct = [t for t in hits if _direct(t, title)]
+    core = _core(title)
+    coverage = max((min(1.0, len(t) / len(core)) for t in direct if core), default=0.0)
+    title_sig = 1.0 if direct else (0.35 if hits else 0.0)
+    # A body hit is an operative phrase ("…personal data to a foreign country") found in the
+    # instrument's own text: at least as strong as a topical title, so it counts in the same
+    # slot AND carries a bonus of its own. Without the bonus, measured 2026-09-26, the Bank of
+    # Thailand's IT-outsourcing notification (body hit, no topical title, 0.4725) fell below
+    # the pillar-6 cut behind payment-system notifications whose TITLES merely name the topic.
+    body_sig = min(1.0, float(body_hits))
+    score = (0.35 * prior + 0.35 * max(title_sig, body_sig) + 0.15 * coverage
+             + 0.15 * body_sig)
+    if not direct and not body_hits:
+        score *= 0.5                     # reached only through a reference to another Act
+    if _AMENDING.search(title):
+        score *= 0.6                     # every title in the family is an amendment
+    return round(min(0.99, max(0.01, score)), 4)
+
+
+# ── the detail endpoint -> one article per line ─────────────────────────────────────────────
+
+_TAG = re.compile(r"<[^>]+>")
+_HEADING = re.compile(r"^มาตรา[ \t]*[๐-๙\d]")
+_SKIP_MID = ("หมวด", "ส่วน", "บทเฉพาะกาล", "ลักษณะ", "บรรพ")
+
+
+def _plain(fragment: str) -> str:
+    """HTML item text -> one line. Paragraphs join with a space, so no line of an article's
+    BODY can ever start with "มาตรา" and be mistaken for a heading by the splitter."""
+    text = _html.unescape(_TAG.sub(" ", fragment or ""))
+    return re.sub(r"\s+", " ", text.replace("\xa0", " ")).strip()
+
+
+def _articles_text(payload: dict, prefer_law_id=None) -> tuple[str, int]:
+    """`law/detail/{id}` -> (text with one มาตรา per line, number of articles). ("", 0) when
+    the detail carries no article items. Pure — the tests drive it on saved payloads.
+
+    Row choice: the detail answers one row per stored VERSION (the Criminal Procedure Code:
+    78 rows, 5 of the first 12 empty; the Revenue Code: 100). The row with the most articles
+    wins, except that the row the search pointed at is kept when it has at least 80% as many —
+    it is the portal's current version, and the others can be older ones. Measured 2026-09-26,
+    the pointed-at row alone gave the Revenue Code 6 articles, when another version holds the
+    Code.
     """
-    out: list[DiscoveredDoc] = []
-    seen: set[str] = set()
-    for row in payload.get("rows") or []:
-        content = (row.get("content_all") or "").strip()
-        if not content:
+    rows = [r for r in (payload or {}).get("rows") or [] if isinstance(r, dict)]
+    built = [(r, *_row_articles(r)) for r in rows]
+    built = [b for b in built if b[2]]
+    if not built:
+        return "", 0
+    best = max(built, key=lambda b: b[2])
+    chosen = next((b for b in built if prefer_law_id is not None
+                   and str(b[0].get("law_id")) == str(prefer_law_id)
+                   and b[2] >= 0.8 * best[2]), best)
+    return chosen[1], chosen[2]
+
+
+#: Items that END an instrument inside one detail row. After them, articles can start again at
+#: มาตรา ๑ — as a DIFFERENT instrument. See `_row_articles`.
+_INSTRUMENT_END = ("ชื่อกฎหมาย", "ผู้รับสนองพระบรมราชโองการ", "ผู้มีอำนาจลงนาม")
+#: What may stand before an instrument's first article: its title, the royal assent, the
+#: preamble. Anything else there (a "สารบาญ" table of contents, measured on the Criminal
+#: Procedure Code) is dropped.
+_PREAMBLE = ("ชื่อกฎหมาย", "พระปรมาภิไธย", "คำปรารภ")
+
+
+def _row_articles(row: dict) -> tuple[str, int]:
+    """One detail row -> (text with one มาตรา per line, number of articles).
+
+    ONE ROW CAN HOLD TWO INSTRUMENTS, each numbering from มาตรา ๑. Measured 2026-09-26: the
+    Criminal Procedure Code's row opens with the five-article Act that PROMULGATES the Code
+    (มาตรา ๑-๕, then its countersignature) and only then the Code (มาตรา ๑-…); the Computer-
+    Related Crime Act's row closes with its amending act (a second ชื่อกฎหมาย, then that act's
+    own มาตรา ๒, ๒๐, ๒๑). Concatenated, either yields two different "มาตรา ๑" under one law
+    name — a citation to the wrong instrument. So the row is cut into instruments at each
+    `_INSTRUMENT_END` item and the one with the most articles is kept: the Code, not the Act
+    that brings it into force; the principal Act, not its amendment.
+    """
+    items = row.get("content_list_process") or row.get("content_list") or []
+    items = sorted((it for it in items if isinstance(it, dict)),
+                   key=lambda it: it.get("seq") or 0)
+
+    parts: list[tuple[list[str], int]] = []
+    lines: list[str] = []
+    n = 0
+    for it in items:
+        kind = (it.get("content_type") or "").strip()
+        body = _plain(it.get("content_desc") or "")
+        if kind in _INSTRUMENT_END and n:
+            parts.append((lines, n))     # this instrument is complete
+            lines, n = [], 0
+        if kind == "มาตรา":
+            number = (it.get("content_number") or "").strip()
+            if not body and not number:
+                continue
+            if _HEADING.match(body):
+                line = body              # the source's own heading, verbatim
+            elif number and number != "-":
+                line = f"มาตรา {number} {body}".rstrip()
+            else:
+                continue                 # no number in the source -> none is invented
+            lines.append(line)
+            n += 1
             continue
-        title = (row.get("law_name_og") or row.get("law_name_th") or "").strip()
-        if not title:
+        if n == 0:
+            if body and kind in _PREAMBLE:
+                lines.append(body)       # title, royal assent, preamble — before article 1
             continue
-        url = _detail_url(row)
-        doc = portal.make_doc(
-            economy, url, title, portal_name, fmt=DocFormat.TEXT,
-            score=_relevance(row, indicators), amendment_date=_iso_date(row))
-        if doc.doc_id in seen:
-            continue
-        seen.add(doc.doc_id)
-        out.append(doc)
-    return out
+        # After the articles began: chapter/part headings (`_SKIP_MID`) carry a title and no
+        # rule, and anything else would be glued onto the previous article's snippet — see
+        # the module docstring. Neither is carried over.
+    if n:
+        parts.append((lines, n))
+    if not parts:
+        return "", 0
+    best_lines, best_n = max(parts, key=lambda p: p[1])
+    return "\n".join(best_lines), best_n
+
+
+def _articles_cache(tid) -> Path:
+    d = settings.cache_path / "_th_articles"
+    d.mkdir(parents=True, exist_ok=True)
+    return d / f"{tid}_{_ARTICLES_FORMAT}.json"
+
+
+def _cached_articles(tid) -> tuple[str, int] | None:
+    try:
+        p = _articles_cache(tid)
+        if not p.exists():
+            return None
+        if settings.fetch_ttl_hours > 0 and \
+                time.time() - p.stat().st_mtime > settings.fetch_ttl_hours * 3600:
+            return None
+        blob = json.loads(p.read_text(encoding="utf-8"))
+        return blob.get("text") or "", int(blob.get("articles") or 0)
+    except Exception:                                  # noqa: BLE001 — a cache miss, no more
+        return None
+
+
+def _store_articles(tid, text: str, n: int) -> None:
+    try:
+        _articles_cache(tid).write_text(
+            json.dumps({"text": text, "articles": n}, ensure_ascii=False), encoding="utf-8")
+    except Exception:                                  # noqa: BLE001 — caching is best-effort
+        pass
+
+
+def _fetch_detail(client, api_base: str, headers: dict, tid, prefer_law_id,
+                  log: Log) -> tuple[str, int, bool]:
+    """(text, articles, whether the network was used). A failed request is not cached, so
+    the next run retries it; an answered one is, articles or not."""
+    cached = _cached_articles(tid)
+    if cached is not None:
+        return (*cached, False)
+    try:
+        resp = client.get(f"{api_base}/dga-user-service-phase2/law/detail/{tid}",
+                          headers=headers, timeout=120)
+    except Exception as exc:                          # noqa: BLE001 — one law is not the run
+        log(f"[th_law_api] detail {tid}: {type(exc).__name__}: {exc}")
+        return "", 0, True
+    if resp.status_code != 200:
+        log(f"[th_law_api] detail {tid} -> HTTP {resp.status_code}")
+        return "", 0, True
+    try:
+        text, n = _articles_text(resp.json(), prefer_law_id)
+    except Exception as exc:                          # noqa: BLE001
+        log(f"[th_law_api] detail {tid}: unparsable ({type(exc).__name__})")
+        return "", 0, True
+    _store_articles(tid, text, n)
+    return text, n, True
+
+
+# ── candidate rows ──────────────────────────────────────────────────────────────────────────
+
+def _search(client, api_base: str, headers: dict, term: str, search_type: int,
+            log: Log) -> list[dict] | None:
+    """One `searchResult` call. None on a transport/HTTP failure (so the caller can tell "the
+    endpoint is down" from "no law matches")."""
+    body = {"type": None, "agency": None, "hirachy": None, "searchType": search_type,
+            "searchText": term, "size": _SEARCH_SIZE, "page": 1}
+    try:
+        resp = client.post(f"{api_base}/dga-user-service-phase2/law/searchResult",
+                           headers=headers, json=body, timeout=60)
+    except Exception as exc:                          # noqa: BLE001
+        log(f"[th_law_api] search {term!r}: {type(exc).__name__}: {exc}")
+        return None
+    if resp.status_code != 200:
+        log(f"[th_law_api] search {term!r} -> HTTP {resp.status_code}")
+        return None
+    try:
+        rows = resp.json().get("rows") or []
+    except Exception as exc:                          # noqa: BLE001
+        log(f"[th_law_api] search {term!r}: unparsable JSON ({type(exc).__name__})")
+        return None
+    return [r for r in rows if isinstance(r, dict)]
 
 
 def _fetch_tier(client, url: str, headers: dict, hirachy: int, log: Log) -> list[dict]:
-    """Every row in one legislative-grade `hirachy` tier — see the module docstring's
-    "DETERMINISM" section for why this exists and what it fixes.
-
-    Two requests, not one: a cheap probe (`size=1`) to learn the tier's own `total`, then a
-    single atomic fetch at `size=total`. Whenever `total` fits under `_TIER_FETCH_SIZE_CAP`
-    (every tier measured live 2026-09-08 does — the largest, Act, is 1,113), there is exactly
-    ONE page for the WHOLE tier, so there is no multi-request window left for the feed's own
-    reordering (the finding this fix responds to) to act in between them.
-
-    Falls back to a bounded, DEDUPED paged walk within the tier only if a future `total` ever
-    exceeds the cap — logged loudly, because that path reintroduces the same reordering risk
-    this mechanism exists to avoid, just scoped to one tier instead of the whole corpus.
-    """
+    """Every row in one `hirachy` tier of the browse feed, in one atomic request (probe
+    `total` at size=1, then fetch size=total). FALLBACK ONLY — see `search_th_law`."""
     try:
         probe = client.post(url, headers=headers,
-                             json={"page": 1, "size": 1, "hirachy": hirachy}, timeout=60)
-    except Exception as exc:                          # noqa: BLE001 — one tier is not the run
-        log(f"[th_law_api] hirachy={hirachy} probe failed: {type(exc).__name__}: {exc}")
-        return []
-    if probe.status_code != 200:
-        log(f"[th_law_api] hirachy={hirachy} probe -> HTTP {probe.status_code}")
-        return []
-    try:
-        # `total` comes back as a STRING ("1113"), not an int — measured live 2026-09-08,
-        # easy to miss because Python's own print()/repr() of a dict doesn't show the quotes
-        # unless you check .__class__ directly. Cast explicitly rather than let a bare
-        # `<=` comparison crash the whole tier walk on a str/int mismatch.
+                            json={"page": 1, "size": 1, "hirachy": hirachy}, timeout=60)
+        if probe.status_code != 200:
+            log(f"[th_law_api] hirachy={hirachy} probe -> HTTP {probe.status_code}")
+            return []
+        # `total` comes back as a STRING ("1113") — cast, or a str/int compare crashes.
         raw_total = probe.json().get("total")
         total = int(raw_total) if raw_total not in (None, "") else 0
-    except Exception as exc:
-        log(f"[th_law_api] hirachy={hirachy} probe: unparsable JSON/total ({type(exc).__name__})")
+    except Exception as exc:                          # noqa: BLE001
+        log(f"[th_law_api] hirachy={hirachy} probe failed: {type(exc).__name__}: {exc}")
         return []
     if not total:
         return []
-
-    if total <= _TIER_FETCH_SIZE_CAP:
-        try:
-            resp = client.post(url, headers=headers,
-                                json={"page": 1, "size": total, "hirachy": hirachy}, timeout=120)
-        except Exception as exc:
-            log(f"[th_law_api] hirachy={hirachy} fetch ({total} rows) failed: "
-                f"{type(exc).__name__}: {exc}")
-            return []
+    try:
+        resp = client.post(url, headers=headers,
+                           json={"page": 1, "size": min(total, _TIER_FETCH_SIZE_CAP),
+                                 "hirachy": hirachy}, timeout=120)
         if resp.status_code != 200:
             log(f"[th_law_api] hirachy={hirachy} fetch -> HTTP {resp.status_code}")
             return []
-        try:
-            return resp.json().get("rows") or []
-        except Exception as exc:
-            log(f"[th_law_api] hirachy={hirachy}: unparsable JSON ({type(exc).__name__})")
-            return []
-
-    log(f"[th_law_api] hirachy={hirachy}: total={total} exceeds _TIER_FETCH_SIZE_CAP="
-        f"{_TIER_FETCH_SIZE_CAP} — falling back to a paged walk (the reordering risk this "
-        f"whole mechanism exists to avoid applies to THIS tier only)")
-    rows_all: list[dict] = []
-    seen_ids: set = set()
-    page, max_pages = 1, (total // _TIER_FETCH_SIZE_CAP) + 2
-    while len(seen_ids) < total and page <= max_pages:
-        try:
-            resp = client.post(url, headers=headers,
-                                json={"page": page, "size": _TIER_FETCH_SIZE_CAP,
-                                      "hirachy": hirachy}, timeout=120)
-        except Exception as exc:
-            log(f"[th_law_api] hirachy={hirachy} page {page}: {type(exc).__name__}")
-            break
-        if resp.status_code != 200:
-            break
-        try:
-            rows = resp.json().get("rows") or []
-        except Exception:
-            break
-        if not rows:
-            break
-        for r in rows:
-            lid = r.get("law_id")
-            if lid not in seen_ids:
-                seen_ids.add(lid)
-                rows_all.append(r)
-        page += 1
-        if client is not None and page <= max_pages:
-            time.sleep(settings.crawl_delay_seconds)
-    return rows_all
+        return [r for r in resp.json().get("rows") or [] if isinstance(r, dict)]
+    except Exception as exc:                          # noqa: BLE001
+        log(f"[th_law_api] hirachy={hirachy} fetch failed: {type(exc).__name__}: {exc}")
+        return []
 
 
-def _emit_docs(rows: list[dict], economy: Economy, portal_name: str, indicators: list | None,
-               out: list[DiscoveredDoc], seen_doc_ids: set[str], log: Log) -> int:
-    """Turn one batch of raw rows into `DiscoveredDoc`s, seed each new one's fetch cache (see
-    the module docstring's "DESIGN DECISION" section), and append it to `out`. Shared by the
-    deterministic tier walk and the supplementary browse walk so the seed_cache logic — the
-    part that actually gets real Thai text past the SPA shell — is written once. Returns how
-    many NEW documents this batch added (for the caller's own log line).
+def _pillars(indicators) -> list[int]:
+    got = sorted({getattr(i, "pillar", None) for i in indicators or []} - {None})
+    return [p for p in got if p in _TITLE_TERMS] or sorted(_TITLE_TERMS)
+
+
+def rank_families(rows: list[dict], title_terms, body_hits: dict | None = None
+                  ) -> list[tuple[float, list[dict]]]:
+    """Group rows into law families and rank them, best first. Pure (tests drive it).
+
+    Families that name the same law twice under different ids (the PDPA is 8668, titled
+    "… พ.ศ. 2562", AND 382, "… พ.ศ. ๒๕๖๒") collapse to one, keeping both id lists in rank
+    order so the caller can fall back to the second when the first has no article items.
     """
-    docs = _rows_to_docs({"rows": rows}, economy, portal_name, indicators)
-    content_by_url = {_detail_url(r): (r.get("content_all") or "").strip() for r in rows}
-    added = 0
-    for doc in docs:
-        if doc.doc_id in seen_doc_ids:
+    body_hits = body_hits or {}
+    fams: dict = {}
+    for r in rows:
+        tid = r.get("table_of_law_id") or r.get("law_id")
+        if tid in (None, ""):
             continue
-        seen_doc_ids.add(doc.doc_id)
-        added += 1
-        body = content_by_url.get(doc.source_url)
-        if body:
-            try:
-                from .fetch import seed_cache
-                seed_cache(doc.source_url, body.encode("utf-8"), "text/plain",
-                           log=lambda _m: None)
-            except Exception as exc:                  # noqa: BLE001 — discovery still stands
-                log(f"[th_law_api] could not seed cache for {doc.doc_id}: "
-                    f"{type(exc).__name__}")
-        out.append(doc)
-    return added
+        fams.setdefault(tid, []).append(r)
+    ranked = []
+    for tid, fam in fams.items():
+        title = _title(_principal(fam))
+        if not title or _REPEALED.search(title):
+            continue
+        ranked.append((_family_score(fam, title_terms, body_hits.get(tid, 0)), fam))
+    ranked.sort(key=lambda sf: sf[0], reverse=True)
+    return ranked
+
+
+def _same_law_key(title: str) -> str:
+    return re.sub(r"\s+", "", title.translate(_THAI_DIGITS))
 
 
 def search_th_law(client, src: dict, query: str, economy: Economy, indicators: list,
-                   log: Log) -> list[DiscoveredDoc]:
-    """Adapter entry point, matching the `PortalEnumerator` signature `discovery` dispatches
-    on (once Task 8 wires `"th_law_api"` into the dispatch table — see the module docstring;
-    until then this is called directly, as this task's own live verification does).
+                  log: Log) -> list[DiscoveredDoc]:
+    """Adapter entry point (`PortalEnumerator` signature). `query` is unused: this adapter
+    runs its own pillar vocabulary (`_TITLE_TERMS`/`_BODY_TERMS`) in one call, which is why it
+    stays registered `enumerates_portal=True` — discovery must not call it once per term.
 
-    `query` is unused: like `adapter_timor.py`/`adapter_laos.py`, the portal's `law` endpoint
-    has no working keyword filter (see "WHAT THIS ADAPTER DOES NOT COVER" above) — every field
-    name tried changed nothing, so this walks the browse feed and ranks what it finds instead
-    of searching for a target.
-
-    Two passes, not one — see the module docstring's "DETERMINISM" section for the full story:
-      1. PRIMARY, deterministic: `_fetch_tier` over every id in `_LEGISLATIVE_HIRACHY_TIERS`,
-         each in one atomic request. This is where the RDTII-cited instruments live and it is
-         reproducible run to run.
-      2. SECONDARY, best-effort: the original bounded newest-first browse walk (`_MAX_PAGES`),
-         for subordinate instruments (Notifications, Ministerial Regulations) the tier list
-         does not cover. This pass is NOT deterministic — the feed's own ordering drifts
-         between calls minutes apart (measured; see the module docstring) — and is disclosed
-         as such rather than relied on for anything the first pass already covers.
-
-    `api_base` and `x-api-key` come from `src` (the `sources.yaml` entry), never hard-coded, so
-    a key rotation is a config change — if either is missing this logs an `[error]`-shaped line
-    and returns an empty list rather than raising or guessing.
+      PASS 1  search titles (and a few operative phrases in bodies) -> rows
+      RANK    group rows into law families, score each (`rank_families`)
+      PASS 2  for the top `discovery_max_docs` families only: `law/detail` -> one มาตรา per
+              line (`_articles_text`), seeded into the fetch cache under the citable URL.
+    If every search request fails, the Act-tier browse walk (`_fetch_tier`) supplies the
+    candidate rows instead, ranked the same way.
     """
     api_base = (src.get("api_base") or "").rstrip("/")
     api_key = src.get("api_key")
@@ -595,15 +585,11 @@ def search_th_law(client, src: dict, query: str, economy: Economy, indicators: l
         log("[error] th_law_api: sources.yaml entry has no api_base/api_key — "
             "cannot query apig.law.go.th (see data/sources.yaml's TH law.go.th entry)")
         return []
-    url = f"{api_base}/dga-user-service-phase2/law"
-
-    ok, why = robots.allowed(url, settings.crawl_user_agent)
+    feed = f"{api_base}/dga-user-service-phase2/law"
+    ok, why = robots.allowed(feed, settings.crawl_user_agent)
     if not ok:
-        log(f"[th_law_api] robots refuses {url} — {why}")
+        log(f"[th_law_api] robots refuses {feed} — {why}")
         return []
-    if why:
-        log(f"[th_law_api] robots: {why}")
-
     headers = {
         "User-Agent": settings.crawl_user_agent,
         "Accept-Language": settings.crawl_accept_language,
@@ -613,65 +599,98 @@ def search_th_law(client, src: dict, query: str, economy: Economy, indicators: l
         "Referer": "https://www.law.go.th/",
     }
     portal_name = src.get("name", "law.go.th")
+    pillars = _pillars(indicators)
+    title_terms = list(dict.fromkeys(t for p in pillars for t in _TITLE_TERMS[p]))
+    body_terms = list(dict.fromkeys(t for p in pillars for t in _BODY_TERMS.get(p, ())))
 
-    out: list[DiscoveredDoc] = []
-    seen_doc_ids: set[str] = set()
-
-    # PASS 1 — deterministic: every legislative-grade instrument, in as few atomic requests
-    # as its own total needs. See _fetch_tier's docstring and the module docstring's
-    # "DETERMINISM" section.
-    for hirachy in _LEGISLATIVE_HIRACHY_TIERS:
-        rows = _fetch_tier(client, url, headers, hirachy, log)
-        added = _emit_docs(rows, economy, portal_name, indicators, out, seen_doc_ids, log)
-        log(f"[th_law_api] hirachy={hirachy}: {len(rows)} rows -> {added} new documents "
-            f"({len(out)} total)")
+    def pause():
         if client is not None:
             time.sleep(settings.crawl_delay_seconds)
 
-    # PASS 2 — best-effort: the original bounded, newest-first browse walk, for subordinate
-    # instruments PASS 1's tier list does not reach. NOT deterministic — see the module
-    # docstring's "DETERMINISM" section for the measured overlap between two separate calls.
-    seen_law_ids: set = set()
-    for page in range(1, _MAX_PAGES + 1):
-        try:
-            resp = client.post(url, headers=headers, json={"page": page, "size": 30},
-                               timeout=60)
-        except Exception as exc:                      # noqa: BLE001 — one bad page is not fatal
-            log(f"[th_law_api] page {page}: {type(exc).__name__}: {exc}")
-            break
-        if resp.status_code != 200:
-            log(f"[th_law_api] page {page} -> HTTP {resp.status_code}, stopping")
-            break
-        try:
-            payload = resp.json()
-        except Exception as exc:
-            log(f"[th_law_api] page {page}: unparsable JSON ({type(exc).__name__})")
-            break
+    rows: list[dict] = []
+    body_hits: dict = {}
+    answered = 0
+    for term in title_terms:
+        got = _search(client, api_base, headers, term, 1, log)
+        if got is not None:
+            answered += 1
+            rows.extend(got)
+            log(f"[th_law_api] title {term!r}: {len(got)} rows")
+        pause()
+    for term in body_terms:
+        got = _search(client, api_base, headers, term, 2, log)
+        if got is not None:
+            answered += 1
+            rows.extend(got)
+            for tid in {r.get("table_of_law_id") for r in got}:
+                body_hits[tid] = body_hits.get(tid, 0) + 1
+            log(f"[th_law_api] body {term!r}: {len(got)} rows")
+        pause()
+    if not answered:
+        log("[th_law_api] searchResult answered nothing — falling back to the Act-tier walk")
+        for hirachy in _LEGISLATIVE_HIRACHY_TIERS:
+            rows.extend(_fetch_tier(client, feed, headers, hirachy, log))
+            pause()
 
-        rows = payload.get("rows") or []
-        row_ids = {r.get("law_id") for r in rows if r.get("law_id") is not None}
-        new_ids = row_ids - seen_law_ids
-        if rows and not new_ids:
-            # Step 1's own stop condition: a page returning no new ids means pagination has
-            # looped or exhausted the feed. Measured live 2026-09-07 this never actually
-            # fires inside _MAX_PAGES (every page carried distinct new ids) — kept as the
-            # safety net the brief specifies, not dead code.
-            log(f"[th_law_api] page {page}: no new law_ids — pagination exhausted")
-            break
-        seen_law_ids |= row_ids
+    # The same law under several ids (see rank_families) is ONE candidate: its ids are tried in
+    # rank order until one has article items, and only then does it fall back to content_all.
+    laws: dict[str, list[tuple[float, list[dict]]]] = {}
+    for score, fam in rank_families(rows, title_terms, body_hits):
+        laws.setdefault(_same_law_key(_title(_principal(fam))), []).append((score, fam))
 
-        added = _emit_docs(rows, economy, portal_name, indicators, out, seen_doc_ids, log)
-        log(f"[th_law_api] page {page}: {len(rows)} rows -> {added} new documents "
-            f"({len(out)} total)")
-        if not rows:
-            log(f"[th_law_api] page {page}: empty page — stopping")
+    budget = settings.discovery_max_docs
+    out: list[DiscoveredDoc] = []
+    for group in laws.values():
+        if len(out) >= budget:
             break
-        if client is not None and page < _MAX_PAGES:
-            # settings.crawl_delay_seconds, the project's shared politeness floor — this host
-            # publishes no robots.txt Crawl-delay of its own to defer to (see the module
-            # docstring's robots finding: both hosts answer non-2xx, so there is no Crawl-delay
-            # line to read), the same situation adapter_laos.py's own crawl-delay comment names.
-            time.sleep(settings.crawl_delay_seconds)
+        score = group[0][0]
+        pick, text, n = None, "", 0
+        for _s, fam in group:
+            head = _principal(fam)
+            tid = head.get("table_of_law_id") or head.get("law_id")
+            text, n, used_network = _fetch_detail(client, api_base, headers, tid,
+                                                  head.get("law_id"), log)
+            if used_network:
+                pause()
+            if n:
+                pick = (head, fam)
+                break
+        if pick is None:
+            # No article items under any id: the longest content_all any of them carries,
+            # unchanged (the pre-2026-09-26 behaviour).
+            bodies = [((r.get("content_all") or "").strip(), fam)
+                      for _s, fam in group for r in fam]
+            text, fam = max(bodies, key=lambda b: len(b[0]), default=("", group[0][1]))
+            if not text:
+                # Nothing in the API at all. Many rows still point at their Royal Gazette
+                # publication (`announce_url`, ratchakitcha.soc.go.th). Measured 2026-09-26:
+                # all six National Cybersecurity Committee notifications — which the panel
+                # cites for 7.2 — have no text and no items here, and each has a Gazette PDF
+                # with a text layer. Emitted as that PDF, the ordinary fetch/extract chain
+                # reads it; nothing is seeded, because there is nothing to seed.
+                pdf = next((r.get("announce_url") for _s, f in group for r in f
+                            if str(r.get("announce_url") or "").lower().endswith(".pdf")), None)
+                head = _principal(group[0][1])
+                if not pdf:
+                    log(f"[th_law_api] no text for {_title(head)[:60]} — skipped")
+                    continue
+                out.append(portal.make_doc(economy, pdf, _title(head), portal_name,
+                                           score=score, amendment_date=_iso_date(head)))
+                log(f"[th_law_api] {score:.3f} {_title(head)[:70]} — Royal Gazette PDF")
+                continue
+            pick = (_principal(fam), fam)
+        head = pick[0]
+        title = _title(head)
+        doc = portal.make_doc(economy, _detail_url(head), title, portal_name,
+                              fmt=DocFormat.TEXT, score=score, amendment_date=_iso_date(head))
+        try:
+            from .fetch import seed_cache
+            seed_cache(doc.source_url, text.encode("utf-8"), "text/plain", log=lambda _m: None)
+        except Exception as exc:                      # noqa: BLE001 — discovery still stands
+            log(f"[th_law_api] could not seed cache for {doc.doc_id}: {type(exc).__name__}")
+        shape = f"{n} articles" if n else "whole text, no article items"
+        log(f"[th_law_api] {score:.3f} {title[:70]} — {shape}")
+        out.append(doc)
     return out
 
 

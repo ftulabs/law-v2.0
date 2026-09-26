@@ -388,7 +388,8 @@ Everything else is retrieval or grading, which is where the budget below bites.
       neither grader is reachable (local server refuses connections, OpenRouter answers 401
       "User not found", revoked), so nothing this phase is scored.
       Per-economy limits disclosed in CLAUDE.md: TL's gazette index stops at 2012; LA's crawl
-      sees ~20 of ~89 pages; TH's provisions are whole-document, not article-level; SG's four
+      sees ~20 of ~89 pages; TH's provisions were whole-document, not article-level
+      (fixed 2026-09-26: the adapter now rebuilds each Act from `law/detail`'s per-มาตรา items, one article per line — PDPA มาตรา 28/41 are their own provisions); SG's four
       sort windows cover current Acts but not 5,843 subsidiary instruments; CN's section
       indexes don't paginate and PIPL misses the search pass's 6-term cap under real query
       ordering; ID reads page 1 of search results only. RU stays unsolved — Phase 3.

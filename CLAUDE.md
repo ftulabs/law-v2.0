@@ -234,8 +234,8 @@ Register new providers in `backend/providers/llm_factory.py`.
   phase** (local server refuses connections, OpenRouter answers 401 "User not found"), so none
   of the six is scored or promoted to `MEASURED`. Each carries a disclosed limit: Timor-Leste's
   gazette index stops at 2012; Laos's crawl walks ~20 of ~89 pages needed for full coverage;
-  Thailand's `content_all` has no newlines, so the line-anchored มาตรา splitter cannot fire and
-  it currently extracts one whole-document provision per Act rather than one per article;
+  Thailand's `content_all` has no newlines and omits original article headings, so it used to
+  extract one whole-document provision per Act (fixed 2026-09-26: the adapter now rebuilds each Act from `law/detail`'s per-มาตรา items, one article per line — PDPA มาตรา 28/41 are their own provisions);
   Singapore's four sort windows cover current Acts but not its 5,843 subsidiary instruments;
   China's section indexes do not paginate (see the CN bullet above for its search-pass limit);
   Indonesia reads page 1 of its portal's own search results only. RU stays unsolved: its document bodies
@@ -456,8 +456,7 @@ The tool is built to be auditable, not hidden:
    the current 6-term cap and query order; MY's primary portal (`lom.agc.gov.my`) served a
    broken robots.txt (HTTP 500) that used to skip its statute PDFs — fixed 2026-08-28 via the
    `UNREACHABLE_OVERRIDE` carve-out in `backend/pipeline/robots.py` (489 → 5,931 provisions);
-   TH's provisions are whole-document, not article-level (`content_all` has no newlines, so the
-   line-anchored มาตรา splitter cannot fire); TL's gazette index stops at 2012; LA's crawl walks
+   TH's provisions used to be whole-document, not article-level (fixed 2026-09-26: the adapter now rebuilds each Act from `law/detail`'s per-มาตรา items, one article per line — PDPA มาตรา 28/41 are their own provisions); TL's gazette index stops at 2012; LA's crawl walks
    ~20 of ~89 pages needed for full coverage; SG's four sort windows cover current Acts but not
    its 5,843 subsidiary instruments; ID reads page 1 of its portal's own search results only.
    RU can fetch document bodies (`pravo.gov.ru`) but cannot yet discover them — its discovery

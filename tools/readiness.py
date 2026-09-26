@@ -96,14 +96,12 @@ RUN_END_TO_END = {
     # extract_provisions` chain: 18,260 chars of real text, 47 article-level provisions (live
     # 2026-09-08, this task). Known limit: `_MAX_PAGES = 20` of ~89 needed for full coverage.
     "LA": EXTRACTED,
-    # Thailand: `th_law_api` pages the REST API behind the SPA (60 pages, no repeated law_id,
-    # task 4) and seeds the fetch cache with the API's own `content_all` field, since the
-    # citable `law.go.th` page is a bare React shell. A live fetch+extract of the Cybersecurity
-    # Act 2019 (0.99 relevance) through the real chain produced 54,521 chars of genuine Thai
-    # statute text (task 4, live 2026-09-08) — that is "provisions produced from the portal".
-    # Known limit: `content_all` has no newlines, so `ARTICLE_PATTERNS[Economy.TH]`'s
-    # line-anchored มาตรา splitter cannot fire; it currently extracts as 1 whole-document
-    # provision (`article_section == "(document)"`) rather than one per มาตรา.
+    # Thailand: `th_law_api` searches law.go.th's REST API (titles + bodies, pillar vocabulary
+    # in Thai) and seeds the fetch cache with each Act rebuilt from `law/detail`'s per-มาตรา
+    # items, one article per line, since the citable page is a bare React shell. Live
+    # 2026-09-26 through the real fetch -> get_document_text -> extract_provisions chain: a
+    # pillar-7 run's 22 documents gave 1,286 provisions, 1,283 of them with a มาตรา citation
+    # (PDPA มาตรา 28 and 41 each their own provision). Not graded, so not MEASURED.
     "TH": EXTRACTED,
 }
 
