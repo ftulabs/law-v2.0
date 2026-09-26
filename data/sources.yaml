@@ -734,26 +734,30 @@ sources:
                                           # none was on a Russian host — see
                                           # backend/pipeline/adapter_russia.py
     verified: true
-    # PRECISE PHRASES ONLY, and that is a measured constraint rather than a style. The IPS list
-    # frame returns the TWENTY OLDEST matches and its URL-driven pagination does not advance
-    # (page=next / 2 / 21 / last all return the same twenty, measured 2026-09-12), so a broad
-    # term spends the whole budget on Soviet-era decrees: "О персональных данных" returns twenty
-    # 1991 USSR Cabinet resolutions, because the stemmer matches "персонального состава" —
-    # personnel composition — as readily as "персональных данных". A narrow statutory phrase
-    # returns a set small enough to fit: "трансграничная передача персональных данных" returns
-    # SIX rows and all six are genuine cross-border-transfer instruments.
+    # TITLE WORDS, NOT FULL-TEXT PHRASES — corrected 2026-09-26. The adapter sends each term as
+    # `a1`, which the portal's own form labels "Наименование" (the instrument's NAME); the text
+    # field is `a0`. The terms that used to sit here were full-text phrases ("хранение
+    # персональных данных на территории", "запрет трансграничной передачи …") that occur in no
+    # instrument's name: three of five pillar-6 terms answered HTTP 204, and 152-ФЗ "О
+    # персональных данных" never reached the 2026-09-25 run. The old note blamed a twenty-OLDEST
+    # list; that order was ours — the URL sent no `sort`. Each term now runs twice (Federal Laws
+    # oldest-first, then every instrument newest-first; see adapter_russia.py), so a topic word
+    # as short as "персональных данных" is safe: measured, the Federal-Law pass returns 152-ФЗ
+    # at rank 6 of 20, "защите информации" 149-ФЗ at 2, "критической информационной
+    # инфраструктуры" 187-ФЗ at 1, "оперативно-розыскной деятельности" 144-ФЗ at 1.
+    # Topic words, not law names: each term returns the topic's whole family of instruments,
+    # and the ranking — not this list — decides which of them is the principal.
     queries_p6:
-      - трансграничная передача персональных данных
-      - запрет трансграничной передачи персональных данных
-      - базы данных на территории Российской Федерации
-      - локализация персональных данных граждан Российской Федерации
-      - хранение персональных данных на территории
+      - персональных данных
+      - трансграничной передачи персональных данных
+      - информационных технологиях
+      - защите информации
     queries_p7:
-      - обработка персональных данных оператором
-      - безопасность критической информационной инфраструктуры
-      - защита информации и информационных технологий
-      - хранение информации о фактах приема передачи сообщений
-      - доступ к персональным данным органов государственной власти
+      - персональных данных
+      - критической информационной инфраструктуры
+      - защите информации
+      - информационных технологиях
+      - оперативно-розыскной деятельности
     reachable: "2026-08-28: HTTP 200, document body 13.8k chars of real statute text, cp1251, ~2s"
     robots_read: "2026-08-28"
     note: >-

@@ -174,6 +174,16 @@ Everything else is retrieval or grading, which is where the budget below bites.
          HTTP and a default browser render both yield zero `nd=` ids. Try the list frame's own
          XHR, or the rubricator browse. Do NOT chase the answer key's URLs: 24 of the panel's
          28 Russian references are commercial mirrors (garant, consultant), one is official.
+       · **2026-09-26 — principal Federal Laws now discovered** (`adapter_russia.py`). The
+         2026-09-25 run's 44 documents held no 152-ФЗ: `a1` is the TITLE field and the terms
+         were text phrases (3/5 answered 204); no `sort=` meant oldest-first; nothing asked
+         for type Федеральный закон; and `rdk=0` is the ORIGINAL text (152-ФЗ without art.
+         18.1 or the art. 18 part 5 localisation rule). Measured after, discovery only (no
+         grader run): P6 = 22 docs with 149-ФЗ and 152-ФЗ ranked 1–2 at their current
+         redaction; P7 = 22 docs with 149-ФЗ, 152-ФЗ, 187-ФЗ, 144-ФЗ in the top 6. 152-ФЗ
+         extracts to 30 article provisions incl. 12, 18 (part 5 verbatim), 18.1, 22.1.
+         Still open: Government resolutions/orders extract as ONE whole-document provision
+         (numbered points, no "Статья"); 126-ФЗ "О связи" (7.3 retention) is not reached.
 3. [x] **Budget re-validated on real output** (2026-08-28), `tools/compare_to_key.py`.
        Live SG/MY/AU, both pillars, exported CSV diffed against the panel's own laws:
 

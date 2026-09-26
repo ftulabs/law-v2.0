@@ -115,17 +115,31 @@ def test_the_adapter_declines_rather_than_guessing_when_no_terms_are_configured(
     assert any("no Russian query terms" in m for m in said), said
 
 
-def test_the_configured_queries_are_russian_and_precise():
-    """Two measured constraints in one assertion. The portal indexes Russian, so an English
-    term matches nothing; and its list frame returns the twenty OLDEST matches with no working
-    pagination, so a broad term spends all twenty on Soviet-era decrees. Both mean the terms in
-    `data/sources.yaml` have to be narrow statutory phrases."""
+def _ru_ips_source() -> dict:
     import yaml
     rows = yaml.safe_load(Path("data/sources.yaml").read_text(encoding="utf-8"))
     rows = rows.get("sources", rows) if isinstance(rows, dict) else rows
-    src = next(s for s in rows if s.get("adapter") == "ru_ips")
+    return next(s for s in rows if s.get("adapter") == "ru_ips")
+
+
+def test_the_configured_queries_are_russian_title_words():
+    """The portal indexes Russian, so an English term matches nothing. And `a1` is the TITLE
+    field: the full-text phrases that used to sit here ("хранение персональных данных на
+    территории") occur in no instrument's name and came back HTTP 204 — three of five
+    pillar-6 terms on 2026-09-26. A term written as a verb phrase or a clause is the tell."""
+    src = _ru_ips_source()
     terms = (src.get("queries_p6") or []) + (src.get("queries_p7") or [])
     assert terms, "the ru_ips source carries no queries, so the lane can do nothing"
     for t in terms:
         assert any("Ѐ" <= ch <= "ӿ" for ch in t), f"{t!r} is not Russian"
-        assert len(t.split()) >= 3, f"{t!r} is too broad for a twenty-row, oldest-first list"
+        assert len(t.split()) <= 5, f"{t!r} reads like a text phrase, not words of a title"
+
+
+def test_both_pillars_search_the_personal_data_topic_by_its_title_words():
+    """The topic word itself, not a paraphrase of a provision. Without it the Federal-Law
+    pass has nothing to find the principal statute with — the 2026-09-25 defect."""
+    src = _ru_ips_source()
+    for p in (6, 7):
+        assert any("персональных данных" in t for t in src.get(f"queries_p{p}") or []), p
+    assert any("критической информационной инфраструктуры" in t
+               for t in src.get("queries_p7") or [])
