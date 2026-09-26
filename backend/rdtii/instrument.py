@@ -49,6 +49,9 @@ _DRAFT = re.compile(
     r"\bbill\b|\bdraft\b|\bexposure\s+draft\b|\bconsultation\s+(?:paper|draft)\b"
     r"|\bproposed\s+(?:act|law|amendment)\b"
     r"|законопроект|草案|征求意见稿|dự\s+thảo|rancangan\s+undang|төсөл"
+    # ms: "public consultation paper" — pdp.gov.my publishes each guideline's consultation
+    # draft beside the final text, in both languages; the English twin already reads DRAFT.
+    r"|kertas\s+konsultasi"
     # ru: "on the DRAFT federal law No. …" — a chamber resolution about a bill, which is what
     # `pravo.gov.ru`'s search returns in bulk when asked about a subject whose principal statute
     # it does not itself index. Without this it read as AMENDING (the bill's own title usually

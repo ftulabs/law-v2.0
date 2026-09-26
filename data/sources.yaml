@@ -113,6 +113,23 @@ sources:
       Communications & Multimedia, Insurance, Utilities…) issued under PDPA by the PDP Department —
       subsidiary/sectoral instruments absent from the AGC principal-acts catalogue. Discovered via
       web search scoped to pdp.gov.my; PDFs only (the /en/akta/ pages are navigation shells).
+      2026-09-26: returns NOTHING — Serper "Not enough credits", DuckDuckGo challenge, Mojeek
+      403. Kept for when an engine is funded; the lane below no longer depends on one.
+
+  - economy: MY
+    name: Personal Data Protection Dept (publication listing)
+    base_url: https://www.pdp.gov.my/ppdpv1   # the WordPress root (its REST index lives here)
+    adapter: wp_regulator                 # backend/pipeline/adapter_wp_regulator.py
+    prefer_language: en                   # the site routes English under /ppdpv1/en/
+    max_docs: 12                          # this lane's best 12 for the pillar; the global cap decides the rest
+    verified: true
+    reachable: "2026-09-26: /wp-json/wp/v2/types HTTP 200; 5 collections, 148 document files (101 named by a publication page)"
+    notes: >
+      The regulator's OWN publication listing — its WordPress `docs` collection (90 items, one
+      per instrument per language) plus media attachments — read through the site's REST API,
+      so the guidelines, codes of practice, standards, circulars and regulations the panel
+      cites are reached without a search engine. Consultation drafts and Acts (the AGC lane
+      owns Acts) are skipped; the rest are ranked by instrument kind and pillar vocabulary.
 
   - economy: MY
     name: Laws of Malaysia (AGC)

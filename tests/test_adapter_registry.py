@@ -11,7 +11,8 @@ from backend.schemas import LIVE_TEST_POOL
 
 # Importing the adapter modules is what runs their portal.register(...) calls.
 from backend.pipeline import (adapter_china, adapter_indonesia, adapter_laos,  # noqa: F401
-                              adapter_singapore, adapter_thailand, adapter_timor)
+                              adapter_russia, adapter_singapore, adapter_thailand,
+                              adapter_timor, adapter_wp_regulator)
 
 
 def _named_adapters():

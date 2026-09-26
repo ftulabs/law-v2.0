@@ -350,6 +350,14 @@ _NUMBERED_RE = re.compile(
     r"|\d+[A-Za-z]{0,2}\.\s+(?=[A-Z])"                           # "26. Foo" bare numbered clause
     r")")
 
+# A guideline heading: "N Title" on its own line (no dot after the number, no sentence end),
+# CONFIRMED by the next line opening paragraph "N.1" — the pair, not the heading alone, is the
+# signal, because a bare "3 months" can start a wrapped line anywhere. A page sentinel may sit
+# between the two. Reached only when the statute patterns found fewer than three boundaries.
+_GUIDE_HEADING_RE = re.compile(
+    r"(?m)^[ \t]*(\d{1,2})[ \t]+[A-Z][^\n]{2,100}$"
+    r"(?=\n(?:[ \t]*\x0c\d+\x0c[ \t]*\n)?[ \t]*\1\.1(?!\d))")
+
 MAX_SNIPPET = 20000  # the template asks for the FULL, exact provision text — quote the
                      # whole section; only a pathological multi-page section is capped here.
 
@@ -487,6 +495,93 @@ def _strip_arrangement_toc(text: str) -> str:
     if not cands:
         return text
     return text[:hdr.start()] + "\n" + text[min(cands):]
+
+
+# ── "Table of Contents" with page numbers (guidelines, codes of practice) ───────────────────
+# A regulator's guideline or code of practice opens with a table of contents whose entries
+# are numbered exactly like the body — "5. Expertise and Qualifications of Data Protection
+# Officer 6", "10. RIGHTS OF DATA SUBJECT 53." — so the bare-number rule made each ENTRY a
+# provision. Measured on the 2026-09-25 Malaysia run: the DPO guideline's "Section 6" was the
+# 67-character TOC line "6. Matters Relating to the Appointment of Data Protection Officer 8",
+# and its last entry "16. Record Keeping 19" ran on through the whole body as one
+# 20,000-character "Section 16"; the water-sector code's "Section 10" was its TOC sub-list.
+# `_strip_arrangement_toc` does not see these: there is no "ARRANGEMENT OF" and no enacting
+# formula. What they do have is the page number that ends every entry, and a body that opens
+# by repeating the first entry as a heading — which is where the real text starts.
+_CONTENTS_HDR_RE = re.compile(
+    r"(?im)^[ \t]*(?:table\s+of\s+contents?|contents|isi\s+kandungan|senarai\s+kandungan|"
+    r"kandungan)[ \t]*$")
+#: An entry: a title with letters, then (optional dot leaders) a page number at line end.
+_TOC_ENTRY_RE = re.compile(
+    r"^[ \t]*(?P<title>\S.*?[A-Za-z][^\n]*?)[ \t]*(?:[.…·_ ]{2,}[ \t]*|[ \t]+)(?P<page>\d{1,4})\.?[ \t]*$")
+#: The first TOC line that must also head the body. Numbered, lettered-part or appendix only:
+#: a bare word ("Introduction") repeats in running text too often to anchor on.
+_TOC_ANCHORABLE_RE = re.compile(r"^(?:\d{1,3}(?:\.\d{1,3})*\.?|part\s+\w+\b|bahagian\s+\w+\b)",
+                                re.I)
+_TOC_MIN_ENTRIES = 3                  # fewer than this is a numbered list, not a TOC
+_TOC_WINDOW = 250                     # lines after the heading the entries must fall within
+
+
+def _toc_norm(s: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", s.lower()).strip()
+
+
+def _strip_contents_toc(text: str) -> str:
+    """Drop a page-numbered table of contents, keeping everything else byte-identical.
+
+    Three conditions, all required, so a statute cannot trip it: (1) a CONTENTS / TABLE OF
+    CONTENTS / ISI KANDUNGAN heading on a line of its own, in the first half of the text;
+    (2) at least three entry lines ending in a page number before the body starts; (3) the
+    first NUMBERED/PART entry reappears within 250 lines as a line WITHOUT a page number —
+    the body's real heading. The cut runs from the heading to that reappearance; anything
+    ambiguous (a numbered line ahead of the first page-numbered one) leaves the text alone.
+    Page sentinels inside the cut are kept so every later page citation still counts from the
+    document's real first page.
+    """
+    hdr = _CONTENTS_HDR_RE.search(text)
+    if not hdr or hdr.start() > len(text) // 2:
+        return text
+    lines = text[hdr.end():].split("\n")
+    offs, pos = [], hdr.end()
+    for ln in lines:
+        offs.append(pos)
+        pos += len(ln) + 1
+    entries = 0
+    want = None                       # the first numbered/PART entry, normalised
+    body = None
+    for i, ln in enumerate(lines[:_TOC_WINDOW]):
+        clean = PAGE_MARK_RE.sub("", ln.replace(HEADING_MARK, "")).strip()
+        if not clean:
+            continue
+        m = _TOC_ENTRY_RE.match(clean)
+        is_entry = bool(m and len(clean) <= 150
+                        and not re.search(r"[;:,]\s*\d{1,4}\.?$", clean))
+        if want is None:
+            if is_entry and _TOC_ANCHORABLE_RE.match(m.group("title")):
+                want = _toc_norm(m.group("title"))
+                entries += 1
+            elif _TOC_ANCHORABLE_RE.match(clean) and not is_entry:
+                # A numbered line before the first page-numbered one: an entry whose page
+                # number wrapped onto the next line. Anchoring on the entry AFTER it would cut
+                # the body's first section away with the TOC, so leave the text alone.
+                return text
+            elif is_entry:
+                entries += 1
+            continue
+        if is_entry:
+            entries += 1
+            continue
+        # The body opens by repeating the first entry as a heading, without its page number.
+        # A prefix match, because the heading may carry a gloss the entry dropped
+        # ('1. PURPOSE AND SCOPE OF THIS CODE OF PRACTICE ("Code")').
+        if _toc_norm(clean).startswith(want):
+            body = i
+            break
+    if body is None or entries < _TOC_MIN_ENTRIES:
+        return text
+    cut_start, cut_end = hdr.start(), offs[body]
+    kept_marks = "".join(m.group(0) for m in PAGE_MARK_RE.finditer(text, cut_start, cut_end))
+    return text[:cut_start] + kept_marks + "\n" + text[cut_end:]
 
 
 def _strip_running_headers(text: str, min_repeats: int = 4, max_len: int = 80) -> str:
@@ -963,6 +1058,15 @@ def _boundaries(text: str, economy=None) -> list[tuple]:
         # Schedule/Part dividers and loses all 300+ numbered sections (s82 'Duty to keep records'
         # etc.). So SG/MY ALWAYS use the numbered path, ignoring marks.
         out = [(m.start(), m.end(), m.group(1), False) for m in _NUMBERED_RE.finditer(text)]
+        if len(out) < 3:
+            # A regulator's GUIDELINE numbers its headings without a dot ("4 Conditions for
+            # the Appointment of Data Protection Officer") and its paragraphs "4.1", "4.2" —
+            # neither is a statute's "4. (1)" margin form, so once its table of contents is
+            # gone it has no boundary at all and reaches the grader as unlabelled passages.
+            guide = [(m.start(), m.end(), m.group(1), False)
+                     for m in _GUIDE_HEADING_RE.finditer(text)]
+            if len(guide) >= 3:
+                out = guide
         if len(out) < 3:                       # sparse → a keyword-style doc; use the full regex
             out = [(m.start(), m.end(), m.group(2) or m.group(1), bool(m.group(1)))
                    for m in SECTION_RE.finditer(text)]
@@ -1088,6 +1192,7 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
         # itself relies on the leading \x1e to spot bold footers.
         text = text.replace(HEADING_MARK, "")
     text = _strip_arrangement_toc(text)                 # drop the table-of-contents block
+    text = _strip_contents_toc(text)                    # …and a page-numbered "CONTENTS" one
     if doc.economy == Economy.AU:
         # AU's "Contents" lists "Schedule 1/2…" BEFORE the body; those entries would set the
         # schedule context early and mis-scope every main section ("Schedule 2, Section 13D").

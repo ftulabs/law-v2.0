@@ -193,6 +193,10 @@ class DiscoveredDoc(BaseModel):
     # Data Protection Act, 2023" and nothing else. Left None, extraction derives the name from
     # the title as before.
     law_name: Optional[str] = None
+    # ISO date the portal says this document's TEXT is current to — a reprint's "As At" date,
+    # an amending Act's commencement. Distinct from `amendment_date` (the Last Amended column):
+    # it is used only to decide whether an amendment is already inside a reprint (MY).
+    text_current_to: Optional[str] = None
     local_path: Optional[str] = None            # cached file
     raw_text: Optional[str] = None              # filled by extraction
 

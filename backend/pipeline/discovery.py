@@ -587,20 +587,45 @@ def _collapse_my_amendments(docs: list[DiscoveredDoc]) -> list[DiscoveredDoc]:
     with no principal to amend is just noise). Kept amendments are ranked BELOW the sectoral
     Codes of Practice (relevance floor 0.6) so they fill the budget tail and never crowd out the
     principals or codes the judges cite — the principal already carries the consolidated text;
-    the amendment only adds provisions enacted AFTER the reprint date (e.g. PDPA A1727 2024)."""
+    the amendment only adds provisions enacted AFTER the reprint date (e.g. PDPA A1727 2024).
+
+    When both dates are known (`text_current_to`: the principal's "As At" reprint date, the
+    amendment's commencement) the guess is replaced by the answer: every amendment in force
+    after the reprint is kept as a COMPANION of its principal (see `_cap_with_my_companions`),
+    and every one in force before it is dropped as already consolidated. The newest-only tail
+    rule above is now only the fallback for an undated record."""
     amend = [d for d in docs if _AMEND_RE.search(d.title or "")]
     if not amend:
         return docs
     rest = [d for d in docs if not _AMEND_RE.search(d.title or "")]
-    principal_families = {_law_key(d.title) for d in rest}
+    principals: dict[str, DiscoveredDoc] = {}
+    for d in rest:
+        principals.setdefault(_law_key(d.title), d)
     newest: dict[str, DiscoveredDoc] = {}
+    companions: list[DiscoveredDoc] = []
     for d in amend:
         fam = _law_key(d.title)
-        if fam not in principal_families:
+        p = principals.get(fam)
+        if p is None:
             continue                                   # orphan amendment, no principal → drop
-        cur = newest.get(fam)
+        verdict = _my_amendment_is_newer(d, p)
+        if verdict is True:
+            # NOT IN THE REPRINT. The principal's text is current to its "As At" date and this
+            # amendment commenced after it, so what it inserts exists nowhere else in the
+            # corpus. Measured 2026-09-26: PDPA Act 709 is "As At 01-07-2023" and A1727
+            # commenced 24-12-2024 — it inserts s.12A (the DPO duty, RDTII 7.4) and replaces
+            # s.129 (cross-border transfer, 6.4). Ranked level with its principal and fetched
+            # beside it (`_cap_with_my_companions`), never in the tail where a longer run cuts it.
+            d.relevance_score = p.relevance_score
+            companions.append(d)
+            continue
+        if verdict is False:
+            continue                                   # already consolidated into the reprint
+        cur = newest.get(fam)                          # undated: the old tail heuristic
         if cur is None or _latest_year(d.title) > _latest_year(cur.title):
             newest[fam] = d
+    for fam in {_law_key(d.title) for d in companions}:
+        newest.pop(fam, None)                          # a dated companion supersedes the guess
     # Rank amendments BELOW the COP floor (0.6) so codes/principals are never crowded, but within
     # that tail prioritise the amendment of a DATA/PRIVACY law (both RDTII pillars are about data):
     # its title carries the pillars' concept vocabulary, so a data-protection amendment (A1727)
@@ -609,7 +634,62 @@ def _collapse_my_amendments(docs: list[DiscoveredDoc]) -> list[DiscoveredDoc]:
     for d in newest.values():
         grounded = confidence.topical_grounded(d.title, 6) or confidence.topical_grounded(d.title, 7)
         d.relevance_score = 0.58 if grounded else 0.55
-    return rest + list(newest.values())
+    return rest + companions + list(newest.values())
+
+
+_ISO_RE = re.compile(r"^(?:19|20)\d{2}-\d{2}-\d{2}$")
+
+
+def _my_amendment_is_newer(amendment: DiscoveredDoc, principal: DiscoveredDoc) -> bool | None:
+    """Did `amendment` take effect AFTER the date `principal`'s reprint is current to?
+
+    True/False when both dates are known to the day; None when either is missing or only a
+    year, because "2024" against "2023-07-01" is decidable but "2023" against "2023-07-01" is
+    not, and guessing wrong in either direction costs a law: False drops the only copy of
+    the amended text, True spends a slot on text the reprint already carries."""
+    a, p = amendment.text_current_to or "", principal.text_current_to or ""
+    if _ISO_RE.match(a) and _ISO_RE.match(p):
+        return a > p
+    return None
+
+
+def _my_companions(pool: list[DiscoveredDoc]) -> dict[str, DiscoveredDoc]:
+    """doc_id of every post-reprint amendment in `pool` → the principal it completes."""
+    principal_of: dict[str, DiscoveredDoc] = {}
+    for d in pool:
+        if not _AMEND_RE.search(d.title or ""):
+            principal_of.setdefault(_law_key(d.title), d)
+    out: dict[str, DiscoveredDoc] = {}
+    for d in pool:
+        p = principal_of.get(_law_key(d.title))
+        if _AMEND_RE.search(d.title or "") and p is not None and _my_amendment_is_newer(d, p) is True:
+            out[d.doc_id] = p
+    return out
+
+
+def _cap_with_my_companions(docs: list[DiscoveredDoc], max_docs: int, section_unit: bool,
+                            log=safe_log) -> list[DiscoveredDoc]:
+    """MY: the shortlist cap, with each unconsolidated amendment travelling WITH its principal.
+
+    The cap counts documents, and an amendment newer than its principal's reprint is not a
+    separate law competing for a slot — it is the missing part of one already admitted.
+    Letting it compete cost the regulator's guidance its place: measured 2026-09-26 on a
+    pillar-7 run, four post-reprint amendments ranked level with their principals took four
+    of the 22 slots and pushed the DPO and Data Breach Notification guidelines out. So the cap
+    is taken over everything else, and then every kept principal brings its post-reprint
+    amendments; an amendment whose principal was cut goes with it (read alone it is a list of
+    edits to a text the corpus does not hold). The overshoot is bounded by the number of kept
+    principals that have one — 3 on pillar 6 and 4 on pillar 7 in that run."""
+    comp = _my_companions(docs)
+    kept = _cap([d for d in docs if d.doc_id not in comp], max_docs, section_unit)
+    kept_ids = {d.doc_id for d in kept}
+    for d in docs:
+        p = comp.get(d.doc_id)
+        if p is not None and p.doc_id in kept_ids:
+            kept.append(d)
+            log(f"[discovery] MY: {d.title} (in force {d.text_current_to}) post-dates the "
+                f"{p.text_current_to} reprint of {p.title} — fetched with it")
+    return kept
 
 
 # ─────────────────────────── sample mode ───────────────────────────
@@ -1008,14 +1088,97 @@ def _my_extract_names(html_field: str) -> tuple[str, str]:
         m = _MY_ANCHOR_TEXT_RE.search(html_field)
         english = (m.group(1) if m else full[:90])
         english = re.split(r"\bAs At\b|\bSebagaimana\b", english, 1)[0].strip().lstrip("*").strip()
-    return english, full
+    # Anchor text can wrap ("COMMUNICATIONS AND MULTIMEDIA\n(AMENDMENT) ACT 2025" in the
+    # amendment catalogue) and the newline would reach the Law Name column.
+    return re.sub(r"\s+", " ", english).strip(), full
+
+
+_MY_TOKEN_RE = re.compile(r'processFile\.php\?(?:[^"]*?&)?token=([A-Za-z0-9+/=%_-]+)', re.I)
+
+
+def _my_token_urls(dl_field: str) -> list[str]:
+    """The file URLs behind `processFile.php?token=…` download links.
+
+    The token is base64("<absolute file URL>|<64-hex signature>") — the portal's own
+    click-through wrapper, not a credential: the URL inside is the same public PDF the
+    principal catalogue links to directly. Decoded rather than followed, because the wrapper
+    exists to log the click and the direct path is what the rest of the pipeline keys on."""
+    import base64
+    from urllib.parse import unquote
+    out: list[str] = []
+    for tok in _MY_TOKEN_RE.findall(dl_field or ""):
+        raw = unquote(tok)
+        try:
+            plain = base64.b64decode(raw + "=" * (-len(raw) % 4)).decode("utf-8", "ignore")
+        except Exception:  # noqa: BLE001 — a malformed token is just not a link
+            continue
+        url = plain.split("|", 1)[0].strip()
+        if url.lower().startswith("http") and url.lower().split("?")[0].endswith(".pdf"):
+            out.append(url)
+    return out
 
 
 def _my_pdf_url(dl_field: str) -> str | None:
-    """Absolute English PDF URL from a record's download HTML (prefers the _BI English link)."""
+    """Absolute English PDF URL from a record's download HTML (prefers the _BI English link).
+
+    Two link shapes are in use on the same portal. The principal ("updated") catalogue links
+    the PDF directly; the AMENDMENT catalogue only ever links `processFile.php?token=…`. The
+    href-only parser that preceded this matched no `.pdf` in the second shape and dropped all
+    410 amendment Acts on the floor, so `json-amendment-2024.php` loaded as "0 acts" on every
+    run (measured 2026-09-26) — and the PDPA (Amendment) Act 2024, A1727, which inserts the
+    DPO duty in s.12A and replaces the s.129 transfer rule, never reached the corpus."""
     from urllib.parse import urljoin
     m = _MY_PDF_BI_RE.search(dl_field or "") or _MY_PDF_ANY_RE.search(dl_field or "")
-    return urljoin(_MY_PORTAL, m.group(1).replace("../../../", "")) if m else None
+    if m:
+        return urljoin(_MY_PORTAL, m.group(1).replace("../../../", ""))
+    tokens = _my_token_urls(dl_field)
+    english = [u for u in tokens if re.search(r"_BI/", u, re.I)]
+    return (english or tokens or [None])[0]
+
+
+def _my_record_pdf(rec: dict) -> str | None:
+    """The English PDF for one catalogue record, whichever record shape it arrives in.
+
+    English first across BOTH fields before settling for Malay: an amendment record carries
+    `DOC2DOWNLOADBI` (English, token link) and `URLDOCBM` (Malay, plain path) but no
+    `URLDOCBI`, so taking the first plain path found would pick the Malay text."""
+    from urllib.parse import urljoin
+    for field in ("doc2download", "DOC2DOWNLOADBI"):
+        url = _my_pdf_url(rec.get(field) or "")
+        if url:
+            return url
+    raw = str(rec.get("URLDOCBI") or "").strip()
+    if raw.lower().endswith(".pdf"):
+        return urljoin(_MY_PORTAL, raw.lstrip("/"))
+    url = _my_pdf_url(rec.get("DOC2DOWNLOADBM") or "")
+    if url:
+        return url
+    raw = str(rec.get("URLDOCBM") or "").strip()
+    return urljoin(_MY_PORTAL, raw.lstrip("/")) if raw.lower().endswith(".pdf") else None
+
+
+_MY_AS_AT_RE = re.compile(r"\bAs At\s*(\d{1,2})[-/.](\d{1,2})[-/.]((?:19|20)\d{2})", re.I)
+_MY_DMY_RE = re.compile(r"\b(\d{1,2})/(\d{1,2})/((?:19|20)\d{2})\b")
+
+
+def _my_record_date(rec: dict, full: str) -> str | None:
+    """ISO date a record's TEXT is current to.
+
+    Principal ("updated") records state their reprint currency in the title — "PERSONAL DATA
+    PROTECTION ACT 2010 As At 01-07-2023" — and nothing an amendment gazetted after that date
+    can be inside that reprint. Amendment records carry a commencement remark
+    ("24/12/2024 [P.U. (B) 522/2024]") and a gazette PUBLICATIONDATE; the commencement is the
+    date the amendment became law, the publication date the fallback."""
+    m = _MY_AS_AT_RE.search(full or "")
+    if m:
+        d, mo, y = m.groups()
+        return f"{y}-{int(mo):02d}-{int(d):02d}"
+    for field in ("COMMENCEMENTREMARKBI", "COMMENCEMENTDATEBI", "PUBLICATIONDATE"):
+        m = _MY_DMY_RE.search(str(rec.get(field) or ""))
+        if m:
+            d, mo, y = m.groups()
+            return f"{y}-{int(mo):02d}-{int(d):02d}"
+    return None
 
 
 # lom.agc.gov.my's act-detail page server-renders its own Timeline widget as plain
@@ -1075,14 +1238,26 @@ def _load_my_catalogue(client, src: dict, log) -> list[tuple[str, str, str]]:
     except Exception as e:  # noqa: BLE001
         log(f"[discover] MY catalogue fetch failed ({type(e).__name__})")
         records = []
+    not_in_force = 0
     for rec in records:
         name, full = _my_extract_names(rec.get("title") or rec.get("LEGISLATIONTITLEBI") or "")
-        pdf = _my_pdf_url(rec.get("doc2download") or rec.get("DOC2DOWNLOADBI") or "")
+        pdf = _my_record_pdf(rec)
         act_no = str(rec.get("lgt_act_no") or rec.get("ACTNO_LEGISLATION") or "").strip()
+        if re.search(r"not yet in force", str(rec.get("COMMENCEMENTREMARKBI") or ""), re.I):
+            # Assented and gazetted but not commenced: not yet law, so not evidence of it.
+            not_in_force += 1
+            continue
         if name and pdf:
-            out.append((act_no, name, full, pdf))
+            out.append((act_no, name, full, pdf, _my_record_date(rec, full)))
     _my_catalogue_cache[url] = out
-    log(f"[discover] MY catalogue loaded: {len(out)} acts ({url.rsplit('/', 1)[-1]})")
+    # Say how many records were READ as well as kept. "0 acts" from a 410-record response is
+    # a parser failure, and it looked exactly like an empty catalogue for a month.
+    log(f"[discover] MY catalogue loaded: {len(out)} acts of {len(records)} records"
+        + (f", {not_in_force} not yet in force" if not_in_force else "")
+        + f" ({url.rsplit('/', 1)[-1]})")
+    if records and not out:
+        log(f"[discover] MY catalogue {url.rsplit('/', 1)[-1]}: every record lacked a name or "
+            f"a PDF link — the portal's record shape has changed")
     return out
 
 
@@ -1092,7 +1267,9 @@ def _search_my_catalogue(client, src: dict, query: str, economy: Economy, indica
     recs = _load_my_catalogue(client, src, log)
     ql = query.lower()
     out: list[DiscoveredDoc] = []
-    for act_no, name, full, pdf in recs:
+    for rec in recs:
+        act_no, name, full, pdf = rec[:4]
+        current_to = rec[4] if len(rec) > 4 else None
         hay = full.lower()
         # An amendment title interleaves "(Amendment)"/"(Pindaan)" between the subject and "Act"
         # ("Personal Data Protection (Amendment) Act 2024"), so a name fragment like "personal
@@ -1105,7 +1282,9 @@ def _search_my_catalogue(client, src: dict, query: str, economy: Economy, indica
                 doc_id=_doc_id(economy.value, pdf), economy=economy, title=name[:200],
                 source_url=pdf, portal=src.get("name", "Laws of Malaysia"), fmt=DocFormat.PDF_TEXT,
                 law_number=(act_no or None), relevance_score=1.0, discovery_tag=DiscoveryTag.NEW,
-                amendment_date=(str(yr) if yr else None)))   # year-only — never fabricate a month
+                amendment_date=(str(yr) if yr else None),   # year-only — never fabricate a month
+                # what `_collapse_my_amendments` compares to spot a post-reprint amendment
+                text_current_to=current_to))
     return out
 
 
@@ -1485,7 +1664,7 @@ def discover_live(economy: Economy, pillar: int | None = None,
             # adapter_india's and adapter_mongolia's lazy imports already are.
             from . import (adapter_china, adapter_indonesia, adapter_laos,  # noqa: F401
                             adapter_russia, adapter_singapore, adapter_thailand,
-                            adapter_timor)
+                            adapter_timor, adapter_wp_regulator)
             for src in api_sources:
                 log(f"[discovery] portal lane: {src.get('name', '?')} "
                     f"(adapter {src.get('adapter')})")
@@ -1584,7 +1763,10 @@ def discover_live(economy: Economy, pillar: int | None = None,
         docs = _collapse_my_amendments(docs)
     docs = _drop_unscoreable(docs, log)
     docs.sort(key=lambda d: d.relevance_score, reverse=True)
-    kept = _cap(docs, max_docs, section_unit)
+    if economy.value == "MY":
+        kept = _cap_with_my_companions(docs, max_docs, section_unit, log=log)
+    else:
+        kept = _cap(docs, max_docs, section_unit)
     # Enrich with the portal's own authoritative "last amended" date — only for the final,
     # already-bounded shortlist, so this is at most max_docs extra API/page fetches, never one
     # per raw candidate. AU: the OData /v1/documents feed's compilation start date (matches the
