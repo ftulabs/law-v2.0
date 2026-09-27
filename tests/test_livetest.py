@@ -223,3 +223,18 @@ def test_the_run_record_carries_the_task_as_read_out(state):
     """Section 1 of the note asks for the steward's words, and the run record heads with them."""
     _run("A", state)
     assert "India, pillar 6" in livetest.run_record(state)
+
+
+def test_the_declared_pair_is_one_open_weight_and_one_closed_model():
+    from backend.config import settings
+    assert settings.declared_engine_a_model == "deepseek/deepseek-v4-flash"
+    assert settings.declared_engine_b_model == "google/gemini-3.7-flash"
+
+
+def test_an_engine_key_stays_out_of_the_state_that_is_exported(monkeypatch):
+    import streamlit as st
+    monkeypatch.setattr(st, "session_state", {"lt_key_B_openrouter": "  sk-or-typed  "})
+    assert livetest.engine_key("B", "openrouter") == "sk-or-typed"
+    assert livetest.engine_key("A", "openrouter") is None
+    state = livetest.new_state()
+    assert all("key" not in e for e in state["engines"].values())

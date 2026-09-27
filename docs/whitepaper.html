@@ -330,8 +330,9 @@
       <div class="metarow">
         <span class="chip"><b>Version</b> 2.0</span>
         <span class="chip"><b>Team</b> FTU</span>
-        <span class="chip"><b>Scope</b> Round 1 · SG · AU · MY</span>
+        <span class="chip"><b>Scope</b> Finals · 11 economies · 9 run live end-to-end</span>
         <span class="chip"><b>License</b> Apache-2.0</span>
+        <span class="chip"><b>Updated</b> 2026-09-27</span>
       </div>
       <div class="cta">
         <a class="btn primary" href="#architecture">▶ See it run</a>
@@ -344,7 +345,8 @@
       <div class="stat"><div class="n a" data-to="2">0</div><div class="k">automated tasks: discover + extract, then map</div></div>
       <div class="stat"><div class="n" data-to="9">0</div><div class="k">mandatory RDTII indicators (P6·I1–4, P7·I1–5)</div></div>
       <div class="stat"><div class="n g" data-to="1.11" data-dec="2" data-suffix="%">0</div><div class="k">measured OCR error rate (bar &lt; 5%)</div></div>
-      <div class="stat"><div class="n" data-prefix="~$" data-to="0.07" data-dec="2">0</div><div class="k">LLM cost / economy · $0 open-weight</div></div>
+      <div class="stat"><div class="n" data-to="9">0</div><div class="k">of 11 economies run live end-to-end, zero seed URLs</div></div>
+      <div class="stat"><div class="n" data-prefix="$" data-to="1.68" data-dec="2">0</div><div class="k">LLM cost of one live run of 8 economies, both pillars</div></div>
       <div class="stat"><div class="n" data-to="100" data-suffix="%">0</div><div class="k">verbatim citations (copied, never generated)</div></div>
     </div>
 
@@ -360,8 +362,12 @@
       <strong>regulatory pillar</strong>, it autonomously discovers relevant primary legislation on official portals
       (no seed URLs, no hardcoded law names), extracts article-level text from HTML, text PDFs and scanned PDFs, and maps
       each provision to the exact RDTII indicator using sibling-aware LLM legal reasoning — attaching a 100%-verbatim
-      snippet, an article-level citation, a source URL, a four-signal confidence score, and a full audit trail. It runs on
-      a CPU, at ~$0.07 per economy (or $0 on an open-weight stack), and every claim it makes is built to be reproduced and checked.</p>
+      snippet, an article-level citation, a source URL, a four-signal confidence score, and a full audit trail. Every
+      accepted row is then re-read by a second, stronger model that must <em>quote</em> the statute for each element of
+      the legal test; quotes the code cannot find in the statute text do not count. Every economy has its own
+      portal-native discovery adapter; nine of the eleven economies in the finals pool run live end-to-end on both pillars. It
+      runs on a CPU, with an open-weight grader: one live run of eight economies on both pillars cost US$1.68 in LLM
+      calls (2026-09-26), and every claim it makes is built to be reproduced and checked.</p>
       <p class="soft">This paper is an <b>audit surface</b>: the interactive figures reproduce the production code exactly —
       <a href="#architecture">watch the pipeline run</a>, <a href="#confidence">drive the confidence formula</a>, and
       <a href="#cost">the cost model</a> — so you can check the claims, not just read them.</p>
@@ -389,7 +395,7 @@
             <div class="vmetric"><div class="vk"><span>Time per economy (both pillars)</span><b>minutes</b></div><div class="vbar"><i class="fast" style="width:12%"></i></div></div>
             <div class="vmetric"><div class="vk"><span>Reproducibility</span><b>exact (3-tier cache)</b></div><div class="vbar"><i class="fast" style="width:100%"></i></div></div>
             <div class="vmetric"><div class="vk"><span>Auditability of each row</span><b>snippet + URL + score + JSON</b></div><div class="vbar"><i class="fast" style="width:100%"></i></div></div>
-            <div class="vmetric"><div class="vk"><span>Marginal cost</span><b>~$0.07 · $0 open-weight</b></div><div class="vbar"><i class="fast" style="width:7%"></i></div></div>
+            <div class="vmetric"><div class="vk"><span>Marginal cost</span><b>≈$0.21 in LLM calls (8 economies: $1.68)</b></div><div class="vbar"><i class="fast" style="width:7%"></i></div></div>
           </div>
         </div>
         <p class="figcap">Repeat runs are free and instant (cached); a chosen run replays identically for judging.</p>
@@ -405,8 +411,8 @@
         <li><b>Discover</b> — locate relevant primary legislation on official portals, live, with no seed URLs and no hardcoded law names.</li>
         <li><b>Extract</b> — parse article-level text from HTML, text PDFs and scanned PDFs (real OCR, measured CER &lt; 5%).</li>
         <li><b>Map</b> — assign each provision to the correct indicator using LLM reasoning that sees every sibling indicator.</li>
-        <li><b>Verify &amp; cite</b> — 100%-verbatim snippet, article-level citation, source URL, and a confidence score; low-confidence rows go to human review.</li>
-        <li><b>Deliver</b> — the exact official 13-column CSV plus a machine-auditable JSON.</li>
+        <li><b>Verify &amp; cite</b> — 100%-verbatim snippet, article-level citation, source URL, and a confidence score; every accepted row passes a second-pass quote check; low-confidence rows go to human review.</li>
+        <li><b>Deliver</b> — the 14-column submission CSV (the 13 Round-1 template columns plus <em>Language of Source</em>), two working-translation columns for non-English sources that never replace the verbatim snippet, and a machine-auditable JSON.</li>
       </ol>
       <div class="lead"><b>Design principles.</b> Auditable over opaque · reproducible over one-off · swappable components (LLM / OCR) over lock-in · precision with an explicit human-review safety net.</div>
     </section>
@@ -426,14 +432,15 @@
           </div>
           <div class="pipe">
             <div class="zone z1"><div class="zh">Zone 1 · Discovery &amp; Fetch</div><div class="zb">
-              <div class="node" id="n-discover"><div class="nt"><span class="dot"></span>Discover — no seed URLs</div><ul><li>SG web search · AU OData + full-text · MY catalogue</li></ul></div>
-              <div class="node" id="n-fetch"><div class="nt"><span class="dot"></span>Fetch — bot-resistant</div><ul><li>Scrapling real-browser TLS · 3-tier cache</li></ul></div>
+              <div class="node" id="n-discover"><div class="nt"><span class="dot"></span>Discover — no seed URLs</div><ul><li>one portal-native adapter per economy · SG index · AU OData · MY catalogue · …</li></ul></div>
+              <div class="node" id="n-fetch"><div class="nt"><span class="dot"></span>Fetch — bot-resistant</div><ul><li>TLS-impersonating fetch · stealth browser for JS challenges · robots.txt respected · 3-tier cache</li></ul></div>
             </div></div>
             <div class="flowarrow">▼</div>
             <div class="zone z2"><div class="zh">Zone 2 · Extract → Retrieve → Map</div><div class="zb">
               <div class="node" id="n-ocr"><div class="nt"><span class="dot"></span>Extract / OCR</div><ul><li>MarkItDown · RapidOCR (measured CER) · verbatim chunks</li></ul></div>
               <div class="node" id="n-retrieve"><div class="nt"><span class="dot"></span>Retrieve — hybrid RAG</div><ul><li>BM25 + multilingual dense + rerank · grade-all</li></ul></div>
-              <div class="node" id="n-map" style="grid-column:1/-1"><div class="nt"><span class="dot"></span>Map — sibling-aware LLM reasoning</div><ul><li>one (provision × indicator) pair at a time · 4-signal confidence</li></ul></div>
+              <div class="node" id="n-map"><div class="nt"><span class="dot"></span>Map — sibling-aware LLM reasoning</div><ul><li>one (provision × indicator) pair at a time · 4-signal confidence</li></ul></div>
+              <div class="node" id="n-verify"><div class="nt"><span class="dot"></span>Verify — second-pass quote check</div><ul><li>a stronger model quotes each element of the legal test · every quote checked against the statute</li></ul></div>
             </div></div>
             <div class="flowarrow">▼</div>
             <div class="route">
@@ -456,13 +463,22 @@
       "computer crimes act") and <b>obligation phrases</b> ("data must be stored in", "consent before transfer").
       Obligation phrases fire only at portals with working full-text search; at a title-only API they can never
       match, so the query budget is spent where it can return a law. The entry strategy is then chosen per portal —
-      because the Round-1 portals are genuinely different machines:</p>
+      because the portals are genuinely different machines. Nothing depends on a web-search engine any more: by September 2026
+      every engine we tried answered HTTP 403 or had its free quota spent, so <b>every economy now has its own
+      portal-native adapter</b> that reads the official portal's own index, API or catalogue:</p>
       <div class="tbl-wrap"><table>
         <thead><tr><th>Economy</th><th>Portal</th><th>Discovery strategy</th><th>Why this strategy</th></tr></thead>
         <tbody>
-          <tr><td><b>Singapore</b></td><td><code>sso.agc.gov.sg</code></td><td><b>Full-text</b> portal-scoped web search (Serper → keyless fallback); both query lanes fire.</td><td>The search engine has indexed the law <em>bodies</em>, so obligation phrases match operative clauses directly.</td></tr>
+          <tr><td><b>Singapore</b></td><td><code>sso.agc.gov.sg</code></td><td><b>Browse index</b>, enumerated as the union of four sort windows (title and number, ascending and descending).</td><td>The portal ignores its own page parameter, but honours the sort order — so the union of the windows recovers the whole list of current Acts.</td></tr>
           <tr><td><b>Australia</b></td><td><code>legislation.gov.au</code></td><td><b>Title-only</b> official OData API (<code>contains(name,…)</code> + <code>isInForce</code> filter), plus a full-text content lane; every content hit is re-verified in-force by register title-id.</td><td>The API's <code>$search</code> full-text is <em>broken</em> (verified live) — bills, repealed acts and point-in-time compilations must be dropped explicitly.</td></tr>
           <tr><td><b>Malaysia</b></td><td><code>lom.agc.gov.my</code></td><td><b>Catalogue</b>: the DataTables JSON behind the portal's own acts grid (~880 in-force acts, bilingual titles — English identified by its "As At" currency marker), plus sectoral Codes of Practice from <code>pdp.gov.my</code>.</td><td>Google barely indexes the portal (a <code>site:</code> query returns the homepage) — web search has nothing to find, so we read the portal's own data source.</td></tr>
+          <tr><td><b>China</b></td><td><code>cac.gov.cn</code> · NPC and ministry mirrors</td><td>The regulator's own server-rendered policy pages, plus its full-text search by name.</td><td>The national law database serves a JavaScript shell with no static text; the regulator's pages are plain HTML.</td></tr>
+          <tr><td><b>India</b></td><td><code>indiacode.gov.in</code></td><td>The portal's own DSpace REST API, which ships each <em>section</em> as a separate item with an in-force flag.</td><td>The site's HTML front end answers 502; its API is up, and its unit is the article-level citation the submission needs.</td></tr>
+          <tr><td><b>Mongolia</b></td><td><code>legalinfo.mn</code></td><td>Sitemap enumeration; the full instrument is read through the portal's own Word export.</td><td>The detail page injects the law body client-side — its visible Cyrillic text is navigation, not law.</td></tr>
+          <tr><td><b>Thailand</b></td><td><code>law.go.th</code></td><td>The portal's own JSON REST API; each Act is rebuilt from its per-มาตรา (section) items.</td><td>The site is a single-page app backed by a plain API — no PDF and no OCR needed.</td></tr>
+          <tr><td><b>Russian Federation</b></td><td><code>pravo.gov.ru</code></td><td>The official legal-information system's search, read through its own server-rendered list frame.</td><td>The result rows sit one frame deeper than they appear; they are plain HTML, not injected by script.</td></tr>
+          <tr><td><b>Indonesia</b></td><td><code>peraturan.bpk.go.id</code></td><td>The portal's own search results, read through the stealth browser.</td><td>Every page sits behind a Cloudflare JavaScript challenge; robots.txt still permits the paths.</td></tr>
+          <tr><td><b>Lao PDR · Timor-Leste</b></td><td>official gazettes</td><td>Gazette index crawl.</td><td>Reach real, extracted provisions; not yet run end-to-end (see <a href="#limitations">§15</a>).</td></tr>
         </tbody>
       </table></div>
       <div class="lead"><b>Why content-based discovery matters.</b> A title match finds the <em>Privacy Act</em>; it never finds
@@ -481,8 +497,9 @@
       <h3>Fetching — beating the WAF, and the SPA trap</h3>
       <p>Modern WAFs fingerprint the <b>TLS/JA3 handshake</b> itself: a plain Python client is refused before it sends a single
       header. Tier 1 impersonates a real Chrome handshake (curl_cffi — no browser needed); tier 2 escalates to a stealth
-      browser (Camoufox) that executes JS and clears challenge pages; httpx remains the fallback for portals that only check
-      the User-Agent. And because Australia's site is an Angular single-page app, a naive crawler "succeeds" and extracts
+      browser (Camoufox) that executes JS and clears challenge pages — it runs Indonesia's Cloudflare JavaScript challenge the
+      way a visitor's browser does; httpx remains the fallback for portals that only check the User-Agent. robots.txt is
+      respected throughout. And because Australia's site is an Angular single-page app, a naive crawler "succeeds" and extracts
       navigation menus as law text — VeriTrade detects the unrendered <b>JS app shell</b> (framework marker + no legal
       structure in the text) and resolves the real authorised-compilation PDF via the OData documents feed instead.
       Result on AU: <b>0 garbage provisions</b>.</p>
@@ -511,7 +528,7 @@
         </div>
       </div>
       <h3>Chunking — per-country profiles, because drafting conventions differ</h3>
-      <p>One shared regex cannot split three countries' statutes correctly, so extraction runs a <b>profile per drafting
+      <p>One shared regex cannot split eleven economies' statutes correctly, so extraction runs a <b>profile per drafting
       convention</b>:</p>
       <ul>
         <li><b>Singapore / Malaysia</b> — sections are numbered at the margin ("11.—(1)", "20.&nbsp;(1)"); the keyword forms
@@ -520,6 +537,13 @@
         <li><b>Australia</b> — headings carry no keyword and no period at all ("77&nbsp;Requirement…"), invisible to any text
         regex. They <em>are</em> typeset bold, so the extractor reads the PDF's per-glyph font data: a number-led line with
         ≥60% bold glyphs is marked as a heading and becomes a split point.</li>
+        <li><b>Thailand</b> — each section (มาตรา) becomes its own provision, and the numbered clauses (ข้อ) of a
+        notification are split the same way.</li>
+        <li><b>Russian Federation</b> — articles (статья) and their numbered points (пункт).</li>
+        <li><b>Indonesia</b> — each article (Pasal) ends where the official elucidation (Penjelasan) begins, so the
+        elucidation is not quoted as law; annexes (Lampiran) become their own entries instead of being swallowed by the last article.</li>
+        <li><b>Schedules and long provisions</b> — a schedule is cited as "First Schedule, paragraph N"; a very long provision
+        is kept whole, in labelled parts, rather than cut into unlabelled fragments.</li>
       </ul>
       <p>Page furniture is removed <b>statistically</b>: a line recurring in the top/bottom band on ≥¼ of pages (digits
       masked, so only the page number varies) is running chrome and is stripped everywhere — plus targeted cleanup for AU
@@ -538,18 +562,23 @@
         <li><b>Dense embeddings</b> (<code>paraphrase-multilingual-MiniLM-L12-v2</code>) — paraphrase and cross-language recall.
         The law name is deliberately <em>excluded</em> from the embedded text, so every PDPA section doesn't "smell like" a
         P7-I1 hit regardless of what it actually says.</li>
-        <li><b>Phrase bonus</b> — +0.10 per literal indicator phrase present (cap 0.30).</li>
+        <li><b>Phrase bonus</b> — +0.10 per literal indicator phrase present (cap 0.30). Besides the English phrases, each
+        language carries native statutory terms (Chinese, Mongolian, Thai, Russian, Indonesian…), and no-space scripts are
+        indexed as character bigrams so they are not scored a flat zero.</li>
         <li><b>Sibling penalty</b> — −0.07 per excess sibling-phrase hit (cap 0.20): a provision dominated by a confusable
         indicator's vocabulary (P6-I1↔I4, P7-I1↔I2) is down-ranked <em>before</em> an LLM call is spent on it.</li>
-        <li><b>Cross-encoder rerank</b> (<code>ms-marco-MiniLM</code>) on the shortlist, blended 50/50 — plus a
-        <b>dense-recall floor</b>: the strongest pure-semantic matches are re-admitted even when the English-only reranker
-        buried them (how a localisation ban phrased "must not hold records outside Australia" survives the cut).</li>
+        <li><b>Cross-encoder rerank</b> (<code>ms-marco-MiniLM</code>) on the shortlist, blended 50/50, for Latin-script
+        text. For a non-Latin script the English reranker is switched <em>off</em> rather than applied — on Chinese text it
+        would add noise at full weight. A <b>dense-recall floor</b> can re-admit the strongest pure-semantic matches; it is
+        measured inert at the current shortlist size and so is off by default.</li>
       </ol>
       <div class="lead"><b>Coverage policy.</b> Small corpus (≤ 80 provisions) → <b>grade-all</b>: every provision × every
       indicator goes to the grader — retrieval ranking is a <b>signal, not a gate</b>, which is what protects non-English
-      recall. Large corpus → a shortlist of 20–40 per indicator (5% of the corpus, clamped), with <b>per-law reserved slots</b>
-      filled round-robin so a short on-point act (My Health Records s77) is never crowded out by a 485-section act.
-      1,200 provisions ⇒ ~360 LLM calls, not 10,800.</div>
+      recall. Large corpus → a shortlist per indicator of 5% of the corpus, clamped between 40 and 450. The ceiling was
+      measured against the panel's own database, not hand-tuned: on a 383-law / 36.6k-provision corpus, provision recall
+      reached 1.000 at 300, and 450 recovered two more cited provisions (<code>docs/retrieval-redesign.md</code>). Per-economy
+      budgets from <code>tools/measure_budget.py</code> tune it where one economy needs less depth than another. Reserving slots per law was
+      measured to make recall <em>worse</em>, and is off.</div>
     </section>
 
     <section id="mapping" class="reveal">
@@ -559,8 +588,34 @@
       indicator's legal test, its scope, and <b>every sibling indicator's</b> legal test, then reasons in explicit steps:
       state the <b>operative rule</b> (ignoring definitions/recitals) → does it satisfy the target's test? → is a sibling a
       better fit? → relevant or reject?</p>
+      <p>A non-English provision is fed <em>unchanged</em>, with its language named; the model's reasoning is written in
+      English while the snippet is never rewritten.</p>
       <div class="lead"><b>Conservative by default.</b> When unsure, the model rejects — a precise miss beats a wrong
       over-assignment. Borderline rows are surfaced to the <a href="#confidence">review queue</a>, never silently accepted or dropped.</div>
+      <h3>The grader and the declared engines</h3>
+      <p>The production grader is <code>deepseek/deepseek-v4-flash</code> (open weight) via OpenRouter, with reasoning
+      switched off. On a bench of 28 real rows — 16 panel answers and 12 known-wrong rows — it scored 28/28, at about
+      US$0.19 per 1,000 calls. The two engines declared for the finals are this model (engine A: open weight,
+      $0.047 / $0.094 per million input / output tokens) and <code>google/gemini-3.7-flash</code> (engine B: closed; 87.26% on
+      Vals AI LegalBench, 4th of 147 models on 22 Sep 2026; also 28/28 on our bench; roughly 30× engine A's per-call cost).
+      The provider layer stays swappable — OpenRouter, Anthropic, OpenAI, Gemini, a self-hosted OpenAI-compatible server
+      (Ollama / vLLM) or an offline mock — and the engine is chosen from the app's Engines screen.</p>
+      <h3>Second-pass check — quote every element</h3>
+      <p>The four confidence signals (§8) could not separate a right row from a wrong one on a live run: grounding and
+      scope sit near 1.0 on every accepted row, and the grader's own legal-fit judgement was 1.0 on rows that were plainly
+      wrong. So every <b>accepted</b> row is re-read by a stronger model, <code>deepseek/deepseek-v4-pro-0813</code>, which
+      must <b>quote, word for word</b>, the snippet's words that establish each element of the indicator's legal test. The
+      code then checks that every quote really occurs in the statute text — a model cannot pass the check with a paraphrase.</p>
+      <ul>
+        <li>An element with no quote → the row is <b>refused</b> and capped at 0.45 (quarantine; it never reaches the submission CSV).</li>
+        <li>A quote the code cannot find, or a check that cannot settle → capped at 0.84, so a person reviews it; it can never auto-accept.</li>
+        <li>A pass leaves the score as it was, and the checker writes the row's rationale from its verified quotes. The
+        citation goes down to the subsection when all the verified quotes sit in one subsection.</li>
+      </ul>
+      <p>Measured on 42 labelled accepted rows, each checked twice: the pro model kept <b>48/48</b> right rows and refused
+      <b>31/36</b> wrong ones; the flash model, used as the checker, refused only 20/36. Indicator 7.1 (comprehensive framework)
+      is exempt, because the legal expert asked for every provision of the framework to be listed. The check stabilises
+      <em>precision</em>; it does not add recall.</p>
     </section>
 
     <section id="confidence" class="reveal">
@@ -592,7 +647,8 @@
           </div>
         </div>
         <p class="figcap">Routing: <span class="gcolor">≥ 0.85 auto-accept</span> · <span class="wcolor">0.60–0.85 review</span> ·
-        <span class="bcolor">&lt; 0.60 quarantine</span>. Cut-offs are deliberately conservative and tunable in <code>.env</code>.</p>
+        <span class="bcolor">&lt; 0.60 quarantine</span>. Cut-offs are deliberately conservative and tunable in <code>.env</code>.
+        After this blend, the <a href="#mapping">second-pass check</a> applies two further caps: 0.45 when it refuses a row, 0.84 when it cannot settle it.</p>
         </div>
       </div>
 
@@ -611,13 +667,14 @@
     <section id="antihallucination" class="reveal">
       <div class="secno">§9</div>
       <h2>Verifiable evidence — the anti-hallucination chain</h2>
-      <p>A citation is worthless if the quote was invented. VeriTrade guarantees fidelity by construction, in five steps:</p>
+      <p>A citation is worthless if the quote was invented. VeriTrade guarantees fidelity by construction, in six steps:</p>
       <div class="chain">
         <div class="step reveal"><div class="n">1</div><div class="c"><b>Copied, not generated.</b> The verbatim snippet is copied from the fetched source text — the LLM never writes it.</div></div>
         <div class="step reveal"><div class="n">2</div><div class="c"><b>Grounding check.</b> An automatic check confirms the snippet actually occurs in the source document.</div></div>
         <div class="step reveal"><div class="n">3</div><div class="c"><b>Topical guard.</b> A snippet with none of the pillar's concept vocabulary is flagged as likely off-topic (and capped).</div></div>
         <div class="step reveal"><div class="n">4</div><div class="c"><b>Traceable source.</b> The source URL points to the law on the official portal; the JSON keeps the surrounding context.</div></div>
-        <div class="step reveal"><div class="n">5</div><div class="c"><b>Confidence gate.</b> Every row carries a score; &lt; 0.85 → review, &lt; 0.60 → quarantine.</div></div>
+        <div class="step reveal"><div class="n">5</div><div class="c"><b>Second-pass quote check.</b> A stronger model must quote the statute for each element of the legal test, and every quote is checked against the statute text (<a href="#mapping">§7</a>).</div></div>
+        <div class="step reveal"><div class="n">6</div><div class="c"><b>Confidence gate.</b> Every row carries a score; &lt; 0.85 → review, &lt; 0.60 → quarantine; quarantined rows never reach the submission CSV.</div></div>
       </div>
       <h3>Worked example — Singapore, Pillar 6</h3>
       <div class="card">
@@ -670,11 +727,17 @@
           <tr><td><b>Discovery precision (AU P6)</b></td><td>share in-force &amp; on-topic after the register filter</td><td>14 laws, 0 junk</td></tr>
           <tr><td><b>Garbage-extraction guard</b></td><td>AU SPA app-shell detected &amp; suppressed instead of mapping navigation chrome</td><td>0 bogus provisions</td></tr>
           <tr><td><b>Wall-clock profile</b></td><td>measured per stage on a live crawl (CPU-only)</td><td>extract 44% · embed 37% · LLM 14%; embed disk-cache ⇒ ~16× faster repeats</td></tr>
-          <tr><td><b>Mapping correctness</b></td><td>checked vs the official RDTII answer key (SG samples)</td><td>validated on worked examples</td></tr>
+          <tr><td><b>Answer-key reach</b></td><td>live runs of the six committed economies scored against the panel's 2025 database (2026-08-30)</td><td>44 of 48 answer-key indicators reached (SG 7/7 · AU 8/8 · MY 8/8 · CN 8/9 · IN 7/8 · MN 6/8); $2.07 and 72 min for all six</td></tr>
+          <tr><td><b>Live end-to-end coverage</b></td><td>live runs on both pillars, zero seed URLs, current code (2026-09-26/27)</td><td>9 of 11 economies; exported rows SG 164 · MY 249 · AU 307 · CN 106 · IN 77 · MN 67 · TH 135 · RU 99 ($1.68 for these eight) · ID 138 from 35 documents</td></tr>
+          <tr><td><b>Grader bench</b></td><td>28 real rows: 16 panel answers + 12 known-wrong rows</td><td>28/28 (deepseek-v4-flash, reasoning off; also gemini-3.7-flash)</td></tr>
+          <tr><td><b>Second-pass check</b></td><td>42 labelled accepted rows, each checked twice</td><td>kept 48/48 right · refused 31/36 wrong (flash model as checker: 20/36)</td></tr>
+          <tr><td><b>Test suite</b></td><td>pytest, CI on Python 3.11 and 3.12</td><td>~1,270 tests passing</td></tr>
         </tbody>
       </table></div>
-      <div class="lead"><b>Honesty note.</b> The LLM grader is stochastic, so borderline <em>definitional</em> clauses can flip
-      between runs. The review queue is the safety net, and a chosen run is frozen via the result cache for a reproducible submission.</div>
+      <div class="lead"><b>Honesty note.</b> The flash grader is stochastic on borderline provisions: a panel answer can drop
+      in one run and return in the next (Singapore's Criminal Procedure Code s40 for 7.5, 2026-09-27), and 7.1 row counts
+      vary between runs on borderline PDPA sections. The second-pass check stabilises precision, not recall. The review
+      queue is the safety net, and a chosen run is frozen via the result cache for a reproducible submission.</div>
     </section>
 
     <section id="scoring" class="reveal">
@@ -685,7 +748,7 @@
       <div class="lead"><b>Polarity gotcha (handled).</b> For 7.1 (comprehensive data-protection) and 7.2 (dedicated cybersecurity)
       the polarity is <em>inverted</em>: <em>having</em> a strong horizontal framework scores 0. The roll-up takes the
       <b>minimum</b> across measures for those two indicators and the <b>maximum</b> for all others.</div>
-      <p class="soft">The score never touches the official 13-column submission CSV — it lives in a separate
+      <p class="soft">The score never touches the 14-column submission CSV — it lives in a separate
       <code>*_scored.csv</code> and in the JSON, so programmatic validation of the submission is never broken.
       See <a href="NOTES_FOR_JUDGES.md">NOTES_FOR_JUDGES.md</a> for our open question to the judges on where a score column is expected.</p>
     </section>
@@ -693,26 +756,30 @@
     <section id="cost" class="reveal">
       <div class="secno">§13</div>
       <h2>Cost model <span class="badge b-accent">interactive</span></h2>
-      <p>CPU-only; OCR, embeddings and retrieval run locally at $0. The only paid parts are the LLM grader and (optionally)
-      the Serper discovery API — both swappable for free. Drive the model and watch the bars.</p>
-      <div class="fig"><div class="fhead"><span class="t">Figure 7 — cost estimator</span><span class="badge b-accent" id="costMode">paid stack</span></div>
+      <p>CPU-only; discovery, OCR, embeddings and retrieval run locally at $0 — discovery reads the official portals
+      directly, with no paid search API. The only paid parts are the LLM grader and the second-pass checker, and both can be
+      swapped for a self-hosted model. Drive the model and watch the bars.</p>
+      <div class="fig"><div class="fhead"><span class="t">Figure 7 — cost estimator</span><span class="badge b-accent" id="costMode">OpenRouter</span></div>
         <div class="fbody">
           <div class="calc">
             <div class="sliders">
-              <div class="row"><div class="top"><span><b>Economies</b> to process (both pillars each)</span><span class="v" id="v-econ">3</span></div><input type="range" id="s-econ" min="1" max="12" step="1" value="3"></div>
+              <div class="row"><div class="top"><span><b>Economies</b> to process (both pillars each)</span><span class="v" id="v-econ">3</span></div><input type="range" id="s-econ" min="1" max="11" step="1" value="3"></div>
               <div class="toggles">
-                <label class="toggle" style="border-color:var(--accent)"><input type="radio" name="stack" value="paid" checked style="accent-color:var(--accent)"> Paid stack <span class="muted">(DeepSeek V4 Flash + Serper)</span></label>
-                <label class="toggle" style="border-color:var(--good)"><input type="radio" name="stack" value="open" style="accent-color:var(--good)"> Open-weight <span class="muted">(Ollama + Tesseract + DuckDuckGo)</span></label>
+                <label class="toggle" style="border-color:var(--accent)"><input type="radio" name="stack" value="paid" checked style="accent-color:var(--accent)"> OpenRouter <span class="muted">(DeepSeek V4 Flash grader + V4 Pro check)</span></label>
+                <label class="toggle" style="border-color:var(--good)"><input type="radio" name="stack" value="open" style="accent-color:var(--good)"> Self-hosted <span class="muted">(Ollama / vLLM — no API fees)</span></label>
               </div>
               <div id="costChart" style="margin-top:.8rem"></div>
             </div>
             <div class="readout">
-              <div class="big" id="costNum">$0.21</div>
+              <div class="big" id="costNum">$0.63</div>
               <div class="band muted" id="costLabel">LLM cost, 3 economies</div>
-              <div class="muted" style="font-size:.78rem; margin-top:.5rem">≈ <span id="costPer">$0.07</span> / economy · repeat runs free (cache)</div>
+              <div class="muted" style="font-size:.78rem; margin-top:.5rem">≈ <span id="costPer">$0.21</span> / economy · repeat runs free (cache)</div>
             </div>
           </div>
-          <p class="figcap">Basis: DeepSeek V4 Flash $0.09/$0.18 per 1M in/out tokens (~$0.07/economy); Serper within its 2,500 free credits ⇒ $0; open-weight swap ⇒ $0.00.</p>
+          <p class="figcap">Basis: the measured 2026-09-26 live run — eight economies, both pillars, US$1.68 in LLM calls
+          (≈$0.21 per economy; real runs vary with corpus size). DeepSeek V4 Flash lists at $0.047 / $0.094 per 1M input / output
+          tokens; the grader costs about $0.19 per 1,000 calls. Engine B (Gemini 3.7 Flash) costs roughly 30× more per call.
+          Self-hosted: no API fees (hardware not counted).</p>
         </div>
       </div>
     </section>
@@ -722,7 +789,10 @@
       <h2>Reproducibility &amp; the two paths</h2>
       <p>A <b>3-tier cache</b> (fetched documents, embeddings, full results) makes a chosen run replay identically and repeat
       runs free. The <b>live path</b> crawls the official portals (what judges grade); the <b>offline sample path</b> runs on a
-      bundled corpus with no network. Both share the same code, so the offline run is an honest preview and a graceful fallback.</p>
+      bundled corpus with no network. Both share the same code, so the offline run is an honest preview and a graceful fallback.
+      The product is the web app (Streamlit — Run, Engines, Coverage and Live stress-test screens, review and exports), deployed at
+      <a href="https://veritrade.ftu.fyi">veritrade.ftu.fyi</a>; CI also builds desktop installers for macOS, Windows and Linux,
+      and a FastAPI backend exposes the same pipeline (<code>/pipeline/run</code>, <code>/runs</code>, <code>/review/*</code>, <code>/export</code>).</p>
       <div class="card mono" style="font-size:.86rem">
         <div class="muted"># live (scored)</div>python main.py --economy Singapore --pillar 6 --live --llm openrouter<br>
         <div class="muted" style="margin-top:.5rem"># offline sample (reproducible)</div>python main.py --economy Singapore --pillar 6<br>
@@ -734,11 +804,15 @@
       <div class="secno">§15</div>
       <h2>Limitations &amp; honesty statement</h2>
       <ul>
-        <li><b>Live crawling</b> is functional but needs Playwright auto-escalation for the most JS-heavy / token-auth pages.</li>
-        <li><b>The LLM grader is stochastic</b> — borderline definitional clauses can flip; the review queue and result cache mitigate.</li>
+        <li><b>Two economies are not yet end-to-end.</b> Lao PDR and Timor-Leste reach real extracted provisions but have not
+        been run end-to-end or scored; Timor-Leste's gazette index stops at 2012, and it has no answer-key sheet to score against.</li>
+        <li><b>The LLM grader is stochastic</b> — a panel answer on a borderline provision can drop in one run and return in the
+        next, and 7.1 row counts vary between runs. The second-pass check stabilises precision, not recall; the review queue
+        and result cache mitigate.</li>
         <li><b>The mock (offline) grader is lexical</b> and can confuse close indicators — always use a real LLM for a submission.</li>
         <li><b>Confidence scores are relative</b>, not calibrated probabilities.</li>
-        <li><b>Multilingual retrieval is general-domain</b>; for non-English text the grade-all policy protects recall, and the concept-vocabulary guard is currently English.</li>
+        <li><b>Multilingual retrieval is general-domain</b>; for non-English text the grade-all policy protects recall, and non-Latin snippets are exempt from the English concept-vocabulary guard.</li>
+        <li><b>Translations are machine-made and are not the citation.</b> The two translation columns help a reviewer check a mapping; no grade, confidence or score is computed from them.</li>
         <li><b>Indicator legal tests are our interpretation</b> of the RDTII methodology — review pending rows before submission.</li>
       </ul>
     </section>
@@ -747,8 +821,8 @@
       <div class="secno">§16</div>
       <h2>Scalability &amp; future work</h2>
       <ul>
-        <li><b>More economies</b> — add a portal domain; discovery generalises. Finals targets plug in the same way.</li>
-        <li><b>More languages</b> — swap the reranker to <code>BAAI/bge-reranker-v2-m3</code> and add a translation × LLM cross-check with bilingual snippet tracking.</li>
+        <li><b>More economies</b> — each economy is one portal adapter on shared mechanics; the next step is running Lao PDR and Timor-Leste end-to-end.</li>
+        <li><b>More languages</b> — a multilingual reranker (<code>BAAI/bge-reranker-v2-m3</code>) is wired in but off by default; enabling it for non-Latin scripts is future work.</li>
         <li><b>More domains</b> — the indicator layer is data-driven; add other RDTII pillars by defining their legal tests and query terms.</li>
         <li><b>Real-time monitoring</b> — scheduled re-crawls diff against the cache to flag amended or new laws.</li>
       </ul>
@@ -764,13 +838,15 @@
         <li>Singapore Statutes Online — <a href="https://sso.agc.gov.sg">sso.agc.gov.sg</a></li>
         <li>Federal Register of Legislation (Australia) + OData API — <a href="https://www.legislation.gov.au">legislation.gov.au</a></li>
         <li>Laws of Malaysia (AGC) — <a href="https://lom.agc.gov.my">lom.agc.gov.my</a> · PDP Dept — <a href="https://pdp.gov.my">pdp.gov.my</a></li>
+        <li>China — <a href="https://www.cac.gov.cn">cac.gov.cn</a> · India Code — <a href="https://www.indiacode.gov.in">indiacode.gov.in</a> · Mongolia — <a href="https://legalinfo.mn">legalinfo.mn</a></li>
+        <li>Thailand — <a href="https://www.law.go.th">law.go.th</a> · Russian Federation — <a href="http://pravo.gov.ru">pravo.gov.ru</a> · Indonesia (BPK) — <a href="https://peraturan.bpk.go.id">peraturan.bpk.go.id</a></li>
         <li>UN ESCAP RDTII 2.1 Methodology &amp; Round-1 Database (see <a href="reference/">docs/reference/</a>)</li>
       </ul>
       <h4>Models &amp; libraries</h4>
       <ul>
-        <li>LLM: DeepSeek V4 Flash via OpenRouter (vendor-swappable — Anthropic / OpenAI / Gemini / local Ollama / mock)</li>
-        <li>Embeddings: <code>paraphrase-multilingual-MiniLM-L12-v2</code> · Reranker: <code>ms-marco-MiniLM-L-6-v2</code></li>
-        <li>Stack: Scrapling · httpx · BeautifulSoup · MarkItDown · RapidOCR · PaddleOCR · sentence-transformers · rank_bm25 · Streamlit · pydantic · pypdfium2</li>
+        <li>LLM grader: <code>deepseek/deepseek-v4-flash</code> (open weight, reasoning off) · second-pass checker: <code>deepseek/deepseek-v4-pro-0813</code> · declared engine B: <code>google/gemini-3.7-flash</code> — all via OpenRouter (vendor-swappable — Anthropic / OpenAI / Gemini / self-hosted Ollama or vLLM / mock)</li>
+        <li>Embeddings: <code>paraphrase-multilingual-MiniLM-L12-v2</code> · Reranker: <code>ms-marco-MiniLM-L-6-v2</code> (Latin script; <code>BAAI/bge-reranker-v2-m3</code> available, off by default)</li>
+        <li>Stack: Scrapling · curl_cffi · Camoufox · httpx · BeautifulSoup · MarkItDown · RapidOCR · PaddleOCR · sentence-transformers · rank_bm25 · Streamlit · pydantic · pypdfium2</li>
       </ul>
       <h4>Project</h4>
       <ul>
@@ -782,7 +858,8 @@
     <footer>
       VeriTrade · Team VeriTrade · UN Global Hackathon on AI for Digital Trade Regulatory Analysis (RDTII 2.1) ·
       Apache-2.0 · <a href="mailto:minhtc@ftu.edu.vn">minhtc@ftu.edu.vn</a>.
-      <span class="muted">Interactive figures reproduce the production code (<code>confidence.py</code>, <code>indicators.py</code>).</span>
+      <span class="muted">Interactive figures reproduce the production code (<code>confidence.py</code>, <code>indicators.py</code>).
+      Last updated 2026-09-27.</span>
     </footer>
   </main>
 </div>
@@ -908,7 +985,7 @@
   renderInds(6);
 
   // ── cost estimator + live bar chart ──
-  var PER=0.07;
+  var PER=0.21;  // measured: $1.68 for 8 economies, both pillars (2026-09-26)
   function cost(){
     var n=parseInt(document.getElementById('s-econ').value,10);
     var open=document.querySelector('input[name=stack]:checked').value==='open';
@@ -916,9 +993,9 @@
     var total=open?0:n*PER;
     document.getElementById('costNum').textContent='$'+total.toFixed(2);
     document.getElementById('costNum').style.color=open?'var(--good)':'var(--accent)';
-    document.getElementById('costLabel').textContent=(open?'open-weight — ':'LLM cost — ')+n+' econom'+(n===1?'y':'ies');
-    document.getElementById('costPer').textContent=open?'$0.00':'$0.07';
-    document.getElementById('costMode').textContent=open?'open-weight stack':'paid stack';
+    document.getElementById('costLabel').textContent=(open?'self-hosted — ':'LLM cost — ')+n+' econom'+(n===1?'y':'ies');
+    document.getElementById('costPer').textContent=open?'$0.00':'$'+PER.toFixed(2);
+    document.getElementById('costMode').textContent=open?'self-hosted':'OpenRouter';
     drawCost(n, total, open);
   }
   document.getElementById('s-econ').addEventListener('input',cost);
@@ -949,7 +1026,7 @@
     var max=Math.max(paid,0.01), scale=(base-14)/max;
     var svg=el('svg',{viewBox:'0 0 '+W+' '+H,class:'svgchart'});
     svg.appendChild(el('line',{x1:pad-6,y1:base,x2:W-8,y2:base,class:'gridline'}));
-    var bars=[{k:'Paid',v:paid,c:cssv('--accent'),on:!open},{k:'Open-weight',v:0,c:cssv('--good'),on:open}];
+    var bars=[{k:'OpenRouter',v:paid,c:cssv('--accent'),on:!open},{k:'Self-hosted',v:0,c:cssv('--good'),on:open}];
     var x=pad+10;
     bars.forEach(function(b){ var hh=Math.max(b.v*scale,2), yy=base-hh;
       svg.appendChild(el('rect',{x:x,y:yy,width:bw,height:hh,rx:5,fill:b.c,opacity:b.on?1:.32}));
@@ -979,10 +1056,11 @@
   // ── pipeline demo ──
   var stages=[
     {id:'n-discover',log:'[discovery] querying sso.agc.gov.sg (no seed URLs)…',ok:'3 candidate laws found'},
-    {id:'n-fetch',log:'[fetch] Scrapling real-browser TLS → 200 OK',ok:'PDPA 2012 fetched (cache miss)'},
+    {id:'n-fetch',log:'[fetch] TLS-impersonating fetch → 200 OK',ok:'PDPA 2012 fetched (cache miss)'},
     {id:'n-ocr',log:'[ocr] text-layer detected · MarkItDown → article/§ chunks',ok:'CER 1.11% · PASS < 5%'},
     {id:'n-retrieve',log:'[retrieve] BM25 + dense + rerank · grade-all (small corpus)',ok:'top provisions shortlisted'},
-    {id:'n-map',log:'[map] grading (§26 × P6-I4) with sibling indicators…',ok:'P6-I4 · confidence 0.82 → review'}
+    {id:'n-map',log:'[map] grading (§26 × P6-I4) with sibling indicators…',ok:'P6-I4 · confidence 0.82'},
+    {id:'n-verify',log:'[verify] second-pass check: quote each element of the P6-I4 legal test…',ok:'every quote found in the statute text · 0.82 → review'}
   ];
   var runBtn=document.getElementById('runBtn'), resetBtn=document.getElementById('resetBtn'),
       logEl=document.getElementById('demolog'), progEl=document.getElementById('progFill'),

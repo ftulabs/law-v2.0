@@ -103,6 +103,10 @@ RUN_END_TO_END = {
     # pillar-7 run's 22 documents gave 1,286 provisions, 1,283 of them with a มาตรา citation
     # (PDPA มาตรา 28 and 41 each their own provision). Not graded, so not MEASURED.
     "TH": EXTRACTED,
+    # RU got its pravo.gov.ru adapter (152-FZ at its current redaction). Live end-to-end on
+    # 2026-09-26 (outputs/rt_0926d, rt_0926e): 99-114 rows, 152-FZ art. 18 -> 6.2 and art. 12
+    # -> 6.4 auto-accepted. Not scored against the panel's database, so not MEASURED.
+    "RU": EXTRACTED,
 }
 
 

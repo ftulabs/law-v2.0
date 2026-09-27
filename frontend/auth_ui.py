@@ -261,9 +261,10 @@ def _landing_intro() -> None:
         '<div class="land-step"><div class="n">1</div><div><div class="t">Choose a country and a pillar</div>'
         f'<div class="d">{_n_economies()} economies across Asia-Pacific · any of the 12 RDTII pillars.</div></div></div>'
         '<div class="land-step"><div class="n">2</div><div><div class="t">VeriTrade finds and reads the law</div>'
-        '<div class="d">No seed links, no hand-picked corpus — it searches the official portals live.</div></div></div>'
+        '<div class="d">No seed links, no hand-picked corpus — it reads each economy\'s official legal portal live.</div></div></div>'
         '<div class="land-step"><div class="n">3</div><div><div class="t">Get citable evidence</div>'
-        '<div class="d">A verbatim quote, article-level citation and source URL for every result, ready to export.</div></div></div>'
+        '<div class="d">A verbatim quote, article-level citation and source URL for every result — '
+        're-checked against the law\'s own words, ready to export.</div></div></div>'
         '</div></div>',
         unsafe_allow_html=True,
     )
@@ -283,21 +284,27 @@ def _n_indicators() -> int:
         return 61
 
 
+# Live end-to-end runs on both pillars (2026-09-26 for eight, 2026-09-27 for Indonesia).
+# Lao PDR and Timor-Leste reach extraction but have not been run end to end.
+_END_TO_END = ("SG", "MY", "AU", "CN", "IN", "MN", "TH", "RU", "ID")
+_EXTRACT_ONLY = ("LA", "TL")
+
+
 def _landing_economies() -> str:
-    """The economy strip, generated from the readiness table the README also prints."""
+    """The economy strip: names and portals from the readiness table, grouped by how far
+    each economy actually runs today (same list as docs/landing.html)."""
     try:
         from . import geo                                          # noqa: PLC0415
         rows = geo.readiness()
     except Exception:                                              # noqa: BLE001
         rows = {}
     if not rows:
-        return '<div class="land-econ"><span>12 economies across Asia-Pacific</span></div>'
-    rank = {"measured": 0, "extracted": 1, "reachable": 2, "declared": 3}
-    best = sorted(rows.values(), key=lambda r: (rank.get(r["level"], 9), r["economy"]))[:6]
-    cells = "".join(f'<span><b>{r["economy"]}</b> · {r["portal"]}</span>' for r in best)
-    more = len(rows) - len(best)
-    if more > 0:
-        cells += f'<span>+{more} more declared</span>'
+        return ('<div class="land-econ"><span>11 economies across Asia-Pacific · '
+                '9 run end to end</span></div>')
+    cells = "".join(f'<span><b>{rows[c]["economy"]}</b> · {rows[c]["portal"]}</span>'
+                    for c in _END_TO_END if c in rows)
+    cells += "".join(f'<span><b>{rows[c]["economy"]}</b> · reaches extraction</span>'
+                     for c in _EXTRACT_ONLY if c in rows)
     return f'<div class="land-econ">{cells}</div>'
 
 
@@ -306,7 +313,7 @@ def _landing_below() -> None:
     st.markdown(
         '<div class="land-stats">'
         f'<div class="land-stat"><div class="n">{_n_economies()}</div>'
-        '<div class="k">economies declared · 3 measured end to end</div></div>'
+        f'<div class="k">economies · {len(_END_TO_END)} run end to end</div></div>'
         f'<div class="land-stat"><div class="n">{_n_indicators()}</div>'
         '<div class="k">RDTII indicators · all 12 pillars</div></div>'
         '<div class="land-stat"><div class="n">1.11%</div><div class="k">OCR error rate · bar is 5%</div></div>'
@@ -319,17 +326,19 @@ def _landing_below() -> None:
         '<div class="land-h2">Four passes <span class="dim">from a blank query to cited evidence.</span></div>'
         '<div class="land-cards">'
         '<div class="land-card"><div class="num">01 · DISCOVER</div><div class="t">Find the law</div>'
-        '<div class="d">Autonomous search of official portals — no seed URLs, no hardcoded law names. '
-        'Bot-resistant fetching clears blocks that stop a plain crawler.</div></div>'
+        '<div class="d">Each economy\'s official legal portal is searched directly — no seed URLs, '
+        'no hardcoded law names, no web search engine. Bot-resistant fetching clears blocks '
+        'that stop a plain crawler.</div></div>'
         '<div class="land-card"><div class="num">02 · EXTRACT</div><div class="t">Read every format</div>'
         '<div class="d">HTML, text PDFs and scanned image PDFs. Real OCR with a measured error rate; '
-        'text split into verbatim article chunks.</div></div>'
+        'text split into verbatim articles the way each country drafts its laws.</div></div>'
         '<div class="land-card"><div class="num">03 · MAP</div><div class="t">Match the indicator</div>'
         '<div class="d">Hybrid retrieval shortlists provisions; the model maps each to the right '
         'indicator while seeing every sibling, so look-alikes stay apart.</div></div>'
         '<div class="land-card"><div class="num">04 · VERIFY</div><div class="t">Cite or refuse</div>'
-        '<div class="d">A verbatim snippet, article-level citation, source URL and confidence score. '
-        'Low-confidence rows go to human review.</div></div>'
+        '<div class="d">A second, stronger model must quote the law\'s exact words for every part '
+        'of the legal test, and each quote is checked against the statute. Rows that fail are '
+        'set aside or sent to human review.</div></div>'
         '</div></div>',
         unsafe_allow_html=True,
     )
@@ -337,10 +346,8 @@ def _landing_below() -> None:
         '<div class="land-sec"><div class="land-kicker"><b>02</b> · Coverage</div>'
         f'<div class="land-h2">{_n_indicators()} indicators across 12 pillars, '
         f'<span class="dim">{_n_economies()} economies.</span></div>'
-        # The economy strip is generated. Naming three by hand is what let this whole section
-        # go on describing the Round-1 tool months after the Round-2 one shipped, and it also
-        # lets the strip say which ones have actually been run rather than implying all of them
-        # are equal.
+        # The economy strip says which economies actually run end to end rather than
+        # implying all of them are equal (see _END_TO_END / _EXTRACT_ONLY).
         + _landing_economies() +
         '<div class="land-pillars">'
         '<div class="land-pillar"><div class="ph"><span class="pn">Pillar 6</span>'

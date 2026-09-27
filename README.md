@@ -1,11 +1,14 @@
 # VeriTrade — AI Tool for Digital Trade Regulatory Analysis
 
-Autonomous discovery and article-level mapping of digital-trade law across twelve Asia-Pacific
+Autonomous discovery and article-level mapping of digital-trade law across eleven Asia-Pacific
 economies. Submission for the UN ESCAP / KMITL Global Hackathon on AI for Digital Trade
 Regulatory Analysis, 2026 — **Final round**.
 
 - **Hosted instance:** https://veritrade.ftu.fyi — full interface, keys in platform secrets, no setup
 - **Source:** https://github.com/ftulabs/law-v2.0
+- **Platforms:** a web app, used on a computer (the Streamlit interface above), plus desktop
+  installers for macOS, Windows and Linux built by CI (Tauri shell, `.github/workflows/apps.yml`).
+  There is no iOS or Android build — mobile is out of scope.
 - **Team:** FTU (Foreign Trade University, Viet Nam) · minhtc@ftu.edu.vn
 
 ---
@@ -49,9 +52,17 @@ carried unchanged from extraction to CSV, and substring-verified against the sto
 grading prompt is English and demands English *output*, but passes the snippet through
 untouched: a translated citation is a false citation.
 
-**Cost.** OCR, embedding and retrieval run locally at $0. Only the grading model and the
-optional search API cost anything — **~$0.012 per document**, or **$0.00** on the open-weights
-swap. See [Measured Cost](#measured-cost).
+**Every accepted row is checked a second time, by quotation.** A stronger model
+(`VERIFY_MODEL`, default `deepseek/deepseek-v4-pro-0813`) must quote, word for word, the
+snippet's words for each element of the indicator's legal test, and the code confirms each quote
+really is in the statute text. An element it cannot quote quarantines the row; a quote the code
+cannot find sends the row to human review. The row's rationale is then written from those
+verified quotes. 7.1 (comprehensive framework) is exempt, because the legal expert asked for
+every provision of the framework to be listed.
+
+**Cost.** OCR, embedding and retrieval run locally at $0. Only the LLM calls cost anything: the
+whole 2026-09-26 live run of eight economies on both pillars cost **US$1.68**. See
+[Measured Cost](#measured-cost).
 
 ---
 
@@ -71,8 +82,9 @@ streamlit run frontend/app.py                       # → http://localhost:8501
 
 **Verify.** In the interface pick **Singapore**, topic **Cross-border data policies**, press
 **Run analysis**. Expected on the bundled sample: a populated coverage matrix in **under 2
-minutes**, written to `outputs/`. A live run takes **6–9 minutes** per economy-pillar, most of
-it embedding on CPU.
+minutes**, written to `outputs/`. A live run is slower: the six committed economies took
+**72 minutes** for both pillars together in the 2026-08-30 scored run, most of it embedding on
+CPU.
 
 **After a `git pull`, restart the server.** Streamlit re-executes the main script on every
 interaction but does not re-import modules that are already loaded, so a server left running
@@ -90,12 +102,17 @@ deterministic mock grader at $0, which is enough to reach the verify step. For r
 ```env
 LLM_PROVIDER=openrouter        # or anthropic · openai · gemini · local · mock
 OPENROUTER_API_KEY=sk-or-...
+OPENROUTER_MODEL=deepseek/deepseek-v4-flash   # the default grader (declared engine A)
+OPENROUTER_REASONING=off                      # the default; see "Your Two Declared Engines"
+VERIFY_MODEL=deepseek/deepseek-v4-pro-0813    # the second-pass check; empty = the grader's model
 OCR_PROVIDER=rapidocr          # or paddle · tesseract · azure · vlm · mock
-SERPER_API_KEY=...             # optional; discovery falls back to free search
 ```
 
+Discovery needs no search key: every economy is discovered through its own portal (see
+[Supported Economies and Portals](#supported-economies-and-portals)).
+
 `.env` is gitignored; no key is committed. The first run is slow while the sentence-transformer
-model loads, then cached. A `402` from OpenRouter means the key has no balance — set
+model loads, then cached. A `402` from OpenRouter means the account has no credit left — set
 `LLM_PROVIDER=mock` to confirm the rest of the pipeline works.
 
 <details>
@@ -128,7 +145,7 @@ run exists yet, and a tab inside the results cannot be reached before the first 
 | Open the audit view: a result beside the source text | Tab **Details** → *Pick a result to inspect* — legal test, verbatim quote, surrounding source, then confidence |
 | Follow a row to its official source at the cited article | Tab **Results** → click a matrix cell → **Source URL** |
 | Accept, reject or correct a row | Tab **Needs review** (the tab label carries the queue count) |
-| Switch the AI engine | Screen **Engines**. No file edited, no command typed |
+| Switch the AI engine | Screen **Engines**. No file edited, no command typed. The **Live test** screen also switches engine per run, and takes a per-engine API key that is held for the session only |
 | Export to the RDTII schema | Tab **Download** → Submission CSV · Evidence JSON · Scored CSV, with this run's measured cost above them |
 | Run the sealed live test on 15 October | Screen **Live test** — the steward names any economy and any pillar, and both pickers cover everything the tool declares. Four steps (brief → run → result → hand in) producing the run record, the engine comparison and the short note. Before the clock starts it states what to expect from that exact pair — an empty run from a *declared* economy and an empty run from a *measured* one look identical in the output and mean opposite things |
 
@@ -149,15 +166,47 @@ network; only the photography does.
 Required by **C4b** (No Vendor Lock-in), tested again live as **C5b**. Declared in Section 5 of
 the Word submission on 30 September and **cannot change afterwards**.
 
-|  | Engine A — commercial hosted | Engine B — open weights |
+|  | Engine A — open weights | Engine B — closed, hosted |
 | :--- | :--- | :--- |
-| Provider and model | `openai/gpt-4o-mini` *(provisional)* | `mistralai/mistral-small-3.2-24b-instruct` *(provisional)* |
-| Local or hosted | hosted API | open weights, served via OpenRouter; self-hostable on one GPU |
-| Config value | `LLM_PROVIDER=openrouter` `OPENROUTER_MODEL=openai/gpt-4o-mini` | `LLM_PROVIDER=openrouter` `OPENROUTER_MODEL=mistralai/mistral-small-3.2-24b-instruct` |
+| Provider and model | `deepseek/deepseek-v4-flash` | `google/gemini-3.7-flash` |
+| Local or hosted | open weights, served via OpenRouter; self-hostable | hosted API |
+| Price per million tokens (in / out) | $0.047 / $0.094 | $0.75 / $3.75 — roughly 30× engine A per call |
+| Config value | `LLM_PROVIDER=openrouter` `OPENROUTER_MODEL=deepseek/deepseek-v4-flash` | `LLM_PROVIDER=openrouter` `OPENROUTER_MODEL=google/gemini-3.7-flash` |
+
+The pair is set in `backend/config.py` (`declared_engine_a_model`, `declared_engine_b_model`), so
+the live-test screen, the run record and this table read the same declaration. Engine A is the
+production grader and the default `OPENROUTER_MODEL`.
+
+**Why these two.** Both were measured on a bench of **28 real rows** read by hand — 16 of the
+panel's own answers and 12 rows known to be wrong:
+
+| Model | | Bench (28 real rows) | $ per million tokens (in / out) |
+| :--- | :--- | ---: | ---: |
+| `deepseek/deepseek-v4-flash`, reasoning **off** | open | **28/28** | 0.047 / 0.094 |
+| `deepseek/deepseek-v4-flash`, reasoning on | open | 19–20/28, up to 198 s a call | same |
+| `google/gemini-3.7-flash` | closed | **28/28** | 0.75 / 3.75 |
+
+Engine A grades at about **US$0.19 per 1,000 calls**. Engine B was chosen for legal reading from
+outside our own bench: **87.26 % on Vals AI LegalBench, 4th of 147 models** (22 September 2026),
+and the cheapest model in that top ten.
+
+**Reasoning is off by default** (`OPENROUTER_REASONING=off`). With it on, deepseek-v4-flash scored
+19–20/28 instead of 28/28 and took up to 198 seconds a call (2026-09-26). A model that cannot
+switch reasoning off is retried with its own default rather than failing.
+
+**The second-pass check uses a third model** (`VERIFY_MODEL=deepseek/deepseek-v4-pro-0813`) and
+runs only on accepted rows. On 42 labelled real rows, run twice, it kept **48/48** right rows and
+refused **31/36** wrong ones; the flash model in the same role refused only 20/36 — it accepted
+"di luar wilayah Indonesia" (*outside* Indonesia) as proof of in-country storage. Set
+`VERIFY_MODEL=` empty to check with the grader's own model, or `VERIFY_ENABLED=false` to switch
+the check off.
+
+<details>
+<summary>Historical: the earlier 58-case bake-off (superseded 2026-09-26)</summary>
 
 Measured with `python tools/bakeoff.py`, over `data/benchmarks/grader_bakeoff.json` — 58 cases
-whose 16 positives are the panel's own answer key joined to our extracted provision text and
-then **read one by one** — using the production grading prompt.
+whose 16 positives are the panel's own answer key joined to our extracted provision text. It
+provisionally declared `openai/gpt-4o-mini` and `mistralai/mistral-small-3.2-24b-instruct`.
 
 | Model | | F1 | precision | recall | $/1k calls | s/call |
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: |
@@ -166,15 +215,12 @@ then **read one by one** — using the production grading prompt.
 | `gpt-oss-120b` | open | 0.800 | 0.857 | 0.750 | 0.256 | 20.0 |
 | `deepseek-v4-flash` | open | 0.786 | 0.917 | 0.688 | 0.303 | 11.5 |
 
-> **Provisional, and why.** Sixteen positives means a 0.09 gap is one and a half cases. Only
-> two facts are firm: mistral-small reproduced 0.903 exactly across two independent runs and
-> leads on precision *and* recall, and the previous default (deepseek-v4-flash) is last, missing
-> 31% of the panel's own answers where mistral misses 12%. The benchmark grows as corpora are
-> built for more economies, and the declaration is made against the larger set.
->
-> Two measurement traps are recorded in `tools/build_bakeoff_set.py` because both nearly chose
-> the wrong engine: an unverified benchmark scored every model 0.50–0.61 and ranked them
-> differently, and a provider-side 429 storm scored the eventual winner 0.316.
+It measured deepseek-v4-flash with reasoning left **on**, which is what made it slow and lossy;
+the 28-row bench above measured it with reasoning off. Two measurement traps are recorded in
+`tools/build_bakeoff_set.py` because both nearly chose the wrong engine: an unverified benchmark
+scored every model 0.50–0.61 and ranked them differently, and a provider-side 429 storm scored
+the eventual winner 0.316.
+</details>
 
 **Switching:** interface → tab **Engines** → select. A steward watches this on 15 October; a
 switch needing code or config scores zero.
@@ -241,12 +287,17 @@ and on 15 October five tools read the same government sites within the same hour
 
 | Setting | Value | Where it is set |
 | :--- | :--- | :--- |
-| Max requests per second per host | 0.5 (a 2-second gap) | [`config.py:267`](backend/config.py#L267) `crawl_delay_seconds` |
-| Parallel requests per host | 1 | [`fetch.py:88`](backend/pipeline/fetch.py#L88) `_polite_wait` |
-| robots.txt respected | yes | [`robots.py`](backend/pipeline/robots.py), enforced at [`fetch.py:166`](backend/pipeline/fetch.py#L166) |
+| Max requests per second per host | 0.5 (a 2-second gap) | [`config.py:279`](backend/config.py#L279) `crawl_delay_seconds` |
+| Parallel requests per host | 1 | [`fetch.py:100`](backend/pipeline/fetch.py#L100) `_polite_wait` |
+| robots.txt respected | yes | [`robots.py`](backend/pipeline/robots.py), enforced at [`fetch.py:178`](backend/pipeline/fetch.py#L178) |
 
-A host's own `Crawl-delay` wins when larger than ours; an unreadable robots.txt denies; a
-skipped document is logged by URL and reason, never silently dropped.
+A host's own `Crawl-delay` wins when larger than ours; an unreadable robots.txt denies, except
+for the hosts listed in [`UNREACHABLE_OVERRIDE`](backend/pipeline/robots.py#L234), whose
+robots.txt answers with a server error (RFC 9309 §2.3.1.4: a server error is not a refusal); a
+skipped document is logged by URL and reason, never silently dropped. When a portal puts its
+pages behind a JavaScript challenge (Indonesia's `peraturan.bpk.go.id` uses Cloudflare), a real
+browser runs the challenge as a visitor's browser would; robots.txt still decides which paths
+are fetched.
 
 → per-portal robots findings, and why user-agent matching has to be exact:
 [docs/CRAWLING.md](docs/CRAWLING.md)
@@ -255,32 +306,41 @@ skipped document is logged by URL and reason, never silently dropped.
 
 ## Supported Economies and Portals
 
-Generated from the registries the pipeline reads — `python tools/readiness.py` — so it cannot
-claim a capability the code does not have.
+Every economy is discovered through **its own portal adapter** — no seed URL, no law name, and
+no dependency on a web-search engine (every engine we tried now answers HTTP 403 or has no credit
+left). The readiness levels come from the registries the pipeline reads —
+`python tools/readiness.py` — so they cannot claim a capability the code does not have.
 
 **declared** = resolves, language profile, OCR engine · **reachable** = a portal answered ·
-**extracted** = provisions produced · **measured** = scored against the panel's 2025 database.
+**extracted** = provisions produced · **run live** = a live run on both pillars reached the
+submission CSV · **measured** = scored against the panel's 2025 database.
 Only *measured* is a claim about quality.
 
-| Economy | On the panel's list | Language of source | Portal | Run end to end? | Next blocker |
-| :--- | :---: | :--- | :--- | :--- | :--- |
-| Singapore | — | English | sso.agc.gov.sg | **measured** | — |
-| Australia | — | English | www.legislation.gov.au (+1) | **measured** | — |
-| Malaysia | — | English | lom.agc.gov.my (+2) | **measured** | — |
-| China | yes | Chinese (Simplified) | www.gov.cn (+1) | **extracted** | no scored run against the 2025 database yet |
-| India | yes | English | indiacode.gov.in (+4) | **extracted** | no scored run against the 2025 database yet |
-| Indonesia | yes | Indonesian | peraturan.bpk.go.id (+1) | **reachable** | portal answers; no discovery adapter has produced provisions from it |
-| Lao People's Democratic Republic | yes | Lao | laoofficialgazette.gov.la | **declared** | host does not resolve — the portal URL itself is wrong |
-| Mongolia | yes | Mongolian | legalinfo.mn | **extracted** | no scored run against the 2025 database yet |
-| Russian Federation | yes | Russian | publication.pravo.gov.ru (+1) | **reachable** | portal answers; no discovery adapter has produced provisions from it |
-| Thailand | yes | Thai | www.krisdika.go.th (+1) | **declared** | reachable, document path unknown (404 on every path tried) |
-| Timor-Leste | yes | Portuguese | mj.gov.tl/jornal | **reachable** | portal answers; no discovery adapter has produced provisions from it |
+| Economy | On the panel's list | Language of source | Portal | Status | Rows exported, 2026-09-26 live run |
+| :--- | :---: | :--- | :--- | :--- | ---: |
+| Singapore | mandatory | English | sso.agc.gov.sg | **measured** — 7/7 | 164 |
+| Australia | mandatory | English | www.legislation.gov.au | **measured** — 8/8 | 307 |
+| Malaysia | mandatory | English | lom.agc.gov.my + pdp.gov.my | **measured** — 8/8 | 249 |
+| China | yes | Chinese (Simplified) | www.cac.gov.cn + search.cac.gov.cn (+ mirrors) | **measured** — 8/9 | 106 |
+| India | yes | English | indiacode.gov.in (+4) | **measured** — 7/8 | 77 |
+| Mongolia | yes | Mongolian | legalinfo.mn | **measured** — 6/8 | 67 |
+| Thailand | yes | Thai | www.law.go.th (its law API) | **run live** — not scored | 135 |
+| Russian Federation | yes | Russian | pravo.gov.ru | **run live** — not scored | 99 |
+| Indonesia | yes | Indonesian | peraturan.bpk.go.id | **run live** — not scored | 138 (run 2026-09-27, 35 documents) |
+| Lao People's Democratic Republic | yes | Lao | laoofficialgazette.gov.la | **extracted** | not run end to end |
+| Timor-Leste | yes | Portuguese | mj.gov.tl/jornal | **extracted** | not run end to end |
 
-**Of the eight economies on the panel's list today: 0 measured, 3 extracted, 3 reachable, 2 declared.**
-Singapore, Australia and Malaysia are our deepest corpora but are *not* among the nine — the
-panel holds no 2025 database for them.
+"7/7" etc. is answer-key indicators reached in the scored run of 2026-08-30: **44 of 48** across
+the six committed economies, US$2.07 and 72 minutes for all six. The 2026-09-26 live run of eight
+economies cost US$1.68 in LLM calls.
 
-**Mongolia, and two corrections in a row.** This row has been wrong twice, in opposite
+**Nine of the eleven economies run end to end** (Singapore, Malaysia, Australia, China, India,
+Mongolia, Thailand, Russian Federation, Indonesia); Lao PDR and Timor-Leste reach real extracted
+provisions. Thailand, Russia and Indonesia are not scored against the panel's database yet, and
+Timor-Leste cannot be — the panel holds no answer-key sheet for it.
+
+**Mongolia, and two corrections in a row** (history, kept because it is instructive; the
+current status is in the table above). This row has been wrong twice, in opposite
 directions, and both are worth keeping.
 
 First it said the statutes arrive as HTML "so OCR is not on its critical path", on the strength
@@ -352,7 +412,13 @@ bytes fetched — and every run writes the table into its JSON under `run.cost`.
 condition is that logging produces this "without manual arithmetic", so nothing here is
 estimated and nothing is entered by hand.
 
-Below is a real run: **Singapore, pillar 6, offline sample corpus, 72s**
+**Whole runs, live.** The 2026-09-26 run of eight economies on both pillars (deepseek-v4-flash
+grader) cost **US$1.68** in LLM calls in total. The scored run of the six committed economies on
+2026-08-30 cost **US$2.07** and took 72 minutes. The second-pass check adds one call per accepted
+row on `deepseek/deepseek-v4-pro-0813` — about $0.15 more per economy than running the check on
+the flash model.
+
+Below is one run itemised: **Singapore, pillar 6, offline sample corpus, 72s**
 (`run-3e07213f`, prices from `data/pricing.json`).
 
 | Component | Units | Measured cost |
@@ -367,8 +433,9 @@ Below is a real run: **Singapore, pillar 6, offline sample corpus, 72s**
 Two things the hand-calculated figure had wrong, and metering found immediately:
 
 - **The cross-check lane was missing from the bill.** A second model re-grades borderline
-  rejections, and those 6 calls are **31% of this run's cost**. The old README counted only the
-  primary model and reported ~$0.012 per document.
+  rejections, and those 6 calls are **31% of this run's cost**. An earlier README counted only
+  the primary model and reported ~$0.012 per document. (This itemised run predates the
+  second-pass check, which now adds its own line.)
 - **Token counts are not the prompt size.** 64 grading calls consumed 219k prompt tokens, well
   above a per-call estimate, because the sibling-indicator context travels with every call.
 
@@ -388,8 +455,17 @@ default and `tests/test_metering.py` pins the comparison.
 A tool that flags what it could not read is better built than one that presents everything with
 equal confidence.
 
-- **Six of the nine live-test economies have no discovery adapter.** Their portals answer and
-  their language handling is in place, but nothing yet enumerates what laws exist on them.
+- **Two of the eleven economies do not yet run end to end.** Lao PDR and Timor-Leste reach real
+  extracted provisions, but neither has had a full live run. Timor-Leste's gazette index stops at
+  2012, and it has no answer-key sheet, so it cannot be scored. Thailand, Russia and Indonesia run
+  end to end but are not yet scored against the panel's database.
+- **The flash grader is stochastic on borderline provisions.** A panel answer can drop out in one
+  run and return in the next — Singapore's Criminal Procedure Code s40 for 7.5 did so on
+  2026-09-27. The second-pass check stabilises *precision*, not recall. Row counts for 7.1 also
+  vary between runs, on borderline PDPA sections.
+- **The second-pass check can be wrong both ways.** On 42 labelled rows it still accepted 5 of 36
+  wrong rows. A quote it gives that the code cannot find in the statute sends the row to human
+  review rather than deciding it.
 - **Confidence is relative, not a calibrated probability.** Below 0.85 a human should look;
   below 0.60 the row is quarantined and excluded from the submission by default.
 - **Confidence is not comparable across language lanes.** Its retrieval component sits on a
@@ -443,7 +519,7 @@ data/
   rdtii/        indicator_reference.json — all 61 in-scope indicators
   ground_truth/ rdtii_reference_p67.csv — 180 rows from the panel's own databases
 tools/          readiness · portal probe · retrieval sweep · reference builders
-tests/          452 tests
+tests/          1,272 tests
 ```
 
 ---
@@ -454,8 +530,8 @@ tests/          452 tests
 pytest tests/
 ```
 
-**452 tests.** The ones worth knowing: `test_output.py` (the exact CSV schema the secretariat
-validates) · `test_final_round.py` (the nine economies, `6.4` codes, Language of Source,
+**1,272 tests** (2026-09-27; CI runs them on Python 3.11 and 3.12). The ones worth knowing: `test_output.py` (the exact CSV schema the secretariat
+validates) · `test_final_round.py` (the final-round economies, `6.4` codes, Language of Source,
 unscoreable instruments) · `test_robots.py` (against the real files the live-test portals serve)
 · `test_baseline_tag.py` (Discovery Tag per provision) · `test_multilingual.py` (script-aware
 tokenisation and reranker selection) · `test_scanned_ocr.py` (CER < 5 % on a bundled scan).

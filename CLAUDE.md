@@ -24,8 +24,9 @@ Automate the manual legal-data-collection workflow: **given an economy + regulat
   and `Meeting notes.docx`) — pick at least three; Timor-Leste carries a bonus. The sealed live
   test on 15 Oct draws from any listed economy, so **eleven** are possible:
   `FINAL_ROUND_LIST` and `LIVE_TEST_POOL` in `backend/schemas.py`.
-  Committed set for 30 Sep: **SG · MY · AU + China · India · Mongolia**, plus Russia if its
-  portal adapter lands in time.
+  Running end-to-end as of 2026-09-27: **SG · MY · AU + China · India · Mongolia · Thailand ·
+  Russia · Indonesia** (Lao PDR and Timor-Leste reach extraction). Originally committed: SG · MY ·
+  AU + China · India · Mongolia, plus Russia once its adapter landed (it has).
 - A regulatory pillar (6 = Cross-border Data Policies; 7 = Domestic Data Protection and Privacy)
 
 The app must, with zero seed URLs:
@@ -170,7 +171,10 @@ Input: (economy, pillar)
 | **Engine surface** | `frontend/enginebench.py` | OCR/LLM chosen on the main screen, each card stating purpose, readiness, cost, where the document goes |
 
 ### LLM Providers (vendor-agnostic)
-- **OpenRouter** (default, free models) — `meta-llama/llama-3.3-70b-instruct:free` with auto-failover
+- **OpenRouter** (default, paid) — grader `deepseek/deepseek-v4-flash` with `OPENROUTER_REASONING=off`;
+  second-pass quote check on `deepseek/deepseek-v4-pro-0813` (`VERIFY_MODEL`). Declared engines
+  (`declared_engine_a/b_*` in `backend/config.py`): A `deepseek/deepseek-v4-flash` (open weight),
+  B `google/gemini-3.7-flash` (closed, LegalBench top ten)
 - **Anthropic Claude** — `claude-opus-4-8` or other models
 - **OpenAI** — `gpt-4o`
 - **Gemini** (experimental)
@@ -230,17 +234,14 @@ Register new providers in `backend/providers/llm_factory.py`.
   (`tl_gazette`), Laos (`la_gazette`), Thailand (`th_law_api`), Singapore (`sg_sso`), China
   (`cn_portal`), Indonesia (`id_bpk`), sharing mechanics in `backend/pipeline/portal.py`. Each
   reached `EXTRACTED` in `tools/readiness.py` — a live fetch+extract through the real chain
-  produced genuine provisions, not just discovered documents. **No grader is reachable this
-  phase** (local server refuses connections, OpenRouter answers 401 "User not found"), so none
-  of the six is scored or promoted to `MEASURED`. Each carries a disclosed limit: Timor-Leste's
-  gazette index stops at 2012; Laos's crawl walks ~20 of ~89 pages needed for full coverage;
-  Thailand's `content_all` has no newlines and omits original article headings, so it used to
-  extract one whole-document provision per Act (fixed 2026-09-26: the adapter now rebuilds each Act from `law/detail`'s per-มาตรา items, one article per line — PDPA มาตรา 28/41 are their own provisions);
-  Singapore's four sort windows cover current Acts but not its 5,843 subsidiary instruments;
-  China's section indexes do not paginate (see the CN bullet above for its search-pass limit);
-  Indonesia reads page 1 of its portal's own search results only. RU stays unsolved: its document bodies
-  are reachable on `pravo.gov.ru` (see below) but discovery injects rows client-side and has no
-  adapter — Phase 3.  
+  produced genuine provisions, not just discovered documents. **Update 2026-09-26/27:** a grader
+  is reachable again (OpenRouter, deepseek-v4-flash) and TH, RU and ID now run end-to-end —
+  RU got its `pravo.gov.ru` adapter (152-FZ at its current redaction), ID clears BPK's
+  Cloudflare JavaScript challenge in the stealth browser. Remaining disclosed limits:
+  Timor-Leste's gazette index stops at 2012; Laos's crawl walks ~20 of ~89 pages; LA and TL
+  reach extraction but are not run end-to-end; Singapore's four sort windows cover current Acts
+  but not its 5,843 subsidiary instruments; China's section indexes do not paginate;
+  Indonesia reads page 1 of each search term (quoted-phrase search first).  
 ✅ **Three Mongolia defects found and fixed (2026-08-27)** — all SILENT, all cost the run its
   document set. A pillar-6 run returned FOUR documents, of which one was a statute.
   (1) `_matches` assumed a Mongolian stem reaches its declined form by substring, using
@@ -444,23 +445,16 @@ When corpus ≤80 provisions, **every provision is graded by the LLM against eve
 
 The tool is built to be auditable, not hidden:
 
-1. **Live crawling** runs end-to-end for SG/AU/MY/CN/IN/MN (measured 2026-08-25), and Phase 2
-   (2026-09-08) gave TH/ID/LA/SG/CN/TL their own portal-native discovery lane in place of
-   generic web search, which now answers HTTP 403 from every engine. Each of the six reached
-   `EXTRACTED` — a real fetch+extract through the pipeline's own chain, not just documents
-   discovered — but **none is scored**: neither grader is reachable this phase (the local
-   server refuses connections; OpenRouter answers 401 "User not found", revoked), so nothing
-   here is `MEASURED` against the panel's database. Known limits, disclosed rather than fixed:
-   CN's principal statutes still only PARTLY survive `cac.gov.cn` being unreachable — the new
-   `search.cac.gov.cn` full-text pass reaches CSL with production queries but misses PIPL under
-   the current 6-term cap and query order; MY's primary portal (`lom.agc.gov.my`) served a
-   broken robots.txt (HTTP 500) that used to skip its statute PDFs — fixed 2026-08-28 via the
-   `UNREACHABLE_OVERRIDE` carve-out in `backend/pipeline/robots.py` (489 → 5,931 provisions);
-   TH's provisions used to be whole-document, not article-level (fixed 2026-09-26: the adapter now rebuilds each Act from `law/detail`'s per-มาตรา items, one article per line — PDPA มาตรา 28/41 are their own provisions); TL's gazette index stops at 2012; LA's crawl walks
-   ~20 of ~89 pages needed for full coverage; SG's four sort windows cover current Acts but not
-   its 5,843 subsidiary instruments; ID reads page 1 of its portal's own search results only.
-   RU can fetch document bodies (`pravo.gov.ru`) but cannot yet discover them — its discovery
-   injects rows client-side and needs its own adapter, deliberately left for Phase 3.
+1. **Live crawling** runs end-to-end, from zero seed URLs, for **nine of eleven** economies —
+   SG/AU/MY/CN/IN/MN/TH/RU (measured 2026-09-26, the whole eight-economy run cost US$1.68 in
+   LLM calls) and ID (2026-09-27) — each through its own portal-native adapter, since generic
+   web search answers HTTP 403 from every engine. LA and TL reach extraction only. Known limits,
+   disclosed rather than fixed: CN's principal statutes only PARTLY survive `cac.gov.cn` being
+   unreachable; TL's gazette index stops at 2012; LA's crawl walks ~20 of ~89 pages; SG's sort
+   windows cover current Acts, not its 5,843 subsidiary instruments; ID reads page 1 of each
+   search term. The flash grader is stochastic on borderline provisions — a panel answer can
+   drop in one run and return in the next — and the second-pass quote check stabilises
+   precision, not recall.
 2. **Scanned/image PDFs** are handled by real raster OCR (RapidOCR/Paddle), measured CER on bundled sample is 1.11% (PASS <5%).
 3. **Mock grader** is lexical (offline) and can confuse P6-I1/P6-I4, P7-I1/P7-I2 without a real LLM → always use a real LLM (OpenRouter/Claude) for submission.
 4. **Indicator `legal_test`** are our interpretation of the RDTII methodology; review pending_review rows before submission.

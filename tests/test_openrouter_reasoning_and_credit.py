@@ -51,3 +51,26 @@ def test_out_of_credit_is_terminal_and_does_not_walk_the_pool(monkeypatch):
         _llm(c).complete_json("s", "u")
     assert ei.value.kind == "quota"
     assert len(c.kwargs) == 1            # the failover model was never asked
+
+
+def test_a_model_that_cannot_switch_reasoning_off_is_asked_again_without_it(monkeypatch):
+    # google/gemini-3.7-flash, 2026-09-27: 400 "Reasoning is mandatory for this endpoint and
+    # cannot be disabled" — engine B failed every call while OPENROUTER_REASONING was "off".
+    monkeypatch.setattr(settings, "openrouter_reasoning", "off")
+    monkeypatch.setattr(settings, "openrouter_provider_order", "")
+    monkeypatch.setattr(orr, "_REASONING_MANDATORY", set())
+
+    class _Mandatory(_Completions):
+        def create(self, **kw):
+            if "reasoning" in (kw.get("extra_body") or {}):
+                self.kwargs.append(kw)
+                raise Exception("Error code: 400 - Reasoning is mandatory for this endpoint "
+                                "and cannot be disabled.")
+            return super().create(**kw)
+
+    c = _Mandatory()
+    llm = _llm(c)
+    assert llm.complete_json("s", "u") == {"ok": True}
+    assert llm.complete_json("s", "u") == {"ok": True}
+    # one refused call, then every call goes without the switch
+    assert [("reasoning" in (k.get("extra_body") or {})) for k in c.kwargs] == [True, False, False]

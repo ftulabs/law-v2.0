@@ -436,7 +436,7 @@ def _engine_picker(state: dict, slot: str) -> None:
     rather than watch someone edit a file.
     """
     eng = state["engines"][slot]
-    cols = st.columns([1, 1.7])
+    cols = st.columns([1, 1.5, 1.5])
     with cols[0]:
         providers = list(reg.LLM_PROVIDERS)
         idx = providers.index(eng["provider"]) if eng["provider"] in providers else 0
@@ -445,6 +445,43 @@ def _engine_picker(state: dict, slot: str) -> None:
     with cols[1]:
         eng["model"] = st.text_input(f"Engine {slot} — model", value=eng["model"],
                                      key=f"lt_model_{slot}")
+    with cols[2]:
+        _key_input(slot, eng["provider"])
+
+
+#: provider → (environment variable, where a key is issued). mock and local take no key.
+_KEY_SOURCES = {
+    "openrouter": ("OPENROUTER_API_KEY", "openrouter.ai/keys"),
+    "anthropic": ("ANTHROPIC_API_KEY", "console.anthropic.com"),
+    "openai": ("OPENAI_API_KEY", "platform.openai.com/api-keys"),
+    "gemini": ("GEMINI_API_KEY", "aistudio.google.com/apikey"),
+}
+
+
+def _key_input(slot: str, provider: str) -> None:
+    """The engine's API key. Held in the widget's own session slot and handed to the run as it
+    starts — never copied into `state`, which feeds the run record and the exported note."""
+    src = _KEY_SOURCES.get(provider)
+    if not src:
+        st.text_input(f"Engine {slot} — API key", value="", disabled=True,
+                      key=f"lt_keyoff_{slot}", placeholder="not needed for this provider")
+        return
+    env, where = src
+    configured = bool(getattr(settings, env.lower(), ""))
+    st.text_input(
+        f"Engine {slot} — API key", type="password", key=f"lt_key_{slot}_{provider}",
+        placeholder=(f"leave empty to use {env}" if configured else "paste a key"),
+        help=(f"Get one at {where}. Held for this session only — never written to disk, the "
+              f"run record or the exported note."))
+    if configured:
+        st.caption(f"A key is set in `{env}`; one pasted here overrides it for this engine.")
+    else:
+        st.caption(f"No `{env}` set — paste a key, or this engine cannot run.")
+
+
+def engine_key(slot: str, provider: str) -> str | None:
+    """The key typed for this engine, if any (None → the run falls back to the environment)."""
+    return (st.session_state.get(f"lt_key_{slot}_{provider}") or "").strip() or None
 
 
 def render(state: dict, economies: dict[str, str],
@@ -633,6 +670,9 @@ def brief_screen(*, economy: str, pillar: int, ocr_label: str, llm_label: str) -
         st.session_state["fresh_run"] = True
         st.session_state["llm_provider"] = request["provider"]
         st.session_state["llm_model"] = request["model"]
+        # This engine's own key, or None so the run reads the provider's key from the
+        # environment — never a key left over from another provider on the Engines screen.
+        st.session_state["llm_key"] = engine_key(request["slot"], request["provider"])
         st.session_state["lt_pending"] = request["slot"]
         st.session_state["lt_started"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
         # The whole point of the second pass: no portal is contacted.

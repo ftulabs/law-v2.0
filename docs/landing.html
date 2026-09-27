@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VeriTrade — AI for digital-trade regulatory analysis</title>
-<meta name="description" content="VeriTrade autonomously finds, extracts and maps digital-trade law across Singapore, Australia and Malaysia to the UN ESCAP RDTII 2.1 indicators — with verbatim citations and a confidence score. Team VeriTrade.">
+<meta name="description" content="VeriTrade autonomously finds, extracts and maps digital-trade law across 11 Asia-Pacific economies to the UN ESCAP RDTII 2.1 indicators — with verbatim citations, a second quote check and a confidence score. Team VeriTrade.">
 <meta name="theme-color" content="#0b1120">
 <meta property="og:title" content="VeriTrade — AI for digital-trade regulatory analysis">
-<meta property="og:description" content="Find the law, prove the clause — automatically. RDTII 2.1 · Singapore · Australia · Malaysia.">
+<meta property="og:description" content="Find the law, prove the clause — automatically. RDTII 2.1 · 11 Asia-Pacific economies · 9 run end to end.">
 <meta property="og:type" content="website">
 <!-- ══ DEPLOY (stable plan, zero infra change) ══
      This page is served by the Streamlit app's static server at
@@ -258,7 +258,8 @@
   <h1 class="hero-title reveal">Find the law, <span class="accent">prove the clause</span> — automatically.</h1>
   <p class="hero-lede reveal">VeriTrade autonomously discovers digital-trade legislation on official government portals,
   reads it (including scanned PDFs), and maps every provision to the exact RDTII indicator — with a verbatim
-  citation, a source link, and a confidence score. Give it an economy and a pillar; get auditable evidence.</p>
+  citation, a source link, and a confidence score. A second model then re-checks every accepted row against the
+  law's own words. Give it an economy and a pillar; get auditable evidence.</p>
   <div class="hero-ctas reveal">
     <a class="btn btn-lg" id="heroApp" href="/">Open the app <span class="arrow">→</span></a>
     <a class="btn btn-ghost btn-lg" href="whitepaper.html">Read the white paper</a>
@@ -308,10 +309,10 @@
 </div></section>
 
 <section class="stats"><div class="container"><div class="stats-grid">
-  <div class="stat reveal"><div class="k">Economies · Round 1</div><div class="n" data-to="3">0<sub>SG·AU·MY</sub></div></div>
+  <div class="stat reveal"><div class="k">Economies run end to end</div><div class="n" data-to="9">0<sub>of 11</sub></div></div>
   <div class="stat reveal"><div class="k">RDTII indicators</div><div class="n" data-to="9">0<sub>P6·P7</sub></div></div>
   <div class="stat reveal"><div class="k">OCR error rate</div><div class="n" data-to="1.11" data-dec="2" data-suffix="%">0<sub>bar &lt;5%</sub></div></div>
-  <div class="stat reveal"><div class="k">LLM cost / economy</div><div class="n" data-prefix="~$" data-to="0.07" data-dec="2">0<sub>$0 open-weight</sub></div></div>
+  <div class="stat reveal"><div class="k">LLM cost · 8-economy live run</div><div class="n" data-prefix="$" data-to="1.68" data-dec="2">0<sub>both pillars</sub></div></div>
 </div></div></section>
 
 <section id="how"><div class="container">
@@ -319,23 +320,31 @@
     <h2 class="title">Four passes <span class="dim">from a blank query to cited evidence.</span></h2></div>
   <div class="steps">
     <div class="step reveal"><div class="num">01 · DISCOVER</div><h3>Find the law</h3>
-      <p>Autonomous search of official portals — no seed URLs, no hardcoded law names. Bot-resistant fetching clears WAFs that block a plain crawler.</p></div>
+      <p>Each economy's official legal portal is searched directly — no seed URLs, no hardcoded law names, no web search engine. Bot-resistant fetching, and a real browser when a portal demands one, clears blocks that stop a plain crawler.</p></div>
     <div class="step reveal"><div class="num">02 · EXTRACT</div><h3>Read every format</h3>
-      <p>HTML, text PDFs and scanned image PDFs. Real OCR with a measured character-error rate; text split into verbatim article/section chunks.</p></div>
+      <p>HTML, text PDFs and scanned image PDFs. Real OCR with a measured character-error rate; text split into verbatim articles the way each country drafts its laws.</p></div>
     <div class="step reveal"><div class="num">03 · MAP</div><h3>Match the indicator</h3>
       <p>Hybrid retrieval shortlists provisions; a sibling-aware LLM maps each to the right RDTII indicator, distinguishing look-alikes.</p></div>
     <div class="step reveal"><div class="num">04 · VERIFY</div><h3>Cite or refuse</h3>
-      <p>A 100%-verbatim snippet, an article-level citation, a source URL, and a confidence score. Low-confidence rows go to human review.</p></div>
+      <p>A verbatim snippet, citation, source URL and confidence score. A second, stronger model must quote the law's exact words for every part of the legal test, and the code checks each quote is really there. Rows that fail are set aside or sent to human review.</p></div>
   </div>
 </div></section>
 
 <section id="coverage"><div class="container">
   <div class="head reveal"><div class="kicker"><b>02</b> · Coverage</div>
-    <h2 class="title">Two mandatory pillars, <span class="dim">nine indicators, three economies.</span></h2></div>
+    <h2 class="title">Two mandatory pillars, <span class="dim">nine indicators, eleven economies — nine run end to end.</span></h2></div>
   <div class="econ-row reveal">
     <span class="econ"><b>Singapore</b> · sso.agc.gov.sg</span>
-    <span class="econ"><b>Australia</b> · legislation.gov.au</span>
     <span class="econ"><b>Malaysia</b> · lom.agc.gov.my</span>
+    <span class="econ"><b>Australia</b> · legislation.gov.au</span>
+    <span class="econ"><b>China</b> · cac.gov.cn</span>
+    <span class="econ"><b>India</b> · indiacode.gov.in</span>
+    <span class="econ"><b>Mongolia</b> · legalinfo.mn</span>
+    <span class="econ"><b>Thailand</b> · law.go.th</span>
+    <span class="econ"><b>Russian Federation</b> · pravo.gov.ru</span>
+    <span class="econ"><b>Indonesia</b> · peraturan.bpk.go.id</span>
+    <span class="econ"><b>Lao PDR</b> · reaches extraction</span>
+    <span class="econ"><b>Timor-Leste</b> · reaches extraction</span>
   </div>
   <div class="cov">
     <div class="pillar reveal">
@@ -363,29 +372,29 @@
     <div class="reveal">
       <div class="flow">
         <div class="fzone"><div class="zh">Zone 1 · Discovery &amp; Fetch</div>
-          <div class="zb"><b>Discover</b> (SG web search · AU OData + full-text · MY catalogue) &nbsp;·&nbsp; <b>Fetch</b> (Scrapling real-browser TLS) &nbsp;·&nbsp; 3-tier cache</div></div>
+          <div class="zb"><b>Discover</b> (one adapter per official portal · no web search) &nbsp;·&nbsp; <b>Fetch</b> (browser-like TLS · real browser for JavaScript challenges · robots.txt respected) &nbsp;·&nbsp; 3-tier cache</div></div>
         <div class="farrow">▼</div>
         <div class="fzone z2"><div class="zh">Zone 2 · Extract → Retrieve → Map</div>
-          <div class="zb"><b>OCR</b> (MarkItDown · RapidOCR/Paddle, measured CER) &nbsp;·&nbsp; <b>Retrieve</b> (BM25 + multilingual MiniLM + rerank, grade-all) &nbsp;·&nbsp; <b>Map</b> (sibling-aware LLM, 4-signal confidence)</div></div>
+          <div class="zb"><b>OCR</b> (MarkItDown · RapidOCR/Paddle, measured CER) &nbsp;·&nbsp; <b>Retrieve</b> (BM25 + multilingual embeddings + native-language legal terms) &nbsp;·&nbsp; <b>Map</b> (sibling-aware LLM, confidence score) &nbsp;·&nbsp; <b>Check</b> (a stronger model quotes the law for each element; every quote verified)</div></div>
         <div class="farrow">▼</div>
         <div class="froute">
           <span style="border-color:var(--good);color:var(--good)">≥0.85 auto-accept</span>
           <span style="border-color:var(--warn);color:var(--warn)">0.60–0.85 review</span>
-          <span style="border-color:var(--bad);color:var(--bad)">&lt;0.60 quarantine</span>
+          <span style="border-color:var(--bad);color:var(--bad)">&lt;0.60 set aside</span>
         </div>
         <div class="farrow">▼</div>
-        <div class="fzone"><div class="zh">Output</div><div class="zb">Official 13-column CSV · audit JSON · SQLite review store</div></div>
+        <div class="fzone"><div class="zh">Output</div><div class="zb">Official 14-column CSV (+2 translation columns) · audit JSON · SQLite/Postgres review store</div></div>
       </div>
     </div>
     <div class="reveal">
       <p>Two execution paths share identical extraction → mapping → export code: a <b>live path</b> that crawls the
       official portals (the scored path), and an <b>offline sample path</b> for reproducible demos. CPU-only; runs anywhere.</p>
       <ul class="arch-list">
-        <li><b>App</b><span>Streamlit dashboard · plain-language, light/dark</span></li>
+        <li><b>App</b><span>Streamlit web app · desktop installers for macOS, Windows, Linux</span></li>
         <li><b>Discovery</b><span>Scrapling · httpx · BeautifulSoup</span></li>
         <li><b>OCR</b><span>MarkItDown · RapidOCR · PaddleOCR · Tesseract · Azure</span></li>
         <li><b>Retrieval</b><span>rank_bm25 · sentence-transformers · cross-encoder</span></li>
-        <li><b>Store</b><span>SQLite audit trail · JSON trace · CSV export</span></li>
+        <li><b>Store</b><span>SQLite/Postgres audit trail · JSON trace · CSV export</span></li>
         <li><b>Deploy</b><span>Single host (Sager) · Cloudflare Tunnel · no inbound holes</span></li>
       </ul>
       <a class="btn btn-ghost" style="margin-top:1.2rem" href="https://github.com/ftulabs/law-v2.0" target="_blank" rel="noopener">Read the source <span class="arrow">→</span></a>
@@ -397,13 +406,14 @@
   <div class="head reveal"><div class="kicker"><b>04</b> · Modular models</div>
     <h2 class="title">Swap the model <span class="dim">with a single config value — no lock-in.</span></h2></div>
   <p class="reveal" style="color:var(--ink-soft); max-width:60ch; margin:0 0 1.6rem;">Every LLM and OCR call is vendor-agnostic.
-  Pick a fast, cheap model for bulk grading; a stronger one for hard cases; or a fully local, private stack — for $0.</p>
+  Our declared pair is DeepSeek V4 Flash (open weight, the production grader) and Gemini 3.7 Flash; a stronger DeepSeek V4 Pro
+  re-checks every accepted row. Or run a fully local, private stack — for $0.</p>
   <div class="providers">
-    <div class="prov default reveal"><div class="pnm">OpenRouter · DeepSeek</div><div class="pmeta">Default · ~$0.07/economy</div></div>
-    <div class="prov reveal"><div class="pnm">Anthropic Claude</div><div class="pmeta">Opus · Sonnet · Haiku</div></div>
+    <div class="prov default reveal"><div class="pnm">DeepSeek V4 Flash</div><div class="pmeta">Engine A · open weight · ~$0.19 / 1,000 calls</div></div>
+    <div class="prov reveal"><div class="pnm">Gemini 3.7 Flash</div><div class="pmeta">Engine B · 4th of 147 on LegalBench</div></div>
+    <div class="prov reveal"><div class="pnm">Anthropic Claude</div><div class="pmeta">Drop-in alternative</div></div>
     <div class="prov reveal"><div class="pnm">OpenAI GPT</div><div class="pmeta">Drop-in alternative</div></div>
-    <div class="prov reveal"><div class="pnm">Google Gemini</div><div class="pmeta">Long-context</div></div>
-    <div class="prov reveal"><div class="pnm">Local · Ollama</div><div class="pmeta">Self-hosted · private · $0</div></div>
+    <div class="prov reveal"><div class="pnm">Self-hosted · Ollama / vLLM</div><div class="pmeta">Private · $0</div></div>
     <div class="prov reveal"><div class="pnm">Mock</div><div class="pmeta">Offline · deterministic demos</div></div>
   </div>
 </div></section>

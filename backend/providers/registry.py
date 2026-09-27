@@ -36,6 +36,8 @@ LLM_LABELS = {"openrouter": "OpenRouter (paid · DeepSeek default)", "mock": "Mo
 # on funded keys). Catalogue churns — verify ids via GET /api/v1/models before adding.
 OPENROUTER_PAID_MODELS = [
     "deepseek/deepseek-v4-flash",
+    "google/gemini-3.7-flash",           # declared engine B (closed, LegalBench top ten)
+    "deepseek/deepseek-v4-pro-0813",     # the second-pass checker
     "google/gemini-2.5-flash",
     "openai/gpt-4o-mini",
     "google/gemini-2.5-flash-lite",

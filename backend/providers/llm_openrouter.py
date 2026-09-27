@@ -49,6 +49,10 @@ def _is_out_of_credit(e: Exception) -> bool:
     return code == 402 or "insufficient credits" in str(getattr(e, "body", None) or e)[:300].lower()
 
 
+#: Models that refused OPENROUTER_REASONING=off — they are called with their own default.
+_REASONING_MANDATORY: set[str] = set()
+
+
 def _is_rate_limited(e: Exception) -> bool:
     """A 429 from OpenRouter or the upstream provider.
 
@@ -109,7 +113,7 @@ class OpenRouterLLM(LLMProvider):
         pin = self._provider_pin()
         extra: dict[str, Any] = {}
         mode = (settings.openrouter_reasoning or "").strip().lower()
-        if mode == "off":
+        if mode == "off" and model not in _REASONING_MANDATORY:
             extra["reasoning"] = {"enabled": False}
         elif mode in ("low", "medium", "high"):
             extra["reasoning"] = {"effort": mode}
@@ -120,6 +124,14 @@ class OpenRouterLLM(LLMProvider):
                    {"extra_body": extra} if extra else {}),
             )
         except Exception as e:                     # noqa: BLE001 — classified right here
+            # OPENROUTER_REASONING=off is a setting for the grader (deepseek-v4-flash), but it
+            # reaches every model. Some cannot think less: google/gemini-3.7-flash answers 400
+            # "Reasoning is mandatory for this endpoint and cannot be disabled" (2026-09-27),
+            # which failed every call of a run declared on it. Such a model is asked again with
+            # its own default and remembered, so the refusal costs one call per process.
+            if "reasoning" in extra and "reasoning is mandatory" in str(e).lower():
+                _REASONING_MANDATORY.add(model)
+                return self._call(model, sys_msg, user, cap)
             # Only a ROUTING refusal is worth un-pinning for. A 429 is the pinned provider
             # working and busy (the caller already backs off and retries), and an auth error
             # or a bad request would fail identically anywhere.

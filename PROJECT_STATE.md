@@ -68,10 +68,10 @@ C4a handover 8 · C4b no vendor lock-in 7 · C5 live test 10 (discovery 6 + engi
 | CN | `cn_portal` adapter, verified (+ `search.cac.gov.cn` browser-lane pass) | eval, 10 docs / 251 prov (10 shells, 3 dead links) | yes | no | **2026-08-30 · 8/9 answer-key indicators** |
 | IN | 5 lanes, unverified | eval, 11 docs / 222 prov (**20 failed: link rot + robots**) | yes | no | **2026-08-30 · 7/8** |
 | MN | 1 lane, unverified | eval, 4 docs / 397 prov | yes | no | **2026-08-30 · 6/8** |
-| TH | `th_law_api` adapter, verified | eval, 6 docs / 206 prov | yes | no | **no** |
-| ID | `id_bpk` adapter, verified | eval, 11 docs / 252 prov | yes | no | **no** |
+| TH | `th_law_api` adapter, verified | eval, 6 docs / 206 prov | yes | no | **2026-09-26 · 135 rows** (PDPA 28/41, CCA ๒๖ auto) · not scored vs key |
+| ID | `id_bpk` adapter + stealth browser (BPK Cloudflare challenge) | eval, 11 docs / 252 prov | yes | no | **2026-09-27 · 35 docs, 138 rows** · not scored vs key |
 | LA | `la_gazette` adapter, verified | eval, 2 docs / 226 prov | yes | no | **no** |
-| RU | body route open, discovery open | eval, 3 docs / **2 prov** ⚠ garant blocks, IPS unreachable | yes | no | no |
+| RU | `pravo.gov.ru` adapter (current redaction) | eval, 3 docs / **2 prov** ⚠ garant blocks, IPS unreachable | yes | no | **2026-09-26 · 99–114 rows** (152-FZ art. 18 → 6.2 auto) · not scored vs key |
 | **TL** | `tl_gazette` adapter, verified | no | **impossible** (no database sheet) | no | reachable only |
 
 "Labels" = rows parsed from the panel's own databases by `backend/eval/ground_truth.py`
@@ -351,6 +351,19 @@ Everything else is retrieval or grading, which is where the budget below bites.
 ---
 
 ## §5 Recently done
+
+- [x] **Grading, checking and three more economies end-to-end** (2026-09-26/27). Grader
+      `deepseek/deepseek-v4-flash`, reasoning off (28/28 on a 28-row real-row bench, $0.19/1k
+      calls). Every accepted row outside 7.1 is re-read by `deepseek/deepseek-v4-pro-0813`, which
+      must quote the statute's words for each element (`mapping.verify_mapping`, `VERIFY_MODEL`):
+      on 42 labelled rows it kept 48/48 right and refused 31/36 wrong, and it writes the rationale.
+      TH, RU and ID run end-to-end; the eight-economy run cost $1.68 (`outputs/rt_0926d`).
+      Declared engines: A `deepseek/deepseek-v4-flash` (open weight), B `google/gemini-3.7-flash`
+      (closed; Vals LegalBench 87.26%, 4th of 147, 22 Sep 2026; 28/28 on the bench). The live-test
+      screen takes a per-engine API key, held for the session only. CI builds web + desktop only —
+      iOS/Android removed (mobile is out of scope).
+      Open: the flash grader drops a borderline panel answer in some runs (SG CPC s40 for 7.5 on
+      2026-09-27, accepted 10/10 when graded alone); 7.1 row counts vary between runs.
 
 - [x] **Phase 2 — ten of eleven economies now reach their own portal** (2026-09-08). Web search
       answers HTTP 403 from every engine (Serper spent, DuckDuckGo/Mojeek blocked), so six
