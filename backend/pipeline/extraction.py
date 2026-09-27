@@ -1100,6 +1100,20 @@ def _recover_truncated(title: str, text: str) -> str | None:
     return None
 
 
+_HAN_OR_FULLWIDTH = r"[　-〿㐀-䶿一-鿿＀-￯]"
+_SPACE_BETWEEN_HAN = re.compile(rf"(?<={_HAN_OR_FULLWIDTH})\s+(?={_HAN_OR_FULLWIDTH})")
+_INVISIBLE = re.compile("[​‌‍⁠﻿]")
+
+
+def _tidy_law_name(name: str) -> str:
+    """The Law Name column is the instrument's own title. cac.gov.cn titles arrive with display
+    spacing ("中华人民共和国 个人信息保护法") and zero-width spaces ("​中华人民共和国网络安全法"),
+    neither of which is in the title — and both defeat matching the name against the panel's
+    key: the 2026-09-26 CN run scored 3/9 answer-key indicators with PIPL present in the CSV."""
+    name = _INVISIBLE.sub("", name or "")
+    return _SPACE_BETWEEN_HAN.sub("", name).strip()
+
+
 def _law_name(doc: DiscoveredDoc, raw_text: str = "") -> str:
     """Law name for a provision. Prefer the discovery title, but recover the name from the
     document's own header when the title is a generic portal label (MY's "Malaysia Federal
@@ -1386,7 +1400,7 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
     if doc.economy == Economy.AU:                        # AU PDFs: a dotted-leader "Contents" TOC
         text = _DOTTED_TOC_RE.sub("", text)              # ("Schedule 1……… 5") — drop those lines so
         text = _strip_running_headers(text)              # their "Schedule N" entries aren't boundaries
-    law_name = _law_name(doc, text)                     # needs the ARRANGEMENT anchor → before TOC strip
+    law_name = _tidy_law_name(_law_name(doc, text))     # needs the ARRANGEMENT anchor → before TOC strip
     if not doc.amendment_date:
         # SG and MY get this date from their portal's own Timeline widget and AU from the OData
         # compilation feed. China has no such endpoint — and needs none, because a Chinese law

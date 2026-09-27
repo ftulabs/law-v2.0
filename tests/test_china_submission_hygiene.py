@@ -113,3 +113,36 @@ def test_no_date_is_invented_where_the_convention_does_not_apply():
     assert _stated_amendment_date("（2016年11月7日通过）", "SG") is None
     assert _stated_amendment_date("Personal Data Protection Act 2012", "CN") is None
     assert _stated_amendment_date("", "CN") is None
+
+
+import pytest as _pytest
+
+
+@_pytest.mark.parametrize("title", [
+    "以法治力量筑牢网络安全屏障",
+    "江苏常州“四个强化”助力数据安全保护实践",
+    "数据安全有保障！《贵州省大数据安全保障条例》表决通过",
+    "2026年个人信息保护系列专项行动取得阶段性成效",
+])
+def test_a_news_headline_is_not_a_citable_measure(title):
+    # 2026-09-27: each reached the CSV as a whole-document row, two auto-accepted
+    from backend.rdtii.instrument import Status, classify
+    assert classify(title) == Status.COMMENTARY
+
+
+@_pytest.mark.parametrize("title", [
+    "征信业管理条例 - 中国政府网",
+    "网络预约出租汽车经营服务管理暂行办法_交通运输部_中国政府网",
+    "地图管理条例（国务院令第664号） _行政法规_中国政府网",
+    "个人信息出境标准合同_中央网络安全和信息化委员会办公室",
+    "促进和规范数据跨境流动规定",
+])
+def test_a_measure_with_a_site_suffix_is_still_a_measure(title):
+    from backend.rdtii.instrument import Status, classify
+    assert classify(title) == Status.SCOREABLE
+
+
+def test_a_law_name_loses_display_spaces_and_zero_width_characters():
+    from backend.pipeline.extraction import _tidy_law_name
+    assert _tidy_law_name("\u200b中华人民共和国 个人信息保护法") == "中华人民共和国个人信息保护法"
+    assert _tidy_law_name("Personal Data Protection Act 2012") == "Personal Data Protection Act 2012"

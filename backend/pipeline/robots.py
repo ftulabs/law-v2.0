@@ -177,6 +177,26 @@ _UNKNOWN_TTL_SECONDS = 60
 _ATTEMPTS = 3
 
 
+def _fetch_impersonating(url: str) -> str | None:
+    """robots.txt through Scrapling's impersonating fetcher (no browser); None if it fails too
+    or the answer is a server error. A 4xx body is not a rule set, so it is not returned."""
+    try:
+        from . import scrapling_fetch
+        if not scrapling_fetch.available():
+            return None
+        res = scrapling_fetch.fetch(url, timeout=15, log=lambda *_: None)
+    except Exception:  # noqa: BLE001
+        return None
+    if res is None or not (200 <= res.status < 300):
+        return None
+    body = res.body.decode("utf-8", "replace")
+    # An HTML page (a challenge, an error page) holds no rules, and parsed as robots.txt it
+    # would read as "everything allowed". Unknown is the honest answer to that.
+    if re.search(r"<\s*(!doctype|html|head|body)\b", body[:2000], re.I):
+        return None
+    return body
+
+
 def _fetch(base: str) -> Robots:
     url = base.rstrip("/") + "/robots.txt"
     r = None
@@ -192,6 +212,17 @@ def _fetch(base: str) -> Robots:
             break
         if attempt + 1 < _ATTEMPTS:
             time.sleep(2 * (attempt + 1))
+    if r is None:
+        # httpx could not even connect. The browser-impersonating fetcher has its own TLS stack,
+        # and it is the one every CN page is read with: on 2026-09-27 httpx failed the TLS
+        # handshake to search.cac.gov.cn three times, the whole search pass was skipped as
+        # "robots.txt unreadable", and the run found 10 documents — while curl and this fetcher
+        # read the same robots.txt (it disallows nothing we ask for) at the same minute.
+        body = _fetch_impersonating(url)
+        if body is not None:
+            out = parse(body)
+            out.fetched_at, out.source = time.monotonic(), url
+            return out
     if r is None or r.status_code >= 500:
         # Could not ask. Treat as unknown rather than as permission — but see `for_url`, which
         # degrades to ALLOW when robots enforcement is switched off entirely.

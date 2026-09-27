@@ -86,3 +86,36 @@ def test_a_pdf_is_read_from_inside_the_site_root(monkeypatch):
                            log=lambda *_: None)
     assert opened == ["https://peraturan.bpk.go.id/"]
     assert res.body == pdf and res.content_type == "application/pdf"
+
+
+def test_robots_txt_falls_back_to_the_impersonating_fetcher_and_never_reads_html_as_rules(
+        monkeypatch):
+    # search.cac.gov.cn 2026-09-27: httpx failed the TLS handshake, the whole CN search pass
+    # was skipped as "robots.txt unreadable"; the impersonating fetcher read it fine.
+    import httpx
+    from backend.pipeline import robots
+
+    class _Boom:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def get(self, url): raise httpx.ConnectError("TLS connect error")
+
+    monkeypatch.setattr(httpx, "Client", _Boom)
+    monkeypatch.setattr(robots.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(sf, "available", lambda: True)
+    body = {"v": b"User-agent: *\nDisallow: /zfz/\n"}
+    monkeypatch.setattr(sf, "fetch", lambda url, **kw: sf.ScrapeResult(body["v"], "text/plain",
+                                                                       200, "scrapling-fetcher"))
+    r = robots._fetch("https://search.cac.gov.cn")
+    assert not r.unknown and r.allowed("https://search.cac.gov.cn/cms/x", "VeriTrade")
+    assert not r.allowed("https://search.cac.gov.cn/zfz/a", "VeriTrade")
+    body["v"] = b"<!DOCTYPE html><title>Just a moment...</title>"
+    assert robots._fetch("https://search.cac.gov.cn").unknown
+
+
+def test_the_cac_search_url_encodes_a_space_as_percent_20():
+    # "+" is never answered by search.cac.gov.cn (2026-09-27); "%20" is.
+    from backend.pipeline.adapter_china import _search_url
+    u = _search_url("服务器 设在境内")
+    assert "%20" in u and "+" not in u.split("huopro=")[1].split("&")[0]

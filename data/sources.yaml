@@ -206,44 +206,28 @@ sources:
     # first and worked. REORDERED so the principal statute is always inside the first 6 —
     # re-check this ordering before adding a term above it.
     queries_p6:
-      - 个人信息保护法             # PIPL — principal statute of this pillar; MUST stay inside the
-                                    # first 6 (see the load-bearing-order note above)
-      - 数据出境安全评估办法
-      - 个人信息出境标准合同
+      # NO INSTRUMENT TITLES (2026-09-27). The list used to carry the names of the panel's own
+      # answer-key instruments (个人信息保护法, 地图管理条例, 征信业管理条例 …), which is the
+      # "hardcoded law name" the competition rules forbid. Each term is now the obligation
+      # itself, in the drafting language a statute uses — what a researcher would type who does
+      # not yet know which instrument answers. Only the first 6 are searched (_SEARCH_MAX_TERMS).
+      # MEASURED on 2026-09-27 against the panel's own China answers (tools/compare_to_key
+      # matcher), same day, same code, every term answered: instrument names 6/9 indicators,
+      # these obligation phrases 6/9 — the SAME six hit and the same three missed. PIPL, CSL and
+      # 网络数据安全管理条例 are still found; 促进和规范数据跨境流动规定 was found only this way.
+      - 个人信息 出境
+      - 数据出境 安全评估
       - 应当在境内存储
       - 服务器 设在境内
       - 向境外提供个人信息
-      # Sector sweep (blocker close-out, 2026-08-25): the panel's 6.1/6.2/6.3 citations are
-      # sectoral measures whose titles carry no data vocabulary, so a concept query never
-      # reaches them. Name fragments like the FLK lane's second block — one per sector RDTII
-      # treats as in scope: ride-hailing, P2P lending, credit reporting, maps, publishing,
-      # e-mail, population-health info.
-      # ⚠ Past the first-6 cap given PIPL now occupies a slot above — these are NOT reached
-      # by the search pass as currently ordered. Widening `_SEARCH_MAX_TERMS` or splitting
-      # sector terms into their own pass is future work, not silently assumed coverage.
-      - 网络预约出租汽车经营服务管理暂行办法
-      - 网络借贷信息中介机构业务活动管理暂行办法
-      - 征信业管理条例
-      - 地图管理条例
-      - 网络出版服务管理规定
-      - 互联网电子邮件服务管理办法
-      - 人口健康信息管理办法
+      - 重要数据 出境
     queries_p7:
-      - 中华人民共和国网络安全法
-      - 中华人民共和国数据安全法
-      - 网络数据安全管理条例
+      - 个人信息处理者 义务
+      - 网络运营者 安全保护义务
+      - 数据处理者 数据安全保护
       - 个人信息保护影响评估
       - 个人信息保护负责人
-      - 个人信息 保存期限
-      - 留存 不少于 六个月
-      - 网络安全审查办法
-      - 反恐怖主义法 技术支持和协助
-      - 互联网信息服务管理办法
-      # 6.1-ban/6.2-localisation instruments the panel cites: e-commerce law, generative-AI
-      # measures; also mirror name queries so PIPL/DSL survive cac.gov.cn being unreachable.
-      - 中华人民共和国电子商务法
-      - 生成式人工智能服务管理暂行办法
-      - 关键信息基础设施安全保护条例
+      - 网络日志 留存 不少于六个月
     notes: >
       THE PRIMARY CHINA LANE — listed first because it is the one that actually yields statute
       text. cac.gov.cn publishes the national laws as ordinary server-rendered pages, so an

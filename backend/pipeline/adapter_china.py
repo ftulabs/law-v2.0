@@ -343,7 +343,10 @@ def _search_url(term: str, page: int = 1) -> str:
         "mustpro": "", "notpro": "", "inpro": "", "startDate": "", "endDate": "",
         "sort": "0", "searchfield": "", "searchdir": _SEARCH_DIR,
     }
-    return _SEARCH_ENDPOINT + "?" + urllib.parse.urlencode(params)
+    # Spaces as %20, not "+". The endpoint (behind its WAF) never answers a "+"-encoded query:
+    # measured 2026-09-27, "服务器 设在境内" timed out on every try with "+" and returned 20 KB in
+    # 1.7 s with "%20" — so every multi-word term in this list had silently searched nothing.
+    return _SEARCH_ENDPOINT + "?" + urllib.parse.urlencode(params, quote_via=urllib.parse.quote)
 
 
 def _search_terms(query: str, src: dict, indicators: list) -> list[str]:

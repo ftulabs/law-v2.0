@@ -168,6 +168,8 @@ def classify(law_name: str) -> Status:
         return Status.DRAFT
     if _reports_on_an_instrument(name):
         return Status.COMMENTARY
+    if _han_title_is_not_an_instrument(name):
+        return Status.COMMENTARY
     if _REPEALED.search(name) and _REPEAL_LED.search(name):
         return Status.REPEALED
     if _AMENDING.search(name):
@@ -207,6 +209,36 @@ def _reports_on_an_instrument(name: str) -> bool:
     if not stripped:
         return False            # the title IS the quoted instrument, just wearing brackets
     return bool(_REPORTING_VERB.search(stripped))
+
+
+#: A Chinese measure is NAMED by its instrument type: it ends in 法, 条例, 办法, 规定, 意见, 通知,
+#: 标准, 方案 … (optionally followed by "(试行)" or an order number in brackets). A news headline
+#: does not — "以法治力量筑牢网络安全屏障", "江苏常州“四个强化”助力数据安全保护实践",
+#: "2026年个人信息保护系列专项行动取得阶段性成效" all reached a 2026-09-27 CSV as whole-document
+#: rows, two of them auto-accepted, because the keyword patterns above had no word for them.
+#: Measured before shipping: all 29 Chinese titles the panel cites for China end this way; of 55
+#: CN titles our runs ever produced, the rule flags only headlines, infographics, Q&A and lists.
+_HAN_INSTRUMENT_END = re.compile(
+    r"(?:法|条例|办法|规定|规则|细则|决定|意见|通知|通告|公告|指引|指南|标准|规范|方案|纲要|计划|规划"
+    r"|预案|批复|命令|令|措施|要求|目录|清单|章程|制度|守则|准则|解释|答复|函|修正案|合同)"
+    r"(?:\s*[（(][^）)]{0,24}[）)])*\s*$")
+#: A page title's site suffix: "…暂行办法_交通运输部_中国政府网", "征信业管理条例 - 中国政府网".
+_SITE_SUFFIX = re.compile(r"\s*(?:_|\s-\s|－)\s*[^_]*(?:网|政府|部|办公室|委员会|动态|文件|法规)\s*(?:_.*)?$")
+_HAN_CHAR = re.compile(r"[一-鿿]")
+
+
+def _han_title_is_not_an_instrument(name: str) -> bool:
+    """True for a Chinese title that is not named like an instrument. Only titles that are
+    mostly Han script are judged, and a truncated title ("…" / "...") is never judged."""
+    title = _SITE_SUFFIX.sub("", (name or "").replace("​", "")).strip()
+    if title.startswith("《") and title.endswith("》") and title.count("《") == 1:
+        title = title[1:-1].strip()         # the measure's own name, wearing brackets
+    han = len(_HAN_CHAR.findall(title))
+    if han < 4 or han < 0.5 * len(title.replace(" ", "")):
+        return False
+    if re.search(r"(?:\.\.\.|…)\s*$", title):
+        return False
+    return not _HAN_INSTRUMENT_END.search(title)
 
 
 def note_for(status: Status) -> str | None:

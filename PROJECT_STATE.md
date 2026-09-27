@@ -352,6 +352,18 @@ Everything else is retrieval or grading, which is where the budget below bites.
 
 ## §5 Recently done
 
+- [x] **China discovery without instrument names** (2026-09-27). `cn_portal`'s query list
+      carried ~17 titles of the panel's own answer-key instruments. Replaced by obligation
+      phrases and measured same-day: 6/9 answer-key indicators either way, the same six.
+      Three defects found on the way: every multi-word CN search term had searched nothing
+      ("+" for a space is never answered; now %20); one TLS failure reading search.cac.gov.cn's
+      robots.txt skipped the whole search pass (now read through the impersonating fetcher
+      too); news headlines reached the CSV as whole-document rows (a Chinese title that does
+      not end in an instrument type is now commentary — 29/29 panel titles pass). Law names
+      lose display spaces and zero-width characters (the CN key match read 3/9 for a run that
+      was really 6/9). Still title-like: IN `Listing Obligations Disclosure Requirements
+      Regulations 2015`, MN `"харилцаа холбоо" тухай`, `банкны тухай` — not yet measured.
+
 - [x] **Grading, checking and three more economies end-to-end** (2026-09-26/27). Grader
       `deepseek/deepseek-v4-flash`, reasoning off (28/28 on a 28-row real-row bench, $0.19/1k
       calls). Every accepted row outside 7.1 is re-read by `deepseek/deepseek-v4-pro-0813`, which
