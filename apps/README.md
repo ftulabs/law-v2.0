@@ -1,14 +1,14 @@
 # VeriTrade clients
 
-One UI, five platforms. `apps/web` is the interface; `apps/shell` is the Tauri
-wrapper that ships it as a desktop or mobile app. They differ only in how the UI
+`apps/web` is the interface; `apps/shell` is the Tauri wrapper that ships it as a
+desktop app. They differ only in how the UI
 reaches the API, which is decided in one file — `apps/web/src/platform.ts`.
 
 ```
 apps/web            the UI, and the only place product behaviour lives
   src/generated/    the typed client, produced by `ledger product` from the
                     backend's own Pydantic models — do not hand-edit
-apps/shell          the Tauri v2 shell: macOS, Windows, Linux, iOS, Android
+apps/shell          the Tauri v2 shell: macOS, Windows, Linux
 ```
 
 ## Running it
@@ -79,17 +79,8 @@ npx tauri build --target aarch64-apple-darwin
 
 ## Mobile
 
-```bash
-npx tauri ios init         # needs full Xcode, not Command Line Tools
-npx tauri android init     # needs Android Studio + NDK
-```
-
-Both compile in CI but are **not signed there**: submission needs certificates
-the workflow deliberately does not carry. What CI proves is that the Rust core
-and the UI still build for the platform, which is the part that breaks silently.
-
-Mobile talks to a hosted API and never to a sidecar. Python cannot ship inside an
-App Store binary, so the bundled-engine design applies to desktop only.
+Out of scope: VeriTrade is a web app used on a computer. CI builds no iOS or
+Android target (removed 2026-09-27).
 
 ## The generated client
 

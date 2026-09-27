@@ -1,4 +1,4 @@
-# Build the VeriTrade clients for every platform, and publish installers on a tag.
+# Build the VeriTrade web UI and desktop shells, and publish installers on a tag.
 #
 # Caching is the difference between a 20-minute matrix and a 3-minute one. Three
 # things are cached, and each needs a different key:
@@ -40,8 +40,12 @@ env:
   CARGO_PROFILE_RELEASE_DEBUG: false
 
 jobs:
-  # The UI is platform-independent, so it is built once and the five shells
-  # download it. Building it inside each matrix leg would compile it five times.
+  # The UI is platform-independent, so it is built once and the desktop shells
+  # download it. Building it inside each matrix leg would compile it once per leg.
+  #
+  # No iOS/Android job (removed 2026-09-27): VeriTrade is a web app run on a computer,
+  # and mobile is out of scope. The android leg had been red since the runner image
+  # dropped the SDK `tools` package, for an app that has no Android project to build.
   web:
     runs-on: ubuntu-latest
     steps:
@@ -157,106 +161,9 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-  # Mobile compiles here but is not signed: App Store and Play submission need
-  # certificates this workflow deliberately does not carry. The job proves the
-  # Rust core and the UI build for the platform, which is what breaks silently.
-  mobile:
-    needs: web
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: android
-            os: ubuntu-22.04
-          - platform: ios
-            os: macos-14
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: apps/shell/package-lock.json
-
-      - name: Install the Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Android targets
-        if: matrix.platform == 'android'
-        run: rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
-
-      - name: iOS targets
-        if: matrix.platform == 'ios'
-        run: rustup target add aarch64-apple-ios aarch64-apple-ios-sim
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: apps/shell/src-tauri -> target
-          key: mobile-${{ matrix.platform }}
-          cache-on-failure: true
-
-      - uses: actions/setup-java@v4
-        if: matrix.platform == 'android'
-        with:
-          distribution: temurin
-          java-version: 17
-          # No gradle cache: the Android project does not exist until
-          # `tauri android init` runs below, and setup-java fails the job when
-          # its cache scan finds no build files rather than skipping.
-
-      - uses: android-actions/setup-android@v3
-        if: matrix.platform == 'android'
-        with:
-          # Accept the licences ourselves in the next step instead. The action's own
-          # acceptance broke when the runner image changed its preinstalled cmdline-tools:
-          # on 2026-09-12 sdkmanager opened with "Accept? (y/N):" and the action's reply
-          # landed; from 2026-09-17 it opens with "Review licenses that have not been
-          # accepted (y/N)?", the reply no longer matches, and the job dies after printing
-          # six licence agreements. Nothing in this repository changed — only the image did,
-          # which is why the android leg went red while web, all four desktop legs and iOS
-          # stayed green.
-          accept-android-sdk-licenses: false
-
-      - name: Accept the Android SDK licences
-        if: matrix.platform == 'android'
-        # `yes` answers every prompt whatever its wording, so this cannot break again the next
-        # time the tooling rephrases the question. sdkmanager's own exit status is the one
-        # bash reports here (no pipefail), so a genuine licence failure still fails the job.
-        run: yes | sdkmanager --licenses > /dev/null
-
-      - name: Install the NDK
-        if: matrix.platform == 'android'
-        run: sdkmanager --install "ndk;27.0.12077973"
-
-      - name: Shell dependencies
-        working-directory: apps/shell
-        run: npm ci
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: web-dist
-          path: apps/web/dist
-
-      - name: Compile the mobile core
-        working-directory: apps/shell
-        env:
-          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.12077973
-        run: |
-          npx tauri ${{ matrix.platform }} init --ci
-          # Unsigned: `build` would demand a signing identity. `cargo check`
-          # against the platform target proves the core compiles, which is the
-          # regression this job exists to catch.
-          if [ "${{ matrix.platform }}" = "ios" ]; then
-            cargo check --manifest-path src-tauri/Cargo.toml --target aarch64-apple-ios
-          else
-            cargo check --manifest-path src-tauri/Cargo.toml --target aarch64-linux-android
-          fi
-
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [desktop, mobile]
+    needs: [desktop]
     runs-on: ubuntu-latest
     permissions:
       contents: write

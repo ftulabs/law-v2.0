@@ -128,13 +128,8 @@ a key in `.env` — see the [README](README.md#quick-start).
 
 ## Mobile
 
-There is no iOS or Android build to install. Both compile in CI, which is what
-keeps them from breaking silently, but neither is signed: the App Store needs an
-Apple Developer account and Play needs a Google Play console account, and
-submission is a separate piece of work.
-
-Mobile is designed to talk to a hosted API rather than a local engine — Python
-cannot ship inside an App Store binary.
+Not supported. VeriTrade is used in a web browser on a computer; there is no
+iOS or Android build, and CI does not compile one.
 
 ## Reproducing the benchmark, the paper and the site
 
