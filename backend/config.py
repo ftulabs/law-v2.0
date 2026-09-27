@@ -56,18 +56,27 @@ class Settings(BaseSettings):
     # mistral and gpt-oss reproduced their scores exactly across both runs; the other two moved
     # by ~0.05, so the ranking gap between second and fourth is inside the noise and only the
     # first place is a firm result.
-    openrouter_model: str = "mistralai/mistral-small-3.2-24b-instruct"
+    # SUPERSEDED 2026-09-26 by a bench on 28 REAL rows (16 panel answers, 12 wrong rows, read by
+    # hand): deepseek-v4-flash with reasoning OFF scored 28/28 after the second-pass check at
+    # $0.19/1k calls. The table above measured it with reasoning left on, which is what made it
+    # slow and lossy. See OPENROUTER_REASONING below.
+    openrouter_model: str = "deepseek/deepseek-v4-flash"
 
     # ── the two declared engines (C4b, re-tested live as C5b) ─────────────────────────
     # Declared in Section 5 of the 30 September submission and frozen from that moment. They
     # live here rather than only in the README so the live-test screen, the run record and the
     # documentation cannot disagree about what was declared — and so a reviewer can see the
     # declaration in the configuration the tool actually reads.
-    # At least one must be OPEN WEIGHT; engine B is, and is self-hostable on a single GPU.
+    # At least one must be OPEN WEIGHT. Chosen 2026-09-27:
+    #   A  deepseek-v4-flash — open weight, the production grader, $0.047/$0.094 per M tokens.
+    #   B  gemini-3.7-flash — closed, 87.26% on Vals AI LegalBench (4th of 147 models, 22 Sep
+    #      2026) and the cheapest model in its top ten at $0.75/$3.75 per M tokens; 28/28 on our
+    #      28-row bench before any check. Reasoning cannot be switched off for it (see
+    #      llm_openrouter._REASONING_MANDATORY). Roughly 30x the per-call cost of engine A.
     declared_engine_a_provider: str = "openrouter"
-    declared_engine_a_model: str = "openai/gpt-4o-mini"                 # commercial, hosted
+    declared_engine_a_model: str = "deepseek/deepseek-v4-flash"         # open weights
     declared_engine_b_provider: str = "openrouter"
-    declared_engine_b_model: str = "mistralai/mistral-small-3.2-24b-instruct"   # open weights
+    declared_engine_b_model: str = "google/gemini-3.7-flash"            # closed, hosted
     # Cap completion tokens. Two constraints pull in opposite directions:
     #   • a cap keeps OpenRouter's per-request credit pre-authorisation small — with NO cap,
     #     16-way concurrent calls can 402 (pre-auth exceeds balance) even on a funded key;
@@ -82,7 +91,10 @@ class Settings(BaseSettings):
     # Reasoning ("thinking") for hybrid models on OpenRouter: "" leaves the model's default,
     # "off" disables it, "low"/"medium"/"high" set its effort. Billed as output tokens, so for a
     # reasoning model it is most of the cost of a grading call.
-    openrouter_reasoning: str = ""
+    # Default "off": deepseek-v4-flash with reasoning on scored 19-20/28 against 28/28 with it
+    # off, at up to 198 s a call (2026-09-26). A model that cannot switch it off is retried
+    # with its own default.
+    openrouter_reasoning: str = "off"
     # Retries against the SAME model when it returns 429, before considering another one.
     # Five with jittered exponential backoff covers a burst from sixteen concurrent workers.
     # See llm_openrouter._is_rate_limited for why a rate limit must not trigger model failover.
