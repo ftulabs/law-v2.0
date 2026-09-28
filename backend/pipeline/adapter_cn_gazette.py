@@ -89,6 +89,7 @@ _FRESH_ISSUES = 3
 #: At most this many instruments per call, best screen first. `discovery._cap` then trims the
 #: union of all CN lanes to `discovery_max_docs`.
 _MAX_RETURN = 40
+_ISSUE_CACHE = "issues_v2.json"
 
 # ── step 2: which gazette items are legislative instruments ──────────────────────────────────
 
@@ -196,8 +197,11 @@ def parse_index(raw: str) -> list[tuple[int, str]]:
     return [(y, u) for y, _, u in out]
 
 
-def parse_issue(html: str, issue_url: str) -> list[tuple[str, str]]:
-    """(content URL, instrument name) for every legislative instrument an issue page lists."""
+def issue_entries(html: str, issue_url: str) -> list[tuple[str, str]]:
+    """(content URL, raw entry text) for every gazette item an issue page lists — the part of
+    an issue page that is cached. Names are derived from it at READ time (`parse_issue`), so a
+    change to `instrument_name` takes effect on a warm cache instead of waiting for pages that
+    never change to be fetched again."""
     soup = BeautifulSoup(html, "html.parser")
     out: list[tuple[str, str]] = []
     seen: set[str] = set()
@@ -208,11 +212,23 @@ def parse_issue(html: str, issue_url: str) -> list[tuple[str, str]]:
         url = urllib.parse.urljoin(issue_url, href)
         if "/gongbao/" not in url or url in seen:
             continue
-        name = instrument_name(a.get_text(""))
+        seen.add(url)
+        out.append((url, a.get_text("")))
+    return out
+
+
+def _named(entries) -> list[tuple[str, str]]:
+    out = []
+    for url, text in entries:
+        name = instrument_name(text)
         if name:
-            seen.add(url)
             out.append((url, name))
     return out
+
+
+def parse_issue(html: str, issue_url: str) -> list[tuple[str, str]]:
+    """(content URL, instrument name) for every legislative instrument an issue page lists."""
+    return _named(issue_entries(html, issue_url))
 
 
 # ── step 3: what the text says ───────────────────────────────────────────────────────────────
@@ -341,14 +357,16 @@ def search_cn_gazette(client, src: dict, query: str, economy: Economy, indicator
     issues = [(y, u) for y, u in issues if y >= min_year]
 
     # Step 2 — issue pages (cached except the newest few).
-    issue_cache = _load("issues.json")
+    # v2 holds raw entries (v1 held names parsed by the rule of the day, so a better rule never
+    # reached a cached issue — measured 2026-09-29: 6,042 names where the new rule gives 6,311).
+    issue_cache = _load(_ISSUE_CACHE)
     fresh = {u for _, u in issues[:_FRESH_ISSUES]}
     todo = [u for _, u in issues if u in fresh or u not in issue_cache]
     lock = threading.Lock()
 
     def _read_issue(u: str):
         r = portal.portal_get(client, u, log, tries=2)
-        return u, (parse_issue(r.text, u) if r is not None else None)
+        return u, (issue_entries(r.text, u) if r is not None else None)
 
     unread = 0
     with ThreadPoolExecutor(max_workers=workers) as ex:
@@ -358,11 +376,11 @@ def search_cn_gazette(client, src: dict, query: str, economy: Economy, indicator
                 continue
             issue_cache[u] = rows
     if todo:
-        _save("issues.json", issue_cache)
+        _save(_ISSUE_CACHE, issue_cache)
     items: list[tuple[int, str, str]] = []           # (year, url, name), newest issue first
     seen_urls: set[str] = set()
     for y, u in issues:
-        for url, name in issue_cache.get(u, []):
+        for url, name in _named(issue_cache.get(u, [])):
             if url not in seen_urls:
                 seen_urls.add(url)
                 items.append((y, url, name))

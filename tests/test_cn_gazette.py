@@ -333,6 +333,19 @@ def test_second_run_reads_no_instrument_text_again():
     assert any("screened 0 new" in m for m in said), said
 
 
+def test_a_better_name_rule_reaches_cached_issues_without_refetching_them(monkeypatch):
+    """Issue pages never change, so they are cached — but the NAMES read from them are derived
+    at read time. A rule change must take effect on a warm cache."""
+    _run(FakeGov())
+    real = G.instrument_name
+    monkeypatch.setattr(G, "instrument_name",
+                        lambda text: None if "征信" in (text or "") else real(text))
+    again = FakeGov()
+    docs, _ = _run(again)
+    assert "征信业管理条例" not in {d.title for d in docs}
+    assert [u for u in again.requests if u in ISSUES] == list(ISSUES)[:G._FRESH_ISSUES]
+
+
 def test_cache_from_an_older_screen_version_is_recomputed(monkeypatch):
     _run(FakeGov())
     monkeypatch.setattr(G, "SCREEN_VERSION", G.SCREEN_VERSION + 1)
