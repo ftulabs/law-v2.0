@@ -53,7 +53,8 @@ jobs:
           from backend.providers import get_llm_provider
           llm = get_llm_provider()
           print('grader:', llm.name, llm.model_version)
-          print(llm.pool_report())
+          # pool_report exists only on the self-hosted cluster provider; a hosted one has no pool.
+          print(llm.pool_report() if hasattr(llm, 'pool_report') else 'hosted provider, no node pool')
           print(llm.complete_json('Return ONLY JSON.', 'Answer with {\"ok\": true}'))
           "; then
               exit 0
