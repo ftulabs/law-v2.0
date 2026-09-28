@@ -286,10 +286,15 @@ class Settings(BaseSettings):
     # revalidate). Scrapling has no conditional GET, so without a TTL every run re-downloads
     # every PDF in full — ~10 min of fetch on the slow MY portal.
     fetch_ttl_hours: float = 24.0
-    # Full-result cache: a repeat run with identical inputs returns the stored result instantly.
-    # Kept until the cache is cleared (result_cache_ttl_hours=0) or past the TTL if set >0.
+    # Full-result cache: a repeat run with identical inputs AND identical code returns the stored
+    # result instantly, marked on screen with the date it was made. Three things end a stored
+    # result: a code change (the key carries a fingerprint of backend/ + sources.yaml, and older
+    # files are deleted on the next write), a newer live run of the same configuration (same key,
+    # so it overwrites), and this TTL. It was 0 (= never expire) until 2026-09-29, which let
+    # results from before a fix outlive the fix; the fingerprint now covers that, so the TTL
+    # only bounds how old a portal crawl can be — 30 days. 0 still means "never expire".
     result_cache_enabled: bool = True
-    result_cache_ttl_hours: float = 0.0
+    result_cache_ttl_hours: float = 720.0
     crawl_timeout_seconds: float = 30.0
     # Zone-1 fetch engine: scrapling (default) | httpx | auto.
     #   scrapling = Scrapling primary (real-browser TLS impersonation — the more reliable

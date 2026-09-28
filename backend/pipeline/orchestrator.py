@@ -302,14 +302,81 @@ def _explain_lost_cached_bodies(economy: Economy, requested: int, log=safe_log) 
     return out
 
 
-def _result_cache_file(economy, pillars, use_samples, ocr, llm, top_k, do_score, pdf_path):
+_CODE_FINGERPRINT: str | None = None
+
+
+def _code_fingerprint() -> str:
+    """A hash of the code and source configuration that decide what a run returns.
+
+    The result cache used to be keyed on inputs alone, with no expiry, so a fix did not reach
+    the screen: after the 2026-09-26 RU and MY fixes a repeat Run still served the result
+    computed BEFORE them, and nothing on the page said so. Hashing the files themselves rather
+    than asking git for a commit keeps this working in the deployed image, which ships no .git.
+    Computed once per process — a process serving old code should key on the old code.
+    """
+    global _CODE_FINGERPRINT
+    if _CODE_FINGERPRINT is None:
+        import hashlib
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[2]
+        files = sorted((root / "backend").rglob("*.py")) + [root / "data" / "sources.yaml"]
+        h = hashlib.sha1()
+        for f in files:
+            try:
+                h.update(f.relative_to(root).as_posix().encode())
+                h.update(f.read_bytes())
+            except OSError:
+                continue
+        _CODE_FINGERPRINT = h.hexdigest()[:12]
+    return _CODE_FINGERPRINT
+
+
+def _result_cache_file(economy, pillars, use_samples, ocr, llm, top_k, do_score, pdf_path,
+                       do_translate: bool = False):
     import hashlib
+    # Translation is part of the key because it changes the output: two columns and the
+    # evidence panel. Without it, a run with translation off answered a request with it on.
+    fp = _code_fingerprint()
     key = (f"{economy.value}|{sorted(pillars)}|{use_samples}|{ocr.name}|{llm.name}|"
-           f"{llm.model_version}|{top_k}|{do_score}|{pdf_path or ''}")
+           f"{llm.model_version}|{top_k}|{do_score}|{pdf_path or ''}|"
+           f"{do_translate}|{settings.translation_target_lang if do_translate else ''}|{fp}")
     h = hashlib.sha1(key.encode()).hexdigest()[:16]
     d = settings.cache_path / "_results"
     d.mkdir(parents=True, exist_ok=True)
-    return d / f"{economy.value}_P{''.join(map(str, sorted(pillars)))}_{h}.json"
+    # The fingerprint is in the NAME, not only in the hash, so `_prune_result_cache` can tell
+    # which files another version of the code wrote without opening them.
+    return d / f"{economy.value}_P{''.join(map(str, sorted(pillars)))}_{fp}_{h}.json"
+
+
+def _prune_result_cache() -> int:
+    """Delete stored results that can never be served again. Returns how many were removed.
+
+    A new key only stops an old file being READ; it does not remove it, so every code change
+    used to leave a full set of results behind (75 MB in `_results/` on 2026-09-29). Removed:
+    anything written by other code (another fingerprint, or the pre-fingerprint name with
+    three parts), and anything past the TTL. A newer run of the SAME configuration needs no
+    rule here — it has the same key, so it overwrites its predecessor in place.
+    """
+    d = settings.cache_path / "_results"
+    if not d.exists():
+        return 0
+    fp, ttl = _code_fingerprint(), settings.result_cache_ttl_hours
+    removed = 0
+    for f in d.glob("*.json"):
+        parts = f.stem.split("_")
+        stale = len(parts) != 4 or parts[2] != fp
+        if not stale and ttl > 0:
+            try:
+                stale = (time.time() - f.stat().st_mtime) >= ttl * 3600
+            except OSError:
+                continue
+        if stale:
+            try:
+                f.unlink()
+                removed += 1
+            except OSError:                   # in use or already gone — try again next run
+                pass
+    return removed
 
 
 def run_pipeline(
@@ -360,14 +427,23 @@ def run_pipeline(
 
     # full-result cache: identical inputs → return the stored result, no live run
     do_score = settings.scoring_enabled if scoring_enabled is None else scoring_enabled
-    cache_f = _result_cache_file(economy, pillars, use_samples, ocr, llm, top_k, do_score, pdf_path)
-    if use_result_cache and settings.result_cache_enabled and cache_f.exists():
+    do_translate = (settings.translation_enabled if translation_enabled is None
+                    else translation_enabled)
+    cache_f = _result_cache_file(economy, pillars, use_samples, ocr, llm, top_k, do_score,
+                                 pdf_path, do_translate)
+    # A second pass must re-read the first pass's documents with a DIFFERENT engine; a stored
+    # result would answer it without reading anything, so it never consults the cache.
+    if (use_result_cache and reuse_documents is None and settings.result_cache_enabled
+            and cache_f.exists()):
         ttl = settings.result_cache_ttl_hours
         if ttl <= 0 or (time.time() - cache_f.stat().st_mtime) < ttl * 3600:
             try:
                 result = RunResult.model_validate_json(cache_f.read_text(encoding="utf-8"))
-                log(f"[cache] result cache hit ({cache_f.name}, run {result.meta.run_id}) — "
-                    f"delete the file or use a fresh run to re-crawl live")
+                result.meta.served_from_cache = (result.meta.finished_at
+                                                 or result.meta.started_at)
+                log(f"[cache] result cache hit ({cache_f.name}, run {result.meta.run_id}, "
+                    f"finished {result.meta.served_from_cache}) — no portal contacted and no "
+                    f"model called; tick 'Search again' to run live")
                 return result
             except Exception as e:  # noqa: BLE001 — unreadable cache → run live
                 log(f"[cache] result cache unreadable ({type(e).__name__}); running live")
@@ -636,9 +712,8 @@ def run_pipeline(
     # statute language. LAST, and after the placeholders, on purpose: it reads the final row
     # set and writes only its own two fields, so nothing that decided a mapping, a confidence
     # or a score ever saw a translation. Skipped without a call when the economy already
-    # legislates in the target language. See pipeline/translate.py.
-    do_translate = (settings.translation_enabled if translation_enabled is None
-                    else translation_enabled)
+    # legislates in the target language. See pipeline/translate.py. (`do_translate` is
+    # resolved at the top of the run, because the result-cache key needs it too.)
     if do_translate and mappings:
         _t = time.perf_counter()
         translate.translate_mappings(mappings, llm=llm, log=log)
@@ -678,7 +753,11 @@ def run_pipeline(
     result = RunResult(meta=meta, mappings=mappings)
     if settings.result_cache_enabled:
         try:
+            # Same configuration, same key, same file: a new live run replaces the old one.
             cache_f.write_text(result.model_dump_json(), encoding="utf-8")
+            n = _prune_result_cache()
+            if n:
+                log(f"[cache] removed {n} stored result(s) from older code or past their TTL")
         except Exception:  # noqa: BLE001 — caching is best-effort
             pass
     return result

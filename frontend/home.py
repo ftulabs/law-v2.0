@@ -189,8 +189,10 @@ def render(*, economy: str, pillar: int, ocr_label: str, llm_label: str,
         opt = st.columns(3, gap="small")
         with opt[0]:
             out["fresh"] = st.checkbox("Search again", value=fresh,
-                                       help="Identical inputs normally return the saved "
-                                            "result instantly.")
+                                       help="Ticked: search the portals and grade again. "
+                                            "Unticked: if the same analysis ran in the last "
+                                            "30 days on this version, show that saved "
+                                            "result instantly — marked as saved.")
         with opt[1]:
             out["scoring"] = st.checkbox("Rate restrictiveness", value=scoring,
                                          help="Adds the RDTII raw score (0 / 0.5 / 1) per "

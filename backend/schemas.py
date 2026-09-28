@@ -346,6 +346,12 @@ class RunMeta(BaseModel):
     # per component and per engine. `total_is_complete` is False when any component has no
     # price on file, in which case the total is a floor rather than the answer.
     cost: dict = Field(default_factory=dict)
+    # Set only on a result handed back from the full-result cache: when the ORIGINAL run
+    # finished. Every other figure on this meta (time, cost, documents fetched) belongs to that
+    # run, not to the click that returned it — no portal was contacted and no model was called.
+    # A screen that shows those figures without this date presents a stored answer as a live
+    # one, which is exactly what the panel is testing for.
+    served_from_cache: Optional[str] = None
 
 
 class RunResult(BaseModel):

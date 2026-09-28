@@ -1053,7 +1053,10 @@ llm_model = st.session_state.get("llm_model")
 llm_key = st.session_state.get("llm_key")
 
 use_samples = st.session_state.get("use_samples", False)
-fresh_run = st.session_state.get("fresh_run", False)
+# Ticked by default: "Run analysis" should mean a live run. A stored answer returned in two
+# seconds, with the original run's time and cost beside it, is what a panel checking for a
+# baked corpus would find first. Unticking is still one click for a researcher who wants it.
+fresh_run = st.session_state.get("fresh_run", True)
 scoring_on = st.session_state.get("scoring_on", settings.scoring_enabled)
 translate_on = st.session_state.get("translate_on", settings.translation_enabled)
 top_k = 5   # grade-all ignores top_k on small corpora; large crawls scale it internally
@@ -1167,6 +1170,14 @@ if run_clicked and pillars:
     track_box.empty()
     stream_box.empty()
     st.session_state["run_id"] = result.meta.run_id
+    # Remember that THIS showing of the run was a stored one, so the results page can say so.
+    # Keyed by run id and set only here, so reopening a past analysis from the picker (which
+    # is plainly an old run already) never carries the notice.
+    _stored = st.session_state.setdefault("served_from_cache", {})
+    if result.meta.served_from_cache:
+        _stored[result.meta.run_id] = result.meta.served_from_cache
+    else:
+        _stored.pop(result.meta.run_id, None)
     # A live-test run belongs to an engine slot, not to the results screen. File it and go
     # back to the checklist — leaving the operator in the ordinary results view mid-hour is
     # how a step gets skipped.
@@ -1236,6 +1247,17 @@ mappings = db.list_mappings(run_id=run_id)
 if not mappings:
     st.warning("No results were recorded for this analysis.")
     st.stop()
+
+_stored_at = st.session_state.get("served_from_cache", {}).get(run_id)
+if _stored_at:
+    # Informational, not amber: amber already means "needs a check" on this screen, and a
+    # stored result is not a doubtful one — it is an old one. The text carries the meaning;
+    # the colour does not have to.
+    st.info(
+        f"**Saved result from {_stored_at[:16].replace('T', ' ')} UTC.** This time no "
+        "government portal was contacted and no AI model was called. The time and cost shown "
+        "belong to that earlier run. To search the portals again, go back, tick "
+        "**Search again** and press **Run analysis**.")
 
 # ── summary strip ─────────────────────────────────────────────────────────
 # Count "no provision found" placeholders on their own axis — they are confident
