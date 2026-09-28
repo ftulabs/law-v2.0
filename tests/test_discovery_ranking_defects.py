@@ -151,6 +151,34 @@ def test_commentary_about_a_law_is_dropped_at_discovery_not_at_export():
     assert kept == {"中华人民共和国个人信息保护法", "数据出境安全评估办法"}
 
 
+def test_commentary_does_not_use_up_the_budget_before_it_is_dropped(monkeypatch):
+    """2026-09-29, China pillar 6: the portal lane's one bucket was cut at `max_docs * 3`
+    BEFORE the non-measure drop ran, so 63 of the 66 admitted rows were news about the
+    measures, and the run graded three documents. 促进和规范数据跨境流动规定 (the panel's own
+    6.4 answer) sat at rank 73, behind the break. The drop now runs before the break."""
+    from backend.pipeline import portal
+    news = [portal.make_doc(Economy.CN, f"https://www.cac.gov.cn/n{i}.htm",
+                            f"专家解读｜数据出境安全评估办法第{i}问", "stub", score=0.95)
+            for i in range(70)]
+    statute = portal.make_doc(Economy.CN, "https://www.cac.gov.cn/law.htm",
+                              "促进和规范数据跨境流动规定", "stub", score=0.68)
+
+    def _stub(client, src, query, economy, indicators, log):
+        return news + [statute]
+
+    portal.register("stub_cn_news", _stub, enumerates_portal=True)
+    try:
+        monkeypatch.setattr(discovery, "load_sources", lambda: [
+            {"economy": "CN", "name": "stub", "adapter": "stub_cn_news", "queries_p6": ["x"]}])
+        said: list[str] = []
+        docs = discovery.discover_live(Economy.CN, pillar=6, max_docs=22, log=said.append)
+    finally:
+        portal._REGISTRY.pop("stub_cn_news", None)
+        getattr(portal, "_ENUMERATES_PORTAL", {}).pop("stub_cn_news", None)
+    assert [d.title for d in docs] == ["促进和规范数据跨境流动规定"]
+    assert any("dropped 70 candidate(s)" in m for m in said), said
+
+
 def test_an_amending_act_is_kept_because_a_later_stage_owns_that_decision():
     """`orchestrator._drop_unscoreable_rows` keeps amending acts deliberately (the finding is
     right, only the citation needs re-pointing) and Malaysia depends on it, because AGC

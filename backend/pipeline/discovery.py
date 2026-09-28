@@ -439,7 +439,8 @@ def _cap(docs: list[DiscoveredDoc], max_docs: int, section_unit: bool) -> list[D
 
 
 
-def _drop_unscoreable(docs: list[DiscoveredDoc], log) -> list[DiscoveredDoc]:
+def _drop_unscoreable(docs: list[DiscoveredDoc], log,
+                      tally: dict[str, int] | None = None) -> list[DiscoveredDoc]:
     """Drop candidates whose own TITLE says they are not a citable measure.
 
     `rdtii/instrument.py` has recognised press releases, drafts, repeals and amending acts
@@ -460,6 +461,10 @@ def _drop_unscoreable(docs: list[DiscoveredDoc], log) -> list[DiscoveredDoc]:
     depends on that: `lom.agc.gov.my` publishes dated reprints, so an amendment newer than the
     reprint is not yet consolidated and is real evidence. Dropping them here would silently
     reverse a decision made two layers down.
+
+    `tally`: the portal lane calls this once per bucket, BEFORE its budget break, and passes a
+    dict to collect the counts in; the final call hands the same dict back so the run logs one
+    line for everything dropped, not one per bucket.
     """
     from ..rdtii import instrument
     drop = (instrument.Status.DRAFT, instrument.Status.REPEALED, instrument.Status.COMMENTARY)
@@ -470,6 +475,10 @@ def _drop_unscoreable(docs: list[DiscoveredDoc], log) -> list[DiscoveredDoc]:
             binned[status.value] = binned.get(status.value, 0) + 1
             continue
         kept.append(d)
+    if tally is not None:
+        for k, n in binned.items():
+            tally[k] = tally.get(k, 0) + n
+        return kept
     if binned:
         detail = ", ".join(f"{n} {k}" for k, n in sorted(binned.items()))
         log(f"[discovery] dropped {sum(binned.values())} candidate(s) that are not a citable "
@@ -1619,6 +1628,7 @@ def discover_live(economy: Economy, pillar: int | None = None,
         return []
 
     by_url: dict[str, DiscoveredDoc] = {}
+    unscoreable: dict[str, int] = {}               # dropped before the budget break, per bucket
 
     # web-search adapters (SG/MY/…): portal-agnostic, finds laws the JS search hides. Each
     # web-search SOURCE may scope to its own `site` + `queries` (e.g. a secondary sectoral
@@ -1725,6 +1735,16 @@ def discover_live(economy: Economy, pillar: int | None = None,
                 # Sorting each bucket by its own score first costs nothing and is a no-op for
                 # web-search buckets, whose documents all carry score 0 by design (they are
                 # ranked later, by content) -- a stable sort leaves the engine's order intact.
+                #
+                # NOT-A-MEASURE ROWS LEAVE BEFORE THE BREAK, NOT AFTER IT. The drop below used
+                # to run only on the merged set, i.e. after the `max_docs * 3` break had already
+                # chosen who got in. China's portal lane is one bucket of ~200 cac.gov.cn rows
+                # whose best-scoring titles are news ABOUT the measures (they repeat the topic
+                # words): measured 2026-09-29, 63 of the 66 admitted rows were commentary or
+                # drafts, the drop removed them, and the run graded THREE documents — while
+                # 促进和规范数据跨境流动规定, the panel's own 6.4 answer, sat at rank 73 and
+                # 个人信息出境认证办法 at rank 39, both cut by the break before the drop saw them.
+                buckets = [_drop_unscoreable(b, log, tally=unscoreable) for b in buckets]
                 for bucket in buckets:
                     bucket.sort(key=lambda d: d.relevance_score, reverse=True)
                 for rank in range(max((len(b) for b in buckets), default=0)):
@@ -1761,7 +1781,11 @@ def discover_live(economy: Economy, pillar: int | None = None,
         docs = _drop_amendment_docs(docs)
     elif economy.value == "MY":
         docs = _collapse_my_amendments(docs)
-    docs = _drop_unscoreable(docs, log)
+    docs = _drop_unscoreable(docs, log, tally=unscoreable)
+    if unscoreable:
+        detail = ", ".join(f"{n} {k}" for k, n in sorted(unscoreable.items()))
+        log(f"[discovery] dropped {sum(unscoreable.values())} candidate(s) that are not a citable "
+            f"measure ({detail}) — see rdtii/instrument.py")
     docs.sort(key=lambda d: d.relevance_score, reverse=True)
     if economy.value == "MY":
         kept = _cap_with_my_companions(docs, max_docs, section_unit, log=log)
