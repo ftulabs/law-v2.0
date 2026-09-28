@@ -232,7 +232,8 @@ Register new providers in `backend/providers/llm_factory.py`.
   search now answers HTTP 403 from every engine (Serper spent, DuckDuckGo/Mojeek blocked), so
   these six economies got their own adapter instead of depending on it: Timor-Leste
   (`tl_gazette`), Laos (`la_gazette`), Thailand (`th_law_api`), Singapore (`sg_sso`), China
-  (`cn_portal`), Indonesia (`id_bpk`), sharing mechanics in `backend/pipeline/portal.py`. Each
+  (`cn_portal`, plus `cn_gazette` since 2026-09-29 — the State Council Gazette screened by full
+  text, for the sectoral rules cac.gov.cn never lists), Indonesia (`id_bpk`), sharing mechanics in `backend/pipeline/portal.py`. Each
   reached `EXTRACTED` in `tools/readiness.py` — a live fetch+extract through the real chain
   produced genuine provisions, not just discovered documents. **Update 2026-09-26/27:** a grader
   is reachable again (OpenRouter, deepseek-v4-flash) and TH, RU and ID now run end-to-end —

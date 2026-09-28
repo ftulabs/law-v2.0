@@ -352,6 +352,32 @@ Everything else is retrieval or grading, which is where the budget below bites.
 
 ## §5 Recently done
 
+- [x] **China: State Council Gazette lane + a budget defect** (2026-09-29). A web run of CN
+      pillar 6 graded THREE documents. (1) `discover_live` cut each portal bucket at
+      `max_docs * 3` BEFORE dropping commentary/drafts, and 63 of cac.gov.cn's top 66 were news
+      about the measures; the drop now runs first (commit ef9d54b). (2) cac.gov.cn never lists
+      the panel's SECTORAL pillar-6 rules (ride-hailing, online lending, credit reporting, maps,
+      online publishing), and flk.npc.gov.cn / sousuo.www.gov.cn / sousuoht.www.gov.cn all
+      publish robots `Disallow: /`. New lane `cn_gazette` (`adapter_cn_gazette.py`) reads the
+      gazette's own issue index on www.gov.cn (allowed), keeps decrees and issued rules (6,041
+      instruments since 2000) and SCREENS THEIR TEXT: sentences tying data to the territory (P6)
+      or carrying a protection/retention/access duty (P7). Screen v1 let customs rules through
+      (goods 出境) and they pushed the Cybersecurity Law out of the run — v2 requires data as the
+      subject (59 P6 positives) and the lane's scores stay below cac.gov.cn's named statutes.
+      It declares `adds_docs: 30` so it does not compete for the shared 22 slots. Cold cache
+      430–520 s of discovery once (screen results cached per page URL); warm 33 s.
+      MEASURED on Sager against the panel's China rows, same code otherwise:
+      P6 **2/15 → 8/15 rows, 2/4 → 4/4 indicators**, and the articles match the panel's
+      (网约车 art.27, 网络借贷 art.27, 征信业 art.24, 地图 art.34 ×2); P7 4/23 → 4/23 (gained
+      会计档案管理办法 art.14, lost 网络数据安全管理条例 art.12 at grading). Both pillars in
+      ONE run (the web default) vs the 2026-09-27 run: P6 3/15 → 8/15 rows (PIPL arts.36/38/40
+      arrive through the pillar-7 search), P7 4/23 → 5/23; 84 documents instead of 10,
+      992 s wall clock, US$1.04. P6-I3 is the unstable one — 地图 art.34 was accepted in the
+      pillar-6 run and not in the joint run, with the document present both times. Still missing:
+      PIPL in a pillar-6-ONLY run (cac.gov.cn's P6 obligation phrases do not surface it), the
+      technical standards (GB/T, JR/T — not in any gazette), and every 7.5 answer.
+      `tests/test_cn_gazette.py` (real fixtures; 11 deliberate code mutations all caught).
+
 - [x] **China discovery without instrument names** (2026-09-27). `cn_portal`'s query list
       carried ~17 titles of the panel's own answer-key instruments. Replaced by obligation
       phrases and measured same-day: 6/9 answer-key indicators either way, the same six.

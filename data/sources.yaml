@@ -260,6 +260,26 @@ sources:
       `.superpowers/sdd/2026-09-07-phase2-portal-adapters/task-6-report.md`.
 
   - economy: CN
+    name: State Council Gazette (国务院公报)
+    base_url: https://www.gov.cn/gongbao/
+    adapter: cn_gazette               # backend/pipeline/adapter_cn_gazette.py
+    site: www.gov.cn
+    verified: true
+    notes: >
+      Added 2026-09-29. Enumerates the gazette's own issue index (/gongbao/gbgl.json), keeps
+      the State Council's and the ministries' decrees and issued rules, and SCREENS THEIR TEXT
+      for sentences tying data to territory (P6) or carrying a data-protection, retention or
+      government-access duty (P7). This is the lane for the sectoral rules the panel cites and
+      cac.gov.cn never lists (ride-hailing, online lending, credit reporting, maps, online
+      publishing). flk.npc.gov.cn, sousuo.www.gov.cn and sousuoht.www.gov.cn all publish
+      robots.txt Disallow: / for every agent; www.gov.cn does not disallow /gongbao/. NPC
+      statutes are not printed in this gazette — they come through cn_portal. A cold cache
+      screens ~5,900 texts (~8 min, bounded by screen_budget_s, newest first); results are
+      cached by page URL because gazette pages never change.
+    screen_budget_s: 600
+    adds_docs: 30                     # screened lane brings its own slots (discovery.discover_live)
+
+  - economy: CN
     name: National Laws and Regulations Database (NPC)
     base_url: https://flk.npc.gov.cn
     adapter: websearch

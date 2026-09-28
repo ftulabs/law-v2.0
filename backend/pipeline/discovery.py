@@ -1612,6 +1612,7 @@ def discover_live(economy: Economy, pillar: int | None = None,
         return []
 
     from ..rdtii.keywords import portal_search_queries
+    explicit_budget = bool(max_docs)
     max_docs = max_docs or settings.discovery_max_docs
     indicators = get_indicators(pillar)
     queries = portal_search_queries(economy.value, pillar)
@@ -1626,6 +1627,14 @@ def discover_live(economy: Economy, pillar: int | None = None,
                and (s.get("search_url_template") or s.get("adapter"))]
     if not sources:
         return []
+    # A lane whose candidates are already screened by their FULL TEXT brings its own slots
+    # (`adds_docs:` in sources.yaml) instead of competing for the title-ranked ones. China's
+    # gazette lane is the case: measured 2026-09-29, 59 of its instruments carry a data-and-
+    # territory sentence, the panel's sectoral answers among them, and inside the shared 22 the
+    # last of them (地图管理条例, one localisation clause) was cut. Only the DEFAULT budget grows;
+    # a caller that passes `max_docs` gets exactly that.
+    if not explicit_budget:
+        max_docs += sum(int(s.get("adds_docs") or 0) for s in sources)
 
     by_url: dict[str, DiscoveredDoc] = {}
     unscoreable: dict[str, int] = {}               # dropped before the budget break, per bucket
@@ -1672,7 +1681,8 @@ def discover_live(economy: Economy, pillar: int | None = None,
             # to `_ADAPTERS` by hand — importing them here is what runs those registrations,
             # kept inside discover_live (not module import time) for the same reason
             # adapter_india's and adapter_mongolia's lazy imports already are.
-            from . import (adapter_china, adapter_indonesia, adapter_laos,  # noqa: F401
+            from . import (adapter_china, adapter_cn_gazette,  # noqa: F401
+                            adapter_indonesia, adapter_laos,
                             adapter_russia, adapter_singapore, adapter_thailand,
                             adapter_timor, adapter_wp_regulator)
             for src in api_sources:

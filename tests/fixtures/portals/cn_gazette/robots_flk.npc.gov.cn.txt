@@ -1,0 +1,8 @@
+#禁止使用任何自动化工具、脚本、爬虫程序采集或复制网站数据
+User-agent: *
+Disallow: /
+User-agent: *
+Disallow: /private/
+Disallow: /temp/
+User-agent: BadBot
+Disallow: /admin/
