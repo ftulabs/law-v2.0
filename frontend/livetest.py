@@ -40,6 +40,7 @@ from datetime import datetime, timezone
 import streamlit as st
 
 from backend.config import settings
+from backend.export import engine_compare
 from backend.providers import registry as reg
 from backend.schemas import LIVE_TEST_POOL, PLACEHOLDER_LAW_NAMES
 
@@ -247,9 +248,35 @@ def engine_comparison(state: dict) -> str:
             ("Rows exported", cell(a, "rows"), cell(b, "rows"), _diff(a, b, "rows", "{:+d}")),
             ("Rows needing review", cell(a, "review"), cell(b, "review"),
              _diff(a, b, "review", "{:+d}")),
-            ("Rows the other engine did not find",
+            ("Provisions only this engine found",
              str(a.get("only", "")) if a else "", str(b.get("only", "")) if b else "", "")]
+    s = (state.get("compare") or {}).get("summary")
+    if s:
+        # Provision-level agreement. The full provision-by-provision sheet is its own file
+        # (`provision_comparison`); these are its totals, so the two can be checked together.
+        rows += [
+            ("Provisions found by both engines", s["both"], s["both"], ""),
+            ("  of which: indicator differs", s["indicator_differs"], s["indicator_differs"], ""),
+            ("  of which: article citation differs", s["citation_differs"],
+             s["citation_differs"], ""),
+            ("  of which: quoted words differ", s["quote_differs"], s["quote_differs"], ""),
+            ("  of which: identical", s["identical"], s["identical"], ""),
+        ]
     return "\n".join(",".join(f'"{_q(c)}"' for c in r) for r in rows) + "\n"
+
+
+def provision_comparison(state: dict) -> bytes | None:
+    """Every provision either engine exported, one row each — the comparison note's body."""
+    cmp = (state.get("compare") or {}).get("rows")
+    return None if cmp is None else engine_compare.to_csv(cmp)
+
+
+def _provision_sentence(s: dict) -> str:
+    return (f"{s['provisions']} distinct provisions across both engines: {s['both']} found by "
+            f"both, {s['a_only']} by engine A only, {s['b_only']} by engine B only. Of the "
+            f"shared ones, {s['indicator_differs']} differ in indicator, "
+            f"{s['citation_differs']} in article citation and {s['quote_differs']} in the "
+            f"quoted words; {s['identical']} are identical.")
 
 
 def short_note(state: dict) -> str:
@@ -292,6 +319,9 @@ def short_note(state: dict) -> str:
          "so the only variable between the two passes is the engine." if isolated else
          "Engine B has not run, or fetched documents of its own — in which case the "
          "comparison is not engine-isolated and should be read with that in mind."), "",
+        *([_provision_sentence(state["compare"]["summary"]) + " The provision-by-provision "
+           "sheet is the comparison file handed in with this note.", ""]
+          if (state.get("compare") or {}).get("summary") else []),
         "## 3 · What worked", "",
         n.get("worked") or "_—_", "",
         "## 4 · What broke", "",
@@ -359,13 +389,18 @@ def capture(state: dict, slot: str, result, started: str, finished: str) -> None
         "rows": len(rows),
         "review": sum(1 for m in rows if m.review_status.value == "pending_review"),
         "new": sum(1 for m in rows if m.discovery_tag.value == "NEW"),
-        "keys": {f"{m.indicator_id}|{m.law_name}|{m.article_section}" for m in rows},
         "result": result,
     }
     a, b = state["runs"].get("A"), state["runs"].get("B")
     if a and b:                      # each engine's unique finds, computed not counted by hand
-        a["only"] = len(a["keys"] - b["keys"])
-        b["only"] = len(b["keys"] - a["keys"])
+        # Per PROVISION, not per (indicator, law, article): a provision both engines found but
+        # mapped to different indicators is a disagreement, not two independent finds.
+        cmp = engine_compare.compare(a["result"].mappings, b["result"].mappings)
+        s = engine_compare.summary(cmp)
+        state["compare"] = {"rows": cmp, "summary": s}
+        a["only"], b["only"] = s["a_only"], s["b_only"]
+    else:
+        state.pop("compare", None)
 
 
 def _slot_html(slot: str, engine: dict, r: dict | None) -> str:
@@ -550,6 +585,16 @@ def render(state: dict, economies: dict[str, str],
         if a and bb:
             st.markdown(_comparison_html(a, bb), unsafe_allow_html=True)
             st.markdown(_delta_html(a, bb), unsafe_allow_html=True)
+            cmp = state.get("compare") or {}
+            if cmp.get("summary"):
+                st.markdown("**Provision by provision** — every provision either engine "
+                            "exported, and what differs between them.")
+                st.caption(_provision_sentence(cmp["summary"]))
+                st.dataframe(
+                    engine_compare.table(cmp["rows"]), hide_index=True, width="stretch",
+                    column_order=["Provision #", "Law name", "Article (engine A)",
+                                  "Found by", "Indicators (engine A)",
+                                  "Indicators (engine B)", "What differs"])
         elif a:
             st.info("Only engine A has run. The comparison — and criterion C5b — needs both.")
             m = st.columns(4)
@@ -621,11 +666,17 @@ def _hand_in(state: dict) -> None:
                                  value=n.get("by_hand", ""))
 
     note_md = short_note(state)
-    d1, d2, d3 = st.columns(3)
+    d1, d2, d4, d3 = st.columns(4)
     d1.download_button("Run record (.csv)", run_record(state), f"{stem}_run_record.csv",
                        "text/csv", width="stretch")
     d2.download_button("Engine comparison (.csv)", engine_comparison(state),
                        f"{stem}_engine_comparison.csv", "text/csv", width="stretch")
+    per_provision = provision_comparison(state)
+    if per_provision is not None:
+        d4.download_button("Provision comparison (.csv)", per_provision,
+                           f"{stem}_provision_comparison.csv", "text/csv", width="stretch")
+    else:
+        d4.caption("Provision comparison appears once both engines have run.")
     docx = short_note_docx(note_md)
     if docx:
         d3.download_button(
