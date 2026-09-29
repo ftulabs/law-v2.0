@@ -38,8 +38,10 @@ HOW, IN FOUR STEPS
      screened copy. The lane declares `adds_docs:` in sources.yaml, so its documents get their
      own slots instead of competing with cac.gov.cn's title-ranked rows for the shared 22.
 
-COST, AND WHY IT IS PAID ONCE. Measured 2026-09-29 on the deploy host: 891 issues, 6,042
-instruments, and a cold run spent 522 s in discovery fetching each text once (four at a time). Gazette pages never change after
+COST, AND WHY IT IS PAID ONCE. Measured 2026-09-29 on the deploy host: 891 issues, ~6,000
+instruments. The lane asks www.gov.cn for ONE page at a time, one per second (the organisers'
+crawling template), so a cold cache costs about two hours of fetching, spread over live runs
+by `_SCREEN_BUDGET_S` or paid up front with `--warm`. Gazette pages never change after
 publication, so each page's screen result is kept in `<cache_dir>/cn_gazette/screen.json`
 keyed by `SCREEN_VERSION`, and every later run reads it: a warm run fetches only the index and
 the newest issues. A cold run is also bounded by `_SCREEN_BUDGET_S` — it screens NEWEST FIRST
@@ -57,10 +59,8 @@ from __future__ import annotations
 
 import json
 import re
-import threading
 import time
 import urllib.parse
-from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 
 from bs4 import BeautifulSoup
@@ -80,9 +80,16 @@ _CONTENT_HREF_RE = re.compile(r"content_\d+\.html?$")
 
 #: Bump when `screen`'s rules change: every cached count is then re-screened.
 SCREEN_VERSION = 2
-#: Wall-clock bound on screening in one call. A cold cache needs ~8 min at `_WORKERS`=4.
+#: POLITENESS, per the organisers' crawling template: ONE request at a time to www.gov.cn and
+#: at least `_MIN_INTERVAL_S` between the starts of two requests (1 request/s). This lane used
+#: to run four at a time with no gap (found 2026-09-29 while writing the README).
+_MIN_INTERVAL_S = 1.0
+#: Wall-clock bound on one call (issue pages + screening). At 1 request/s a COLD cache needs
+#: ~891 issue pages + ~6,000 texts, about two hours, far more than a live run can spend: each
+#: call reads what it can, newest first, keeps it, and says what it left. Warm the cache ahead
+#: of a run with `python -m backend.pipeline.adapter_cn_gazette --warm` (no budget). A warm
+#: run needs the index and the newest `_FRESH_ISSUES` issues: about four requests.
 _SCREEN_BUDGET_S = 600.0
-_WORKERS = 4
 #: The newest issues are re-read every run (an index can list an issue before its page is
 #: complete); older issue pages are immutable and read from the cache.
 _FRESH_ISSUES = 3
@@ -335,16 +342,40 @@ def _pillars(indicators: list) -> list[int]:
     return ps or [6, 7]
 
 
+class _Pacer:
+    """One request at a time; each starts at least `interval` seconds after the previous one
+    ENDED. Measured from the end, not the start, because `portal.portal_get` may retry inside
+    one call — a start-to-start gap let the next page follow a retry 0.3 s later. Retries
+    themselves are spaced by `settings.crawl_delay_seconds` (2 s shipped, pinned by a test)."""
+
+    def __init__(self, interval: float):
+        self.interval = interval
+        self._done: float | None = None
+
+    def get(self, client, url: str, log: Log, **kw):
+        if self._done is not None:
+            wait = self.interval - (time.monotonic() - self._done)
+            if wait > 0:
+                time.sleep(wait)
+        try:
+            return portal.portal_get(client, url, log, **kw)
+        finally:
+            self._done = time.monotonic()
+
+
 def search_cn_gazette(client, src: dict, query: str, economy: Economy, indicators: list,
                       log: Log) -> list[DiscoveredDoc]:
     """Adapter entry point (`PortalEnumerator` signature). `query` is unused — the lane
     enumerates the gazette and screens text; see the module docstring."""
     portal_name = src.get("name", "State Council Gazette (国务院公报)")
     budget = float(src.get("screen_budget_s", _SCREEN_BUDGET_S))
-    workers = int(src.get("workers", _WORKERS))
+    pacer = _Pacer(float(src.get("min_interval_s", _MIN_INTERVAL_S)))
     started = time.monotonic()
 
-    resp = portal.portal_get(client, src.get("index_url", INDEX_URL), log)
+    def _out_of_time() -> bool:
+        return time.monotonic() - started > budget
+
+    resp = pacer.get(client, src.get("index_url", INDEX_URL), log)
     if resp is None:
         log("[cn_gazette] issue index unreachable — lane skipped")
         return []
@@ -356,27 +387,27 @@ def search_cn_gazette(client, src: dict, query: str, economy: Economy, indicator
     min_year = int(src.get("min_year", 2000))
     issues = [(y, u) for y, u in issues if y >= min_year]
 
-    # Step 2 — issue pages (cached except the newest few).
+    # Step 2 — issue pages (cached except the newest few), newest first, within the budget.
     # v2 holds raw entries (v1 held names parsed by the rule of the day, so a better rule never
-    # reached a cached issue — measured 2026-09-29: 6,042 names where the new rule gives 6,311).
+    # reached a cached issue).
     issue_cache = _load(_ISSUE_CACHE)
     fresh = {u for _, u in issues[:_FRESH_ISSUES]}
     todo = [u for _, u in issues if u in fresh or u not in issue_cache]
-    lock = threading.Lock()
-
-    def _read_issue(u: str):
-        r = portal.portal_get(client, u, log, tries=2)
-        return u, (issue_entries(r.text, u) if r is not None else None)
-
-    unread = 0
-    with ThreadPoolExecutor(max_workers=workers) as ex:
-        for u, rows in ex.map(_read_issue, todo):
-            if rows is None:
-                unread += 1
-                continue
-            issue_cache[u] = rows
-    if todo:
+    read = unread = 0
+    for u in todo:
+        if _out_of_time():
+            break
+        r = pacer.get(client, u, log, tries=2)
+        if r is None:
+            unread += 1
+            continue
+        issue_cache[u] = issue_entries(r.text, u)
+        read += 1
+        if read % 100 == 0:
+            _save(_ISSUE_CACHE, issue_cache)
+    if read:
         _save(_ISSUE_CACHE, issue_cache)
+    issues_left = len(todo) - read - unread
     items: list[tuple[int, str, str]] = []           # (year, url, name), newest issue first
     seen_urls: set[str] = set()
     for y, u in issues:
@@ -384,44 +415,33 @@ def search_cn_gazette(client, src: dict, query: str, economy: Economy, indicator
             if url not in seen_urls:
                 seen_urls.add(url)
                 items.append((y, url, name))
-    log(f"[cn_gazette] {len(issues)} issues ({len(todo)} read now, {unread} unreadable) -> "
-        f"{len(items)} legislative instruments")
+    log(f"[cn_gazette] {len(issues)} issues ({read} read now, {unread} unreadable"
+        + (f", {issues_left} left for the next run" if issues_left else "")
+        + f") -> {len(items)} legislative instruments")
 
     # Step 3 — screen texts not yet screened, newest first, within the budget.
     screened = _load("screen.json")
     todo_urls = [u for _, u, _ in items
                  if (screened.get(u) or {}).get("v") != SCREEN_VERSION]
     done = failed = 0
-    out_of_time = False
-
-    def _screen_one(u: str):
-        if time.monotonic() - started > budget:
-            return u, "timeout"
-        r = portal.portal_get(client, u, log, tries=2)
+    for u in todo_urls:
+        if _out_of_time():
+            break
+        r = pacer.get(client, u, log, tries=2)
         if r is None:
-            return u, None
+            failed += 1                            # not cached: tried again next run
+            continue
         rec = screen(_text_of(r.text))
         rec["v"] = SCREEN_VERSION
-        return u, rec
-
-    if todo_urls:
-        with ThreadPoolExecutor(max_workers=workers) as ex:
-            for u, rec in ex.map(_screen_one, todo_urls):
-                if rec == "timeout":
-                    out_of_time = True
-                    continue
-                if rec is None:
-                    failed += 1                    # not cached: tried again next run
-                    continue
-                with lock:
-                    screened[u] = rec
-                    done += 1
-                    if done % 250 == 0:
-                        _save("screen.json", screened)
+        screened[u] = rec
+        done += 1
+        if done % 100 == 0:
+            _save("screen.json", screened)
+    if done:
         _save("screen.json", screened)
     left = len(todo_urls) - done - failed
     log(f"[cn_gazette] screened {done} new instrument text(s), {failed} unreachable"
-        + (f", {left} left for the next run (time budget {budget:.0f}s)" if out_of_time else ""))
+        + (f", {left} left for the next run (time budget {budget:.0f}s)" if left else ""))
 
     # Step 4 — rank. Newest screened copy per name; a copy that screens 0 does not shadow an
     # older one that screens higher (an amendment page can print only the changed articles).
@@ -445,6 +465,29 @@ def search_cn_gazette(client, src: dict, query: str, economy: Economy, indicator
     return docs
 
 
+def warm(log: Log = print) -> None:
+    """Fill the cache with no time budget, politely (1 request/s): about two hours from cold.
+    Run once on a new host before a live run:
+        python -m backend.pipeline.adapter_cn_gazette --warm"""
+    import httpx
+    from ..rdtii.indicators import get_indicators
+    from .discovery import load_sources
+    src = next((s for s in load_sources() if s.get("adapter") == "cn_gazette"), {})
+    src = {**src, "screen_budget_s": float("inf")}
+    with httpx.Client(timeout=settings.crawl_timeout_seconds, headers=portal.headers(),
+                      follow_redirects=True) as client:
+        search_cn_gazette(client, src, "", Economy.CN,
+                          get_indicators(6) + get_indicators(7), log)
+
+
 # enumerates_portal=True: the lane reads the whole gazette index and ignores `query`, so
 # discovery must call it once per source, not once per query term.
 portal.register("cn_gazette", search_cn_gazette, enumerates_portal=True)
+
+
+if __name__ == "__main__":                              # pragma: no cover
+    import sys
+    if "--warm" in sys.argv:
+        warm()
+    else:
+        print("usage: python -m backend.pipeline.adapter_cn_gazette --warm")

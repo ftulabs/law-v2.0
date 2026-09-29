@@ -364,8 +364,11 @@ Everything else is retrieval or grading, which is where the budget below bites.
       or carrying a protection/retention/access duty (P7). Screen v1 let customs rules through
       (goods 出境) and they pushed the Cybersecurity Law out of the run — v2 requires data as the
       subject (59 P6 positives) and the lane's scores stay below cac.gov.cn's named statutes.
-      It declares `adds_docs: 30` so it does not compete for the shared 22 slots. Cold cache
-      430–520 s of discovery once (screen results cached per page URL); warm 33 s.
+      It declares `adds_docs: 30` so it does not compete for the shared 22 slots. POLITE: one request at a
+      time, one per second (organisers' template; was four in parallel until 2026-09-29), so
+      a cold cache is ~2 h — bounded per run by screen_budget_s, or warmed ahead with
+      `python -m backend.pipeline.adapter_cn_gazette --warm`. Sager's cache is warm (~4
+      requests per run).
       MEASURED on Sager against the panel's China rows, same code otherwise:
       P6 **2/15 → 8/15 rows, 2/4 → 4/4 indicators**, and the articles match the panel's
       (网约车 art.27, 网络借贷 art.27, 征信业 art.24, 地图 art.34 ×2); P7 4/23 → 4/23 (gained

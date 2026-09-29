@@ -30,6 +30,7 @@ from backend.rdtii.indicators import get_indicators
 from backend.schemas import DocFormat, Economy
 
 FX = Path(__file__).parent / "fixtures" / "portals" / "cn_gazette"
+SHIPPED_INTERVAL_S = G._MIN_INTERVAL_S      # read before any fixture patches it
 
 # issue URL (from the index slice) -> fixture file
 ISSUES = {
@@ -107,6 +108,7 @@ def _offline(monkeypatch, tmp_path):
     monkeypatch.setattr(portal, "_allowed", lambda url, log: True)
     monkeypatch.setattr(settings, "crawl_delay_seconds", 0.0)
     monkeypatch.setattr(settings, "cache_dir", str(tmp_path / "cache"))
+    monkeypatch.setattr(G, "_MIN_INTERVAL_S", 0.0)     # pacing has its own test below
 
 
 def _run(client, pillar=6, src=None, log=None):
@@ -518,3 +520,85 @@ def test_a_screened_lane_adds_its_own_slots_to_the_default_budget(monkeypatch):
 def test_sources_yaml_gives_the_gazette_lane_its_own_slots():
     gaz = [s for s in discovery.load_sources() if s.get("adapter") == "cn_gazette"][0]
     assert int(gaz.get("adds_docs") or 0) >= G._MAX_RETURN - 10
+
+
+
+# ── 6. politeness: one request at a time, one per second ─────────────────────────────────────
+
+class _Clock:
+    """A fake monotonic clock: time passes only when the code sleeps (or a request is made)."""
+
+    def __init__(self):
+        self.now = 1000.0
+
+    def monotonic(self):
+        return self.now
+
+    def sleep(self, s):
+        self.now += max(0.0, s)
+
+
+def test_requests_are_sequential_and_at_least_one_second_apart(monkeypatch):
+    """Every request start, INCLUDING portal_get's retry of a failed page, is at least one
+    second after the previous one. Retries are spaced by `crawl_delay_seconds`, so this runs
+    with its shipped value, not the zero the other tests use."""
+    clock = _Clock()
+    monkeypatch.setattr(G, "_MIN_INTERVAL_S", 1.0)
+    monkeypatch.setattr(settings, "crawl_delay_seconds", type(settings)().crawl_delay_seconds)
+    monkeypatch.setattr(portal.time, "sleep", clock.sleep)
+    monkeypatch.setattr(G.time, "monotonic", clock.monotonic)
+    monkeypatch.setattr(G.time, "sleep", clock.sleep)
+    starts: list[float] = []
+
+    class Timed(FakeGov):
+        def get(self, url, **kw):
+            starts.append(clock.now)
+            clock.now += 0.3                          # the request itself takes 0.3 s
+            return super().get(url, **kw)
+
+    client = Timed()
+    docs, _ = _run(client, src={"name": "g", "screen_budget_s": 10_000})
+    assert [(d.title, d.source_url) for d in docs] == P6_EXPECTED
+    assert len(starts) == len(client.requests) > 10
+    # each request takes 0.3 s, so start-to-start must be at least 1.3 s
+    gaps = [b - a for a, b in zip(starts, starts[1:])]
+    assert min(gaps) >= 1.3 - 1e-9, gaps
+
+
+def test_the_budget_also_bounds_reading_issue_pages(monkeypatch):
+    clock = _Clock()
+    monkeypatch.setattr(G, "_MIN_INTERVAL_S", 1.0)
+    monkeypatch.setattr(G.time, "monotonic", clock.monotonic)
+    monkeypatch.setattr(G.time, "sleep", clock.sleep)
+    client = FakeGov()
+    docs, said = _run(client, src={"name": "g", "screen_budget_s": 3.5})
+    # index at t=0, issues at t=1,2,3,4 (the budget is checked before the one-second wait);
+    # at t=4 > 3.5 it stops: no sixth request, no text screened
+    assert client.requests[0] == G.INDEX_URL
+    assert len(client.requests) == 5
+    assert not [u for u in client.requests if u in CONTENT]
+    assert docs == []
+    assert any("left for the next run" in m for m in said), said
+    # a later call carries on from the cache and finishes
+    monkeypatch.setattr(G, "_MIN_INTERVAL_S", 0.0)
+    docs, _ = _run(FakeGov(), src={"name": "g", "screen_budget_s": 10_000})
+    assert [(d.title, d.source_url) for d in docs] == P6_EXPECTED
+
+
+def test_warm_runs_without_a_budget_over_both_pillars(monkeypatch):
+    seen = {}
+
+    def _capture(client, src, query, economy, indicators, log):
+        seen["budget"] = src.get("screen_budget_s")
+        seen["pillars"] = {i.pillar for i in indicators}
+        seen["adapter"] = src.get("adapter")
+        return []
+
+    monkeypatch.setattr(G, "search_cn_gazette", _capture)
+    G.warm(log=lambda _m: None)
+    assert seen == {"budget": float("inf"), "pillars": {6, 7}, "adapter": "cn_gazette"}
+
+
+def test_the_shipped_retry_delay_keeps_retries_at_or_under_one_request_per_second():
+    from backend.config import Settings
+    assert Settings().crawl_delay_seconds >= SHIPPED_INTERVAL_S == 1.0

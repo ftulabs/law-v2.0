@@ -274,7 +274,9 @@ sources:
       publishing). flk.npc.gov.cn, sousuo.www.gov.cn and sousuoht.www.gov.cn all publish
       robots.txt Disallow: / for every agent; www.gov.cn does not disallow /gongbao/. NPC
       statutes are not printed in this gazette — they come through cn_portal. A cold cache
-      screens ~5,900 texts (~8 min, bounded by screen_budget_s, newest first); results are
+      screens ~6,000 texts, ONE request at a time at 1 request/s (organisers' template), so
+      it takes ~2 h: bounded per run by screen_budget_s (newest first), or paid up front
+      with `python -m backend.pipeline.adapter_cn_gazette --warm`; results are
       cached by page URL because gazette pages never change.
     screen_budget_s: 600
     adds_docs: 30                     # screened lane brings its own slots (discovery.discover_live)
