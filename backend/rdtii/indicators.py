@@ -42,9 +42,38 @@ INDICATORS: list[Indicator] = [
             "PROCESS data within the country. These are TWO INDEPENDENT LIMBS and only limb (a) is about "
             "bans: a local-processing mandate satisfies this indicator outright, whether or not transfer is "
             "also restricted. "
-            "'PROCESSING' IS BROAD. The RDTII 2.1 guide (p.50) takes it from the GDPR sense — collection, "
-            "organisation, structuring, STORAGE, adaptation, use, disclosure and dissemination — so a rule "
-            "compelling any of those activities to happen domestically is limb (b). "
+            # Rewritten 2026-09-29. The earlier wording read p.50's list of processing activities
+            # ("collection, organisation, structuring, storage, …") as making ANY in-country
+            # storage duty a local-processing requirement, so every storage rule was filed under
+            # both 6.1 and 6.2 — a China P6 run put accounting backup copies, audit papers and
+            # "shall not exceed the assessed scope" under 6.1. The guide itself (p.51) and the
+            # panel's own China rows (map data, population health data, PIPL art.36/40 → 6.2
+            # only) say storage alone is 6.2.
+            "LIMB (b) NEEDS MORE THAN STORAGE. The guide (p.50) lists processing as 'collection, "
+            "organisation, structuring, storage, adaptation, use, disclosure and dissemination', but on "
+            "p.51 it separates the two indicators: 'a mandate to process data locally typically "
+            "necessitates local storage, while a local storage requirement does not necessarily mandate "
+            "local processing', and a measure is 'recorded in both places' only when 'the law requires "
+            "BOTH local processing and local storage'. So a rule that only requires data, records, a "
+            "database or a BACKUP COPY to be stored or kept in the country is P6-I2, NOT this indicator. "
+            "Limb (b) is made out when the rule compels the data to be PROCESSED, handled, used, "
+            "analysed, controlled, collated, systematised or otherwise worked on inside the country — "
+            "the guide's examples: health records 'stored and processed locally' (Australia), credit "
+            "information 'locally processed' (Korea), a credit bureau that must 'control or process "
+            "information locally' (Thailand); and the panel files Russia's rule that card payments be PROCESSED in the country here, so completing transaction or payment processing domestically is limb (b) too. Wording such as 'the storage, processing and analysis … "
+            "shall be conducted within the territory', or 'recording, systematisation, accumulation, "
+            "storage … using databases located in the country', satisfies it; 'shall be stored within "
+            "the territory' alone, or 'a backup shall be kept in the country while the server is "
+            "abroad', does not. "
+            "LIMB (a) IS A BAN, AND ONLY A BAN. Words forbidding the data to leave — 'shall not be "
+            "provided abroad', 'shall not flow out of the country', 'may not be transferred outside' — "
+            "satisfy it ('must not be KEPT outside' is only the negative form of a storage duty, P6-I2), and a bare carve-out 'unless laws or regulations provide otherwise' does not turn a ban "
+            "into a conditional regime (the panel files such rules here). But a prohibition on EXCEEDING "
+            "the purpose, scope or volume approved in a security assessment, or on transferring without "
+            "consent, a contract or an approval, is a CONDITION of a transfer regime → P6-I4, not a "
+            "ban: the words 'shall not' are not enough, ask what they forbid. Nor is a duty to PREVENT "
+            "others obtaining or sending data abroad 'by illegal or improper means' a ban — it forbids "
+            "unlawful transfers, which every regime does, not transfers as such. "
             "THE DATA NEED NOT BE PERSONAL. The guide scores a measure covering personal data or applying "
             "horizontally at 1 and one covering non-personal data or a specific data set at 0.5, so BOTH are "
             "in scope: do not reject a ban on exporting map data, survey data, credit data, health records "
@@ -55,8 +84,9 @@ INDICATORS: list[Indicator] = [
             "conditions (consent / adequacy / approval) are met, limb (a) is not made out — that is a "
             "conditional regime, and P6-I4 is where it belongs. This does NOT touch limb (b): a duty to "
             "process locally stays here even though data may also be transferable under conditions. "
-            "Distinguish from P6-I2 (storage of data in-country, which may still permit transfer of a copy) "
-            "and P6-I3 (local servers/infrastructure). "
+            "Distinguish from P6-I2 (storage of data in-country, which may still permit transfer of a copy "
+            "— and which a rule meets on its own, without limb (b)) and P6-I3 (local "
+            "servers/infrastructure). "
             # Added 2026-08-31. An independent auditor (tools/audit_rows.py) refused 83% of the
             # rows we filed here; reading them, the commonest fault by far was that the provision
             # was not about data at all. India's Chemical Weapons Convention Act s.15-16 bans the
@@ -80,10 +110,19 @@ INDICATORS: list[Indicator] = [
                      "transfer is prohibited"],
         verify_elements=[
             "the DATA, information or records the rule applies to (not goods, funds, a business or a licence)",
-            "the words that PROHIBIT that data leaving the country, or that COMPEL it to be processed or "
-            "stored inside the country — null if a consent, approval or other condition can unlock the "
-            "transfer, because that is a conditional regime, not a ban",
+            # Russia 152-FZ art.18(5) — the panel's 6.1 answer — was refused on every run by the
+            # first version of this wording: the checker saw "storage … using databases located
+            # in the Russian Federation" and missed the processing verbs listed beside it.
+            "the words that PROHIBIT that data leaving the country, or that COMPEL it to be processed "
+            "inside the country — any processing operation besides storage counts: collection, "
+            "recording, collation, organisation, systematisation, accumulation, updating, retrieval, "
+            "use, analysis, control, handling, and the processing of TRANSACTIONS or payments — null if storage or keeping a copy is the ONLY "
+            "operation the rule places in the country (that is local storage), if a consent, approval "
+            "or other condition can unlock the transfer, if the words only forbid exceeding an approved "
+            "scope (a conditional regime, not a ban), or if they only require preventing UNLAWFUL or "
+            "improper transfers abroad",
         ],
+        verify_place_element=2,
     ),
     Indicator(
         indicator_id="P6-I2",          # ≡ Methodology 6.2
@@ -153,6 +192,7 @@ INDICATORS: list[Indicator] = [
             "registered office in the country, on domestic premises, accessible from within it) or "
             "forbidding holding them outside it — null if the rule is silent about the place",
         ],
+        verify_place_element=2,
     ),
     Indicator(
         indicator_id="P6-I3",          # ≡ Methodology 6.3
@@ -174,7 +214,11 @@ INDICATORS: list[Indicator] = [
             "OPERATIONAL AND TECHNICAL RULES FOR DATA CENTRES ARE NOT SCORED. The guide says so explicitly: "
             "the indicator looks for infrastructure mandated as a BARRIER to data movement, not for "
             "security, certification, uptime or engineering standards that apply to a data centre once it "
-            "exists. "
+            "exists. Nor does a LICENCE, registration or approval needed to OPEN a data centre: the "
+            "internal coding guide (Pillar 6 FAQ) sends those to indicator 9.4 (digital services "
+            "licensing), and a government monitoring or early-warning system is not a provider's "
+            "infrastructure at all. A contingency or disaster-recovery centre that must be sited in the "
+            "country DOES count — it is the guide's own Chile example. "
             "GOVERNMENT DATA IS EXCLUDED. "
             # Added 2026-08-31, same audit. Both refusals here were a provision setting out what a
             # MINISTRY does — China's domain-name measures art.4, Mongolia's public-information law
@@ -212,6 +256,7 @@ INDICATORS: list[Indicator] = [
             "conditions' — passive wording with no named bearer counts) — null only if it describes "
             "a ministry's or regulator's own function or a government facility",
         ],
+        verify_place_element=2,
     ),
     Indicator(
         indicator_id="P6-I4",          # ≡ Methodology 6.4
@@ -232,7 +277,18 @@ INDICATORS: list[Indicator] = [
             "horizontal regime at 1 even for non-personal data, and a non-personal or sector-specific regime "
             "at 0.5 — all are in scope. GOVERNMENT DATA IS EXCLUDED. "
             "Distinguish from P6-I1 only in this narrow sense: where NO condition can ever unlock the "
-            "transfer, it is a ban and belongs there instead. "
+            "transfer, it is a ban and belongs there instead. A rule forbidding transfers that EXCEED the "
+            "purpose, scope or volume approved in an assessment is part of this regime, not a ban. "
+            # Added 2026-09-29 from the panel's China rows: PIPL art.40 is cited under 6.2 AND 6.4.
+            "ONE PROVISION CAN MEET THIS AND P6-I2 TOGETHER. The guide (p.52) describes these conditions "
+            "as applying 'even if businesses … satisfy the local storage or processing requirements', so "
+            "'store it in the country; where it is truly necessary to provide it abroad, pass a security "
+            "assessment' is local storage (P6-I2) AND a conditional flow (here) — the panel cites China's "
+            "PIPL art.40 under both. Judge this indicator on the transfer clause alone. "
+            "THE DESTINATION MUST BE ANOTHER COUNTRY. Providing data to a 'third party', a partner or "
+            "another processor, with no foreign destination named, is a data-sharing rule, not a "
+            "cross-border one — a security assessment before transfer to a third party inside the "
+            "country does not satisfy this indicator. "
             "WHAT IS TRANSFERRED MUST BE DATA. The provision has to condition the movement of data, "
             "information, records or personal information to another country. A conditional "
             "transfer of anything ELSE does NOT satisfy this indicator, however it is worded: the "
@@ -276,6 +332,7 @@ INDICATORS: list[Indicator] = [
             "protection standard, an approval, a contract, or a government power to specify, "
             "permit or restrict destinations",
         ],
+        verify_place_element=1,
     ),
     # ───────────── Pillar 7 — Domestic Data Protection & Privacy ─────────────
     Indicator(
@@ -345,6 +402,22 @@ INDICATORS: list[Indicator] = [
             "0.5 rather than 0); a stray security clause inside a banking, companies or privacy Act is the "
             "non-dedicated case. Both are recorded — being non-dedicated lowers the score, it does not make "
             "the provision irrelevant. "
+            # Added 2026-09-29. The Round-2 Database cites cybercrime statutes for 7.2 — Thailand's
+            # Computer-Related Crime Act s.5 and s.9 (illegal access, damaging computer data),
+            # Malaysia's Computer Crimes Act 1997, Australia's Criminal Code, Thailand's
+            # Telecommunications Business Act s.74 penalty for interception — and the second-pass
+            # check used to refuse exactly those sections as "an offence of damaging a computer".
+            "CYBERCRIME OFFENCES ARE PART OF THE FRAMEWORK. The guide (p.59) says a cybersecurity "
+            "framework 'strengthens enforcement against cybercrime offences' and that a non-dedicated one "
+            "'relies on other laws to govern threats arising from cybercrime'. So a provision making "
+            "unauthorised access to a computer system, illegal interception, or interference with "
+            "computer data or systems an OFFENCE satisfies this indicator (a computer-crime Act is "
+            "dedicated; such an offence in a general criminal code is the non-dedicated case); the panel "
+            "cites Thailand's Computer-Related Crime Act s.5 and s.9 and Malaysia's Computer Crimes Act. "
+            "Offences about CONTENT — defamation, obscenity, false news — are not cybersecurity. "
+            "Distinguish from indicator 11.4 (a national ENCRYPTION STANDARD that deviates from "
+            "international ones, Pillar 11): a duty to encrypt or secure a network is cybersecurity; which "
+            "algorithm a regulator certifies is a standards question. "
             "Distinguish from P7-I1 (personal-DATA protection) — encryption and network-security duties are "
             "cybersecurity, not data-privacy."
         ),
@@ -355,8 +428,9 @@ INDICATORS: list[Indicator] = [
         verify_elements=[
             "the words naming the cybersecurity subject: cybersecurity, computer or network security, "
             "critical information infrastructure, a cyber incident or threat, or encryption",
-            "the duty, power or authority the provision establishes about it — null for a bare heading, "
-            "a definition, or an offence of damaging a computer",
+            "the duty, power, authority or OFFENCE the provision establishes about it (an offence of "
+            "unauthorised access to, interception of, or interference with a computer system or data "
+            "counts) — null for a bare heading or a definition",
         ],
     ),
     Indicator(

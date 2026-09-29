@@ -81,7 +81,7 @@ def test_four_zero_one_and_four_one_are_different_indicators():
 
 # ── polarity ─────────────────────────────────────────────────────────────────────────
 def test_absence_framed_indicators_say_so_in_their_own_legal_test():
-    """Nine of these score when the framework is MISSING, so finding the law is the result, not
+    """Eleven of these score when the framework is MISSING, so finding the law is the result, not
     a null. A grader reading only the test must not conclude otherwise — the same inversion
     scoring_rubric.py documents for 7.1 and 7.2."""
     for code in INVERTED:

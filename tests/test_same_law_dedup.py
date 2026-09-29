@@ -100,3 +100,46 @@ def test_recover_my_amendment_below_act_number_no_toc():
               "PERSONAL DATA PROTECTION (AMENDMENT)\nACT 2024\n\n"
               "An Act to amend the Personal Data Protection Act 2010.")
     assert _recover_law_name(header) == "PERSONAL DATA PROTECTION (AMENDMENT) ACT 2024"
+
+
+# ─────────── non-Latin titles (China P6, 2026-09-29: the same Measures kept twice) ───────────
+def test_law_identity_keeps_non_latin_titles():
+    """`[^a-z0-9]` turned every Chinese/Russian/Mongolian title into "" — nothing ever grouped."""
+    assert _identity("个人信息出境认证办法") == "个人信息出境认证办法"
+    assert _identity("个人信息出境认证办法") != _identity("个人信息出境标准合同办法")
+    assert _identity("Федеральный закон О персональных данных")
+    assert _identity("ТУХАЙ ХУУЛЬ")
+    # Thai titles end in a Buddhist-era year; it is stripped like a Gregorian one
+    assert _identity("พระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562") \
+        == _identity("พระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล")
+
+
+def test_dedup_merges_a_chinese_law_served_by_two_portals():
+    docs = [_doc("gov", "https://www.gov.cn/gongbao/2025/issue_12426/202511/content_7049740.html"),
+            _doc("cac", "https://www.cac.gov.cn/2025-10/17/c_1762449728720008.htm")]
+    mk = lambda d, n: [Provision(provision_id=f"{d}#p{i}", doc_id=d, economy=Economy.CN,
+                                 law_name="个人信息出境认证办法", article_section=f"第{i}条",
+                                 verbatim_snippet="x", source_url="u", ocr=OCRMetrics())
+                       for i in range(1, n + 1)]
+    out = _dedup_provisions_by_law(mk("gov", 20) + mk("cac", 20), docs, log=lambda *_: None)
+    assert len({p.doc_id for p in out}) == 1 and len(out) == 20
+
+
+def _row(url, conf, ind="P6-I4", snippet="个人信息处理者……应当同时符合下列情形：\n（一）非关键信息基础设施运营者；"):
+    from backend.schemas import EvidenceMapping, ReviewStatus
+    return EvidenceMapping(mapping_id=url + ind, run_id="r", economy=Economy.CN, pillar=6,
+                           indicator_id=ind, provision_id=url + "#p5", law_name="个人信息出境认证办法", article_section="第五条",
+                           verbatim_snippet=snippet, source_url=url, mapping_rationale="x",
+                           confidence_score=conf, discovery_tag=DiscoveryTag.NEW,
+                           review_status=ReviewStatus.AUTO_ACCEPTED)
+
+
+def test_duplicate_rows_collapse_to_the_most_confident():
+    from backend.pipeline.orchestrator import _drop_duplicate_rows
+    a = _row("https://www.gov.cn/a", 0.80)
+    b = _row("https://www.cac.gov.cn/b", 0.86,
+             snippet="个人信息处理者……应当同时符合下列情形： （一）非关键信息基础设施运营者；")  # other line breaks
+    other_indicator = _row("https://www.gov.cn/a", 0.70, ind="P6-I2")
+    out = _drop_duplicate_rows([a, b, other_indicator], log=lambda *_: None)
+    assert [m.source_url for m in out] == ["https://www.cac.gov.cn/b", "https://www.gov.cn/a"]
+    assert {m.indicator_id for m in out} == {"P6-I4", "P6-I2"}

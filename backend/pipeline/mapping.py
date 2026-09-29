@@ -18,6 +18,7 @@ from ..config import settings
 from ..providers import get_llm_provider
 from ..providers.llm_base import LLMProvider, LLMTerminalError
 from ..rdtii import get_indicator, siblings
+from ..rdtii.place_words import names_place
 from ..schemas import DiscoveryTag, EvidenceMapping, Provision
 from . import confidence, retrieval_budget
 from .retrieval import Retrieved, retrieve
@@ -64,10 +65,13 @@ SYSTEM = (
     "3. BETTER SIBLING — set better_sibling to a sibling id ONLY if NO rule satisfies the target "
     "AND a sibling clearly fits (the target is a mislabel). If the target is satisfied even "
     "partially, leave it null — one provision may map to several indicators. Sibling OVERLAP is "
-    "expected and correct for localisation rules: a prohibition on holding/keeping/taking data "
-    "outside the country is BOTH a ban (P6-I1) AND a local-storage requirement (P6-I2) — RDTII "
-    "scores it under both, so whichever of the two is the target, satisfies_target=true and "
-    "better_sibling=null. NEVER use better_sibling to force one-indicator exclusivity.\n"
+    "expected and correct for localisation rules: a rule that data must be stored AND processed "
+    "(or used, analysed) in the country, or must be stored there AND must not be provided abroad, "
+    "is BOTH P6-I1 AND P6-I2; 'store it here, and transfer abroad only after a security "
+    "assessment' is BOTH P6-I2 AND P6-I4 — RDTII scores such rules under both, so whichever is "
+    "the target, satisfies_target=true and better_sibling=null. But a rule that ONLY fixes where "
+    "data or a copy is stored is P6-I2 alone, not P6-I1. NEVER use better_sibling to force "
+    "one-indicator exclusivity.\n"
     "4. relevant = satisfies_target AND better_sibling is null.\n"
     "5. legal_match (0..1): 1.0 = rule IS exactly this test; 0.7 = satisfies, minor wording gap; "
     "0.5 = one element of a multi-part test; <=0.3 = mention only (then satisfies_target=false).\n"
@@ -593,6 +597,16 @@ def _check_once(ind, prov: Provision, llm) -> tuple[str, str, dict]:
     if unfound:
         return ("unfound", f"quote for element {', '.join(map(str, unfound))} is not in the snippet",
                 quotes)
+    # A place element needs words that NAME a place. On the MN pillar-6 run of 2026-09-29 the
+    # checker quoted "хадгалах хугацаа болон байршил" (storage period and location), "Улсын
+    # мэдээллийн санд" (in the State database) and "бусдад дамжуулж болно" (may transfer to
+    # others) for it — each really in the snippet, none naming a country. If the whole snippet
+    # names no place either, nothing can be quoted: a refusal. Otherwise the quote may just be
+    # too short, so it is a doubt, asked once more like any other.
+    k = ind.verify_place_element
+    if k and k <= n and not names_place(quotes[k]):
+        why = f"element {k} names no place inside or outside the country: “{str(quotes[k])[:80]}”"
+        return ("absent" if not names_place(prov.verbatim_snippet) else "doubt"), why, quotes
     shown = "; ".join(f"{i}: “{str(quotes[i])[:80]}”" for i in range(1, n + 1))
     if g.get("verdict") is False:
         return "doubt", reason or shown, quotes

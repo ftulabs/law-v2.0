@@ -34,8 +34,16 @@ def _law_identity(name: str) -> str:
     ('cybersecurity amendment act') never merges with the principal Act ('cybersecurity act')."""
     import re
     from .discovery import _clean_title
-    n = re.sub(r"[^a-z0-9]+", " ", _clean_title(name or "").lower()).strip()
-    return re.sub(r"\s+(?:19|20)\d{2}$", "", n).strip()
+    # Any script's letters, not just a-z: `[^a-z0-9]` turned every Chinese, Russian and
+    # Mongolian title into "" and a Thai one into its year, so no non-Latin law was ever
+    # grouped and a China run kept the same Measures twice — once from gov.cn's gazette, once
+    # from cac.gov.cn — as duplicate rows (2026-09-29). A Thai title ends in a Buddhist-era
+    # year ("พ.ศ. 2562"), stripped the same way.
+    import unicodedata
+    t = _clean_title(name or "").casefold()
+    t = "".join(c if unicodedata.category(c)[0] in "LMN" else " " for c in t)
+    n = re.sub(r"\s+", " ", t).strip()
+    return re.sub(r"\s+(?:พ ศ\s+)?(?:19|20|25)\d{2}$", "", n).strip()
 
 
 def _dedup_provisions_by_law(provisions, docs, log):
@@ -96,6 +104,38 @@ def _dedup_provisions_by_law(provisions, docs, log):
                 continue
             kept.add(i)
     return [p for p in provisions if p.doc_id in kept]
+
+
+def _drop_duplicate_rows(mappings: list, log) -> list:
+    """Keep one row per (law, article, indicator, quoted text) — the most confident one.
+
+    The document-level dedup above groups by law NAME, and a mirror can carry a variant title
+    or a different set of articles. When that happens the export used to carry the same article
+    twice under the same indicator with only the Source URL differing (China P6, 2026-09-29:
+    个人信息出境认证办法 art.5 and art.6 from both gov.cn and cac.gov.cn). Whitespace and
+    punctuation are ignored in the comparison because two extractions of one text rarely break
+    lines identically. Placeholders ("No provision found") are never merged.
+    """
+    import re
+    best: dict[tuple, object] = {}
+    order: list = []
+    for m in mappings:
+        if m.law_name in PLACEHOLDER_LAW_NAMES:
+            order.append(m)
+            continue
+        key = (_law_identity(m.law_name) or m.law_name, (m.article_section or "").strip(),
+               m.indicator_id, re.sub(r"[\W_]+", "", (m.verbatim_snippet or "").casefold()))
+        prior = best.get(key)
+        if prior is None:
+            best[key] = m
+            order.append(m)
+        elif m.confidence_score > prior.confidence_score:
+            order[order.index(prior)] = m
+            best[key] = m
+    dropped = len(mappings) - len(order)
+    if dropped:
+        log(f"[dedup] {dropped} duplicate row(s) — same law, article, indicator and text")
+    return order
 
 
 def _drop_instruments_with_no_force(mappings: list, log) -> list:
@@ -693,6 +733,10 @@ def run_pipeline(
         scored = [m for m in mappings if m.law_name not in PLACEHOLDER_LAW_NAMES]
         log(f"[tag] provision-level vs 2025 baseline — KNOWN={n_known} "
             f"NEW={len(scored) - n_known}")
+
+    # The same provision reached through two documents (a mirror the document-level dedup
+    # could not tie to its original) is one piece of evidence, not two rows.
+    mappings = _drop_duplicate_rows(mappings, log)
 
     # Zone 3 (OPTIONAL, opt-in) — assign each measure its RDTII Raw Score (0/0.5/1) + Impact.
     # Off by default (settings.scoring_enabled) so the mandatory discover→extract→map flow stays
