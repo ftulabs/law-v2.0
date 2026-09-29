@@ -276,15 +276,18 @@ def test_readme_line_references_still_point_where_they_claim():
         "backend/config.py": "crawl_delay_seconds",
         "backend/pipeline/robots.py": None,
     }
-    refs = re.findall(r"\((backend/[\w/]+\.py)#L(\d+)\)", _readme())
+    # A link may name the setting it points at right after it — "config.py:284](…#L284)
+    # `crawl_respect_robots`". When it does, that name is the marker; otherwise the file's
+    # default marker applies. The table cites more than one line of config.py.
+    refs = re.findall(r"\((backend/[\w/]+\.py)#L(\d+)\)(?:\s*`(\w+)`)?", _readme())
     assert refs, "the politeness table lost its file:line references"
-    for path, line in refs:
+    for path, line, named in refs:
         lines = (ROOT / path).read_text(encoding="utf-8").splitlines()
         n = int(line)
         assert 1 <= n <= len(lines), f"{path}#L{n} is past the end of the file"
         body = lines[n - 1].strip()
         assert body and not body.startswith("#"), f"{path}#L{n} points at a blank or comment line"
-        marker = expectations.get(path)
+        marker = named or expectations.get(path)
         if marker:
             # Name the correct line in the failure. This test has caught real drift three
             # times, and each time the fix was "look up the new number by hand" — so it does

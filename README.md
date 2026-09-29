@@ -1,12 +1,12 @@
 # VeriTrade — AI Tool for Digital Trade Regulatory Analysis
 
-UN Global Hackathon on AI for Digital Trade Regulatory Analysis
+UN Global Hackathon on AI for Digital Trade Regulatory Analysis — final round submission
 Team: **FTU** (Foreign Trade University, Viet Nam) | Round: **Final**
 Last updated: 2026-09-29
 
 [![Licence: Apache 2.0](https://img.shields.io/badge/licence-Apache%202.0-blue.svg)](LICENSE)
 ![Python 3.11 | 3.12](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)
-![Tests: 1,380](https://img.shields.io/badge/tests-1%2C380-informational.svg)
+![Tests: 1,400+](https://img.shields.io/badge/tests-1%2C400%2B-informational.svg)
 
 | | |
 | :--- | :--- |
