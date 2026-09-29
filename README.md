@@ -246,6 +246,13 @@ the first, no portal was contacted"*. Code path: `run_pipeline(reuse_documents=.
 Where downloaded documents are cached: **`data/cache/`** — one file per document named by the
 SHA-256 of its content, indexed by URL in `data/cache/_index.json` (`CACHE_DIR` in `.env`).
 
+**The comparison is produced natively.** After both passes: **Compare** step → a table of every
+provision either engine exported (found by both / A only / B only, and for shared provisions
+whether the indicator, the article citation or the quoted words differ), with elapsed time and
+cost per engine above it. **Hand in** step → **Provision comparison (.csv)**, **Engine
+comparison (.csv)**, **Run record (.csv)**, both engines' evidence files and the short note.
+Code: [`backend/export/engine_compare.py`](backend/export/engine_compare.py).
+
 <details>
 <summary>Not the same thing: the Run screen's "Search again" box</summary>
 
