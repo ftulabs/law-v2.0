@@ -19,6 +19,7 @@ What is pinned, and why each matters:
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -602,3 +603,122 @@ def test_warm_runs_without_a_budget_over_both_pillars(monkeypatch):
 def test_the_shipped_retry_delay_keeps_retries_at_or_under_one_request_per_second():
     from backend.config import Settings
     assert Settings().crawl_delay_seconds >= SHIPPED_INTERVAL_S == 1.0
+
+
+
+# ── 7. what the grader receives: one entry per article, nothing from the web page ────────────
+#
+# The lane fetches ONE instrument's page per document (content_<id>.htm), never a whole issue.
+# These tests run the pipeline's own text extraction (`ocr._html_to_text` + `extraction.
+# extract_provisions`) on every saved gazette page. Audited live on 2026-09-29 over the 64
+# gazette documents a real China run graded: 0 collapsed into one block, longest entry 3,878
+# characters; two defects found and fixed here (a second instrument on the same page, and an
+# annex swallowed by the last article).
+
+from backend.pipeline import extraction as E                       # noqa: E402
+from backend.pipeline import ocr as O                               # noqa: E402
+from backend.schemas import OCRMetrics                              # noqa: E402
+
+_HAN = {"零": 0, "〇": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7,
+        "八": 8, "九": 9}
+
+
+def _han_number(label: str) -> int:
+    """第一百四十五条 -> 145."""
+    s = label.removeprefix("第").removesuffix("条")
+    total, cur = 0, 0
+    for ch in s:
+        if ch in _HAN:
+            cur = _HAN[ch]
+        elif ch in "十百千":
+            total += (cur or 1) * {"十": 10, "百": 100, "千": 1000}[ch]
+            cur = 0
+    return total + cur
+
+
+#: Web-page furniture of www.gov.cn. None of it may appear inside a cited provision. (Not
+#: "首页" alone: statutes say 网站首页 — measured, three laws do.)
+_CHROME = re.compile(r"中国政府网|扫一扫|手机打开|打印本页|关闭窗口|版权所有|网站地图|京ICP|"
+                     r"分享到|【字体|主办单位|个人中心|无障碍")
+
+
+def _extract(fixture: str):
+    text = O._html_to_text(_read(fixture))
+    doc = portal.make_doc(Economy.CN, C + "x.htm", "t", "g")
+    return E.extract_provisions(doc, text, OCRMetrics())
+
+
+CONTENT_FIXTURES = sorted(p.name for p in FX.glob("cn_gazette_content_*.htm"))
+
+
+@pytest.mark.parametrize("fixture", CONTENT_FIXTURES)
+def test_every_gazette_page_splits_into_consecutive_articles_without_page_furniture(fixture):
+    ps = _extract(fixture)
+    articles = [p for p in ps if p.article_section.endswith("条")]
+    assert len(articles) >= 10, "collapsed or badly split"
+    numbers = [_han_number(p.article_section) for p in articles]
+    assert numbers == list(range(1, len(numbers) + 1)), numbers      # 1..N, no gap, no restart
+    for p in ps:
+        assert not _CHROME.search(p.verbatim_snippet), (p.article_section, p.verbatim_snippet[:80])
+        assert len(p.verbatim_snippet) <= 5000, (p.article_section, len(p.verbatim_snippet))
+    # nothing but articles and annexes: no preamble, no cover-notice text, no footer entry
+    assert {p.article_section for p in ps if p not in articles} <= {"附件"}
+
+
+def test_article_counts_on_real_pages():
+    counts = {f: sum(p.article_section.endswith("条") for p in _extract(f)) for f in CONTENT_FIXTURES}
+    assert counts == {
+        "cn_gazette_content_2007_content_554185.htm": 27,    # 互联网电子邮件服务管理办法
+        "cn_gazette_content_2008_content_1175820.htm": 56,   # 森林防火条例
+        "cn_gazette_content_2010_content_1547217.htm": 16,   # 社会保险业务档案管理规定（试行）
+        "cn_gazette_content_2013_content_2326559.htm": 47,   # 征信业管理条例
+        "cn_gazette_content_2014_content_2711458.htm": 53,   # 寄递服务用户个人信息安全管理规定
+        "cn_gazette_content_2016_content_2979707.htm": 58,   # 地图管理条例
+        "cn_gazette_content_2016_content_5041555.htm": 31,   # 会计档案管理办法
+        "cn_gazette_content_2016_content_5074079.htm": 61,   # 网络出版服务管理规定
+        "cn_gazette_content_2016_content_5086355.htm": 40,   # 放射性物品运输安全监督管理办法
+        "cn_gazette_content_2016_content_5129498.htm": 40,   # 网约车暂行办法
+        "cn_gazette_content_2017_content_5181095.htm": 47,   # 网络借贷暂行办法
+    }
+
+
+def test_a_second_instrument_on_the_same_page_is_not_cited_under_the_first_ones_name():
+    """邮政局关于印发《寄递服务用户个人信息安全管理规定》和《邮政行业安全信息报告和处理规定》
+    的通知 prints both rules. Before the fix the page gave 98 entries under the first rule's
+    name, 45 of them the second rule's articles."""
+    ps = _extract("cn_gazette_content_2014_content_2711458.htm")
+    labels = [p.article_section for p in ps]
+    assert len(labels) == len(set(labels)) == 53
+    last = ps[-1].verbatim_snippet
+    assert "邮政行业安全信息报告和处理规定" not in last and "第一章" not in last
+    assert last.rstrip().endswith("。")
+
+
+def test_an_annex_is_its_own_entry_not_part_of_the_last_article():
+    ps = _extract("cn_gazette_content_2010_content_1547217.htm")
+    labels = [p.article_section for p in ps]
+    assert labels[-2:] == ["第十六条", "附件"]
+    assert ps[-2].verbatim_snippet.strip().endswith("施行。") and len(ps[-2].verbatim_snippet) < 60
+    assert "保管期限" in ps[-1].verbatim_snippet and "〔30年〕" in ps[-1].verbatim_snippet
+
+
+@pytest.mark.parametrize("text, cut", [
+    ("第一条　甲。\n第二条　乙。\n", None),                                  # one instrument
+    ("第一条　甲。\n第二条　乙。\n丙规定\n第一章　总则\n第一条　丁。", 13),   # just after 乙。
+    ("依照本法第一条的规定。\n第一条　甲。\n第二条　乙。", None),           # cross-reference only
+])
+def test_second_instrument_cut(text, cut):
+    assert E._second_instrument_cut_cn(text) == cut
+
+
+@pytest.mark.parametrize("text, labels", [
+    ("第十条　本办法自公布之日起施行。\n附件：统计表\n一、……", ["附件"]),
+    ("第十条　本办法自公布之日起施行。附件1：甲表 内容……\n附件2：乙表 内容", ["附件1", "附件2"]),
+    ("第十条　应当按照见附件所列格式填报。", []),                               # inside a sentence
+    ("第十条　施行。附件所列事项另行规定。", []),                               # not a heading
+    ("第十条　应当按照附件\n规定的格式报送。", []),        # mid-sentence, the page wrapped the line
+    ("第十条　报送时附上附件：申请表。", []),              # mid-sentence, followed by a colon
+])
+def test_annex_headings(text, labels):
+    out = E._annexes_cn(text, [(0, 3, "第十条", False)])
+    assert [lab for _, _, lab, _ in out[1:]] == labels

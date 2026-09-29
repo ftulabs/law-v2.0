@@ -1177,6 +1177,55 @@ def _location_ref(ocr: OCRMetrics, start: int, total_len: int, label: str,
     return f"#{prefix}{num.group(0)}" if num else label
 
 
+def _second_instrument_cut_cn(text: str) -> int | None:
+    """Where a SECOND instrument starts on the same page, or None.
+
+    The State Council Gazette prints one notice that issues two rules on one page: 邮政局关于印发
+    《寄递服务用户个人信息安全管理规定》和《邮政行业安全信息报告和处理规定》的通知 carries
+    articles 第一条–第四十五条 of the first and then 第一条… of the second (measured 2026-09-29:
+    98 "provisions" under the first rule's name, 53 of them the second rule's). Every one of
+    those was a false citation. A Chinese instrument numbers its articles once, so 第一条 coming
+    back is the second instrument; the page is cut after the last full sentence before it, so
+    the second one's title and chapter heading do not trail the first one's last article.
+    """
+    seen_other = False
+    for m in _ARTICLE_RE_CN.finditer(text):
+        label = re.sub(r"[ \t　]+", "", m.group(1))
+        if not label.endswith("条"):
+            continue
+        if label == "第一条" and seen_other:
+            stop = text.rfind("。", 0, m.start())
+            return stop + 1 if stop > 0 else m.start()
+        if label != "第一条":
+            seen_other = True
+    return None
+
+
+#: An annex heading after the last article: "附件：…", "附件1 …", at a line start or right after
+#: a sentence ends. Not "见附件" or "附件所列" inside a sentence.
+_ANNEX_CN = re.compile(r"(?:^|(?<=。))[ \t　]*(附件[一二三四五六七八九十0-9]*)(?=[：:\s　]|$)", re.M)
+
+
+def _annexes_cn(text: str, out: list[tuple]) -> list[tuple]:
+    """Annexes (附件) after the last article become their own entries, labelled 附件.
+
+    Otherwise the last article swallows them: 社会保险业务档案管理规定（试行）'s 第十六条 is
+    one sentence — 本规定自2009年9月1日起施行 — and was cited with the whole retention-period
+    table after it (3,878 characters). The table IS evidence (RDTII 7.3), so it is kept, under
+    a label that says what it is."""
+    if not out:
+        return out
+    after = out[-1][1]
+    annexes: list[tuple] = []
+    for m in _ANNEX_CN.finditer(text, after):
+        # "附件：<title>" followed at once by "附件 <title> <body>" is ONE annex, printed as a
+        # heading then its first line; a second entry for it would hold only the title.
+        if annexes and m.group(1) == annexes[-1][2] and m.start(1) - annexes[-1][0] < 80:
+            continue
+        annexes.append((m.start(1), m.end(1), m.group(1), False))
+    return out + annexes
+
+
 def _boundaries(text: str, economy=None) -> list[tuple]:
     """Sorted (start, end, raw_label, marked) provision boundaries, chosen PER COUNTRY since
     statutes are not drafted alike: font-marked PDFs (AU) use the markers + structural
@@ -1204,6 +1253,8 @@ def _boundaries(text: str, economy=None) -> list[tuple]:
             # returning the whole document as one block.
             out = [(m.start(), m.end(), re.sub(r"[ \t　]+", "", m.group(1)), False)
                    for m in _STRUCT_RE_CN.finditer(text)]
+        else:
+            out = _annexes_cn(text, out)
     elif economy == Economy.MN:
         out = [(m.start(), m.end(), m.group(1), False) for m in _STRUCT_RE_MN.finditer(text)]
         if len(out) < 3:
@@ -1439,6 +1490,14 @@ def extract_provisions(doc: DiscoveredDoc, raw_text: str, ocr: OCRMetrics) -> li
             elu = _elucidation_start_id(text)
             if elu:
                 text = text[:elu]
+        if doc.economy == Economy.CN:
+            cut = _second_instrument_cut_cn(text)
+            if cut:
+                log = getattr(doc, "_log", None)
+                if callable(log):
+                    log(f"[extract] a second instrument starts on this page after "
+                        f"{cut} characters — only the first is cited: {law_name[:60]}")
+                text = text[:cut]
         schedules = _schedule_starts(text)
     total = len(text)
     bounds = _boundaries(text, doc.economy)
