@@ -163,6 +163,9 @@ class Indicator(BaseModel):
     # What the second-pass check must find QUOTED in the snippet before an acceptance stands —
     # one entry per element of the legal test (mapping.verify_mapping).
     verify_elements: list[str] = Field(default_factory=list)
+    # The element (1-based) whose quote must name a place inside or outside the country — its
+    # territory, a border, abroad (rdtii/place_words.py). None: no place in this legal test.
+    verify_place_element: Optional[int] = None
 
 
 # ─────────────────────────── zone 1: discovery ───────────────────────────

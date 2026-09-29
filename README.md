@@ -399,7 +399,7 @@ status; portal details and probe dates are in [`data/sources.yaml`](data/sources
 
 Fourteen columns in this exact order: the thirteen Round 1 columns unchanged, plus **Language of
 Source**. The source of truth is `SUBMISSION_COLUMNS` in
-[`backend/schemas.py`](backend/schemas.py#L375); the order below was checked by hand against the
+[`backend/schemas.py`](backend/schemas.py#L378); the order below was checked by hand against the
 *Output Data* sheet of `OUTPUT_TEMPLATE_FINAL_ROUND.xlsx` on 2026-09-29, and the exporter's
 header row is pinned by `tests/test_output.py` and `tests/test_final_round.py`.
 
