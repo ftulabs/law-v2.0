@@ -40,7 +40,9 @@ upsert_env OPENAI_API_KEY     "${OPENAI_API_KEY:-}"
 upsert_env GEMINI_API_KEY     "${GEMINI_API_KEY:-}"
 
 echo "▶ Build image từ ${REPO_DIR}"
-docker build -t "${IMG}" "${REPO_DIR}"
+# INSTALL_PADDLE=1 keeps PaddleOCR on the hosted instance (the image default is off, so a
+# first build on a reviewer's machine stays fast).
+docker build --build-arg INSTALL_PADDLE=1 -t "${IMG}" "${REPO_DIR}"
 
 echo "▶ Restart container"
 docker rm -f veritrade 2>/dev/null || true

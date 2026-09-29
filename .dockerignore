@@ -23,3 +23,14 @@ data/cache/
 node_modules
 *.md
 !README.md
+
+# not needed at runtime — keeps the build context small and private files out of the image
+*.zip
+paper/
+apps/
+bench/
+_workbench/
+site/
+logs/
+.opencode/
+*.xlsx.bak

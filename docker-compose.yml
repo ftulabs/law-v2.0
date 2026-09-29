@@ -1,0 +1,29 @@
+# VeriTrade on any machine with Docker:
+#
+#   cp .env.example .env          # Windows: copy .env.example .env   — then paste your API key
+#   docker compose up -d --build  # first build ~10–15 min; later starts take seconds
+#   open http://localhost:8501
+#
+# Full guide: docs/DEPLOYMENT.md
+services:
+  veritrade:
+    build: .
+    image: veritrade:local
+    container_name: veritrade
+    ports:
+      - "8501:8501"
+    env_file:
+      # Optional so the app still starts (offline sample mode) before a key is added.
+      - path: .env
+        required: false
+    volumes:
+      # Everything that must survive a restart or a rebuild lives in named volumes:
+      - vt-outputs:/app/outputs            # results, exports, accounts DB (veritrade.db)
+      - vt-cache:/app/data/cache           # downloaded laws — the second pass re-reads these
+      - vt-models:/root/.cache/huggingface # retrieval models (the 2 GB reranker, once fetched)
+    restart: unless-stopped
+
+volumes:
+  vt-outputs:
+  vt-cache:
+  vt-models:

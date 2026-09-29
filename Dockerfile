@@ -1,14 +1,10 @@
-# VeriTrade — self-host image for Jetson Nano (linux/arm64, CPU-only).
+# VeriTrade — one image for a laptop, a server (x86_64) or a Jetson (arm64). CPU only.
 #
-# The heavy LLM runs REMOTELY (OpenRouter), so the Nano needs no GPU/CUDA — only Python
-# 3.11 + the app's CPU deps (torch CPU, sentence-transformers, LightRAG, OCR, crawler).
-# JetPack 4.6 ships Python 3.6, too old for this codebase, so we ship our own runtime in
-# the image instead of touching the host.
+#   docker compose up -d --build        → http://localhost:8501   (see docs/DEPLOYMENT.md)
 #
-# Cross-build on an x86_64 host with buildx + QEMU binfmt (slow but no Nano RAM pressure):
-#   docker buildx build --platform linux/arm64 -t veritrade:arm64 --load .
-# Then ship to the Nano:  docker save veritrade:arm64 | gzip | ssh minh@jetson-nano \
-#   'gunzip | docker load'  and run with the .env mounted (see deploy/run_on_jetson.sh).
+# The language model runs REMOTELY (OpenRouter by default), so the image needs no GPU — only
+# Python 3.11 and the CPU dependencies: torch for the embedding model, OCR, the crawler and a
+# headless Chromium for the portals that answer a plain HTTP client with a JavaScript challenge.
 FROM python:3.11-slim-bookworm
 
 ENV PYTHONUNBUFFERED=1 \
@@ -17,7 +13,9 @@ ENV PYTHONUNBUFFERED=1 \
     MAX_JOBS=2 \
     OMP_NUM_THREADS=2 \
     OPENBLAS_NUM_THREADS=2 \
-    HF_HUB_DISABLE_TELEMETRY=1
+    HF_HUB_DISABLE_TELEMETRY=1 \
+    HF_HOME=/root/.cache/huggingface \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 # System libs needed by wheels at runtime: lxml (libxml2/xslt), Pillow (jpeg/zlib),
 # onnxruntime/rapidocr & opencv (libgl, libglib, libgomp), plus git/curl.
@@ -30,41 +28,46 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Deps first (own layer → rebuilds of app code don't reinstall torch).
-# CPU-ONLY torch, pinned: torch 2.2.2's aarch64 wheel gates the nvidia-cu* CUDA deps to
-# x86_64 only, so arm64 gets a clean ~80MB CPU install. (torch >=2.7 added arm64-CUDA wheels
-# that drag in multi-GB nvidia-cudnn/cublas/nccl — useless on the Nano's JetPack-4.6 CUDA and
-# far too big for its disk.) The Nano never runs the LLM locally (that's remote OpenRouter),
-# so CPU torch for the embedding model is all it needs. MAX_JOBS=2 caps any source build.
+# torch comes from PyTorch's CPU-only index. From PyPI, the x86_64 wheel pulls several GB of
+# NVIDIA CUDA libraries this image never uses — the slowest part of a first build, and a
+# licence question for anyone who republishes the image. 2.2.2 is kept because
+# requirements.txt pins numpy<2 and transformers<5 to match it (arm64 deploy target).
 COPY requirements.txt ./
 RUN python -m pip install --upgrade pip \
- && pip install torch==2.2.2 \
+ && pip install torch==2.2.2 --index-url https://download.pytorch.org/whl/cpu \
  && pip install -r requirements.txt
 
-COPY . .
+# Headless Chromium, with the system libraries it needs. Indonesia's legal database answers
+# a plain HTTP client with HTTP 403 and a Cloudflare JavaScript challenge; the crawler's
+# browser lane (Scrapling → Playwright) runs that challenge the way a visitor's browser does.
+# Without this step the lane fails inside the container and Indonesia finds nothing.
+RUN python -m playwright install --with-deps chromium \
+ && rm -rf /var/lib/apt/lists/*
 
-# ── Bake HuggingFace models into the image ──────────────────────────────────
-# Pre-download the sentence-transformers embedding model and cross-encoder so that
-# LightRAG and the dense retrieval stage work immediately on cold start without
-# hitting the network.  Values must match backend/config.py defaults.
-# PIP_NO_CACHE_DIR=1 is set globally, but HF uses its own cache dir (HF_HOME).
+# Bake the two small retrieval models so the first run needs no model download.
+# (The 2 GB multilingual reranker for non-Latin economies is fetched on first use and kept
+# in the hf-cache volume — see docker-compose.yml.)  Values must match backend/config.py.
 RUN python -c "\
 from sentence_transformers import SentenceTransformer, CrossEncoder; \
 SentenceTransformer('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2'); \
 CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2'); \
-print('✓ Embedding + cross-encoder models baked into image')"
+print('embedding + cross-encoder models baked into image')"
 
-# ── PaddleOCR (optional) ─────────────────────────────────────────────────────
-# PaddlePaddle does NOT publish Linux aarch64 wheels on PyPI, so this step is
-# intentionally non-fatal: it succeeds on x86_64 CI runners and silently skips
-# on the arm64 Jetson TX2 target.  rapidocr_onnxruntime (always installed above)
-# is the active OCR engine when PaddleOCR is absent.
-RUN pip install "paddlepaddle>=3.0" "paddleocr>=3.0" \
-    && echo "✓ PaddleOCR installed" \
-    || echo "⚠  PaddleOCR not available on this platform — rapidocr is active"
+# PaddleOCR is an OPTIONAL second OCR engine (~1 GB). RapidOCR, installed above, is the
+# default and covers scanned PDFs. Off by default so a first build stays well inside the
+# 30-minute deployment benchmark; `docker compose build --build-arg INSTALL_PADDLE=1` adds it.
+ARG INSTALL_PADDLE=0
+RUN if [ "$INSTALL_PADDLE" = "1" ]; then \
+      pip install "paddlepaddle>=3.0" "paddleocr>=3.0" \
+      && echo "PaddleOCR installed" \
+      || echo "PaddleOCR not available on this platform — RapidOCR is active"; \
+    fi
 
-# .env (OPENROUTER_API_KEY, RETRIEVER=lightrag, …) is MOUNTED at runtime, never baked in.
+COPY . .
+
+# .env (API keys, …) is supplied at runtime, never baked in.
 EXPOSE 8501
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
     CMD curl -fsS http://localhost:8501/_stcore/health || exit 1
 CMD ["streamlit", "run", "frontend/app.py", \
      "--server.port=8501", "--server.address=0.0.0.0", \
