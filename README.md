@@ -68,8 +68,9 @@ provision in the panel's 2025 baseline, decided per provision).
 ## Quick Start
 
 > Target: a working system on a clean machine in under 30 minutes, from this section alone.
-> Needs Python 3.11 or 3.12 (both tested in CI), git, ~3 GB free disk and an internet
-> connection for the first install. Docker instead: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+> **Measured 2026-09-29 on a machine with nothing cached: 13 minutes** from `git clone` to a
+> healthy app, plus 1 minute for the check in step 5. Needs **Docker** (Docker Desktop on
+> Windows/macOS) and git. Without Docker: [Python path](docs/DEPLOYMENT.md#3-path-b--python-virtual-environment).
 
 ### 1. Clone the repository
 
@@ -80,76 +81,71 @@ cd law-v2.0
 
 ### 2. Set up the environment
 
-```bash
-python -m venv venv
-source venv/bin/activate          # Windows: venv\Scripts\activate
-pip install -r requirements.txt   # ~2 GB (PyTorch CPU, sentence-transformers); 5–15 minutes
-```
-
-Optional, only for portals behind a JavaScript challenge (Indonesia's `peraturan.bpk.go.id`):
+Nothing to install on the host besides Docker — the image carries Python, the models, OCR and
+the headless browser that Indonesia's portal requires. Start Docker Desktop and check:
 
 ```bash
-scrapling install                 # downloads the stealth browser the fetch layer escalates to
+docker compose version            # prints "Docker Compose version v2…"
 ```
 
 ### 3. Configure
 
 ```bash
-cp .env.example .env              # Windows: copy .env.example .env
+cp .env.example .env              # Windows (cmd): copy .env.example .env
 ```
 
-Open `.env` and set, at minimum:
+Open `.env` and set your key (everything else already holds the declared defaults):
 
 ```env
-LLM_PROVIDER=openrouter
-OPENROUTER_API_KEY=sk-or-...                  # https://openrouter.ai/keys — needs credit
-OPENROUTER_MODEL=deepseek/deepseek-v4-flash   # declared engine A (the default)
-OCR_PROVIDER=rapidocr                         # the default; local, no key
-AUTH_ENABLED=false                            # optional: skip the sign-in screen
+OPENROUTER_API_KEY=sk-or-...      # https://openrouter.ai/keys — needs credit
+AUTH_ENABLED=false                # optional: skip the sign-in screen
 ```
 
-With **no key at all** the tool still runs: the grader falls back to an offline lexical
-stand-in (`mock`) and the run log says so in an `[error]` line. That is enough to verify the
-install, not to produce evidence. The two declared engines are described
-[below](#your-two-declared-engines); the API key can also be pasted on the **Engines** screen
-instead of `.env`.
+With **no key at all** the tool still runs: the grader falls back to an offline stand-in
+(`mock`) and the run log says so in an `[error]` line — enough to verify the install, not to
+produce evidence. The key can also be pasted on the **Engines** screen instead of `.env`.
+The two declared engines are described [below](#your-two-declared-engines).
 
 ### 4. Start the interface
 
 ```bash
-streamlit run frontend/app.py
+docker compose up -d --build      # first time ~10–15 min; afterwards `docker compose up -d`, seconds
 ```
 
 Then open **http://localhost:8501**. If `AUTH_ENABLED` is left on, choose **Create account** on
-the first screen — accounts are stored in a local SQLite file (`outputs/veritrade.db`).
+the first screen (accounts are kept in the container's `vt-outputs` volume).
 
 **Everything else happens in the interface** — starting a run, reviewing, correcting, switching
 engines, exporting. A reviewer does not need the command line again after this step.
 
 ### 5. Verify
 
-On the **Run** screen pick **Singapore**, topic **6 · Cross-border data**, set *Where to look*
-to **Offline samples**, and press **Run analysis**.
+```bash
+docker compose exec veritrade python main.py --economy Singapore --pillar 6
+```
 
-**Expected:** 3 bundled documents → **16 provisions** → **6 rows** (PDPA sections 26, 26A, 26D
-under 6.1, 6.2 and 6.4, plus an explicit "No provision found" row for 6.3), a coverage matrix on
-the **Results** tab, and CSV + JSON files in `outputs/`. Measured on 2026-09-29 with the offline
-grader: **55 seconds** once models are cached.
+**Expected:** `[done] 6 mappings in ~55s` and `outputs/SG_P6_<time>.csv` / `.json` — 3 bundled
+documents → 16 provisions → 6 rows (PDPA ss. 26, 26A, 26D under 6.1, 6.2, 6.4, plus an explicit
+"No provision found" row for 6.3). The same from the interface: **Run** screen → Singapore →
+topic **6** → *Where to look* **Offline samples** → **Run analysis**.
 
-Then switch *Where to look* to **Live portals** and run again with a key set. A live Singapore
-run took 8–20 minutes on 2026-09-26 for both pillars (discovery, ~30 downloads, extraction,
-grading); see [Measured Cost](#measured-cost).
+Then switch to **Live portals** and run again with a key set: 3–7 minutes per pillar (discovery,
+~22 downloads, extraction, grading); see [Measured Cost](#measured-cost).
 
 | First-run symptom | Fix |
 | :--- | :--- |
-| The first run pauses for several minutes with no progress | It is downloading the embedding and reranking models (~0.5 GB) from Hugging Face. Once only; they are cached afterwards |
+| `Cannot connect to the Docker daemon` | Docker Desktop is not running — start it and wait for *Engine running* |
+| Port 8501 is already in use | Stop the other app, or change `"8501:8501"` to `"8502:8501"` in `docker-compose.yml` and open port 8502 |
+| The first Chinese, Thai or Russian run pauses for minutes | It is fetching the 2 GB multilingual reranker once; it is kept afterwards |
 | An `[error]` line says the run "fell back to the OFFLINE STAND-IN grader" | No usable API key. Set `OPENROUTER_API_KEY` in `.env`, or paste one on the **Engines** screen |
 | OpenRouter answers `402` or `403 Key limit exceeded` | The key has no credit, or has hit its daily cap. It is not a dead key |
-| `AttributeError: module 'frontend…' has no attribute …` after a `git pull` | Streamlit does not re-import changed modules. Stop the server (Ctrl-C) and start it again |
+| Code changes do not appear after a `git pull` | Rebuild: `docker compose up -d --build` |
 | On Windows, code changes do not appear after a restart | An old Streamlit process still owns port 8501. Stop it with `Stop-Process` in PowerShell |
 
 <details>
 <summary>The same pipeline from the command line</summary>
+
+Inside Docker, prefix each command with `docker compose exec veritrade`.
 
 ```bash
 python main.py --economy Singapore --pillar 6                  # offline sample corpus
@@ -442,6 +438,19 @@ records token counts from each API response, OCR pages, search queries and bytes
 them from [`data/pricing.json`](data/pricing.json), and writes the table into every run's JSON
 under `run.cost` (and on the **Download** tab). A component with no price on file is reported as
 *unpriced*, never as $0.
+
+**Cost varies from run to run**, so it is given as a range. It depends on how many provisions
+a portal yields, how many rows pass to the quote check, and upstream prices. Every run
+states its own exact figure. The ranges below are measured, not estimated:
+
+| One run (live) | Engine A — `deepseek-v4-flash` | Engine B — `gemini-3.7-flash` |
+| :--- | :--- | :--- |
+| One pillar (e.g. the live test) | **$0.10 – $0.50** (TH P6 $0.12 · SG P7 $0.46) | **$0.50 – $1.40** (TH P6 $0.54 · SG P7 $1.36) |
+| Both pillars 6 + 7 | **$0.15 – $1.05** (12 runs, 2026-09-26/27: CN $0.16–0.41 · SG $0.33–0.83 · ID $0.47–1.05 · AU $0.80) | about 3–5× engine A (not run on both pillars) |
+| Wall-clock, one pillar | 3–7 min | 2–6 min (second pass: no download) |
+
+Engine B's figures are 2 runs (2026-09-29); engine A's are 14. Both include the quote check
+(`deepseek-v4-pro`) and second opinions; OCR, embedding and crawling are local and cost $0.
 
 **Measured on:** 2026-09-26 (live run, run-id `run-0210692c`)
 **Benchmark:** Singapore, pillars 6 + 7 together — 29 documents, 4,686 provisions, 280 rows
