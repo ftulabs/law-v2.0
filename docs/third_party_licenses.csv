@@ -1,0 +1,181 @@
+Name,Version,License,LicenseFamily,Scope,RequiredBy,URL
+aiohappyeyeballs,2.6.2,Python Software Foundation License,PSF,transitive-required,aiohttp,https://github.com/aio-libs/aiohappyeyeballs
+aiohttp,3.14.0,Apache-2.0 AND MIT,Apache-2.0,transitive-required,lightrag-hku paddleocr,https://github.com/aio-libs/aiohttp
+aiosignal,1.4.0,Apache Software License,Apache-2.0,transitive-required,aiohttp,https://github.com/aio-libs/aiosignal
+aistudio-sdk,0.3.8,UNKNOWN,UNKNOWN,transitive-optional (only via PaddleOCR/anthropic),paddlex,UNKNOWN
+altair,6.1.0,BSD License,BSD,transitive-required,streamlit,https://github.com/vega/altair
+annotated-doc,0.0.4,MIT,MIT,transitive-required,fastapi typer,https://github.com/fastapi/annotated-doc
+annotated-types,0.7.0,MIT License,MIT,transitive-required,pydantic,https://github.com/annotated-types/annotated-types
+anthropic,0.105.2,MIT License,MIT,direct-optional (commented out in requirements.txt),,https://github.com/anthropics/anthropic-sdk-python
+anyio,4.13.0,MIT,MIT,transitive-required,anthropic google-genai httpx openai scrapling starlette streamlit watchfiles,https://anyio.readthedocs.io/en/stable/versionhistory.html
+apify_fingerprint_datapoints,0.13.0,Apache Software License,Apache-2.0,transitive-required,browserforge scrapling,https://docs.apify.com/academy/anti-scraping/techniques/fingerprinting
+ascii_colors,0.11.22,Apache-2.0,Apache-2.0,transitive-required,pipmaster,https://github.com/ParisNeo/ascii_colors
+attrs,26.1.0,MIT,MIT,transitive-required,aiohttp jsonschema referencing,https://www.attrs.org/en/stable/changelog.html
+bce-python-sdk,0.9.71,Apache License 2.0,Apache-2.0,transitive-optional (only via PaddleOCR/anthropic),aistudio-sdk,http://bce.baidu.com
+bcrypt,5.0.0,Apache Software License,Apache-2.0,direct-required,,https://github.com/pyca/bcrypt/
+beautifulsoup4,4.14.3,MIT License,MIT,direct-required,markdownify markitdown,https://www.crummy.com/software/BeautifulSoup/bs4/
+blinker,1.9.0,MIT License,MIT,transitive-required,streamlit,https://github.com/pallets-eco/blinker/
+browserforge,1.2.4,Apache Software License,Apache-2.0,transitive-required,scrapling,https://github.com/daijro/browserforge
+cachetools,7.1.4,MIT,MIT,transitive-required,streamlit,https://github.com/tkem/cachetools/
+certifi,2026.4.22,Mozilla Public License 2.0 (MPL 2.0),Copyleft-weak (MPL),transitive-required,curl-cffi httpcore httpx requests,https://github.com/certifi/python-certifi
+cffi,2.0.0,MIT,MIT,transitive-required,cryptography curl-cffi,https://cffi.readthedocs.io/en/latest/whatsnew.html
+chardet,7.4.3,0BSD,BSD,transitive-optional (only via PaddleOCR/anthropic),paddlex,https://github.com/chardet/chardet
+charset-normalizer,3.4.7,MIT,MIT,transitive-required,markitdown pdfminer-six requests,https://github.com/jawah/charset_normalizer/blob/master/CHANGELOG.md
+click,8.4.1,BSD-3-Clause,BSD,transitive-required,aistudio-sdk browserforge huggingface-hub magika scrapling streamlit typer uvicorn,https://github.com/pallets/click/
+colorama,0.4.6,BSD License,BSD,transitive-required,click colorlog pytest tqdm uvicorn,https://github.com/tartley/colorama
+coloredlogs,15.0.1,MIT License,MIT,transitive-required,onnxruntime,https://coloredlogs.readthedocs.io
+colorlog,6.10.1,MIT License,MIT,transitive-optional (only via PaddleOCR/anthropic),paddlex,https://github.com/borntyping/python-colorlog
+configparser,7.2.0,MIT License,MIT,transitive-required,lightrag-hku,https://github.com/jaraco/configparser
+crc32c,2.8,GNU Lesser General Public License v2 or later (LGPLv2+),Copyleft-weak (LGPL/MPL/GPL option),transitive-optional (only via PaddleOCR/anthropic),bce-python-sdk,https://github.com/ICRAR/crc32c/blob/master/CHANGELOG.md
+cryptography,48.0.0,Apache-2.0 OR BSD-3-Clause,Apache-2.0,transitive-required,google-auth pdfminer-six,https://github.com/pyca/cryptography
+cssselect,1.4.0,BSD-3-Clause,BSD,transitive-required,scrapling,https://github.com/scrapy/cssselect
+curl_cffi,0.15.0,MIT,MIT,transitive-required,scrapling,https://github.com/lexiforest/curl_cffi
+defusedxml,0.7.1,Python Software Foundation License,PSF,transitive-required,markitdown,https://github.com/tiran/defusedxml
+distro,1.9.0,Apache Software License,Apache-2.0,transitive-required,anthropic google-genai openai,https://github.com/python-distro/distro
+docstring_parser,0.18.0,MIT License,MIT,transitive-optional (only via PaddleOCR/anthropic),anthropic,https://github.com/rr-/docstring_parser
+et_xmlfile,2.0.0,MIT License,MIT,transitive-required,openpyxl,https://foss.heptapod.net/openpyxl/et_xmlfile
+fastapi,0.136.1,MIT,MIT,direct-required,,https://github.com/fastapi/fastapi
+filelock,3.29.1,MIT,MIT,direct-required,huggingface-hub modelscope paddlex torch,https://github.com/tox-dev/py-filelock
+flatbuffers,25.12.19,Apache Software License,Apache-2.0,transitive-required,onnxruntime,https://google.github.io/flatbuffers/
+frozenlist,1.8.0,Apache-2.0,Apache-2.0,transitive-required,aiohttp aiosignal,https://github.com/aio-libs/frozenlist
+fsspec,2026.4.0,BSD-3-Clause,BSD,transitive-required,huggingface-hub torch,https://github.com/fsspec/filesystem_spec
+future,1.0.0,MIT License,MIT,transitive-optional (only via PaddleOCR/anthropic),bce-python-sdk,https://python-future.org
+gitdb,4.0.12,BSD License,BSD,transitive-required,gitpython,https://github.com/gitpython-developers/gitdb
+GitPython,3.1.50,BSD-3-Clause,BSD,transitive-required,streamlit,https://github.com/gitpython-developers/GitPython
+google-api-core,2.31.0,Apache Software License,Apache-2.0,transitive-required,lightrag-hku,https://github.com/googleapis/google-cloud-python/tree/main/packages/google-api-core
+google-auth,2.53.0,Apache Software License,Apache-2.0,transitive-required,google-api-core google-genai,https://github.com/googleapis/google-auth-library-python
+google-genai,2.8.0,Apache-2.0,Apache-2.0,transitive-required,lightrag-hku,https://github.com/googleapis/python-genai
+googleapis-common-protos,1.75.0,Apache Software License,Apache-2.0,transitive-required,google-api-core,https://github.com/googleapis/google-cloud-python/tree/main/packages/googleapis-common-protos
+greenlet,3.5.0,MIT AND PSF-2.0,MIT,transitive-required,patchright playwright sqlalchemy,https://greenlet.readthedocs.io
+h11,0.16.0,MIT License,MIT,transitive-required,httpcore uvicorn,https://github.com/python-hyper/h11
+hf-xet,1.5.0,Apache-2.0,Apache-2.0,transitive-required,huggingface-hub,https://github.com/huggingface/xet-core
+httpcore,1.0.9,BSD-3-Clause,BSD,transitive-required,httpx,https://www.encode.io/httpcore/
+httptools,0.7.1,MIT,MIT,transitive-required,streamlit uvicorn,https://github.com/MagicStack/httptools
+httpx,0.28.1,BSD License,BSD,direct-required,anthropic google-genai huggingface-hub openai paddlepaddle,https://github.com/encode/httpx
+huggingface_hub,1.17.0,Apache Software License,Apache-2.0,transitive-required,paddlex sentence-transformers tokenizers transformers,https://github.com/huggingface/huggingface_hub
+humanfriendly,10.0,MIT License,MIT,transitive-required,coloredlogs,https://humanfriendly.readthedocs.io
+idna,3.15,BSD-3-Clause,BSD,transitive-required,anyio httpx requests yarl,https://github.com/kjd/idna
+imagesize,2.0.0,MIT License,MIT,transitive-optional (only via PaddleOCR/anthropic),paddlex,https://github.com/shibukawa/imagesize_py
+iniconfig,2.3.0,MIT,MIT,transitive-required,pytest,https://github.com/pytest-dev/iniconfig
+itsdangerous,2.2.0,BSD License,BSD,transitive-required,streamlit,https://github.com/pallets/itsdangerous/
+Jinja2,3.1.6,BSD License,BSD,transitive-required,altair pydeck torch,https://github.com/pallets/jinja/
+jiter,0.15.0,MIT,MIT,transitive-required,anthropic openai,https://github.com/pydantic/jiter/
+joblib,1.5.3,BSD-3-Clause,BSD,transitive-required,scikit-learn,https://joblib.readthedocs.io
+json_repair,0.60.1,MIT,MIT,transitive-required,lightrag-hku,https://github.com/mangiucugna/json_repair/
+jsonschema,4.26.0,MIT,MIT,transitive-required,altair,https://github.com/python-jsonschema/jsonschema
+jsonschema-specifications,2025.9.1,MIT,MIT,transitive-required,jsonschema,https://github.com/python-jsonschema/jsonschema-specifications
+lightrag-hku,1.5.0,MIT License,MIT,direct-required,,https://github.com/HKUDS/LightRAG
+lxml,6.1.0,BSD-3-Clause,BSD,direct-required,scrapling,https://lxml.de/
+magika,0.6.3,Apache Software License,Apache-2.0,transitive-required,markitdown,https://github.com/google/magika
+markdown-it-py,4.2.0,MIT License,MIT,transitive-required,rich,https://github.com/executablebooks/markdown-it-py
+markdownify,1.2.2,MIT License,MIT,transitive-required,markitdown,http://github.com/matthewwithanm/python-markdownify
+markitdown,0.1.6,MIT,MIT,direct-required,,https://github.com/microsoft/markitdown
+MarkupSafe,3.0.3,BSD-3-Clause,BSD,transitive-required,jinja2,https://github.com/pallets/markupsafe/
+mdurl,0.1.2,MIT License,MIT,transitive-required,markdown-it-py,https://github.com/executablebooks/mdurl
+modelscope,1.37.1,Apache-2.0,Apache-2.0,transitive-optional (only via PaddleOCR/anthropic),paddlex,https://github.com/modelscope/modelscope
+mpmath,1.3.0,BSD License,BSD,transitive-required,sympy,http://mpmath.org/
+msgspec,0.21.1,BSD-3-Clause,BSD,transitive-required,scrapling,https://jcristharif.com/msgspec/
+multidict,6.7.1,Apache License 2.0,Apache-2.0,transitive-required,aiohttp yarl,https://github.com/aio-libs/multidict
+nano-vectordb,0.0.4.3,MIT License,MIT,transitive-required,lightrag-hku,https://github.com/gusye1234/nano-vectordb
+narwhals,2.22.0,MIT,MIT,transitive-required,altair scikit-learn,https://github.com/narwhals-dev/narwhals
+nest-asyncio,1.6.0,BSD License,BSD,direct-required,,https://github.com/erdewit/nest_asyncio
+networkx,3.6.1,BSD-3-Clause,BSD,transitive-required,lightrag-hku paddlepaddle torch,https://networkx.org/
+numpy,2.3.5,BSD License,BSD,direct-required,lightrag-hku magika nano-vectordb onnxruntime opencv-contrib-python opencv-python opt-einsum paddlepaddle paddlex pandas pydeck rank-bm25 rapidocr-onnxruntime scikit-learn scipy sentence-transformers shapely streamlit transformers,https://numpy.org
+onnxruntime,1.20.1,MIT License,MIT,transitive-required,magika rapidocr-onnxruntime,https://onnxruntime.ai
+openai,2.41.0,Apache Software License,Apache-2.0,direct-required,,https://github.com/openai/openai-python
+opencv-contrib-python,4.10.0.84,Apache Software License,Apache-2.0,transitive-optional (only via PaddleOCR/anthropic),paddlex,https://github.com/opencv/opencv-python
+opencv-python,4.13.0.92,Apache Software License,Apache-2.0,transitive-required,rapidocr-onnxruntime,https://github.com/opencv/opencv-python
+openpyxl,3.1.5,MIT License,MIT,direct-required,,https://openpyxl.readthedocs.io
+opt-einsum,3.3.0,MIT,MIT,transitive-optional (only via PaddleOCR/anthropic),paddlepaddle,https://github.com/dgasmith/opt_einsum
+orjson,3.11.9,MPL-2.0 AND (Apache-2.0 OR MIT),Copyleft-weak (MPL),transitive-required,scrapling,https://github.com/ijl/orjson
+packaging,26.2,Apache-2.0 OR BSD-2-Clause,Apache-2.0,transitive-required,altair huggingface-hub lightrag-hku modelscope onnxruntime paddlex pipmaster pytest streamlit transformers,https://github.com/pypa/packaging
+paddleocr,3.6.0,Apache License 2.0,Apache-2.0,direct-optional (commented out in requirements.txt),,https://github.com/PaddlePaddle/PaddleOCR
+paddlepaddle,3.3.1,Apache Software License,Apache-2.0,direct-optional (commented out in requirements.txt),,https://www.paddlepaddle.org.cn/
+paddlex,3.6.1,Apache-2.0,Apache-2.0,transitive-optional (only via PaddleOCR/anthropic),paddleocr,UNKNOWN
+pandas,2.3.3,BSD License,BSD,direct-required,lightrag-hku paddlex streamlit,https://pandas.pydata.org
+patchright,1.59.1,Apache-2.0,Apache-2.0,transitive-required,scrapling,https://github.com/Kaliiiiiiiiii-Vinyzu/patchright-python
+pdf-inspector,1.14.2,MIT License,MIT,direct-required,,https://github.com/firecrawl/pdf-inspector
+pdfminer.six,20251230,MIT,MIT,transitive-required,markitdown pdfplumber,https://github.com/pdfminer/pdfminer.six
+pdfplumber,0.11.9,MIT License,MIT,direct-required,markitdown,https://github.com/jsvine/pdfplumber
+pillow,12.2.0,MIT-CMU,MIT,direct-required,paddlepaddle paddlex pdfplumber rapidocr-onnxruntime streamlit,https://python-pillow.github.io
+pipmaster,1.1.13,Apache-2.0,Apache-2.0,transitive-required,lightrag-hku,https://github.com/ParisNeo/pipmaster
+playwright,1.59.0,Apache-2.0,Apache-2.0,direct-required,scrapling,https://github.com/Microsoft/playwright-python
+pluggy,1.6.0,MIT License,MIT,transitive-required,pytest,UNKNOWN
+prettytable,3.17.0,BSD-3-Clause,BSD,transitive-optional (only via PaddleOCR/anthropic),aistudio-sdk paddlex,https://github.com/prettytable/prettytable
+propcache,0.5.2,Apache Software License,Apache-2.0,transitive-required,aiohttp yarl,https://github.com/aio-libs/propcache
+Protego,0.6.0,BSD-3-Clause,BSD,transitive-required,scrapling,https://github.com/scrapy/protego
+proto-plus,1.28.0,Apache Software License,Apache-2.0,transitive-required,google-api-core,https://github.com/googleapis/google-cloud-python/tree/main/packages/proto-plus
+protobuf,7.34.1,3-Clause BSD License,BSD,transitive-required,google-api-core googleapis-common-protos onnxruntime paddlepaddle proto-plus streamlit,https://developers.google.com/protocol-buffers/
+psutil,7.2.2,BSD-3-Clause,BSD,transitive-optional (only via PaddleOCR/anthropic),aistudio-sdk,https://github.com/giampaolo/psutil
+py-cpuinfo,9.0.0,MIT License,MIT,transitive-optional (only via PaddleOCR/anthropic),paddlex,https://github.com/workhorsy/py-cpuinfo
+pyarrow,24.0.0,Apache-2.0,Apache-2.0,transitive-required,streamlit,https://arrow.apache.org/
+pyasn1,0.6.3,BSD-2-Clause,BSD,transitive-required,pyasn1-modules,https://github.com/pyasn1/pyasn1
+pyasn1_modules,0.4.2,BSD License,BSD,transitive-required,google-auth,https://github.com/pyasn1/pyasn1-modules
+pyclipper,1.4.0,MIT License,MIT,transitive-required,paddlex rapidocr-onnxruntime,https://github.com/fonttools/pyclipper
+pycparser,3.0,BSD-3-Clause,BSD,transitive-required,cffi,https://github.com/eliben/pycparser
+pycryptodome,3.23.0,BSD License; Public Domain,BSD,transitive-optional (only via PaddleOCR/anthropic),bce-python-sdk,https://www.pycryptodome.org
+pydantic,2.13.4,MIT,MIT,direct-required,anthropic fastapi google-genai lightrag-hku openai paddlex pydantic-settings,https://github.com/pydantic/pydantic
+pydantic-settings,2.14.1,MIT,MIT,direct-required,,https://github.com/pydantic/pydantic-settings
+pydantic_core,2.46.4,MIT,MIT,transitive-required,pydantic,https://github.com/pydantic
+pydeck,0.9.2,Apache License 2.0,Apache-2.0,transitive-required,streamlit,https://github.com/visgl/deck.gl/tree/master/bindings/pydeck
+pyee,13.0.1,MIT License,MIT,transitive-required,patchright playwright,https://github.com/jfhbrook/pyee
+Pygments,2.20.0,BSD-2-Clause,BSD,transitive-required,pytest rich,https://pygments.org
+pypdf,6.11.0,BSD-3-Clause,BSD,direct-required,,https://github.com/py-pdf/pypdf
+pypdfium2,5.9.0,"BSD-3-Clause, Apache-2.0, dependency licenses",Apache-2.0,direct-required,paddlex pdfplumber,https://github.com/pypdfium2-team/pypdfium2
+pypinyin,0.55.0,MIT License,MIT,transitive-required,lightrag-hku,https://github.com/mozillazg/python-pinyin
+pyreadline3,3.5.6,BSD License,BSD,transitive-required,humanfriendly,https://github.com/pyreadline3/pyreadline3
+pytest,9.0.3,MIT,MIT,direct-required,,https://docs.pytest.org/en/latest/
+python-bidi,0.6.10,GNU Library or Lesser General Public License (LGPL),Copyleft-weak (LGPL/MPL/GPL option),transitive-optional (only via PaddleOCR/anthropic),paddlex,https://github.com/MeirKriheli/python-bidi
+python-dateutil,2.9.0.post0,Apache Software License; BSD License,Apache-2.0,transitive-required,pandas,https://github.com/dateutil/dateutil
+python-docx,1.2.0,MIT License,MIT,"direct-undeclared (imported by backend/pipeline/ocr.py, frontend/livetest.py; not in requirements.txt)",,https://github.com/python-openxml/python-docx
+python-dotenv,1.2.2,BSD-3-Clause,BSD,direct-required,lightrag-hku magika pydantic-settings uvicorn,https://github.com/theskumar/python-dotenv
+python-multipart,0.0.28,Apache-2.0,Apache-2.0,transitive-required,streamlit,https://github.com/Kludex/python-multipart
+pytz,2026.2,MIT License,MIT,transitive-required,pandas,http://pythonhosted.org/pytz
+PyYAML,6.0.2,MIT License,MIT,direct-required,huggingface-hub lightrag-hku paddleocr paddlex rapidocr-onnxruntime transformers uvicorn,https://pyyaml.org/
+rank-bm25,0.2.2,Apache2.0,Apache-2.0,direct-required,,https://github.com/dorianbrown/rank_bm25
+rapidocr-onnxruntime,1.4.4,Apache-2.0,Apache-2.0,direct-required,,https://github.com/RapidAI/RapidOCR
+referencing,0.37.0,MIT,MIT,transitive-required,jsonschema jsonschema-specifications,https://github.com/python-jsonschema/referencing
+regex,2026.5.9,Apache-2.0 AND CNRI-Python,Apache-2.0,transitive-required,tiktoken transformers,https://github.com/mrabarnett/mrab-regex
+requests,2.34.0,Apache Software License,Apache-2.0,transitive-required,aistudio-sdk google-api-core google-auth google-genai markitdown modelscope paddleocr paddlex streamlit tiktoken,https://github.com/psf/requests
+rich,15.0.0,MIT License,MIT,direct-required,curl-cffi typer,https://github.com/Textualize/rich
+rpds-py,0.30.0,MIT,MIT,transitive-required,jsonschema referencing,https://github.com/crate-py/rpds
+ruamel.yaml,0.19.1,MIT License,MIT,transitive-optional (only via PaddleOCR/anthropic),paddlex,https://sourceforge.net/p/ruamel-yaml/code/ci/default/tree/
+safetensors,0.7.0,Apache Software License,Apache-2.0,transitive-required,paddlepaddle transformers,https://github.com/huggingface/safetensors
+scikit-learn,1.9.0,BSD-3-Clause,BSD,transitive-required,sentence-transformers,https://scikit-learn.org
+scipy,1.17.1,BSD License,BSD,transitive-required,scikit-learn sentence-transformers,https://scipy.org/
+scrapling,0.4.8,BSD License,BSD,direct-required,,https://github.com/D4Vinci/Scrapling
+sentence-transformers,5.5.1,Apache Software License,Apache-2.0,direct-required,,https://www.SBERT.net
+setuptools,81.0.0,MIT,MIT,transitive-required,lightrag-hku torch,https://github.com/pypa/setuptools
+shapely,2.1.2,BSD License,BSD,transitive-required,paddlex rapidocr-onnxruntime,https://github.com/shapely/shapely
+shellingham,1.5.4,ISC License (ISCL),ISC,transitive-required,typer,https://github.com/sarugaku/shellingham
+six,1.17.0,MIT License,MIT,transitive-required,bce-python-sdk markdownify python-dateutil rapidocr-onnxruntime,https://github.com/benjaminp/six
+smmap,5.0.3,BSD License,BSD,transitive-required,gitdb,https://github.com/gitpython-developers/smmap
+sniffio,1.3.1,Apache Software License; MIT License,Apache-2.0,transitive-required,anthropic google-genai openai,https://github.com/python-trio/sniffio
+soupsieve,2.8.4,MIT,MIT,transitive-required,beautifulsoup4,https://github.com/facelessuser/soupsieve
+SQLAlchemy,2.0.49,MIT,MIT,direct-required,,https://www.sqlalchemy.org
+starlette,1.0.0,BSD-3-Clause,BSD,transitive-required,fastapi streamlit,https://github.com/Kludex/starlette
+streamlit,1.58.0,Apache-2.0,Apache-2.0,direct-required,,https://streamlit.io
+sympy,1.14.0,BSD License,BSD,transitive-required,onnxruntime torch,https://sympy.org
+tenacity,9.1.4,Apache Software License,Apache-2.0,transitive-required,google-genai lightrag-hku streamlit,https://github.com/jd/tenacity
+threadpoolctl,3.6.0,BSD License,BSD,transitive-required,scikit-learn,https://github.com/joblib/threadpoolctl
+tiktoken,0.13.0,MIT License,MIT,transitive-required,lightrag-hku,https://github.com/openai/tiktoken
+tld,0.13.2,MPL-1.1 OR GPL-2.0-only OR LGPL-2.1-or-later,Copyleft-weak (LGPL/MPL/GPL option),transitive-required,scrapling,https://tld.readthedocs.io/en/latest/changelog.html
+tokenizers,0.22.2,Apache Software License,Apache-2.0,transitive-required,transformers,https://github.com/huggingface/tokenizers
+toml,0.10.2,MIT License,MIT,transitive-required,streamlit,https://github.com/uiri/toml
+torch,2.12.0,BSD-3-Clause,BSD,transitive-required,sentence-transformers,https://pytorch.org
+tqdm,4.67.3,MPL-2.0 AND MIT,Copyleft-weak (MPL),transitive-required,aistudio-sdk huggingface-hub modelscope openai rapidocr-onnxruntime sentence-transformers transformers,https://tqdm.github.io
+transformers,5.10.2,Apache 2.0 License,Apache-2.0,direct-required,sentence-transformers,https://github.com/huggingface/transformers
+typer,0.25.1,MIT,MIT,direct-required,huggingface-hub transformers,https://github.com/fastapi/typer
+typing-inspection,0.4.2,MIT,MIT,transitive-required,fastapi pydantic pydantic-settings,https://github.com/pydantic/typing-inspection
+typing_extensions,4.15.0,PSF-2.0,PSF,transitive-required,aiohttp aiosignal altair anthropic anyio beautifulsoup4 fastapi google-genai huggingface-hub openai paddleocr paddlepaddle paddlex pydantic pydantic-core pyee referencing scrapling sentence-transformers sqlalchemy starlette streamlit torch typing-inspection,https://github.com/python/typing_extensions
+tzdata,2026.2,Apache-2.0,Apache-2.0,transitive-required,pandas,https://github.com/python/tzdata
+ujson,5.12.1,BSD-3-Clause AND TCL,BSD,transitive-optional (only via PaddleOCR/anthropic),paddlex,https://github.com/ultrajson/ultrajson
+urllib3,2.7.0,MIT,MIT,transitive-required,modelscope requests,https://github.com/urllib3/urllib3/blob/main/CHANGES.rst
+uvicorn,0.46.0,BSD-3-Clause,BSD,direct-required,streamlit,https://uvicorn.dev/
+w3lib,2.4.1,BSD-3-Clause,BSD,transitive-required,scrapling,https://github.com/scrapy/w3lib
+watchdog,6.0.0,Apache Software License,Apache-2.0,transitive-required,streamlit,https://github.com/gorakhargosh/watchdog
+watchfiles,1.1.1,MIT License,MIT,transitive-required,uvicorn,https://github.com/samuelcolvin/watchfiles
+wcwidth,0.7.0,MIT,MIT,transitive-required,ascii-colors,https://github.com/jquast/wcwidth
+websockets,16.0,BSD-3-Clause,BSD,transitive-required,google-genai streamlit uvicorn,https://github.com/python-websockets/websockets
+xlsxwriter,3.2.9,BSD License,BSD,transitive-required,lightrag-hku,https://github.com/jmcnamara/XlsxWriter
+yarl,1.24.2,Apache-2.0,Apache-2.0,transitive-required,aiohttp,https://github.com/aio-libs/yarl
