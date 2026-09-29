@@ -285,12 +285,12 @@ Built in and on by default — nothing to configure.
 - Where a portal gates pages behind a JavaScript challenge (Indonesia), a real browser runs the
   challenge as a visitor's browser would; robots.txt still decides which paths are fetched.
 
-**Exceptions, disclosed.** The limits above govern document downloads. Some discovery adapters
-page through a portal's own index: SG, TH, LA and TL sleep `crawl_delay_seconds` between index
-pages, but China's gazette lane (`cn_gazette`) screens gazette pages on `www.gov.cn` with **4
-parallel requests** (`_WORKERS` in
-[`backend/pipeline/adapter_cn_gazette.py:85`](backend/pipeline/adapter_cn_gazette.py#L85)) on a
-cold cache — about 8 minutes, once; later runs read that screen from the cache.
+**Discovery adapters too.** Adapters that page through a portal's own index (SG, TH, LA, TL)
+sleep `crawl_delay_seconds` between index pages. China's gazette lane (`cn_gazette`) reads
+`www.gov.cn` one request at a time, each starting at least 1 s after the previous one ended;
+on a new machine its cache takes about two hours to warm, spread across runs or done ahead with
+`python -m backend.pipeline.adapter_cn_gazette --warm`, after which a run needs about four
+requests.
 
 Per-portal robots findings: [docs/CRAWLING.md](docs/CRAWLING.md).
 
@@ -383,7 +383,7 @@ Every economy is discovered through its own portal adapter. No web-search engine
 | Singapore | sso.agc.gov.sg | English | **Yes** | Scored 7/7 answer-key indicators (2026-08-30). Current Acts only, not subsidiary instruments |
 | Australia | www.legislation.gov.au (official API) | English | **Yes** | Scored 8/8. Multi-volume compilations handled |
 | Malaysia | lom.agc.gov.my + www.pdp.gov.my | English (bilingual portal) | **Yes** | Scored 8/8. Portal catalogue is AES-GCM encrypted; key read from the portal's own page |
-| China | www.cac.gov.cn (+ search.cac.gov.cn) and the State Council Gazette, www.gov.cn/gongbao | Chinese (Simplified) | **Yes** | Scored 8/9 (2026-08-30). Gazette lane added 2026-09-29: pillar-6 answer-key rows 2/15 → 8/15. First run builds the gazette cache (~7–9 min), later runs ~35 s |
+| China | www.cac.gov.cn (+ search.cac.gov.cn) and the State Council Gazette, www.gov.cn/gongbao | Chinese (Simplified) | **Yes** | Scored 8/9 (2026-08-30). Gazette lane added 2026-09-29: pillar-6 answer-key rows 2/15 → 8/15. The gazette cache takes ~2 h to warm on a new machine (`adapter_cn_gazette --warm`); warm runs need ~4 requests |
 | India | www.indiacode.nic.in / indiacode.gov.in (+ sector regulators) | English | **Yes** | Scored 7/8. Several regulator hosts refuse via robots.txt or do not answer |
 | Mongolia | legalinfo.mn | Mongolian (Cyrillic) | **Yes** | Scored 6/8. Full text exported as HTML — no OCR needed |
 | Thailand | www.law.go.th (its law API) | Thai | **Yes** (2026-09-26) | Not yet scored against the panel's database |
@@ -455,10 +455,10 @@ download cache, so this excludes download time)
 | Mapping — Engine A | `deepseek/deepseek-v4-flash`: 730 calls, 3.87 M in / 0.11 M out tokens | $0.2970 |
 | — quote check | `deepseek/deepseek-v4-pro-0813`: 252 calls | $0.5229 |
 | — second opinion | `qwen/qwen3-30b-a3b-instruct-2507`: 30 calls | $0.0082 |
-| Mapping — Engine B | `google/gemini-3.7-flash` | **not yet measured on a whole run** — it is metered by the same code during the live hour |
+| Mapping — Engine B | `google/gemini-3.7-flash`: 400 calls, 2.05 M in / 0.21 M out tokens — Singapore pillar 7, second pass over engine A's 22 documents (run `run-83883abb`, 2026-09-29), with its quote check $0.189 and second opinion $0.011 | $1.1610 |
 | Crawling | portal adapters (+ 2 legacy search queries, $0.001 each) | $0.0020 |
 | **Total, Engine A** | | **$0.830 per run = $0.029 per document** |
-| **Total, Engine B** | | not measured |
+| **Total, Engine B** | | **$1.361 per pass = $0.062 per document** (Singapore pillar 7, 22 documents; engine A on the same task: $0.458 = $0.021 per document) |
 
 <details>
 <summary>Whole runs, all economies (grader only, before the quote check was added)</summary>
