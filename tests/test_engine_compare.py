@@ -313,8 +313,20 @@ def _screen_script():
     livetest.render(st.session_state["lt"], {"SG": "Singapore"})
 
 
+@pytest.fixture
+def _restore_main():
+    """AppTest replaces sys.modules["__main__"] with its temporary script and never puts it
+    back. Every later test that starts a `spawn` process then re-runs THAT script in the
+    child (NameError: __args) — which is how this test broke test_fetch_index_concurrency in
+    CI on 2026-09-29, while each passed alone."""
+    import sys
+    saved = sys.modules["__main__"]
+    yield
+    sys.modules["__main__"] = saved
+
+
 @pytest.mark.parametrize("step", [2, 3])
-def test_compare_and_hand_in_steps_render(step):
+def test_compare_and_hand_in_steps_render(step, _restore_main):
     from streamlit.testing.v1 import AppTest
     at = AppTest.from_function(_screen_script)
     at.session_state["_want_step"] = step
