@@ -1,0 +1,6 @@
+# Files read inside the Linux container keep Unix line endings on every checkout, including
+# Windows with core.autocrlf=true — a CRLF shell script fails with "bad interpreter".
+Dockerfile          text eol=lf
+docker-compose.yml  text eol=lf
+.dockerignore       text eol=lf
+*.sh                text eol=lf
