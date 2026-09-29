@@ -1,13 +1,15 @@
 # VeriTrade — Architecture
 
 > Auditable legal evidence extraction for UNESCAP RDTII 2.1. Twelve pillars in scope, 6 and 7
-> mandatory; twelve economies declared, including the nine the sealed live test draws from.
+> mandatory (and the only two measured); eleven economies declared — Singapore, Australia,
+> Malaysia and the panel's eight — nine of which run end to end.
 > Built audit-first: every output row traces back to verbatim source text, retrieval logs, OCR
 > metrics, and reviewer decisions.
 >
 > **Part I** orients someone who has just cloned the repository and wants to change something.
 > **Part II** is the reference: schemas, formulas, and the reasoning behind specific numbers.
-> The diagrams render on GitHub.
+> **Part III** keeps the design notes and evidence that used to live in the README.
+> The diagrams render on GitHub. Deployment is in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ---
 
@@ -24,7 +26,7 @@ flowchart TB
 
     subgraph Z1["ZONE 1 · Evidence discovery"]
         direction TB
-        D["<b>Discover</b><br/>portal catalogue / API / site-scoped search<br/><code>pipeline/discovery.py</code>"]
+        D["<b>Discover</b><br/>one adapter per portal: API, catalogue, gazette index<br/><code>pipeline/discovery.py</code> · <code>adapter_*.py</code>"]
         R{{"<b>robots.txt</b><br/><code>pipeline/robots.py</code>"}}
         F["<b>Fetch</b> to content-addressed cache<br/><code>pipeline/fetch.py</code>"]
         D --> R -->|allowed| F
@@ -45,8 +47,9 @@ flowchart TB
         direction TB
         RET["<b>Retrieve</b> BM25 + dense + rerank<br/><code>pipeline/retrieval.py</code>"]
         G["<b>Grade</b> provision x indicator<br/>the LLM sees all sibling indicators<br/><code>pipeline/mapping.py</code>"]
+        V["<b>Quote check</b> on accepted rows<br/><code>mapping.verify_mapping</code>"]
         C["<b>Confidence</b> · 4 signals<br/><code>pipeline/confidence.py</code>"]
-        RET --> G --> C
+        RET --> G --> V --> C
     end
 
     OUT["<b>Output</b><br/>14-column CSV · JSON trace · SQLite<br/><code>export/</code>"]
@@ -79,17 +82,26 @@ flowchart LR
     subgraph NET["Network — slow, rate-limited, polite"]
         DISC["discovery"] --> FETCH["fetch"]
     end
-    CACHE[("<b>cache/</b><br/>named by SHA-256<br/>identical bodies dedupe")]
+    CACHE[("<b>data/cache/</b><br/>named by SHA-256<br/>identical bodies dedupe")]
     subgraph LOCAL["Local — repeatable, free, no network"]
         READ["ocr, then extraction"] --> MAP["retrieval, then mapping"] --> EXP["export"]
     end
     FETCH -->|"writes bytes + _index.json"| CACHE
     CACHE -->|"reads bytes"| READ
-    MAP -.->|"embedding + cross-encoder caches"| CACHE
+    MAP -.->|"embedding + extraction caches"| CACHE
+    SP["second pass<br/>run_pipeline(reuse_documents=…)"] -.->|"skips discovery and fetch"| CACHE
 ```
 
-- A second run over the same economy touches the network **zero times** while bodies are inside
-  `FETCH_TTL_HOURS` (default 24). The run's document list is empty; that is the intended proof.
+- **The second pass** is `run_pipeline(reuse_documents=<first run's document list>)`
+  (`pipeline/orchestrator.py`). It skips discovery and fetching entirely and re-reads the first
+  pass's bodies from the cache, so its fetched-document count is zero. The interface drives it
+  from the **Live test** screen: *Run engine B* re-reads what *Run engine A* downloaded. It never
+  consults the stored-result cache, because a stored answer would read nothing.
+- **Two other caches, not to be confused with it.** A body younger than `FETCH_TTL_HOURS`
+  (default 24) is reused by a live run without a network request. And a *stored result*
+  (`data/cache/_results/`, 30-day TTL, invalidated by any change to `backend/` or
+  `sources.yaml`) answers a repeat run when the Run screen's **Search again** box is unticked;
+  the screen marks such a result as saved.
 - Files are named by the SHA-256 of their *content*, so two URLs serving the same Act share one
   file and a changed Act naturally gets a new one. `_index.json` maps URL to file.
 - robots.txt is consulted **before the cache is read**, not only before the network: a rule
@@ -118,21 +130,36 @@ flowchart TB
 
 Step 2 decides more than OCR. `LangProfile.language` feeds the **Language of Source** column,
 the grading prompt, and — through `is_english_text()` — whether the cross-encoder runs at all.
-Getting it wrong is silent in all three places: Kazakhstan had no entry, so it took the Latin
-default and would have reported its Cyrillic statutes as English.
+Getting it wrong is silent in all three places: an economy with no entry takes the Latin
+default and reports its Cyrillic statutes as English (this happened to Kazakhstan, since
+removed from scope).
 
-Step 4 is the real work, and there is no generic answer because no two portals agree:
+Step 4 is the real work, and there is no generic answer because no two portals agree. The
+adapter name in `sources.yaml` is resolved either by `_ADAPTERS` in `pipeline/discovery.py`
+(`au_api`, `my_catalogue`, `in_dspace`, `mn_legalinfo`) or by the adapter module's own
+`portal.register(...)` call (the rest):
 
-| Portal | How it lists laws | Adapter |
-| :--- | :--- | :--- |
-| legislation.gov.au | public OData JSON API | `au_api` |
-| lom.agc.gov.my | JSON catalogue, **AES-GCM encrypted** (key published in its own page) | `my_catalogue` |
-| sso.agc.gov.sg | ignores `CurrentPage`; enumerate by union of sort windows | custom |
-| everything else | site-scoped web search | `websearch` |
+| Economy | Portal | How it lists laws | Adapter |
+| :--- | :--- | :--- | :--- |
+| SG | sso.agc.gov.sg | ignores `CurrentPage`; enumerate by union of sort windows | `sg_sso` (`adapter_singapore.py`) |
+| AU | www.legislation.gov.au | public OData JSON API; multi-volume compilations | `au_api` |
+| MY | lom.agc.gov.my | JSON catalogue, **AES-GCM encrypted** (key published in its own page) | `my_catalogue` (`portal_crypto.py`) |
+| MY | www.pdp.gov.my | WordPress REST index | `wp_regulator` |
+| CN | www.cac.gov.cn, search.cac.gov.cn | section indexes + full-text search (browser lane) | `cn_portal` (`adapter_china.py`) |
+| CN | www.gov.cn/gongbao | State Council Gazette issue index, texts screened for data-territory and protection duties | `cn_gazette` (`adapter_cn_gazette.py`) |
+| IN | indiacode.gov.in | DSpace repository | `in_dspace` (`adapter_india.py`) |
+| MN | legalinfo.mn | sitemap + full-text export | `mn_legalinfo` (`adapter_mongolia.py`) |
+| TH | www.law.go.th | the portal's law API, one article per item | `th_law_api` (`adapter_thailand.py`) |
+| ID | peraturan.bpk.go.id | search, behind a Cloudflare challenge | `id_bpk` (`adapter_indonesia.py`) |
+| LA | laoofficialgazette.gov.la | gazette index pages | `la_gazette` (`adapter_laos.py`) |
+| TL | mj.gov.tl/jornal | gazette index pages | `tl_gazette` (`adapter_timor.py`) |
+| RU | pravo.gov.ru | the official IPS search, cp1251, current redaction | `ru_ips` (`adapter_russia.py`) |
 
-`websearch` is the fallback, not the plan. Malaysia is the cautionary tale: Google had indexed
-only the homepage of `lom.agc.gov.my`, so the search lane returned **zero Acts** and said
-nothing about it. Run `python tools/probe_portals.py --economy XX` before trusting it.
+Shared mechanics (robots-checked GET with backoff, document ids) are in `pipeline/portal.py`.
+`websearch` remains in `sources.yaml` as a secondary lane only: every search engine tried now
+answers HTTP 403 or has no credit, and it was never the plan — Google had indexed only the
+homepage of `lom.agc.gov.my`, so the search lane once returned **zero Malaysian Acts** and said
+nothing about it. Run `python tools/probe_portals.py --economy XX` before trusting a new portal.
 
 ---
 
@@ -208,7 +235,7 @@ The numbers are explained in **Part II section 9**, including why 0.40 and why 0
 | You want to change | File |
 | :--- | :--- |
 | Which portals exist, and what we know about each | `data/sources.yaml` |
-| How a portal is enumerated | `backend/pipeline/discovery.py` |
+| How a portal is enumerated | `backend/pipeline/discovery.py`, `backend/pipeline/adapter_*.py`, `portal.py` |
 | Whether we may fetch a URL | `backend/pipeline/robots.py` |
 | How bytes are fetched and cached | `backend/pipeline/fetch.py`, `scrapling_fetch.py` |
 | Text layer vs OCR, and CER | `backend/pipeline/ocr.py`, `backend/providers/ocr_*.py` |
@@ -223,8 +250,10 @@ The numbers are explained in **Part II section 9**, including why 0.40 and why 0
 | Indicator ID `P6-I4` to `6.4` | `backend/rdtii/codes.py` |
 | Draft / repealed / amending detection | `backend/rdtii/instrument.py` |
 | The CSV the secretariat validates | `backend/export/csv_export.py`, `backend/schemas.py` |
-| The interface | `frontend/app.py`, `matrix.py`, `runview.py`, `enginebench.py` |
-| End-to-end run + audit trail | `backend/pipeline/orchestrator.py` |
+| The interface | `frontend/app.py`, `home.py` (Run screen), `livetest.py`, `enginebench.py`, `matrix.py`, `runview.py` |
+| End-to-end run, second pass, result cache, audit trail | `backend/pipeline/orchestrator.py` |
+| Cost per run and per engine | `backend/metering.py`, `data/pricing.json` |
+| Review decisions (approve / reject / correct) | `backend/review/workflow.py` |
 
 ---
 
@@ -236,17 +265,17 @@ Three zones over one audit store. Each stage is a pure-ish function persisted to
 SQLite, so any export is reconstructable from the database.
 
 ```
-                         ┌──────────────────────── ZONE 1 · DISCOVERY ────────────────────────┐
-  official portals ─────▶│ crawler (samples | live httpx/Playwright)                           │
-  (SSO, FRL, AGC MY)     │ indicator-specific query · relevance rank · KNOWN/NEW tagging       │
+                         ┌──────────────────────── ZONE 1 · DISCOVERY & FETCH ─────────────────┐
+  official portals ─────▶│ one adapter per portal (samples offline | live httpx/Scrapling)     │
+  (11 economies)         │ robots.txt · per-host delay · content-addressed cache (data/cache)  │
                          └──────────────────────────────┬─────────────────────────────────────┘
-                                                        │ DiscoveredDoc[]
+                                                        │ DiscoveredDoc[]  (second pass enters here)
                          ┌──────────────────────── ZONE 2 · EXTRACTION & MAPPING ──────────────┐
                          │ text acquisition:  HTML strip │ PDF text layer │ scanned→OCR         │
-                         │ OCR provider (pluggable): mock | tesseract | paddle | azure          │
-                         │ provision extraction: article/section split, VERBATIM snippets       │
-                         │ retrieval: BM25 (indicator query → candidate provisions)             │
-                         │ mapping: LLM grades legal-vs-semantic + scope, grounded on snippet   │
+                         │ OCR provider (pluggable): rapidocr | paddle | tesseract | vlm | azure│
+                         │ provision extraction: per-economy article split, VERBATIM snippets   │
+                         │ retrieval: script-aware BM25 + dense + cross-encoder                 │
+                         │ mapping: LLM grades vs legal test + siblings; quote check; KNOWN/NEW │
                          │ confidence: 4-signal weighted score → route                          │
                          └──────────────────────────────┬─────────────────────────────────────┘
                                                         │ EvidenceMapping[]
@@ -279,36 +308,42 @@ SQLite, so any export is reconstructable from the database.
 ## 2. Folder structure
 
 ```
-veritrade/
-├── README.md                     quickstart + CLI cheat-sheet
-├── requirements.txt              core deps + optional provider extras (commented)
-├── .env.example                  every knob, all defaulted
+law-v2.0/
+├── README.md  INSTALL.md  LICENSE  Dockerfile  requirements.txt  .env.example
+├── main.py  run.py  batch_run.py     command-line entry points (the interface needs none)
 ├── backend/
-│   ├── config.py                 Settings (pydantic-settings)
-│   ├── schemas.py                pydantic models — single source of truth
-│   ├── main.py                   FastAPI surface
-│   ├── cli.py                    Typer CLI
-│   ├── rdtii/indicators.py       RDTII 2.1 indicators (Pillar 6 & 7) + legal tests
-│   ├── providers/
-│   │   ├── ocr_base.py  ocr_{tesseract,paddle,azure}.py  ocr_factory.py (+ MockOCR)
-│   │   └── llm_base.py  llm_{anthropic,openai}.py        llm_factory.py (+ MockLLM)
+│   ├── config.py                 Settings (pydantic-settings), incl. the two declared engines
+│   ├── schemas.py                pydantic models, SUBMISSION_COLUMNS, economy lists
+│   ├── metering.py               cost per run and per engine, counted as spent
+│   ├── main.py  cli.py           FastAPI surface and Typer CLI
+│   ├── rdtii/                    indicators.py (P6/P7, measured) · indicators_wide.py (other 10
+│   │                             pillars, declared) · codes · baseline (NEW/KNOWN) · scoring_rubric
+│   ├── providers/                llm_{openrouter,anthropic,openai,gemini,local}.py · llm_factory.py
+│   │                             ocr_{rapidocr,paddle,tesseract,markitdown,vlm,azure}.py · ocr_factory.py
+│   │                             ocr_languages.py (per-economy language profile) · engine_profile.py
 │   ├── pipeline/
-│   │   ├── discovery.py          Zone 1 (samples + live skeleton)
-│   │   ├── ocr.py                text acquisition + OCR routing
-│   │   ├── extraction.py         provision splitting (verbatim)
-│   │   ├── retrieval.py          BM25 indicator-grounded retrieval
-│   │   ├── mapping.py            provision → indicator grading
-│   │   ├── confidence.py         scoring + HITL routing
-│   │   └── orchestrator.py       end-to-end run
+│   │   ├── discovery.py  adapter_*.py  portal.py     Zone 1: one lane per portal
+│   │   ├── robots.py  fetch.py  scrapling_fetch.py   polite download to data/cache/
+│   │   ├── ocr.py  extraction.py                     Zone 2a: read, split into articles
+│   │   ├── retrieval.py  ranking.py  retrieval_budget.py
+│   │   ├── mapping.py  confidence.py  scoring.py  translate.py
+│   │   └── orchestrator.py                           end-to-end run + second pass
 │   ├── review/workflow.py        approve / reject / correct + audit log
-│   ├── storage/db.py             SQLite audit store
-│   └── export/{csv_export,json_export}.py
-├── frontend/app.py               Streamlit reviewer dashboard
+│   ├── storage/                  SQLAlchemy engine; SQLite by default, Postgres via DATABASE_URL
+│   ├── export/                   csv_export · json_export · scored_export
+│   ├── eval/  corpus/            evaluation against the panel's database (never used by a live run)
+│   └── auth/                     accounts and sessions
+├── frontend/                     Streamlit: app.py · home.py · livetest.py · enginebench.py
+│                                 matrix.py · runview.py · theme.py
 ├── data/
-│   ├── sources.yaml              live portal configs + selectors
-│   └── samples/                  offline reference corpus + manifest.yaml
-├── docs/{ARCHITECTURE,DEMO,PITCH}.md  +  examples/
-└── outputs/                      run DB + CSV/JSON exports
+│   ├── sources.yaml              portals (never laws), adapters, probe notes
+│   ├── samples/                  offline corpus for a keyless run
+│   ├── pricing.json              per-token prices used by metering
+│   └── cache/                    downloaded bodies + _index.json (created at run time)
+├── tools/                        readiness, portal probes, retrieval sweeps, answer-key comparison
+├── tests/                        pytest suite + saved portal fixtures
+├── deploy/  .github/workflows/   hosted deploy, CI, desktop installers
+└── outputs/                      CSV/JSON exports and veritrade.db (created at run time)
 ```
 
 ---
@@ -329,7 +364,8 @@ veritrade/
 
 ## 4. CSV schema — OFFICIAL submission template (policy judge)
 
-`outputs/veritrade_<run>.csv` matches the UNESCAP RDTII submission template **exactly**
+`outputs/veritrade_<run_id>.csv` (interface) or `outputs/<ECON>_P<pillars>_<timestamp>.csv`
+(command line) matches the UNESCAP RDTII submission template **exactly**
 (column names + order — judges validate programmatically). One row per
 provision×indicator, **verbatim wording preserved**, `utf-8-sig` for Excel. By default
 only submittable rows are written (rejected/quarantined excluded, so a sectoral mis-map
@@ -365,7 +401,8 @@ metadata live in the JSON (§5), not the submission CSV.
 
 ## 5. JSON schema (technical reviewers)
 
-`outputs/veritrade_<run>.json` — adds everything the CSV omits:
+`outputs/veritrade_<run_id>.json` (or `<ECON>_P<pillars>_<timestamp>.json`) — adds
+everything the CSV omits, including the run's cost table under `run.cost`:
 
 ```jsonc
 {
@@ -394,25 +431,26 @@ See [examples/example_SG.json](examples/example_SG.json).
 ## 6. OCR / extraction pipeline (`pipeline/ocr.py` + `providers/ocr_*`)
 
 ```
-DiscoveredDoc.fmt ──► html         → BeautifulSoup strip → text
-                  ──► pdf_text  ┐
-                  ──► pdf_scanned┘ → OCR/extraction provider .ocr_pdf() → text (+ confidence)
-                                    • markitdown (DEFAULT): used for ALL PDFs
-                                    • tesseract/azure: text-layer first, OCR only if thin
+DiscoveredDoc.fmt ──► html         → lxml / BeautifulSoup strip → text
+                  ──► pdf_text     → pdfplumber text layer (never reaches OCR)
+                  ──► pdf_scanned  → OCR provider .ocr_pdf() → text (+ confidence, CER)
+                                    • rapidocr (DEFAULT), paddle, tesseract, vlm, azure
+                                    • a secretly-scanned PDF (thin or mojibake text layer)
+                                      is detected and routed to OCR
 ```
 
-- **Default engine = Microsoft MarkItDown** (`OCR_PROVIDER=markitdown`): converts
-  PDF/Office/HTML to clean Markdown; used for every PDF. High-fidelity text extraction
-  (no error-prone image OCR for text-bearing PDFs). For image-only/scanned pages, plug
-  Azure Document Intelligence (`docintel_endpoint`) or switch to `tesseract`.
-- **Interchangeable** via `OCR_PROVIDER` (`markitdown|tesseract|paddle|azure|mock`) —
-  selected by `ocr_factory.get_ocr_provider()`, or chosen per-run in the dashboard.
+- **Default engine = RapidOCR** (`OCR_PROVIDER=rapidocr`): real raster OCR, pip-only,
+  Apache-2.0; the engine the bundled CER 1.11 % was measured with. Text-layer PDFs are read with
+  pdfplumber first, so OCR only ever sees pages without a usable text layer.
+- **Interchangeable** via `OCR_PROVIDER` (`rapidocr|paddle|tesseract|markitdown|vlm|azure|mock`)
+  — selected by `ocr_factory.get_ocr_provider(economy=…)`, or chosen on the **Engines** screen.
+  The recognition model is chosen per economy from `providers/ocr_languages.py`; if the
+  installed engine cannot spell the script, the factory substitutes rather than running it.
   Heavy imports are deferred; unused providers need not be installed.
 - **Quality captured**: provider, `mean_confidence` (None for deterministic extraction),
   per-page confidence, `low_conf_pages` → `OCRMetrics` → every mapping (JSON `ocr_quality`).
-- **Offline robustness**: the MarkItDown provider falls back to a `*.ocr.txt` sidecar if
-  a sample PDF is a placeholder, so the demo always yields text. The bundled
-  `AU/privacy_act.pdf` and `SG/mas_notice_655.pdf` are real PDFs MarkItDown extracts.
+- **Offline robustness**: the bundled sample corpus (`data/samples/`) includes a scanned PDF
+  (`SG/mas_notice_655.pdf`) so the OCR path and its CER measurement run without a network.
 
 ---
 
@@ -423,9 +461,14 @@ DiscoveredDoc.fmt ──► html         → BeautifulSoup strip → text
   confusable siblings apart, e.g. "consent" for P6-I4 vs "retention" for P7-I3).
 - **Hybrid**: BM25 (`rank_bm25`, pure-Python fallback if absent) blended with
   multilingual dense embeddings (`paraphrase-multilingual-MiniLM-L12-v2`) —
-  `combined = alpha·bm25_norm + (1-alpha)·dense_cosine` (`HYBRID_ALPHA`, default 0.5)
-  — then re-ranked 50/50 against a cross-encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`)
-  read jointly over (indicator, provision). A phrase-presence bonus and a
+  `combined = alpha·bm25_norm + (1-alpha)·dense_cosine` (`HYBRID_ALPHA`, default **0.65**,
+  measured — see [retrieval-redesign.md](retrieval-redesign.md))
+  — then re-ranked against a cross-encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`) read jointly
+  over (indicator, provision). For non-English economies the English cross-encoder is never used:
+  the multilingual one (`BAAI/bge-reranker-v2-m3`) runs only when
+  `CROSS_ENCODER_MULTILINGUAL_ENABLED=true` (off by default — too slow on CPU); otherwise the
+  reranker is off. Tokenisation is script-aware: Han, Thai, Lao and similar scripts are indexed
+  as character bigrams. A phrase-presence bonus and a
   sibling-phrase penalty run before the rerank to pre-empt the most commonly
   confused pairs (P6-I1↔P6-I4, P7-I1↔P7-I2). Every stage is individually
   disable-able (`DENSE_RETRIEVAL`, `CROSS_ENCODER`) and the pipeline degrades to
@@ -457,12 +500,18 @@ For each (indicator, retrieved provision):
 3. **Disambiguation**: if a sibling fits better (`best_fit_indicator ≠ target`), the
    pairing is dropped — the provision is mapped under the better sibling on its own pass.
 4. Sectoral language against a national indicator ⇒ `scope_flag=SECTORAL_NOT_NATIONAL`
-   and a capped score. *(Example: the sectoral MAS Notice 655 matches none of the 10
-   national indicators and is flagged/quarantined — see the bundled sample.)*
-5. Law name, article number, URL, OCR metrics come from extraction — **not** the LLM.
+   and a capped score. *(Example: the sectoral MAS Notice 655 in the bundled sample.)*
+5. **Quote check** (`mapping.verify_mapping`, `VERIFY_MODEL`): every accepted row outside 7.1
+   is re-read by a second model that must quote, word for word, the snippet's words for each
+   element of the legal test; the code confirms each quote is in the statute. An element it
+   cannot quote quarantines the row; a quote the code cannot find sends it to review. The
+   Mapping Rationale is then written from the verified quotes.
+6. Law name, article number, URL, OCR metrics come from extraction — **not** the LLM.
 
-Swap `LLM_PROVIDER=anthropic|openai` for real reasoning; the deterministic `mock`
-grader uses transparent lexical signals so the logic is reproducible in a demo.
+Non-English provisions are passed to the model unchanged, with the source language named and an
+instruction to answer in English; the snippet is never translated. The deterministic `mock`
+grader uses transparent lexical signals so the logic is reproducible offline, and is not
+evidence.
 
 ---
 
@@ -617,17 +666,117 @@ so they are never mistaken for the same measurement.
 Thresholds configurable (`CONF_AUTO_ACCEPT`, `CONF_REVIEW_FLOOR`) — see §9 for why
 0.85/0.60 specifically, with worked numeric examples. Every action writes an
 immutable `review_log` row with reviewer, note, timestamp, and before/after JSON —
-the human decision trail is itself auditable. `correct()` can edit indicator,
-pillar, article, snippet, rationale, or scope flag.
+the human decision trail is itself auditable. `correct()` accepts any mapping field; the
+interface exposes it as **Fix indicator** on the *Needs review* tab.
 
 ---
 
-## 11. Extensibility / production path
+## 11. Extensibility
 
-- **New economy / indicator** → add rows to `rdtii/indicators.py` and
-  `data/sources.yaml`; the whole pipeline picks them up.
-- **Live crawling** → implement portal selectors in `discover_live()` or drop in
-  Playwright/Scrapy behind the same `DiscoveredDoc` interface.
-- **Dense retrieval** → add FAISS/Chroma + embeddings (see v1 note: generate
-  article-level embeddings at ingest, fuse with BM25 via RRF).
-- **Real OCR/LLM** → set provider env vars; uninstall-safe deferred imports.
+- **New economy** → the six steps under *Adding an economy* (Part I).
+- **New indicator** → pillars 6 and 7 in `rdtii/indicators.py` (measured, frozen against the
+  retrieval sweeps); the other ten pillars in `rdtii/indicators_wide.py` (declared).
+- **New LLM or OCR engine** → *Adding an engine* (Part I); one class and one factory branch.
+- **Scale-out storage** → set `DATABASE_URL` to Postgres ([AUTH_AND_DATABASE.md](AUTH_AND_DATABASE.md)).
+
+---
+
+# Part III — Design notes and evidence
+
+Material moved out of the README so the README can stay a handover document. Numbers here
+carry the date and place they were measured.
+
+## III.1 Engine choice and the evidence for it
+
+The two declared engines are set in `backend/config.py` (`declared_engine_a_*`,
+`declared_engine_b_*`): **A = `deepseek/deepseek-v4-flash`** (open weights, the production
+grader) and **B = `google/gemini-3.7-flash`** (closed, hosted), both through OpenRouter.
+
+Both were measured on a bench of **28 real rows** read by hand — 16 of the panel's own answers
+and 12 rows known to be wrong (2026-09-26):
+
+| Model | Weights | Bench (28 real rows) |
+| :--- | :--- | ---: |
+| `deepseek/deepseek-v4-flash`, reasoning **off** | open | **28/28** |
+| `deepseek/deepseek-v4-flash`, reasoning on | open | 19–20/28, up to 198 s a call |
+| `google/gemini-3.7-flash` | closed | **28/28** |
+
+Engine B was chosen for legal reading from outside our own bench: 87.26 % on Vals AI
+LegalBench, 4th of 147 models (22 September 2026), the cheapest model in that top ten. Reasoning
+cannot be switched off for it: a model that refuses `OPENROUTER_REASONING=off` is remembered in
+`llm_openrouter._REASONING_MANDATORY` and retried with its own default.
+
+**Per-token prices — two sources disagree.** The config comment and the former README quote
+$0.047 / $0.094 per million tokens (A) and $0.75 / $3.75 (B); `data/pricing.json`, which the
+metering code bills from, holds $0.07266 / $0.14532 (A) and $0.375 / $1.875 (B). Run
+`python tools/refresh_prices.py` to refresh the file from the providers before quoting either.
+
+**The quote check uses a third model**, `deepseek/deepseek-v4-pro-0813`. On 42 labelled real
+rows, run twice, it kept **48/48** right rows and refused **31/36** wrong ones; the flash model in
+the same role refused only 20/36 (it accepted "di luar wilayah Indonesia" — *outside*
+Indonesia — as proof of in-country storage). 7.1 is exempt because the legal expert asked for
+every provision of a comprehensive framework to be listed.
+
+<details>
+<summary>Superseded: the 58-case bake-off</summary>
+
+Measured with `python tools/bakeoff.py` over `data/benchmarks/grader_bakeoff.json` — 58 cases
+whose 16 positives are the panel's own answer key joined to extracted provision text. It
+provisionally declared `openai/gpt-4o-mini` and `mistralai/mistral-small-3.2-24b-instruct`.
+
+| Model | | F1 | precision | recall | $/1k calls | s/call |
+| :--- | :--- | ---: | ---: | ---: | ---: | ---: |
+| `mistral-small-3.2-24b` | open | **0.903** | 0.933 | 0.875 | 0.304 | 2.8 |
+| `gpt-4o-mini` | hosted | 0.812 | 0.812 | 0.812 | 0.591 | 2.2 |
+| `gpt-oss-120b` | open | 0.800 | 0.857 | 0.750 | 0.256 | 20.0 |
+| `deepseek-v4-flash` | open | 0.786 | 0.917 | 0.688 | 0.303 | 11.5 |
+
+It measured deepseek-v4-flash with reasoning left **on**, which is what made it slow and lossy.
+Two measurement traps are recorded in `tools/build_bakeoff_set.py`: an unverified benchmark
+scored every model 0.50–0.61 and ranked them differently, and a provider-side 429 storm scored
+the eventual winner 0.316.
+</details>
+
+## III.2 Reading the OCR benchmarks
+
+Two public benchmarks were read before choosing OCR engines.
+[olmOCR-bench](https://huggingface.co/datasets/allenai/olmOCR-bench) is English-only (reading
+order, tables, header/footer exclusion), so it bears on extraction quality and not on the hard
+scripts. [MDPBench](https://huggingface.co/datasets/Delores-Lin/MDPBench) covers 17 languages:
+
+| | overall | th | ru | id | zh | |
+| :--- | ---: | ---: | ---: | ---: | ---: | :--- |
+| Gemini-3-pro | **86.4** | 85.5 | 90.4 | 91.5 | 84.9 | proprietary · opt-in escalation |
+| MonkeyOCRv2-S | 82.5 | **88.7** | 87.1 | 85.4 | 78.0 | open, self-host only |
+| Qwen3-VL-8B | 68.3 | 61.9 | 58.4 | 68.5 | 57.9 | open and reachable · default VLM |
+| PP-StructureV3 | 45.4 | 15.4 | 7.7 | 69.6 | 7.5 | Paddle's *pipeline*, not its recogniser |
+
+Purpose-built parsers beat general vision models, and none of them is served by a hosted router,
+so the hosted fallback has to be a general VLM; Qwen3-VL-8B is the best-evidenced one reachable,
+with Apache-2.0 weights. **Neither benchmark covers Lao or Mongolian.** PP-StructureV3's
+collapse on Thai and Cyrillic scores Paddle's document pipeline on photographed pages, not the
+per-script recogniser we call on rendered government PDFs — a warning, not a verdict, which is
+why those paths stay unvalidated until measured here. Per-language detail:
+[OCR_LANGUAGE_EVIDENCE.md](OCR_LANGUAGE_EVIDENCE.md).
+
+## III.3 Cost metering
+
+`backend/metering.py` counts every billable unit as it is spent — token counts from each API
+response, OCR pages per engine, search queries, bytes fetched — and every run writes the table
+into its JSON under `run.cost`. `total_is_complete` is `false` whenever a component has no
+price on file, and the total is then a floor, shown as *unpriced* rather than $0.00.
+Two things hand arithmetic had wrong and metering found at once: the cross-check lane (a second
+model on borderline rejections) was missing from the bill, and prompt tokens far exceed the
+prompt's apparent size because the sibling-indicator context travels with every call. Paid OCR
+would change the shape of the bill — at list price a 50-page Act costs more in OCR than a whole
+mapping run in tokens — which is why local OCR is the default (`tests/test_metering.py`).
+
+## III.4 Interface notes
+
+- The globe on the Run screen is a WebGL earth (three.js from a CDN) with each economy's border
+  coloured by readiness. If the CDN is unreachable it falls back after six seconds to a
+  dependency-free canvas globe drawing the same data, and says so. The world outline always
+  ships locally (`frontend/components/geo/world.json`).
+- The Live test screen states, before the clock starts, what to expect from the chosen economy
+  and pillar: an empty run from a *declared* economy and an empty run from a *measured* one look
+  identical in the output and mean opposite things.
