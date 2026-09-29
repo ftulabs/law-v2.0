@@ -52,8 +52,15 @@ from backend.schemas import SUBMISSION_COLUMNS                     # noqa: E402
 # writes in the Economy column, so no translation table is needed.
 SOURCES: dict[str, list[str]] = {
     "ESCAP-RDTII-2.1_ Round 1 Database.xlsx": ["Australia", "Malaysia", "Singapore"],
-    "ESCAP-RDTII-2.1_ Round 2 Database.xlsx": ["China", "India", "Mongolia"],
+    # All seven economies the panel's Round-2 Database holds. Until 2026-09-29 only the three
+    # Round-2 economies we had adapters for were read, so for Thailand, Indonesia, Laos and
+    # Russia every exported row was tagged NEW and the live-test note's "absent from the 2025
+    # baseline" count was simply the row count.
+    "ESCAP-RDTII-2.1_ Round 2 Database.xlsx": ["China", "India", "Mongolia", "Thailand",
+                                               "Indonesia", "Lao PDR", "Russian Federation"],
 }
+# Where a worksheet name is not the UN name our export writes in the Economy column.
+SHEET_ECONOMY: dict[str, str] = {"Lao PDR": "Lao People's Democratic Republic"}
 OUT_CSV = ROOT / "data" / "ground_truth" / "rdtii_reference_p67.csv"
 
 _IND_RE = re.compile(r"^([67])\.(\d+)$")
@@ -361,7 +368,7 @@ def build() -> list[RefRow]:
         for sheet in sheets:
             if sheet not in wb.sheetnames:
                 raise SystemExit(f"{filename}: no worksheet {sheet!r}")
-            rows += parse_sheet(wb[sheet], sheet)
+            rows += parse_sheet(wb[sheet], SHEET_ECONOMY.get(sheet, sheet))
         wb.close()
     return rows
 

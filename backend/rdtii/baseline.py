@@ -46,6 +46,15 @@ _LABEL_WORDS = re.compile(
     r"\b(?:articles?|sections?|regulations?|rules?|clauses?|paragraphs?|paras?|schedules?"
     r"|arts?|secs?|ss|s|r|reg)\b\.?", re.I)
 
+#: The same labels in the other statute languages, which `` cannot delimit reliably (Thai
+#: and Lao combining marks are not word characters). Until 2026-09-29 only the Latin labels
+#: were stripped, so "มาตรา 28", "Статья 12" and "Pasal 35" reduced to NOTHING and no Thai,
+#: Russian or Indonesian provision could ever match the panel's "Section 28" / "Article 12".
+_NATIVE_LABELS = re.compile(
+    r"(?:มาตรา|ມາດຕາ|стать[яиеюйё]|ст\.|pasal|ayat|บทบัญญัติ)\s*", re.I)
+#: Thai and Lao statutes number in their own digits (มาตรา ๒๘).
+_NATIVE_DIGITS = str.maketrans("๐๑๒๓๔๕๖๗๘๙໐໑໒໓໔໕໖໗໘໙", "01234567890123456789")
+
 _HAN_DIGITS = {"零": 0, "〇": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5,
                "六": 6, "七": 7, "八": 8, "九": 9}
 _CN_ARTICLE = re.compile(r"第\s*([一二三四五六七八九十百千零〇两0-9]+)\s*[条章节]")
@@ -119,7 +128,8 @@ def article_spine(text: str) -> set[str]:
     for m in _APP.finditer(text):
         out.add("app" + m.group(1))
 
-    cleaned = _LABEL_WORDS.sub(" ", text)
+    cleaned = _LABEL_WORDS.sub(" ", _NATIVE_LABELS.sub(" ", text.translate(_NATIVE_DIGITS)))
+    cleaned = re.sub(r"\s+\(", "(", cleaned)       # "35 (2)" is "35(2)"
     for chunk in re.split(r"[;,]| and ", cleaned):
         chunk = chunk.strip()
         # 199 · 26(1) · 20.1.5 · 12B · 3.1.4 · 45(2)(a)(i)
@@ -167,7 +177,30 @@ def url_key(url: str) -> str:
     # too weak to assert identity on, so those fall back to the name comparison.
     if seg and re.fullmatch(r"\d{2,}", seg[-1]):
         return f"{host}#{seg[-1]}"
+    # An id followed by a human-readable slug: `/Details/229798/uu-no-27-tahun-2022` (JDIH BPK,
+    # which both the panel and our Indonesian adapter cite). The slug has letters and no file
+    # extension; a gazette path like `/2562/A/069/T_0052.PDF` has one, so it never qualifies.
+    if (len(seg) >= 2 and re.fullmatch(r"\d{3,}", seg[-2])
+            and re.search(r"[a-z]", seg[-1], re.I) and "." not in seg[-1]):
+        return f"{host}#{seg[-2]}"
     return ""
+
+
+def url_keys(cell: str) -> frozenset[str]:
+    """Every portal id in a cell that may hold several URLs ("url1; url2"). The panel often
+    lists a secondary source first, so reading only the first URL missed the official one."""
+    return frozenset(k for k in (url_key(u) for u in re.split(r"[\s;,；]+", cell or "")) if k)
+
+
+#: A numbered instrument's own designation, identical in any language it is named in:
+#: "Federal Law No. 152-FZ" (the panel) and "№ 152-ФЗ" (pravo.gov.ru) are the same Act.
+_LAW_NUMBER = re.compile(r"(\d{1,4})\s*-\s*(фкз|фз|fkz|fz)(?![^\W\d_])", re.I)
+_LAW_NUMBER_NORM = {"фз": "fz", "фкз": "fkz", "fz": "fz", "fkz": "fkz"}
+
+
+def law_numbers(text: str) -> frozenset[str]:
+    return frozenset(f"{n}-{_LAW_NUMBER_NORM[k.lower()]}"
+                     for n, k in _LAW_NUMBER.findall(text or ""))
 
 
 def law_tokens(name: str) -> frozenset[str]:
@@ -206,6 +239,8 @@ class BaselineEntry:
     tokens: frozenset[str]
     spine: frozenset[str]
     url_key: str = ""
+    url_keys: frozenset = frozenset()
+    numbers: frozenset = frozenset()
 
 
 @lru_cache(maxsize=1)
@@ -228,6 +263,8 @@ def load(path: str | None = None) -> dict[tuple[str, str], list[BaselineEntry]]:
                 tokens=law_tokens(law),
                 spine=frozenset(article_spine(row.get("Article / Section") or "")),
                 url_key=url_key(row.get("Source URL") or ""),
+                url_keys=url_keys(row.get("Source URL") or ""),
+                numbers=law_numbers(law),
             ))
     return index
 
@@ -242,7 +279,8 @@ def _same_law(a: frozenset[str], b: frozenset[str]) -> bool:
 
 
 def classify(economy: str, indicator_id: str, law_name: str,
-             article_section: str, source_url: str = "") -> tuple[str, str | None]:
+             article_section: str, source_url: str = "",
+             law_number: str = "") -> tuple[str, str | None]:
     """(tag, note) for one provision. `tag` is "NEW" or "KNOWN"; `note` explains a KNOWN that
     rests on the law alone, and is None otherwise.
 
@@ -259,8 +297,12 @@ def classify(economy: str, indicator_id: str, law_name: str,
     ours_url = url_key(source_url)
     ours_tokens = law_tokens(law_name)
 
+    ours_numbers = law_numbers(f"{law_name} {law_number}")
+
     def _is_same(e: BaselineEntry) -> bool:
-        if ours_url and e.url_key and ours_url == e.url_key:
+        if ours_url and (ours_url == e.url_key or ours_url in e.url_keys):
+            return True
+        if ours_numbers and ours_numbers & e.numbers:
             return True
         return _same_law(ours_tokens, e.tokens)
 

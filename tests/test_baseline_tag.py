@@ -100,5 +100,9 @@ def test_missing_baseline_file_degrades_instead_of_crashing():
 
 def test_baseline_actually_loaded():
     s = B.stats()
-    assert s["rows"] == 180 and s["rows_with_article"] == 101
-    assert len(s["economies"]) == 6
+    # Every economy the panel's two Databases hold: Round 1 (AU/MY/SG) and all seven of
+    # Round 2. Until 2026-09-29 TH/ID/LA/RU were missing, so their rows were all tagged NEW.
+    assert s["rows"] == 304 and s["rows_with_article"] == 185
+    assert set(s["economies"]) == {
+        "Australia", "Malaysia", "Singapore", "China", "India", "Mongolia", "Thailand",
+        "Indonesia", "Lao People's Democratic Republic", "Russian Federation"}

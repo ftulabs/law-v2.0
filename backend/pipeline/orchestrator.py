@@ -679,7 +679,8 @@ def run_pipeline(
                 continue                      # a placeholder is neither found nor handed to us
             economy_name = ECONOMY_UN_NAME.get(m.economy.value, m.economy.value)
             tag, note = baseline.classify(economy_name, m.indicator_id, m.law_name,
-                                          m.article_section, m.source_url or "")
+                                          m.article_section, m.source_url or "",
+                                          m.law_number or "")
             if tag == "NEW" and note is None and kit is not None:
                 # The baseline has nothing for this (economy, indicator). Fall back to the
                 # law-level sample kit rather than claiming a discovery by default.
