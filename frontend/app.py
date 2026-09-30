@@ -18,6 +18,7 @@ Same backend the CLI/API use. Run:  streamlit run frontend/app.py
 from __future__ import annotations
 
 import html as _html_mod
+import inspect
 import logging
 import queue
 import sys
@@ -64,7 +65,7 @@ from backend.pipeline.orchestrator import run_pipeline  # noqa: E402
 from backend.providers import registry as reg  # noqa: E402
 from backend.rdtii import get_indicators  # noqa: E402
 from backend.review import workflow  # noqa: E402
-from backend.schemas import ECONOMY_UN_NAME, PLACEHOLDER_LAW_NAMES, Economy, RunResult, SUBMISSION_COLUMNS  # noqa: E402
+from backend.schemas import ECONOMY_UN_NAME, PLACEHOLDER_LAW_NAMES, Economy, RunResult, SUBMISSION_COLUMNS, SUBMITTABLE_STATUSES  # noqa: E402
 from backend.storage import db  # noqa: E402
 
 from frontend import auth_ui, enginebench, geo, home, livetest, matrix, runview, theme  # noqa: E402
@@ -864,7 +865,7 @@ def translation_html(m) -> str:
             f'not the citation</b>{_esc(m.snippet_translated)}</div>')
 
 
-def evidence_panel_html(cell_key: str | None, mappings) -> str:
+def evidence_panel_html(m) -> str:
     """The evidence for one matrix cell, rendered beside the matrix.
 
     Deliberately leads with the indicator's own legal test and then the verbatim quote:
@@ -872,10 +873,6 @@ def evidence_panel_html(cell_key: str | None, mappings) -> str:
     taking the confidence number on trust. The number comes last, broken into the four
     signals that produced it.
     """
-    m = None
-    if cell_key and "|" in cell_key:
-        law, _, ind = cell_key.partition("|")
-        m = next((x for x in mappings if x.law_name == law and x.indicator_id == ind), None)
     if m is None:
         return ('<div class="evp empty"><div class="nofind">Press a cell in the matrix to read '
                 'the law behind it — the exact quote, why it was mapped there, and how '
@@ -1338,9 +1335,15 @@ with _hb[2]:
 # No "Live test" tab here any more. It is a screen on the start surface now, because on the
 # day there is no completed run to open a tab from — and the tab's last line told the operator
 # to "run engine A from the sidebar", two redesigns after the sidebar was removed.
+# The labels must not change between reruns. "Needs review · 7" used to carry its count, so
+# an Approve that turned it into "· 6" made Streamlit see a NEW set of tabs and reopen the
+# first one — every decision threw the reviewer back to Results. The count lives inside the
+# tab and in the status strip above.
+# A key pins the tab set's identity as well (Streamlit >= 1.50), so an element appearing or
+# vanishing above it — the "set aside" count in the status strip — cannot reset it either.
+_tab_kw = {"key": f"result_tabs_{run_id}"} if "key" in inspect.signature(st.tabs).parameters else {}
 tab_ev, tab_review, tab_audit, tab_export, tab_eng = st.tabs(
-    ["Results", f"Needs review · {len(workflow.queue(run_id))}", "Details", "Download",
-     "Engines"]
+    ["Results", "Needs review", "Details", "Download", "Engines"], **_tab_kw
 )
 
 # ── results ────────────────────────────────────────────────────────────────
@@ -1352,8 +1355,14 @@ with tab_ev:
     pillar_f = f1.multiselect("Pillar", sorted({m.pillar for m in mappings}),
                               default=sorted({m.pillar for m in mappings}),
                               format_func=lambda p: f"Pillar {p}")
-    status_f = f2.multiselect("Status", sorted({m.review_status.value for m in mappings}),
-                              default=sorted({m.review_status.value for m in mappings}),
+    # Opens on the submission set — what the Download tab exports. Set-aside (< 0.60) and
+    # rejected rows are kept for a reviewer who wants to rescue one, but they are one filter
+    # away rather than painted into the matrix, where a red cell read as a finding and
+    # counted towards "indicators covered".
+    _statuses = sorted({m.review_status.value for m in mappings})
+    status_f = f2.multiselect("Status", _statuses,
+                              default=[s for s in _statuses if s in SUBMITTABLE_STATUSES]
+                              or _statuses,
                               format_func=lambda s: STATUS_LABEL.get(s, s.replace("_", " ")))
     only_flag = f3.toggle("Sector-flagged only", value=False,
                           help="Show only results flagged as a sector-specific (not general) rule.")
@@ -1390,7 +1399,20 @@ with tab_ev:
     st.session_state["cell"] = picked or _default
 
     with ecol:
-        st.markdown(evidence_panel_html(picked, view), unsafe_allow_html=True)
+        # The cell's chip and this panel read from the same ordered list, so the panel opens
+        # on the provision the chip names; the others behind the cell are one choice away.
+        _cands = matrix.cell_mappings(view, picked, is_no_evidence)
+        _shown = _cands[0] if _cands else None
+        if len(_cands) > 1:
+            _i = st.selectbox(
+                f"{len(_cands)} provisions in this law for {matrix.num(_cands[0].indicator_id)}",
+                range(len(_cands)),
+                format_func=lambda i: (f"{_cands[i].article_section} · "
+                                       f"{STATUS_LABEL.get(_cands[i].review_status.value, _cands[i].review_status.value)}"
+                                       f" · {_cands[i].confidence_score:.2f}"),
+                key=f"prov_{run_id}_{picked}")
+            _shown = _cands[_i]
+        st.markdown(evidence_panel_html(_shown), unsafe_allow_html=True)
 
     # The column headers are abbreviated to fit; the full official titles go here so the
     # abbreviation never has to carry meaning on its own.
@@ -1402,6 +1424,10 @@ with tab_ev:
 # ── needs review ───────────────────────────────────────────────────────────
 with tab_review:
     queue = workflow.queue(run_id)
+    if queue:
+        st.markdown(f'<div class="kicker" style="margin:.4rem 0 .6rem">{len(queue)} '
+                    f'result{"s" if len(queue) != 1 else ""} waiting for a decision</div>',
+                    unsafe_allow_html=True)
     if not queue:
         st.markdown('<div class="quote">Nothing to review — no results fell in the amber '
                     '“needs a check” band. You’re all set.</div>', unsafe_allow_html=True)

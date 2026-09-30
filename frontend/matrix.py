@@ -80,6 +80,21 @@ def band(confidence: float) -> str:
     return "g" if confidence >= 0.85 else "a" if confidence >= 0.60 else "r"
 
 
+def cell_mappings(mappings, cell_key: str | None, is_no_evidence) -> list:
+    """Every mapping behind one cell ("<law>|<indicator>"), strongest first.
+
+    The ONE ordering both sides use: the matrix labels a cell with the first of these and the
+    evidence panel opens on the first of these. Two rules used to exist — the cell kept the
+    last weak reading it saw, the panel took the first match — so a cell reading §111M opened
+    s. 205G.
+    """
+    if not cell_key or "|" not in cell_key:
+        return []
+    law, _, ind = cell_key.partition("|")
+    return sorted((m for m in mappings if m.law_name == law and m.indicator_id == ind),
+                  key=lambda m: (is_no_evidence(m), -m.confidence_score))
+
+
 def build_rows(mappings, is_no_evidence, host) -> list[dict]:
     """Group mappings into one row per law, keyed by indicator.
 
@@ -89,28 +104,31 @@ def build_rows(mappings, is_no_evidence, host) -> list[dict]:
     """
     rows: dict[str, dict] = {}
     for m in mappings:
-        key = m.law_name
-        row = rows.setdefault(key, {
+        rows.setdefault(m.law_name, {
             "law": m.law_name,
             "ref": getattr(m, "law_number", "") or "",
             "host": host(m.source_url),
             "cells": {},
         })
-        no_ev = is_no_evidence(m)
-        cell = {
-            "s": "n" if no_ev else band(m.confidence_score),
-            "t": "none" if no_ev else (m.article_section or "—"),
-            # The short form is computed HERE, not in the component: it has to parse Han
-            # numerals, and a citation converter that nothing can unit-test is how §21
-            # became §201.
-            "r": short_ref("none" if no_ev else (m.article_section or "—")),
-            "band": "no provision found" if no_ev else f"confidence {m.confidence_score:.2f}",
-        }
-        # Where one law maps to the same indicator twice, keep the stronger reading —
-        # the weaker one is still reachable from the Details tab.
-        prev = row["cells"].get(m.indicator_id)
-        if prev is None or (not no_ev and prev["s"] in ("n", "r")):
-            row["cells"][m.indicator_id] = cell
+    for row in rows.values():
+        for ind in {m.indicator_id for m in mappings if m.law_name == row["law"]}:
+            cands = cell_mappings(mappings, f'{row["law"]}|{ind}', is_no_evidence)
+            m = cands[0]
+            no_ev = is_no_evidence(m)
+            extra = sum(1 for x in cands[1:] if not is_no_evidence(x))
+            row["cells"][ind] = {
+                "s": "n" if no_ev else band(m.confidence_score),
+                "t": "none" if no_ev else (m.article_section or "—"),
+                # The short form is computed HERE, not in the component: it has to parse Han
+                # numerals, and a citation converter that nothing can unit-test is how §21
+                # became §201.
+                "r": short_ref("none" if no_ev else (m.article_section or "—")),
+                "k": extra,
+                "band": ("no provision found" if no_ev else
+                         f"confidence {m.confidence_score:.2f}"
+                         + (f", {extra} more provision{'s' if extra > 1 else ''} in this law"
+                            if extra else "")),
+            }
 
     # Laws first by how many indicators they carry, then alphabetically: the workhorse
     # statute (usually the data-protection act) lands at the top where it belongs.

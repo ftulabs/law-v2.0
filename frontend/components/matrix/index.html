@@ -46,6 +46,13 @@
   .chip.n{background:var(--paper-2);color:var(--ink-faint);border-color:var(--rule)}
   .chip.none{color:var(--ink-faint);font-size:15px;opacity:.4}
   .cell[aria-pressed="true"] .chip{outline:2.5px solid var(--accent);outline-offset:2px}
+  /* "+2": this law has further provisions for the same indicator. The chip shows the
+     strongest one; the evidence panel lists the rest. */
+  .cell{position:relative}
+  .more{position:absolute;top:1px;right:1px;min-width:15px;height:15px;padding:0 3px;
+    border-radius:8px;background:var(--ink-soft);color:var(--paper);font-size:10px;
+    font-weight:700;line-height:15px;text-align:center;
+    font-family:'IBM Plex Mono',ui-monospace,monospace}
 
   tfoot td{padding:9px 3px;background:var(--panel-2);font-size:11px;text-align:center;
     color:var(--ink-faint);border-top:1px solid var(--rule);
@@ -137,7 +144,9 @@ function build(){
       btn.className = "cell";
       if (cell){
         btn.innerHTML = '<span class="chip ' + cell.s + '">' +
-          esc(shortRef(cell)) + '</span>';
+          esc(shortRef(cell)) + '</span>' +
+          (cell.k ? '<span class="more" aria-hidden="true">+' + cell.k + '</span>' : '');
+        btn.title = cell.s === "n" ? "no provision found" : cell.t + " · " + cell.band;
         btn.setAttribute("aria-pressed", String(row.law + "|" + ind.id === selected));
         btn.setAttribute("aria-label", esc(row.law) + ", indicator " + ind.id + ", " +
           (cell.s === "n" ? "no provision found" : cell.t + ", " + cell.band));
