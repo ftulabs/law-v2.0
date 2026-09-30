@@ -102,14 +102,14 @@ def test_the_note_survives_python_docx_being_absent(monkeypatch, state):
     """An optional dependency may cost formatting on the day. It must not cost the deliverable."""
     _run("A", state)
     md = livetest.short_note(state)
-    monkeypatch.setattr(livetest, "short_note_docx", lambda _m: None)
-    assert livetest.short_note_docx(md) is None
+    monkeypatch.setattr(livetest, "short_note_docx", lambda _s: None)
+    assert livetest.short_note_docx(state) is None
     assert md.startswith("# Live test — short note")
 
 
 def test_docx_is_produced_when_the_library_is_there(state):
     _run("A", state)
-    out = livetest.short_note_docx(livetest.short_note(state))
+    out = livetest.short_note_docx(state)
     if out is None:
         pytest.skip("python-docx not installed")
     assert out[:2] == b"PK" and len(out) > 5000        # a .docx is a zip
@@ -187,7 +187,8 @@ def test_the_comparison_states_the_difference_not_just_two_columns(state):
 def test_the_better_value_is_marked_in_each_row(state):
     """Two columns of numbers make a reader compare by eye under a clock."""
     _run("A", state, model="a/one", cost=0.0400, provs=10, fetched=18)
-    _run("B", state, model="b/two", cost=0.0250, provs=14, fetched=0)
+    _run("B", state, model="b/two", cost=0.0250, provs=14, fetched=0,
+         rows=[_Row("6.4", "DPDP Act 2023", "Section 16(1)"), _Row("6.2", "L", "s.9")])
     html = livetest._comparison_html(state["runs"]["A"], state["runs"]["B"])
     assert html.count("class='win'") >= 2
 

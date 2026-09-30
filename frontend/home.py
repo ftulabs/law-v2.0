@@ -97,9 +97,13 @@ CSS = """
 
 
 def mode_bar(current: str) -> str:
+    # `default` only on first draw. Once "home_mode" is in session state (a live-test pass
+    # sets it to return to the checklist) passing a default as well makes Streamlit print a
+    # "set via the Session State API" warning box on the screen the operator comes back to.
+    kw = {} if "home_mode" in st.session_state else {"default": current}
     picked = st.segmented_control(
         "Screen", list(MODES), format_func=MODES.get, key="home_mode",
-        default=current, label_visibility="collapsed")
+        label_visibility="collapsed", **kw)
     return picked or current
 
 

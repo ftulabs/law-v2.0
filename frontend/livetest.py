@@ -40,7 +40,7 @@ from datetime import datetime, timezone
 import streamlit as st
 
 from backend.config import settings
-from backend.export import engine_compare
+from backend.export import engine_compare, live_note
 from backend.providers import registry as reg
 from backend.schemas import LIVE_TEST_POOL, PLACEHOLDER_LAW_NAMES
 
@@ -156,6 +156,24 @@ CSS = """
 .lt-delta{font-size:.88rem;color:var(--ink);margin:.8rem 0 0;padding:.65rem .85rem;
   border-radius:9px;background:var(--surface-2);border:1px solid var(--line);line-height:1.6}
 .lt-delta b{font-family:var(--mono)}
+
+/* the short-note preview: the template's own layout, one value per line */
+.ln{border:1px solid var(--line);border-radius:10px;padding:1rem 1.2rem;line-height:1.55}
+.ln h3{margin:0;font-size:1.15rem}
+.ln h4{margin:1.1rem 0 .4rem;font-size:.95rem}
+.ln-sub{color:var(--muted);font-size:.84rem}
+.ln table{width:100%;border-collapse:collapse;font-size:.87rem}
+.ln th,.ln td{border:1px solid var(--line);padding:.4rem .6rem;text-align:left;vertical-align:top}
+.ln-kv th{width:38%;font-weight:500;color:var(--muted)}
+.ln-fig thead th{font-weight:600}
+.ln-fig tbody th{font-weight:500;color:var(--muted);width:46%}
+.ln-fig td{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.ln-must{font-family:inherit;font-size:.75rem;color:var(--muted);margin-left:.4rem}
+.ln-two{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+@media (max-width:720px){.ln-two{grid-template-columns:1fr}}
+.ln-list{margin:.2rem 0;padding-left:1.1rem;font-size:.87rem}
+.ln-list li{margin:.25rem 0}
+.ln p{margin:.2rem 0;font-size:.87rem}
 """
 
 
@@ -235,8 +253,10 @@ def engine_comparison(state: dict) -> str:
 
     rows = [("Field", "Engine A — first pass", "Engine B — second pass", "Difference (B − A)"),
             ("Provider / model", cell(a, "model"), cell(b, "model"), ""),
-            ("Provisions exported", cell(a, "provisions"), cell(b, "provisions"),
+            ("Provisions read", cell(a, "provisions"), cell(b, "provisions"),
              _diff(a, b, "provisions", "{:+d}")),
+            ("Provisions exported", cell(a, "exported"), cell(b, "exported"),
+             _diff(a, b, "exported", "{:+d}")),
             ("Absent from the 2025 baseline", cell(a, "new"), cell(b, "new"),
              _diff(a, b, "new", "{:+d}")),
             ("Documents fetched during this pass", cell(a, "fetched"), cell(b, "fetched"),
@@ -280,93 +300,24 @@ def _provision_sentence(s: dict) -> str:
 
 
 def short_note(state: dict) -> str:
-    """The short note, in the organisers' own section order.
-
-    Their template is a Word form with seven numbered parts and a signature block. Writing our
-    own headings would make a steward hunt for each answer, so these are theirs — including
-    section 6's checkbox, which we can honestly tick as *nothing was typed in by hand* because
-    every figure above came off `RunMeta`.
-    """
-    b = state.get("brief", {})
-    n = state.get("notes", {})
-    a, bb = state["runs"].get("A"), state["runs"].get("B")
-    eng = state.get("engines", {})
-
-    def line(r, label):
-        if not r:
-            return f"- {label}: —"
-        return (f"- {label}: {r['model']} — {r['provisions']} provisions, {r['rows']} rows, "
-                f"{r['elapsed_min']:.1f} min, ${r['cost_usd']:.4f}, "
-                f"{r['fetched']} documents fetched")
-
-    by_hand = (n.get("by_hand") or "").strip()
-    isolated = bool(bb) and bb.get("fetched") == 0
-    out = [
-        "# Live test — short note",
-        "Finale morning, 15 October 2026 · Team VeriTrade", "",
-        "## 1 · The run", "",
-        f"**The task as read out:** {b.get('task') or '—'}",
-        f"**Economy:** {b.get('economy', '—')}  ·  **Pillar:** {b.get('pillar', '—')}",
-        f"**Engine A, first pass:** {eng.get('A', {}).get('provider', '—')} · "
-        f"{eng.get('A', {}).get('model', '—')}",
-        f"**Engine B, second pass:** {eng.get('B', {}).get('provider', '—')} · "
-        f"{eng.get('B', {}).get('model', '—')}",
-        f"**Submitted:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}", "",
-        "## 2 · What came out", "",
-        line(a, "Engine A"),
-        line(bb, "Engine B"), "",
-        ("Engine B fetched nothing: it re-read the documents engine A had already retrieved, "
-         "so the only variable between the two passes is the engine." if isolated else
-         "Engine B has not run, or fetched documents of its own — in which case the "
-         "comparison is not engine-isolated and should be read with that in mind."), "",
-        *([_provision_sentence(state["compare"]["summary"]) + " The provision-by-provision "
-           "sheet is the comparison file handed in with this note.", ""]
-          if (state.get("compare") or {}).get("summary") else []),
-        "## 3 · What worked", "",
-        n.get("worked") or "_—_", "",
-        "## 4 · What broke", "",
-        n.get("broke") or "_—_", "",
-        "## 5 · What a reviewer should be cautious about", "",
-        n.get("caution") or "_—_", "",
-        "## 6 · Anything done by hand", "",
-        ("- [x] Nothing was typed in by hand. Every figure above is read from the run itself "
-         "(`backend/metering.py` and `RunMeta`)." if not by_hand else
-         "- [ ] Nothing was typed in by hand.\n"
-         f"- [x] Something was: {by_hand}"), "",
-        "## 7 · Declaration", "",
-        "Everything submitted is my team's own work, produced by the system frozen at our "
-        "declared release tag, using only the engines declared on 30 September.", "",
-    ]
-    return "\n".join(out) + "\n"
+    """The short note as Markdown, in the organisers' own sections and table rows. The .docx is
+    the same content written into their template (`backend/export/live_note.py`)."""
+    return live_note.to_markdown(live_note.fields(state))
 
 
-def short_note_docx(md: str) -> bytes | None:
-    """The note as .docx, or None when python-docx is absent — the caller then offers the
-    Markdown, so a missing optional dependency costs formatting and never the deliverable."""
+def short_note_docx(state: dict) -> bytes | None:
+    """The organisers' own template, every field filled, ready to print and sign — or None
+    when python-docx is absent, so the caller offers the Markdown and the deliverable
+    survives a missing optional dependency."""
     try:
-        from docx import Document
-    except Exception:                                        # noqa: BLE001
+        return live_note.to_docx(live_note.fields(state))
+    except ImportError:
         return None
-    doc = Document()
-    for raw in md.splitlines():
-        s = raw.strip()
-        if not s:
-            continue
-        if s.startswith("# "):
-            doc.add_heading(s[2:], level=1)
-        elif s.startswith("## "):
-            doc.add_heading(s[3:], level=2)
-        elif s.startswith("- "):
-            doc.add_paragraph(s[2:].replace("**", ""), style="List Bullet")
-        else:
-            doc.add_paragraph(s.replace("**", ""))
-    buf = io.BytesIO()
-    doc.save(buf)
-    return buf.getvalue()
 
 
 # ── capture ──────────────────────────────────────────────────────────────────────────
-def capture(state: dict, slot: str, result, started: str, finished: str) -> None:
+def capture(state: dict, slot: str, result, started: str, finished: str,
+            log_lines: list[str] | None = None) -> None:
     """Record one engine's pass. Reads the run; asks the operator for nothing.
 
     The whole RunResult is kept, not just its numbers: the evidence files are generated from it
@@ -374,7 +325,12 @@ def capture(state: dict, slot: str, result, started: str, finished: str) -> None
     whatever a shared output directory happens to hold.
     """
     meta = result.meta
-    rows = [m for m in result.mappings if m.law_name not in PLACEHOLDER_LAW_NAMES]
+    # The rows this engine hands in (submittable, not placeholders) — the same set as its
+    # evidence file. "Provisions exported" is counted per provision over these, which is the
+    # template's unit; `provisions` stays the number READ, a different figure.
+    rows = [m for m in engine_compare.exported(result.mappings)
+            if m.law_name not in PLACEHOLDER_LAW_NAMES]
+    n_exported, n_new = engine_compare.provision_counts(rows)
     state["runs"][slot] = {
         "model": meta.model_version or meta.llm_provider,
         "provider": meta.llm_provider,
@@ -387,8 +343,11 @@ def capture(state: dict, slot: str, result, started: str, finished: str) -> None
         "fetched": meta.docs_fetched,
         "provisions": meta.provisions_extracted,
         "rows": len(rows),
+        "exported": n_exported,
         "review": sum(1 for m in rows if m.review_status.value == "pending_review"),
-        "new": sum(1 for m in rows if m.discovery_tag.value == "NEW"),
+        "new": n_new,
+        # what the run's own log reported as going wrong — section 4 of the note quotes it
+        "issues": live_note.run_issues(log_lines),
         "result": result,
     }
     a, b = state["runs"].get("A"), state["runs"].get("B")
@@ -403,6 +362,26 @@ def capture(state: dict, slot: str, result, started: str, finished: str) -> None
         state.pop("compare", None)
 
 
+def capture_failure(state: dict, slot: str, error: BaseException, started: str, finished: str,
+                    log_lines: list[str] | None = None) -> None:
+    """Record a pass that stopped with an error. Zero rows, the error itself and the log's own
+    failure lines are kept, so the note reports the break instead of an engine that never ran."""
+    try:
+        elapsed = (datetime.fromisoformat(finished) - datetime.fromisoformat(started)).total_seconds()
+    except (TypeError, ValueError):
+        elapsed = 0.0
+    eng = state["engines"][slot]
+    state["runs"][slot] = {
+        "model": eng.get("model", ""), "provider": eng.get("provider", ""), "run_id": "",
+        "start": started, "end": finished, "elapsed_s": elapsed, "elapsed_min": elapsed / 60.0,
+        "cost_usd": 0.0, "documents": 0, "fetched": 0, "provisions": 0, "rows": 0,
+        "exported": 0, "review": 0, "new": 0,
+        "failed": f"{type(error).__name__}: {error}",
+        "issues": live_note.run_issues(log_lines), "result": None,
+    }
+    state.pop("compare", None)
+
+
 def _slot_html(slot: str, engine: dict, r: dict | None) -> str:
     head = (f'<h4>Engine {slot}<span class="eng">{engine.get("provider", "—")} · '
             f'{engine.get("model", "—")}</span></h4>')
@@ -411,8 +390,13 @@ def _slot_html(slot: str, engine: dict, r: dict | None) -> str:
                 else "second pass — re-reads engine A's documents, fetches nothing")
         return (f'<div class="lt-slot">{head}'
                 f'<div class="lt-empty">Not run yet · {note}</div></div>')
+    if r.get("failed"):
+        return (f'<div class="lt-slot">{head}<div class="lt-empty" style="color:var(--bad)">'
+                f'Stopped with an error after {r["elapsed_min"]:.1f} min — '
+                f'{_esc(r["failed"][:220])}</div></div>')
     return (f'<div class="lt-slot">{head}<dl class="lt-kv">'
-            f'<dt>Provisions</dt><dd>{r["provisions"]}</dd>'
+            f'<dt>Provisions read</dt><dd>{r["provisions"]}</dd>'
+            f'<dt>Provisions exported</dt><dd>{r.get("exported", "—")}</dd>'
             f'<dt>Rows exported</dt><dd>{r["rows"]}</dd>'
             f'<dt>Documents fetched</dt><dd>{r["fetched"]}</dd>'
             f'<dt>Elapsed</dt><dd>{r["elapsed_min"]:.1f} min</dd>'
@@ -422,7 +406,8 @@ def _slot_html(slot: str, engine: dict, r: dict | None) -> str:
 
 def _comparison_html(a: dict, b: dict) -> str:
     rows = [
-        ("Provisions exported", a["provisions"], b["provisions"], "{}"),
+        ("Provisions read", a["provisions"], b["provisions"], "{}"),
+        ("Provisions exported", a.get("exported", 0), b.get("exported", 0), "{}"),
         ("Absent from the 2025 baseline", a["new"], b["new"], "{}"),
         ("Documents fetched during this pass", a["fetched"], b["fetched"], "{}"),
         ("Elapsed (minutes)", a["elapsed_min"], b["elapsed_min"], "{:.1f}"),
@@ -568,11 +553,14 @@ def render(state: dict, economies: dict[str, str],
                 st.markdown(_slot_html(slot, state["engines"][slot], state["runs"].get(slot)),
                             unsafe_allow_html=True)
                 done = slot in state["runs"]
-                blocked = slot == "B" and "A" not in state["runs"]
+                # Engine B re-reads engine A's documents, so it needs a pass of A that
+                # finished. Without one there is nothing to re-read, and letting it run
+                # would crawl the portals instead — the one thing a second pass must not do.
+                blocked = slot == "B" and not (state["runs"].get("A") or {}).get("result")
                 if st.button("Run again" if done else f"Run engine {slot}",
                              key=f"lt_run_{slot}", width="stretch", disabled=blocked,
-                             help=("Engine A has to run first — engine B re-reads its "
-                                   "documents" if blocked else None),
+                             help=("Engine A has to finish a pass first — engine B "
+                                   "re-reads its documents" if blocked else None),
                              type="primary" if (slot == "A" and not done) else "secondary"):
                     request = {"slot": slot, "code": b["code"], "pillar": b["pillar"],
                                **state["engines"][slot]}
@@ -593,7 +581,7 @@ def render(state: dict, economies: dict[str, str],
                 st.dataframe(
                     engine_compare.table(cmp["rows"]), hide_index=True, width="stretch",
                     column_order=["Provision #", "Law name", "Article (engine A)",
-                                  "Found by", "Indicators (engine A)",
+                                  "Article (engine B)", "Found by", "Indicators (engine A)",
                                   "Indicators (engine B)", "What differs"])
         elif a:
             st.info("Only engine A has run. The comparison — and criterion C5b — needs both.")
@@ -650,22 +638,30 @@ def _hand_in(state: dict) -> None:
                                 f"{stem}_engine{slot}.json", "application/json",
                                 width="stretch", key=f"lt_json_{slot}")
 
-    st.markdown("**The paperwork** — sections 3 to 6 are the only things on this screen a "
-                "human writes. Every number came off the run.")
+    st.markdown("**The paperwork** — sections 3 to 5 are drafted from the two runs: what "
+                "their logs reported, whether the second pass stayed off the network, where the "
+                "engines disagreed and which rows sit lowest. Read them, and edit if the team "
+                "knows more; every number elsewhere in the note comes off the runs.")
     n = state["notes"]
+    drafts = {"worked": live_note.auto_worked(state), "broke": live_note.auto_broke(state),
+              "caution": live_note.auto_caution(state)}
+
+    def _area(col, key, label, height):
+        draft = "\n".join(f"• {x}" for x in drafts[key])
+        text = col.text_area(label, value=n.get(key) or draft, height=height)
+        # Kept only when the operator actually changed it; otherwise the note follows the
+        # runs, so re-running an engine refreshes the draft instead of freezing an old one.
+        n[key] = "" if text.strip() == draft.strip() else text
+
     c1, c2 = st.columns(2)
-    n["worked"] = c1.text_area("3 · What worked", value=n.get("worked", ""), height=90,
-                               placeholder="the part of the system you would show again")
-    n["broke"] = c2.text_area("4 · What broke", value=n.get("broke", ""), height=90,
-                              placeholder="the part you would not")
-    n["caution"] = st.text_area("5 · What a reviewer should be cautious about",
-                                value=n.get("caution", ""), height=70,
-                                placeholder="name the rows or the indicator, not a general "
-                                            "caution")
+    _area(c1, "worked", "3 · What worked — the part you would fully trust", 200)
+    _area(c2, "broke", "4 · What broke — the part you would not fully trust", 200)
+    _area(st, "caution", "5 · What a reviewer should be cautious about — rows or indicators", 150)
     n["by_hand"] = st.text_input("6 · Anything done by hand (leave blank if nothing was)",
                                  value=n.get("by_hand", ""))
 
-    note_md = short_note(state)
+    fields = live_note.fields(state)
+    note_md = live_note.to_markdown(fields)
     d1, d2, d4, d3 = st.columns(4)
     d1.download_button("Run record (.csv)", run_record(state), f"{stem}_run_record.csv",
                        "text/csv", width="stretch")
@@ -677,17 +673,62 @@ def _hand_in(state: dict) -> None:
                            f"{stem}_provision_comparison.csv", "text/csv", width="stretch")
     else:
         d4.caption("Provision comparison appears once both engines have run.")
-    docx = short_note_docx(note_md)
+    docx = short_note_docx(state)
     if docx:
         d3.download_button(
-            "Short note (.docx)", docx, f"{stem}_short_note.docx",
+            "Short note (.docx) — print and sign", docx, f"{stem}_short_note.docx",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            width="stretch")
+            width="stretch", type="primary")
     else:
         d3.download_button("Short note (.md)", note_md, f"{stem}_short_note.md",
                            "text/markdown", width="stretch")
-    with st.expander("Read the note before sending it"):
-        st.markdown(note_md)
+    with st.expander("Read the note before sending it", expanded=True):
+        st.markdown(note_preview_html(fields), unsafe_allow_html=True)
+
+
+def _esc(t) -> str:
+    import html                                              # noqa: PLC0415
+    return html.escape(str(t if t is not None else ""))
+
+
+def _lines_html(text: str) -> str:
+    items = [ln.strip() for ln in str(text or "").split("\n") if ln.strip()]
+    if all(i.startswith("• ") for i in items) and items:
+        return "<ul class='ln-list'>" + "".join(f"<li>{_esc(i[2:])}</li>" for i in items) + "</ul>"
+    return "".join(f"<p>{_esc(i)}</p>" for i in items) or "<p>—</p>"
+
+
+def note_preview_html(f: dict) -> str:
+    """The note as it will print: the template's sections, its label/value rows and its
+    two-column figures table — one value per line, not a run-on paragraph."""
+    run_rows = [("Team name", f["team"]), ("The task as read out", f["task"]),
+                ("Engine A, first pass — provider and model", f["engine_a"]),
+                ("Engine B, second pass — provider and model", f["engine_b"]),
+                ("Machine used, and time submitted", f["machine_time"])]
+    out_rows = [("Provisions exported", "exported"),
+                ("Of those, absent from the 2025 baseline", "new"),
+                ("Documents fetched during this pass", "fetched"),
+                ("Elapsed (minutes)", "elapsed"), ("Cost of this pass (US$)", "cost")]
+    kv = "".join(f"<tr><th scope='row'>{_esc(k)}</th><td>{_esc(v)}</td></tr>" for k, v in run_rows)
+    fig = "".join(
+        f"<tr><th scope='row'>{_esc(label)}</th><td>{_esc(f[k][0])}</td><td>{_esc(f[k][1])}"
+        + (" <span class='ln-must'>must be 0</span>" if k == "fetched" else "") + "</td></tr>"
+        for label, k in out_rows)
+    hand = (f"☐ Nothing was typed in by hand &nbsp; ☒ Something was — {_esc(f['by_hand'])}"
+            if f["by_hand"] else "☒ Nothing was typed in by hand &nbsp; ☐ Something was")
+    return (
+        "<div class='ln'>"
+        "<h3>Live test — short note</h3><div class='ln-sub'>Finale morning, 15 October 2026</div>"
+        f"<h4>1 · The run</h4><table class='ln-kv'>{kv}</table>"
+        "<h4>2 · What came out</h4><table class='ln-fig'><thead><tr><th></th><th>Engine A</th>"
+        f"<th>Engine B</th></tr></thead><tbody>{fig}</tbody></table>"
+        "<div class='ln-two'>"
+        f"<section><h4>3 · What worked</h4>{_lines_html(f['worked'])}</section>"
+        f"<section><h4>4 · What broke</h4>{_lines_html(f['broke'])}</section></div>"
+        f"<h4>5 · What a reviewer should be cautious about</h4>{_lines_html(f['caution'])}"
+        f"<h4>6 · Anything done by hand</h4><p>{hand}</p>"
+        "<h4>7 · Declaration</h4><p class='ln-sub'>Signed, named and initialled on the printed "
+        "copy.</p></div>")
 
 
 def brief_screen(*, economy: str, pillar: int, ocr_label: str, llm_label: str) -> None:

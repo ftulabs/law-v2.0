@@ -230,8 +230,11 @@ def test_the_summary_sheet_and_the_note_carry_the_same_totals(state):
     _capture(state, "B", [_M("6.1", PDPA, "s.26", "q")], 0)
     summary_csv = livetest.engine_comparison(state)
     assert '"  of which: indicator differs","1","1",""' in summary_csv
+    # The note's template has no place for the provision totals (they belong to the
+    # comparison file); it names the disagreement itself, as a row a reviewer can find.
     note = livetest.short_note(state)
-    assert "1 found by both" in note and "1 differ in indicator" in note
+    assert "1 provision mapped to different indicators" in note
+    assert "(A: 6.4 · B: 6.1)" in note
 
 
 def test_rerunning_engine_a_alone_drops_a_stale_comparison(state):

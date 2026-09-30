@@ -104,6 +104,7 @@ class _Side:
     confidence: float | None = None
     status: str = ""
     url: str = ""
+    known: bool = False                        # any row of it matches the 2025 baseline
 
     def add(self, m) -> None:
         code = to_rdtii_code(getattr(m, "indicator_id", "") or "")
@@ -119,6 +120,8 @@ class _Side:
         if st and (not self.status or st == "pending_review"):
             self.status = st                  # a row needing review outranks an accepted one
         self.url = self.url or (getattr(m, "source_url", "") or "")
+        tag = getattr(m, "discovery_tag", "")
+        self.known = self.known or str(getattr(tag, "value", tag) or "") == "KNOWN"
 
 
 def _sides(mappings) -> dict:
@@ -143,6 +146,15 @@ def _sides(mappings) -> dict:
             side = out[key] = _Side(law=law, article=art)
         side.add(m)
     return out
+
+
+def provision_counts(mappings) -> tuple[int, int]:
+    """(provisions exported, of those absent from the 2025 baseline) — the short note's
+    section-2 figures. Counted per PROVISION, the unit the template names: one provision mapped
+    to two indicators is one provision, and it counts as absent from the baseline only when
+    none of its rows matched a baseline provision."""
+    sides = _sides(mappings)
+    return len(sides), sum(1 for s in sides.values() if not s.known)
 
 
 def _codes_sort(codes) -> list:

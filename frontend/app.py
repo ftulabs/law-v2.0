@@ -1102,6 +1102,12 @@ if run_clicked and pillars:
     # internal thread pools for extraction/mapping), so nothing here needs a lock.
     log_q: "queue.Queue[str]" = queue.Queue()
     outcome: dict = {}
+    run_log: list[str] = []          # kept whole: a live-test pass quotes its failures from it
+    # Read HERE, on the script thread. `st.session_state` inside the worker thread has no
+    # script-run context, so Streamlit hands it an empty stand-in and `.get` returns None:
+    # engine B's second pass silently crawled and re-fetched instead of re-reading engine A's
+    # documents — the template's "documents fetched: must be 0" cell came out as 22.
+    reuse_docs = st.session_state.get("lt_reuse")
 
     def log(m):
         log_q.put(m)
@@ -1116,7 +1122,7 @@ if run_clicked and pillars:
                 use_result_cache=not fresh_run,
                 # The live test's second pass: the same documents, a different engine, and no
                 # portal contacted. `must be 0` in the organisers' own comparison table.
-                reuse_documents=st.session_state.get("lt_reuse"))
+                reuse_documents=reuse_docs)
         except Exception as e:  # noqa: BLE001 — surfaced in the main thread below
             outcome["error"] = e
 
@@ -1144,6 +1150,7 @@ if run_clicked and pillars:
                 except queue.Empty:
                     break
                 drained = True
+                run_log.append(m)
                 status.write(m)
                 runview.absorb(rv, m)
             if drained:
@@ -1159,6 +1166,19 @@ if run_clicked and pillars:
             rv["sub"] = "the error is shown below; the technical log has the detail"
             track_box.markdown(runview.track_html(rv), unsafe_allow_html=True)
             status.update(label="Technical log — the run failed here", state="error")
+            # A live-test pass that dies is still a pass: file it against its engine so the
+            # short note's "what broke" states the error, then return to the checklist.
+            _slot = st.session_state.pop("lt_pending", None)
+            if _slot:
+                st.session_state.pop("lt_reuse", None)
+                livetest.capture_failure(
+                    st.session_state["livetest"], _slot, outcome["error"],
+                    st.session_state.pop("lt_started", ""),
+                    datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                    log_lines=run_log)
+                st.session_state["run_id"] = None
+                st.session_state["home_mode"] = "live"
+                st.rerun()
             raise outcome["error"]
 
         result = outcome["result"]
@@ -1188,7 +1208,8 @@ if run_clicked and pillars:
     if _slot:
         livetest.capture(st.session_state["livetest"], _slot, result,
                          st.session_state.pop("lt_started", ""),
-                         datetime.now(timezone.utc).isoformat(timespec="seconds"))
+                         datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                         log_lines=run_log)
         st.session_state["run_id"] = None
         st.session_state["home_mode"] = "live"
         st.rerun()
