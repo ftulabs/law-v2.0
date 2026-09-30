@@ -587,10 +587,28 @@ def _check_once(ind, prov: Provision, llm) -> tuple[str, str, dict]:
          "absent"   the checker could quote nothing for some element (it answered null)
          "unfound"  quotes were given but at least one is not in the snippet
          "error"    no usable answer"""
-    try:
-        g = llm.complete_json(VERIFY_SYSTEM, _verify_prompt(ind, prov))
-    except Exception as e:  # noqa: BLE001 — a check must never crash the run
-        return "error", f"check failed: {type(e).__name__}", {}
+    # Cached on the same terms as the grading call: this checker is a pure function of
+    # (model, VERIFY_SYSTEM, this prompt) at temperature 0, and it is a SECOND call per row —
+    # so leaving it uncached would have meant a "fully cached" run still paying for a third of
+    # its calls. Measured on the sample corpus: 144 grading calls came free and 64 checker
+    # calls did not, until this.
+    user = _verify_prompt(ind, prov)
+    # `llm` here is duck-typed — this function's own tests pass stubs that define nothing but
+    # `complete_json`. An object that cannot name its model cannot produce a safe cache key
+    # (two different models would collide on one entry), so it is simply not cached.
+    version = getattr(llm, "model_version", None)
+    provider = getattr(llm, "name", None)
+    cached = (grade_cache.get(version, VERIFY_SYSTEM, user, provider)
+              if version and provider else None)
+    if cached is not None:
+        g = cached
+    else:
+        try:
+            g = llm.complete_json(VERIFY_SYSTEM, user)
+        except Exception as e:  # noqa: BLE001 — a check must never crash the run
+            return "error", f"check failed: {type(e).__name__}", {}
+        if version and provider:
+            grade_cache.put(version, VERIFY_SYSTEM, user, g, provider)
     if not g or g.get("_parse_error"):
         return "error", "check returned no parseable answer", {}
     quotes = {}
