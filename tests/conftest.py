@@ -18,8 +18,6 @@ from pathlib import Path
 
 import pytest
 
-from backend import config as settings_module
-
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -62,5 +60,7 @@ def _isolate_grading_cache(monkeypatch):
     Production ships it OFF too (`settings.grading_cache_enabled`; config.py says why). `tests/test_grade_cache.py`
     turns it back on against a `tmp_path` of its own, which is the only safe way to exercise it.
     """
-    monkeypatch.setattr(settings_module.settings, "grading_cache_enabled", False,
-                        raising=False)
+    # Imported here, not at module top: `backend` is importable only after ROOT is on
+    # sys.path above. A top-level import passed locally (cwd is the repo) and broke CI.
+    from backend.config import settings
+    monkeypatch.setattr(settings, "grading_cache_enabled", False, raising=False)
