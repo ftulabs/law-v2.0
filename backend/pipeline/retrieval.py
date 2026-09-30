@@ -142,9 +142,17 @@ _BM25_LOCK = threading.Lock()
 
 
 def _corpus_key(provisions: list[Provision]) -> str:
+    """Identity of the INDEXED TEXT, not just of the ids. A provision id is `doc_id#p<n>` and
+    `doc_id` comes from the URL, so a document re-fetched with new content (an amendment, or a
+    body refreshed after the fetch TTL) keeps every id while its text changes — keyed on ids
+    alone, a long-lived app process would rank the new text against the old index. So the key
+    covers exactly the string `_tok` reads."""
     h = hashlib.sha1()
     for p in provisions:
         h.update(p.provision_id.encode("utf-8", "ignore"))
+        h.update(b"\x00")
+        h.update((p.law_name + " " + p.article_section + " "
+                  + p.verbatim_snippet[:_RETRIEVAL_SNIPPET_LEN]).encode("utf-8", "ignore"))
         h.update(b"\x00")
     return h.hexdigest()
 

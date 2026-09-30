@@ -59,7 +59,7 @@ def _isolate_grading_cache(monkeypatch):
     worse half: a stale entry on a developer's disk changes results a clean checkout cannot
     reproduce.
 
-    Production keeps it ON (`settings.grading_cache_enabled`). `tests/test_grade_cache.py`
+    Production ships it OFF too (`settings.grading_cache_enabled`; config.py says why). `tests/test_grade_cache.py`
     turns it back on against a `tmp_path` of its own, which is the only safe way to exercise it.
     """
     monkeypatch.setattr(settings_module.settings, "grading_cache_enabled", False,

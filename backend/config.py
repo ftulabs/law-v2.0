@@ -333,7 +333,16 @@ class Settings(BaseSettings):
     # the only one that cost the same on every run: 151.4s of a 200s warm Singapore pillar-7
     # run, measured 2026-09-14. An engine swap MISSES by construction (model_version is in the
     # key), which is what keeps the panel's two-engine comparison honest.
-    grading_cache_enabled: bool = True
+    #
+    # OFF BY DEFAULT (2026-09-30, at the code freeze), for two things it does not yet handle:
+    #   * it has no expiry and is read even on a FRESH run — "Search again", `--fresh`, and every
+    #     live-test pass — which the README promises "grades afresh". On 15 October a rehearsal
+    #     of the same task on the same machine would make engine A report near-zero time and
+    #     cost for the live hour;
+    #   * its hit count is not surfaced in the run log or the cost table, so a cache-served run
+    #     looks like a fast live one.
+    # Turn it on (GRADING_CACHE_ENABLED=true) for development re-runs; it is exact there.
+    grading_cache_enabled: bool = False
     # Documents are extracted independently of each other — run them concurrently (was strictly
     # sequential) so wall-clock scales with the SLOWEST single document, not the sum of all of
     # them. I/O-bound (pdfplumber/MarkItDown release the GIL during parsing), so a thread pool is
