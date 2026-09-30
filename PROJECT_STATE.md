@@ -420,8 +420,13 @@ Everything else is retrieval or grading, which is where the budget below bites.
       identical. An ENGINE SWAP misses by construction, so the 15 Oct two-engine comparison
       re-grades everything and stays honest. The mock grader is never cached (it is free, and
       the offline demo's determinism must come from its code). A failed call is never stored.
-      The hit count is logged every run — §4's result-cache lesson applied.
       `backend/pipeline/grade_cache.py`, `tests/test_grade_cache.py`.
+      **Shipped OFF (`GRADING_CACHE_ENABLED=false`) at the 2026-09-30 freeze.** Review found the
+      hit count is NOT logged (`grade_cache.stats()` has no caller), the store has no expiry,
+      and it is read even on fresh runs — "Search again", `--fresh`, every live-test pass — so a
+      rehearsal on the 15 Oct machine would make engine A report near-zero time and cost. To
+      turn it on by default: bypass reads when `use_result_cache=False`, log the hit count, and
+      put cached calls in the run's cost table.
       Found wiring it: **the test suite was contaminating itself through the filesystem** —
       `test_crosscheck.py` pins three different answers to one model id for one prompt, so the
       first test's verdict was served to the rest. Off by default under test now
