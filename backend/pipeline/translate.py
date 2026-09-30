@@ -178,21 +178,27 @@ def translate_mappings(
         f"({len(names)} distinct law names, snippets cached by text)")
 
     def _run(items, fn):
-        workers = max(1, min(settings.mapping_concurrency, len(items)))
+        try:                                        # the provider's measured figure, if any
+            cap = int(llm.suggested_concurrency())
+        except Exception:                           # noqa: BLE001
+            cap = int(settings.mapping_concurrency)
+        workers = max(1, min(cap, len(items)))
         if workers > 1:
             from concurrent.futures import ThreadPoolExecutor      # noqa: PLC0415
             with ThreadPoolExecutor(max_workers=workers) as ex:
                 return list(ex.map(fn, items))
         return [fn(i) for i in items]
 
-    name_map = dict(zip(names, _run(names, lambda n: _translate_one(llm, n, target, log))))
-
-    def _snippet(m: EvidenceMapping) -> None:
-        m.law_name_translated = name_map.get(m.law_name, "")
-        m.snippet_translated = _translate_one(llm, m.verbatim_snippet, target, log)
+    # Names and snippets in ONE pool, each distinct text once. It used to translate every
+    # name, wait for the slowest, then translate every row's snippet — so a provision filed
+    # under three indicators was sent three times, concurrently, before the disk cache held
+    # its first answer. Same texts, same calls per text, same results; less wall clock.
+    texts = sorted(set(names) | {m.verbatim_snippet for m in todo if m.verbatim_snippet})
+    done_map = dict(zip(texts, _run(texts, lambda t: _translate_one(llm, t, target, log))))
+    for m in todo:
+        m.law_name_translated = done_map.get(m.law_name, "") if m.law_name else ""
+        m.snippet_translated = done_map.get(m.verbatim_snippet, "") if m.verbatim_snippet else ""
         m.translation_target = target if (m.law_name_translated or m.snippet_translated) else None
-
-    _run(todo, _snippet)
 
     done = sum(1 for m in todo if m.snippet_translated)
     log(f"[translate] {done}/{len(todo)} snippets translated into {target}"

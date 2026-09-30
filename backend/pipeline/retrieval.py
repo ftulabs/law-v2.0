@@ -158,14 +158,22 @@ def _disk_cache_path():
     return settings.cache_path / f"_emb_{slug}_{_RETRIEVAL_SNIPPET_LEN}.npz"
 
 
+_DISK_CACHE_PATH = None                     # the file _DISK_CACHE was read from
+
+
 def _load_disk_cache() -> dict:
-    global _DISK_CACHE
-    if _DISK_CACHE is not None:
+    # Keyed by PATH (2026-09-30). The loaded dict used to be held for the life of the process
+    # whatever the cache directory became. A test that pointed CACHE_DIR at a temp folder left
+    # an empty dict behind, and the next save wrote that dict — a few dozen vectors — over the
+    # real file: every pytest run on a dev machine wiped thousands of cached embeddings, and
+    # the next live run re-embedded its whole corpus at ~20 provisions/s.
+    global _DISK_CACHE, _DISK_CACHE_PATH
+    p = _disk_cache_path()
+    if _DISK_CACHE is not None and _DISK_CACHE_PATH == p:
         return _DISK_CACHE
-    _DISK_CACHE = {}
+    _DISK_CACHE, _DISK_CACHE_PATH = {}, p
     if not settings.embed_cache_enabled:
         return _DISK_CACHE
-    p = _disk_cache_path()
     if p.exists():
         try:
             import numpy as np
@@ -199,23 +207,117 @@ def _save_disk_cache(new: dict) -> None:
         pass                            # caching is best-effort; never fail a run over it
 
 
+_PREWARM_LOCK = __import__("threading").Lock()
+_PREWARM_FRESH: dict = {}
+
+
+def prewarm_embeddings(provisions: list[Provision], still_open=lambda: True) -> int:
+    """Embed provisions AHEAD of retrieval, while the run is still downloading documents.
+
+    Retrieval embeds every provision the first time it meets it; on a cold cache that is the
+    largest CPU cost of a run (~20 provisions/s here) and it used to start only after the last
+    document was fetched. This computes the SAME vectors — same `_embed_text`, same key, same
+    model; batch composition was measured not to change a single value (max diff 0.0,
+    2026-09-30) — into the same in-memory cache, so `_dense_scores` later finds them instead of
+    computing them. `still_open()` lets the caller stop it the moment the overlap ends, after
+    which retrieval embeds whatever is left exactly as before. One encode at a time: torch
+    already uses every core, and two concurrent encodes only fight over them.
+    """
+    if not _dense_enabled() or settings.dense_concept_gate or not provisions:
+        return 0
+    done = 0
+    with _PREWARM_LOCK:
+        disk = _load_disk_cache()
+        todo: dict[str, str] = {}
+        for p in provisions:
+            t = _embed_text(p)
+            k = _embed_key(t)
+            if k not in _EMB_CACHE and k not in disk and k not in todo:
+                todo[k] = t
+        items = list(todo.items())
+        for i in range(0, len(items), 64):
+            if not still_open():
+                break
+            chunk = items[i:i + 64]
+            embs = _embed([t for _, t in chunk])
+            if embs is None:
+                break
+            for (k, _), v in zip(chunk, embs):
+                _EMB_CACHE[k] = v.tolist()
+                _PREWARM_FRESH[k] = v
+            done += len(chunk)
+    return done
+
+
+def flush_prewarm() -> None:
+    """Write what prewarm_embeddings computed to the disk cache, once."""
+    with _PREWARM_LOCK:
+        if _PREWARM_FRESH:
+            _save_disk_cache(dict(_PREWARM_FRESH))
+            _PREWARM_FRESH.clear()
+
+
 def _dense_enabled() -> bool:
     mode = (settings.dense_retrieval or "auto").lower()
     return mode in ("on", "auto")
 
 
+_MODEL_LOCK = __import__("threading").Lock()
+
+
 def _get_model():
-    """Load the embedding model once. Returns None if unavailable (→ BM25-only)."""
+    """Load the embedding model once. Returns None if unavailable (→ BM25-only).
+
+    Locked because the dashboard now loads it in the background at start-up
+    (`preload_models`); a run that starts meanwhile waits for that load instead of doing a
+    second one."""
     global _MODEL, _MODEL_FAILED
     if _MODEL is not None or _MODEL_FAILED:
         return _MODEL
-    try:
-        from sentence_transformers import SentenceTransformer
-        _MODEL = SentenceTransformer(settings.embed_model)
-    except Exception:
-        _MODEL_FAILED = True            # not installed / model not downloadable → fall back silently
-        _MODEL = None
+    with _MODEL_LOCK:
+        if _MODEL is not None or _MODEL_FAILED:
+            return _MODEL
+        try:
+            from sentence_transformers import SentenceTransformer
+            _MODEL = SentenceTransformer(settings.embed_model)
+        except Exception:
+            _MODEL_FAILED = True        # not installed / model not downloadable → fall back silently
+            _MODEL = None
     return _MODEL
+
+
+def preload_models() -> None:
+    """Load the embedding model, the English reranker and both disk caches, ahead of any run.
+
+    Measured 2026-09-30: importing sentence-transformers and loading the two models takes
+    ~34 s, and the first run after every server start paid it inside "retrieval/build". The
+    dashboard calls this once per server process on a background thread. It loads exactly the
+    objects a run would load, so no result can differ.
+    """
+    from . import ranking
+    _get_model()
+    ranking._cross_encoder(None)
+    _load_disk_cache()
+    _load_ce_cache(settings.cross_encoder_model)
+
+
+_PRELOAD_STARTED = False
+
+
+def start_preload() -> None:
+    """Start `preload_models` on a daemon thread, once per process. Never raises."""
+    global _PRELOAD_STARTED
+    if _PRELOAD_STARTED:
+        return
+    _PRELOAD_STARTED = True
+    import threading
+
+    def _go():
+        try:
+            preload_models()
+        except Exception:               # noqa: BLE001 — a head start, never a failure
+            pass
+    threading.Thread(target=_go, name="veritrade-preload", daemon=True).start()
 
 
 def _embed(texts: list[str]):
@@ -298,8 +400,10 @@ def _ce_cache_path(model_name: str):
 
 
 def _load_ce_cache(model_name: str) -> dict[str, float]:
-    if model_name in _CE_DISK:
-        return _CE_DISK[model_name]
+    # Keyed by the cache FILE, not the model name alone — same reason as _load_disk_cache.
+    slot = str(_ce_cache_path(model_name))
+    if slot in _CE_DISK:
+        return _CE_DISK[slot]
     out: dict[str, float] = {}
     if settings.cross_encoder_cache_enabled:
         p = _ce_cache_path(model_name)
@@ -310,7 +414,7 @@ def _load_ce_cache(model_name: str) -> dict[str, float]:
                 out = {str(k): float(v) for k, v in zip(d["keys"], d["scores"])}
             except Exception:
                 out = {}                        # unreadable/corrupt -> rescore, never crash
-    _CE_DISK[model_name] = out
+    _CE_DISK[slot] = out
     return out
 
 

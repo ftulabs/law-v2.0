@@ -321,7 +321,10 @@ def search_tl_gazette(client, src: dict, query: str, economy: Economy, indicator
     seen_ids: set[str] = set()
     total_pages = len(_INDEX_PAGES)
     for i, (url, category) in enumerate(_INDEX_PAGES):
-        resp = portal.portal_get(client, url, log)
+        # The index is the same for every pillar: memoised, so pillar 7 of a two-pillar run
+        # reads what pillar 6 fetched instead of re-paying seventeen 10 s pauses (~185 s).
+        from_memo = portal.memoized(url)
+        resp = portal.portal_get(client, url, log, memo=True)
         if resp is None:
             log(f"[tl_gazette] no response for {url}")
         else:
@@ -338,8 +341,10 @@ def search_tl_gazette(client, src: dict, query: str, economy: Economy, indicator
                 seen_ids.add(doc.doc_id)
                 out.append(doc)
             log(f"[tl_gazette] {url} -> {len(rows)} PDFs ({category})")
-        if client is not None and i + 1 < total_pages:
+        if (client is not None and i + 1 < total_pages and not from_memo
+                and not portal.memoized(_INDEX_PAGES[i + 1][0])):
             # robots.txt: Crawl-delay 10. Eighteen index pages -> seventeen pauses (~170s).
+            # Owed only between two REAL requests; a memoised page is not one.
             time.sleep(_CRAWL_DELAY_SECONDS)
 
     for pdf_url, title, category in _DIRECT_PDFS:

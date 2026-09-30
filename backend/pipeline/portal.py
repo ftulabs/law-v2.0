@@ -96,14 +96,44 @@ def _allowed(url: str, log: Log) -> bool:
     return ok
 
 
-def portal_get(client, url: str, log: Log, tries: int = 4, **kw):
+#: url -> (monotonic time stored, response). See `settings.discovery_page_memo_seconds`.
+_MEMO: dict[str, tuple[float, object]] = {}
+
+
+def memoized(url: str) -> bool:
+    """True when `portal_get(..., memo=True)` would answer `url` without the network -- so an
+    adapter can skip the politeness pause it only owes the portal before a REAL request."""
+    ttl = settings.discovery_page_memo_seconds
+    hit = _MEMO.get(url)
+    return bool(ttl > 0 and hit is not None and time.monotonic() - hit[0] <= ttl)
+
+
+def clear_memo() -> None:
+    _MEMO.clear()
+
+
+def forget(url: str) -> None:
+    """Drop one memoised page -- for a 200 the caller has judged to be a refusal (SSO's empty
+    browse window), which must be asked again rather than replayed."""
+    _MEMO.pop(url, None)
+
+
+def portal_get(client, url: str, log: Log, tries: int = 4, memo: bool = False, **kw):
     """Portal-friendly GET. Returns the response, or None when the portal never answered.
 
     Backs off exponentially, and treats a 202 with an EMPTY body as a throttle rather than a
     result: that is Singapore's SSO saying "slow down" — it does not use 429 (verified
     2026-08-01, the same behaviour `backend/corpus/catalogue._get` was written for). A 202
     WITH content is a real response and is returned as-is.
+
+    `memo=True` is for QUERY-INDEPENDENT index pages only (a portal's browse list, a gazette's
+    index): a 200 is kept in memory for `settings.discovery_page_memo_seconds`, so the second
+    pillar of a two-pillar run does not re-crawl what the first read a minute ago. Only plain
+    GETs with no extra arguments are memoised -- the URL must be the whole identity.
     """
+    use_memo = memo and not kw and settings.discovery_page_memo_seconds > 0
+    if use_memo and memoized(url):
+        return _MEMO[url][1]
     if not _allowed(url, log):
         # `_allowed` already logs the robots.txt reason in production; this line exists so a
         # test driving `portal_get` with `_allowed` replaced (no network, no robots.txt) still
@@ -115,6 +145,8 @@ def portal_get(client, url: str, log: Log, tries: int = 4, **kw):
         try:
             r = client.get(url, **kw)
             if r.status_code == 200 and r.content:
+                if use_memo:
+                    _MEMO[url] = (time.monotonic(), r)
                 return r
             if r.status_code == 202 and r.content:
                 return r

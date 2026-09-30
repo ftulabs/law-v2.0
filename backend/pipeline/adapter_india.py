@@ -175,13 +175,32 @@ def act_name(item: dict) -> str:
     return _md(item, ACT_NAME_FIELD, "dc.title.act_name").strip().rstrip(".")
 
 
+#: url -> (monotonic time, payload). The same Stage-2 `dc.identifier.act_name:"<Act>"` page is
+#: asked for by every phrase that surfaced that Act -- measured 2026-09-30, 14 of 35 India Code
+#: requests in one pillar-7 discovery were exact repeats (the IT Act's three times). A DSpace
+#: search payload for a fixed URL does not change within minutes, so it is answered from here
+#: for `settings.discovery_page_memo_seconds`; 0 turns it off.
+_GET_MEMO: dict[str, tuple[float, dict]] = {}
+
+
 def _get(client, path: str, **params) -> dict:
+    import copy
+    import time
+
+    from ..config import settings
     url = API + path
     if params:
         url += "?" + urllib.parse.urlencode(params)
+    ttl = settings.discovery_page_memo_seconds
+    hit = _GET_MEMO.get(url)
+    if ttl > 0 and hit is not None and time.monotonic() - hit[0] <= ttl:
+        return copy.deepcopy(hit[1])
     r = client.get(url, headers={"Accept": "application/json"})
     r.raise_for_status()
-    return r.json()
+    data = r.json()
+    if ttl > 0:
+        _GET_MEMO[url] = (time.monotonic(), copy.deepcopy(data))
+    return data
 
 
 def _objects(data: dict) -> tuple[int, list[dict]]:

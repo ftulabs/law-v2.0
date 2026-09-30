@@ -542,50 +542,6 @@ def run_pipeline(
         discovery.explain_empty_discovery(economy, log=log)
     log(f"[timing] discovery {time.perf_counter() - _t:.1f}s")
 
-    # Zone 1b — fetch bodies for live-discovered docs (sample/file docs already have a path)
-    _t = time.perf_counter()
-    fetched = 0
-    if not use_samples and not pdf_path and reuse_documents is None:
-        from .fetch import fetch_to_cache
-        from .discovery import _resolve_pdf_url
-        kept, by_content = [], {}   # sha256 -> doc already kept
-        for d in docs:
-            if d.local_path:
-                kept.append(d)
-                log(f"[doc] {d.title[:80]} | {d.source_url}")
-                continue
-            fetch_url, _ = _resolve_pdf_url(d.economy, d.source_url)   # landing -> PDF body
-            fr = fetch_to_cache(fetch_url, log=log)
-            if not fr:
-                continue
-            # Content-level dedup: title normalisation can miss a law surfaced under two
-            # very different search titles; here the fetched bytes are identical, so the
-            # SHA-256 is the ground truth. Drop the duplicate so the same Act isn't
-            # extracted and graded N times (the cause of the 1000+ provision blow-ups).
-            prior = by_content.get(fr.sha256)
-            if prior is not None:
-                log(f"[fetch] skip duplicate body (same SHA as '{prior.title[:70]}'): {d.title[:70]}")
-                continue
-            by_content[fr.sha256] = d
-            d.local_path, d.fmt = fr.local_path, fr.fmt
-            fetched += 1
-            kept.append(d)
-            # A structured, parseable line (title + link) — the dashboard's "documents found so
-            # far" panel renders these live, so a researcher can start reading source law while
-            # the run continues instead of staring at a bare progress bar.
-            log(f"[doc] {d.title[:80]} | {d.source_url}")
-        dropped = len(docs) - len(kept)
-        docs = kept
-        log(f"[fetch] retrieved {fetched} bodies into cache"
-            + (f" ({dropped} duplicate/failed dropped)" if dropped else ""))
-        log(f"[timing] fetch/crawl {time.perf_counter() - _t:.1f}s")
-    else:
-        for d in docs:
-            log(f"[doc] {d.title[:80]} | {d.source_url}")
-
-    for d in docs:
-        db.save_doc(run_id, d)
-
     # extraction (+OCR) → provisions. Documents are independent of each other, so this runs
     # concurrently (was strictly sequential) — extraction is the single biggest per-run cost
     # bucket, and wall-clock now scales with the slowest ONE document, not the sum of all of
@@ -593,7 +549,6 @@ def run_pipeline(
     # and log line happens back on the main thread via _record_extraction, so nothing needs a
     # lock. as_completed() (not .map()) surfaces each document as soon as IT finishes, so the
     # per-document log lines below still stream out incrementally, in whatever order they land.
-    _t = time.perf_counter()
     provisions, source_texts, doc_tags, ocr_reports = [], {}, {}, []
 
     def _extract_one(d):
@@ -647,15 +602,99 @@ def run_pipeline(
         shown = provs[0].law_name if provs else d.title
         log(f"[extract] {shown[:70]} -> {len(provs)} provisions")
 
-    workers = max(1, min(settings.extraction_concurrency, len(docs) or 1))
-    if workers > 1 and len(docs) > 1:
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-        with ThreadPoolExecutor(max_workers=workers) as ex:
-            for fut in as_completed(ex.submit(_extract_one, d) for d in docs):
-                _record_extraction(*fut.result())
+    # Extraction and embedding start WHILE documents are still downloading (2026-09-30).
+    # Fetching is network-bound and sequential per host; extraction and embedding are CPU work
+    # that used to wait for the last download. Each fetched document is now extracted at once
+    # and its provisions embedded (retrieval.prewarm_embeddings — the same vectors retrieval
+    # would compute, only earlier). Prewarming stops when fetching ends, so nothing is embedded
+    # for a document the same-law dedup below then drops unless it overlapped a download.
+    import threading
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from . import retrieval as _retrieval
+    fetch_open = threading.Event()
+    fetch_open.set()
+    early_futs: dict = {}
+    early_ex: list = []
+
+    def _extract_and_warm(d):
+        out = _extract_one(d)
+        if fetch_open.is_set() and out[3]:
+            try:
+                _retrieval.prewarm_embeddings(out[3], still_open=fetch_open.is_set)
+            except Exception:           # noqa: BLE001 — a head start, never a failure
+                pass
+        return out
+
+    def _start_early(d) -> None:
+        if not early_ex:
+            early_ex.append(ThreadPoolExecutor(max_workers=max(1, settings.extraction_concurrency)))
+        early_futs[d.doc_id] = early_ex[0].submit(_extract_and_warm, d)
+
+    # Zone 1b — fetch bodies for live-discovered docs (sample/file docs already have a path)
+    _t = time.perf_counter()
+    fetched = 0
+    if not use_samples and not pdf_path and reuse_documents is None:
+        from .fetch import fetch_to_cache
+        from .discovery import _resolve_pdf_url
+        kept, by_content = [], {}   # sha256 -> doc already kept
+        for d in docs:
+            if d.local_path:
+                kept.append(d)
+                _start_early(d)
+                log(f"[doc] {d.title[:80]} | {d.source_url}")
+                continue
+            fetch_url, _ = _resolve_pdf_url(d.economy, d.source_url)   # landing -> PDF body
+            fr = fetch_to_cache(fetch_url, log=log)
+            if not fr:
+                continue
+            # Content-level dedup: title normalisation can miss a law surfaced under two
+            # very different search titles; here the fetched bytes are identical, so the
+            # SHA-256 is the ground truth. Drop the duplicate so the same Act isn't
+            # extracted and graded N times (the cause of the 1000+ provision blow-ups).
+            prior = by_content.get(fr.sha256)
+            if prior is not None:
+                log(f"[fetch] skip duplicate body (same SHA as '{prior.title[:70]}'): {d.title[:70]}")
+                continue
+            by_content[fr.sha256] = d
+            d.local_path, d.fmt = fr.local_path, fr.fmt
+            fetched += 1
+            kept.append(d)
+            _start_early(d)
+            # A structured, parseable line (title + link) — the dashboard's "documents found so
+            # far" panel renders these live, so a researcher can start reading source law while
+            # the run continues instead of staring at a bare progress bar.
+            log(f"[doc] {d.title[:80]} | {d.source_url}")
+        fetch_open.clear()
+        dropped = len(docs) - len(kept)
+        docs = kept
+        log(f"[fetch] retrieved {fetched} bodies into cache"
+            + (f" ({dropped} duplicate/failed dropped)" if dropped else ""))
+        log(f"[timing] fetch/crawl {time.perf_counter() - _t:.1f}s")
     else:
         for d in docs:
+            log(f"[doc] {d.title[:80]} | {d.source_url}")
+
+    for d in docs:
+        db.save_doc(run_id, d)
+
+    _t = time.perf_counter()
+    fetch_open.clear()
+    pending = [d for d in docs if d.doc_id not in early_futs]
+    workers = max(1, min(settings.extraction_concurrency, len(pending) or 1))
+    futs = [early_futs[d.doc_id] for d in docs if d.doc_id in early_futs]
+    if workers > 1 and len(pending) > 1:
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            futs += [ex.submit(_extract_one, d) for d in pending]
+            for fut in as_completed(futs):
+                _record_extraction(*fut.result())
+    else:
+        for d in pending:
             _record_extraction(*_extract_one(d))
+        for fut in as_completed(futs):
+            _record_extraction(*fut.result())
+    for ex_ in early_ex:
+        ex_.shutdown(wait=True)
+    _retrieval.flush_prewarm()
 
     # Same-law dedup by resolved name. A portal serves one law under several URLs whose
     # bytes differ (an as-enacted gazette snapshot vs the current consolidated edition both

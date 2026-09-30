@@ -276,7 +276,15 @@ class Settings(BaseSettings):
         "(KHTML, like Gecko) Chrome/124.0 Safari/537.36 VeriTrade-Research/0.2"
     )
     crawl_accept_language: str = "en,ms;q=0.8"
-    crawl_delay_seconds: float = 2.0           # polite gap between requests to the SAME host
+    # Polite gap between requests to the SAME host. 1.0 = the organisers' own ceiling (README
+    # template: 1 request per second per host). Was 2.0; measured 2026-09-30 on the four
+    # longest single-host lanes (AU, MN, RU, TH, both pillars): identical document lists, no
+    # extra non-200 answer, 5-45 s saved per pass. A robots.txt Crawl-delay still wins when
+    # larger, and `crawl_delay_floor_by_host` keeps hosts with a known slow-down response slower.
+    crawl_delay_seconds: float = 1.0
+    # sso.agc.gov.sg answers pressure with EMPTY browse windows rather than an error (see
+    # adapter_singapore) — a silent loss of Acts — and 1.0 s was not measured there. Kept at 2.
+    crawl_delay_floor_by_host: dict = {"sso.agc.gov.sg": 2.0}
     # robots.txt is enforced, not merely read for its Sitemap line (pipeline/robots.py). ON by
     # default because a ministry running this tool should not have to configure politeness, and
     # because five tools read the same portals within the same hour on 15 October. Turning it
@@ -345,6 +353,14 @@ class Settings(BaseSettings):
     # Cost of the change is fetch and extraction, not grading: mapping is bounded by the
     # retrieval shortlist (`retrieve_max_top_k`) per indicator, not by corpus size.
     discovery_max_docs: int = 22
+    # A run over pillars 6 AND 7 calls discovery once per pillar, and the portal-ENUMERATING
+    # lanes (tl_gazette, la_gazette, sg_sso) read the SAME query-independent index pages both
+    # times: Timor-Leste's 18 pages sit behind the portal's own Crawl-delay: 10, so pillar 7
+    # re-paid ~185 s for bytes it had read a minute earlier. Those pages are kept in memory for
+    # this many seconds and served from there (no request, no politeness pause). 0 turns it off.
+    # Per process, never on disk: a run in the same server process within this window reuses
+    # them too, so it is kept short -- a statute index does not change in fifteen minutes.
+    discovery_page_memo_seconds: float = 900.0
 
     # ── working translation of the evidence (backend/pipeline/translate.py) ──
     # On by default because the run it exists for — a non-English economy — is otherwise
@@ -371,6 +387,8 @@ class Settings(BaseSettings):
     # engine blocks (so a high cap never hangs), and a Serper key fires them all reliably.
     discovery_per_query: int = 4
     discovery_max_queries: int = 90
+    # Connect (not read) timeout for the web-search engines -- see websearch.search.
+    websearch_connect_timeout_seconds: float = 8.0
 
     # retrieval (Zone 1 ranking)
     dense_retrieval: str = "auto"              # auto | on | off — 'auto' = dense if installed
@@ -482,6 +500,15 @@ class Settings(BaseSettings):
     # this with its own measured figure; see `LLMProvider.suggested_concurrency`.
     # Tune via MAPPING_CONCURRENCY.
     mapping_concurrency: int = 16
+    # OpenRouter's own figure (`OpenRouterLLM.suggested_concurrency`), 2026-09-30. The
+    # "plateau ~12" above was measured with reasoning ON, when a call ran for minutes; with it
+    # off (the declared engine A) each call is ~5 s and the ceiling moved. Measured on the real
+    # grading prompt + second-pass check, 160-192 calls a step: 16 workers 1.7-2.1 calls/s,
+    # 48 → 3.2-4.4, 64 → 3.9-4.5, 96 → 2.9 with a connection error. No 429 and no failed call
+    # at 48. The calls are identical, so the output is too — only the wall clock moves. Kept
+    # separate from mapping_concurrency so providers nobody measured (and the self-hosted pool,
+    # whose floor that setting is) keep 16. Tune via OPENROUTER_CONCURRENCY.
+    openrouter_concurrency: int = 48
     # Grading calls to keep in flight PER NODE of a self-hosted pool. 3 is measured, not
     # assumed — the table is in `LocalLLM.suggested_concurrency`, and the short version is that
     # failures stay flat at 7.7% up to three per node and jump to 18-23% at four, where the

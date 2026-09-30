@@ -29,6 +29,7 @@ from ..providers.llm_factory import SECTORAL_MARKERS
 
 _CE: dict[str, object] = {}          # model name → loaded CrossEncoder
 _CE_FAILED: set[str] = set()         # model names that could not be loaded
+_CE_LOCK = __import__("threading").Lock()
 
 
 def _ce_model_for(economy: str | None) -> str | None:
@@ -63,12 +64,17 @@ def _cross_encoder(economy: str | None = None):
         return _CE[name]
     if name in _CE_FAILED:
         return None
-    try:
-        from sentence_transformers import CrossEncoder
-        _CE[name] = CrossEncoder(name)
-    except Exception:
-        _CE_FAILED.add(name)
-        return None
+    with _CE_LOCK:                       # a background preload may be loading it right now
+        if name in _CE:
+            return _CE[name]
+        if name in _CE_FAILED:
+            return None
+        try:
+            from sentence_transformers import CrossEncoder
+            _CE[name] = CrossEncoder(name)
+        except Exception:
+            _CE_FAILED.add(name)
+            return None
     return _CE[name]
 
 

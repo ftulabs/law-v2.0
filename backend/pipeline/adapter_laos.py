@@ -301,7 +301,9 @@ def search_la_gazette(client, src: dict, query: str, economy: Economy, indicator
     seen_doc_ids: set[str] = set()
     for page in range(1, _MAX_PAGES + 1):
         url = _LIST_URL.format(page=page)
-        resp = portal.portal_get(client, url, log)
+        # Same pages for every pillar -> memoised for the second pillar of a two-pillar run.
+        from_memo = portal.memoized(url)
+        resp = portal.portal_get(client, url, log, memo=True)
         if resp is None:
             log(f"[la_gazette] pagination stopped at page {page}: no response")
             break
@@ -327,7 +329,8 @@ def search_la_gazette(client, src: dict, query: str, economy: Economy, indicator
         if added == 0:
             log(f"[la_gazette] pagination stopped at page {page}: no new rows")
             break
-        if client is not None and page < _MAX_PAGES:
+        if (client is not None and page < _MAX_PAGES and not from_memo
+                and not portal.memoized(_LIST_URL.format(page=page + 1))):
             time.sleep(settings.crawl_delay_seconds)
     return out
 

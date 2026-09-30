@@ -64,13 +64,23 @@ def _to_result(r, engine: str) -> ScrapeResult | None:
 
 
 def fetch(url: str, timeout: float | None = None, browser: bool = False,
-          log=print) -> ScrapeResult | None:
+          log=print, attempts: int | None = None,
+          retries: int | None = None) -> ScrapeResult | None:
     """Fetch `url` with Scrapling's impersonating Fetcher; optionally escalate to the
     stealth browser for JS-gated pages. Returns None if Scrapling is unavailable or both
-    attempts fail (caller falls back to httpx)."""
+    attempts fail (caller falls back to httpx).
+
+    `attempts` (our outer loop, default `_ATTEMPTS`) and `retries` (Scrapling's own inner
+    loop, default Scrapling's 3) exist for a caller that only wants ONE cheap probe. The web-
+    search lane is that caller: measured 2026-09-30, with html.duckduckgo.com refusing TCP,
+    one query cost 4 outer x 3 inner x 21 s connect timeouts plus pauses -- about 4.5 minutes
+    -- and the engine needs two failures to be retired, so every economy with a web-search
+    lane spent ~9 minutes of discovery learning that DuckDuckGo was down."""
     if not available():
         return None
     timeout = int(timeout or settings.crawl_timeout_seconds)
+    tries = max(1, int(attempts or _ATTEMPTS))
+    extra = {} if retries is None else {"retries": int(retries)}
 
     # 1) curl_cffi impersonation — fast, no browser, beats TLS/WAF fingerprinting.
     # Several tries, because each call draws a RANDOM browser fingerprint and some WAFs refuse
@@ -79,10 +89,10 @@ def fetch(url: str, timeout: float | None = None, browser: bool = False,
     # term a coin flip, and one live run lost all six — 0 documents, a whole economy empty.
     import time
     challenged = False
-    for attempt in range(_ATTEMPTS):
+    for attempt in range(tries):
         try:
             from scrapling.fetchers import Fetcher
-            r = Fetcher.get(url, timeout=timeout, stealthy_headers=True)
+            r = Fetcher.get(url, timeout=timeout, stealthy_headers=True, **extra)
             res = _to_result(r, "scrapling-fetcher")
             if res:
                 return res
@@ -98,7 +108,7 @@ def fetch(url: str, timeout: float | None = None, browser: bool = False,
                 break
         except Exception as e:  # noqa: BLE001
             log(f"[scrapling] Fetcher error ({type(e).__name__}) for {url}")
-        if attempt + 1 < _ATTEMPTS:
+        if attempt + 1 < tries:
             time.sleep(1.5 * (attempt + 1))
 
     # 2) stealth browser — executes JS, clears challenges (needs `scrapling install`).

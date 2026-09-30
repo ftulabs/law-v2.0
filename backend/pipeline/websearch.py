@@ -11,6 +11,7 @@ add a domain per economy in OFFICIAL_PORTAL and it works for Thailand/India/etc.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 from urllib.parse import parse_qs, urlparse
 
@@ -158,7 +159,12 @@ def _scrapling_ddg(client, q, n):
     if not scrapling_fetch.available():
         raise EngineUnavailable("scrapling_ddg", "Scrapling is not installed")
     from urllib.parse import quote_plus
-    res = scrapling_fetch.fetch(f"https://html.duckduckgo.com/html/?q={quote_plus(q)}", log=lambda *_: None)
+    # ONE probe, not scrapling_fetch's default 4 x 3 tries: this is a search engine, not a
+    # document we must have. See `scrapling_fetch.fetch`'s docstring for the 2026-09-30 figure
+    # (~4.5 min per query while DuckDuckGo refused TCP), and `_STRIKES_FOR` below.
+    res = scrapling_fetch.fetch(f"https://html.duckduckgo.com/html/?q={quote_plus(q)}",
+                                timeout=min(10, settings.crawl_timeout_seconds),
+                                attempts=1, retries=1, log=lambda *_: None)
     if not res:
         raise EngineUnavailable("scrapling_ddg", "no response from the browser lane")
     return _parse(res.body.decode("utf-8", "ignore"), "a.result__a", n)
@@ -222,8 +228,19 @@ _engine_strikes: dict[str, int] = {}
 #: blip does not retire an engine that still works.
 _STRIKES = 2
 
+#: Per-engine exceptions to `_STRIKES`. `_scrapling_ddg`'s one failure is already a browser-
+#: fingerprint fetch that got no answer, and it is the only engine whose failure is SLOW (a TCP
+#: connect timeout, 10-21 s): a second strike cost every web-search lane another probe while
+#: DuckDuckGo was refusing connections (2026-09-30), for an engine the httpx DuckDuckGo
+#: endpoints behind it still cover.
+_STRIKES_FOR = {"_scrapling_ddg": 1}
 
-def _retire(name: str, log) -> None:
+
+def _strikes_for(name: str) -> int:
+    return _STRIKES_FOR.get(name, _STRIKES)
+
+
+def _retire(name: str, log, now: bool = False) -> None:
     """Count a failure against an engine, and say so the first time it is retired.
 
     WHY THIS EXISTS. `_diag["engine_failures"]` already recorded which engines had failed and
@@ -239,9 +256,9 @@ def _retire(name: str, log) -> None:
     Neither failure heals inside a run — a spend cap does not refill and a blocked endpoint does
     not unblock in thirty seconds — so the honest thing is to stop asking.
     """
-    n = _engine_strikes.get(name, 0) + 1
+    n = max(_engine_strikes.get(name, 0) + 1, _strikes_for(name) if now else 0)
     _engine_strikes[name] = n
-    if n == _STRIKES:
+    if n == _strikes_for(name):
         log(f"[websearch] {name} retired for this run after {n} failures — "
             f"not asked again")
 
@@ -254,7 +271,8 @@ def _engines() -> list:
     if _circuit["empties"] >= _SOFT:
         base = [e for e in base if e is not _scrapling_ddg]   # drop the ~60s retry path
     return [e for e in base
-            if _engine_strikes.get(getattr(e, "__name__", "?"), 0) < _STRIKES]
+            if _engine_strikes.get(getattr(e, "__name__", "?"), 0)
+            < _strikes_for(getattr(e, "__name__", "?"))]
 
 
 def _cache_file():
@@ -337,14 +355,23 @@ def search(query: str, site: str | None = None, max_results: int = 10, log=print
                "Accept-Language": settings.crawl_accept_language,
                "Accept": "text/html,application/xhtml+xml,*/*;q=0.8"}
     results: list[tuple[str, str]] = []
-    with httpx.Client(timeout=settings.crawl_timeout_seconds, headers=headers, follow_redirects=True) as client:
-        engines = _engines()
-        if not engines and not _engine_strikes.get("_said_all_retired"):
-            # Say it once. An empty engine list is the right answer here — the caller records
-            # an empty result and the circuit opens — but in silence it reads as a no-op.
-            _engine_strikes["_said_all_retired"] = 1
-            log("[websearch] every engine has been retired for this run — no further "
-                "network searches will be attempted")
+    # CONNECT bounded separately from the read: a search engine behind a global CDN connects in
+    # well under a second, and one that has not connected in 8 s is refusing us. Measured
+    # 2026-09-30: html/lite.duckduckgo.com each waited out the full 30 s crawl timeout per query.
+    timeout = httpx.Timeout(settings.crawl_timeout_seconds,
+                            connect=min(settings.websearch_connect_timeout_seconds,
+                                        settings.crawl_timeout_seconds))
+    engines = _engines()
+    if not engines and not _engine_strikes.get("_said_all_retired"):
+        # Say it once. An empty engine list is the right answer here — the caller records
+        # an empty result and the circuit opens — but in silence it reads as a no-op.
+        _engine_strikes["_said_all_retired"] = 1
+        log("[websearch] every engine has been retired for this run — no further "
+            "network searches will be attempted")
+    # No client at all when there is no engine to ask: building one loads a TLS context
+    # (~0.3-1 s on Windows), paid per query per lane once every engine is retired.
+    with (httpx.Client(timeout=timeout, headers=headers, follow_redirects=True)
+          if engines else contextlib.nullcontext()) as client:
         for engine in engines:
             name = getattr(engine, "__name__", "?")
             try:
@@ -356,7 +383,10 @@ def search(query: str, site: str | None = None, max_results: int = 10, log=print
                 results = []
             except Exception as e:  # noqa: BLE001
                 log(f"[websearch] {name} error ({type(e).__name__})")
-                _retire(name, log)
+                # An engine we cannot even CONNECT to is not a blip -- it is the host refusing
+                # this network -- and each further try costs a whole connect timeout. Retire it
+                # on the spot; a slow or malformed ANSWER still gets its second chance.
+                _retire(name, log, now=isinstance(e, (httpx.ConnectTimeout, httpx.ConnectError)))
                 results = []
             if results:
                 break

@@ -71,6 +71,11 @@ from frontend import auth_ui, enginebench, geo, home, livetest, matrix, runview,
 from frontend.theme import site_footer  # noqa: E402
 from backend.rdtii.indicators import get_indicator  # noqa: E402
 
+# Load the retrieval models on a background thread as soon as the server process starts, so
+# the first run after a restart or deploy does not spend ~34 s importing and loading them.
+from backend.pipeline import retrieval as _retrieval  # noqa: E402
+_retrieval.start_preload()
+
 db.init_db()  # ensure schema exists on fresh mounts (no-op if tables already present)
 
 # ── brand assets (drop files in frontend/assets/ — see ASSETS.md) ──────────

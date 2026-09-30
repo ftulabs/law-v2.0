@@ -134,6 +134,11 @@ def _clean_title(title: str) -> str:
     return re.sub(r"\s+", " ", _html.unescape(title)).strip()
 
 
+def _sso_gap() -> float:
+    from .fetch import host_delay
+    return host_delay("sso.agc.gov.sg")
+
+
 def _browse_rows(html: str) -> list[tuple[str, str]]:
     """Every (path, title) pair one SSO `/Browse` listing page lists, deduplicated by path.
 
@@ -213,15 +218,20 @@ def enumerate_sso(client, log: Log = safe_log, kinds=("Act",), page_size: int = 
             # the only trace was "0 enumerated". The same URL answered 1.8 MB minutes later —
             # so wait and ask again before believing an empty index.
             resp, text = None, ""
+            # The browse windows are the same for every pillar: memoised, so the second pillar
+            # of a two-pillar run neither re-downloads ~2 MB per window nor pauses between them.
+            from_memo = portal.memoized(url)
             for attempt in range(3):
-                resp = portal.portal_get(client, url, log)
+                resp = portal.portal_get(client, url, log, memo=True)
                 text = resp.text if resp is not None else ""
                 if _browse_rows(text) or client is None:
                     break
+                portal.forget(url)                    # an empty window is a refusal, not a page
+                from_memo = False
                 if attempt < 2:
                     log(f"[sg_sso] {kind}: window {sort_by}/{order} returned no rows — "
                         f"retrying (attempt {attempt + 2}/3)")
-                    time.sleep(settings.crawl_delay_seconds * (5 if attempt == 0 else 15))
+                    time.sleep(_sso_gap() * (5 if attempt == 0 else 15))
             if resp is None:
                 log(f"[sg_sso] {kind}: window {sort_by}/{order} unavailable")
                 continue
@@ -242,8 +252,8 @@ def enumerate_sso(client, log: Log = safe_log, kinds=("Act",), page_size: int = 
                     "catalogue_json": _json({"browse_kind": kind, "window": f"{sort_by}/{order}"}),
                 })
             log(f"[sg_sso] {kind}: {sort_by}/{order} -> {len(seen)} unique so far")
-            if client is not None:
-                time.sleep(settings.crawl_delay_seconds)
+            if client is not None and not from_memo:
+                time.sleep(_sso_gap())
         if total and len(seen) < total:
             log(f"[sg_sso] {kind}: INCOMPLETE — {len(seen)}/{total} enumerated "
                 f"(SSO ignores CurrentPage; raise PageSize or add sort windows)")

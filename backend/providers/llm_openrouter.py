@@ -92,6 +92,10 @@ class OpenRouterLLM(LLMProvider):
         #: that lost reproducibility says so in its own log rather than looking like any other.
         self._pin_lost = False
 
+    def suggested_concurrency(self) -> int:
+        """Measured for this endpoint — see settings.openrouter_concurrency."""
+        return max(1, int(settings.openrouter_concurrency))
+
     def _provider_pin(self) -> dict[str, Any] | None:
         """OpenRouter's `provider` routing block, or None when the pin is switched off."""
         order = [p.strip() for p in settings.openrouter_provider_order.split(",") if p.strip()]

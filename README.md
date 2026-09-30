@@ -2,11 +2,11 @@
 
 UN Global Hackathon on AI for Digital Trade Regulatory Analysis — final round submission
 Team: **FTU** (Foreign Trade University, Viet Nam) | Round: **Final**
-Last updated: 2026-09-29
+Last updated: 2026-09-30
 
 [![Licence: Apache 2.0](https://img.shields.io/badge/licence-Apache%202.0-blue.svg)](LICENSE)
 ![Python 3.11 | 3.12](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)
-![Tests: 1,400+](https://img.shields.io/badge/tests-1%2C400%2B-informational.svg)
+![Tests: 1,500+](https://img.shields.io/badge/tests-1%2C500%2B-informational.svg)
 
 | | |
 | :--- | :--- |
@@ -136,7 +136,7 @@ Then switch to **Live portals** and run again with a key set: 3–7 minutes per 
 | :--- | :--- |
 | `Cannot connect to the Docker daemon` | Docker Desktop is not running — start it and wait for *Engine running* |
 | Port 8501 is already in use | Stop the other app, or change `"8501:8501"` to `"8502:8501"` in `docker-compose.yml` and open port 8502 |
-| The first Chinese, Thai or Russian run pauses for minutes | It is fetching the 2 GB multilingual reranker once; it is kept afterwards |
+| The first run after a start pauses about 30 s before grading | The embedding and reranking models are loading; the interface starts loading them in the background at launch |
 | An `[error]` line says the run "fell back to the OFFLINE STAND-IN grader" | No usable API key. Set `OPENROUTER_API_KEY` in `.env`, or paste one on the **Engines** screen |
 | OpenRouter answers `402` or `403 Key limit exceeded` | The key has no credit, or has hit its daily cap. It is not a dead key |
 | Code changes do not appear after a `git pull` | Rebuild: `docker compose up -d --build` |
@@ -237,7 +237,7 @@ In the interface: **Live test** screen → after **Run engine A** has finished, 
 B**. Engine B re-reads exactly the documents engine A downloaded — discovery and fetching are
 skipped, no portal is contacted, and the run log says *"second pass — reusing N documents from
 the first, no portal was contacted"*. Code path: `run_pipeline(reuse_documents=...)` in
-[`backend/pipeline/orchestrator.py`](backend/pipeline/orchestrator.py#L396).
+[`backend/pipeline/orchestrator.py`](backend/pipeline/orchestrator.py#L422).
 
 Where downloaded documents are cached: **`data/cache/`** — one file per document named by the
 SHA-256 of its content, indexed by URL in `data/cache/_index.json` (`CACHE_DIR` in `.env`).
@@ -270,9 +270,9 @@ Built in and on by default — nothing to configure.
 
 | Setting | Value | Where it is set |
 | :--- | :--- | :--- |
-| Max requests per second per host | 0.5 (a 2-second gap per host; a larger `Crawl-delay` from the host wins) | [`backend/config.py:279`](backend/config.py#L279) `crawl_delay_seconds`, applied in [`backend/pipeline/fetch.py:100`](backend/pipeline/fetch.py#L100) `_polite_wait` |
-| Parallel requests per host | 1 (documents are fetched one after another) | [`backend/pipeline/orchestrator.py:512`](backend/pipeline/orchestrator.py#L512) — sequential fetch loop |
-| robots.txt respected | yes | [`backend/config.py:284`](backend/config.py#L284) `crawl_respect_robots`; enforced at [`backend/pipeline/fetch.py:178`](backend/pipeline/fetch.py#L178) (downloads) and [`backend/pipeline/portal.py:93`](backend/pipeline/portal.py#L93) (portal listing pages) |
+| Max requests per second per host | 1 (a 1-second gap per host; 2 s for `sso.agc.gov.sg`, which answers pressure with empty pages; a larger `Crawl-delay` from the host wins) | [`backend/config.py:284`](backend/config.py#L284) `crawl_delay_seconds`, applied in [`backend/pipeline/fetch.py:106`](backend/pipeline/fetch.py#L106) `_polite_wait` |
+| Parallel requests per host | 1 (documents are fetched one after another) | [`backend/pipeline/orchestrator.py:640`](backend/pipeline/orchestrator.py#L640) — sequential fetch loop |
+| robots.txt respected | yes | [`backend/config.py:292`](backend/config.py#L292) `crawl_respect_robots`; enforced at [`backend/pipeline/fetch.py:184`](backend/pipeline/fetch.py#L184) (downloads) and [`backend/pipeline/portal.py:93`](backend/pipeline/portal.py#L93) (portal listing pages) |
 
 - A skipped URL is logged with its reason, never dropped silently.
 - A robots.txt that answers with a server error is treated as *disallowed*, except for hosts
@@ -282,7 +282,7 @@ Built in and on by default — nothing to configure.
   challenge as a visitor's browser would; robots.txt still decides which paths are fetched.
 
 **Discovery adapters too.** Adapters that page through a portal's own index (SG, TH, LA, TL)
-sleep `crawl_delay_seconds` between index pages. China's gazette lane (`cn_gazette`) reads
+sleep `crawl_delay_seconds` between index pages (Singapore: its 2 s per-host floor). China's gazette lane (`cn_gazette`) reads
 `www.gov.cn` one request at a time, each starting at least 1 s after the previous one ended;
 on a new machine its cache takes about two hours to warm, spread across runs or done ahead with
 `python -m backend.pipeline.adapter_cn_gazette --warm`, after which a run needs about four
@@ -376,22 +376,25 @@ Every economy is discovered through its own portal adapter. No web-search engine
 
 | Economy | Official portal | Language | Run end to end? | Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| Singapore | sso.agc.gov.sg | English | **Yes** | Scored 7/7 answer-key indicators (2026-08-30). Current Acts only, not subsidiary instruments |
-| Australia | www.legislation.gov.au (official API) | English | **Yes** | Scored 8/8. Multi-volume compilations handled |
-| Malaysia | lom.agc.gov.my + www.pdp.gov.my | English (bilingual portal) | **Yes** | Scored 8/8. Portal catalogue is AES-GCM encrypted; key read from the portal's own page |
-| China | www.cac.gov.cn (+ search.cac.gov.cn) and the State Council Gazette, www.gov.cn/gongbao | Chinese (Simplified) | **Yes** | Scored 8/9 (2026-08-30). Gazette lane added 2026-09-29: pillar-6 answer-key rows 2/15 → 8/15. The gazette cache takes ~2 h to warm on a new machine (`adapter_cn_gazette --warm`); warm runs need ~4 requests |
-| India | www.indiacode.nic.in / indiacode.gov.in (+ sector regulators) | English | **Yes** | Scored 7/8. Several regulator hosts refuse via robots.txt or do not answer |
-| Mongolia | legalinfo.mn | Mongolian (Cyrillic) | **Yes** | Scored 6/8. Full text exported as HTML — no OCR needed |
-| Thailand | www.law.go.th (its law API) | Thai | **Yes** (2026-09-26) | Not yet scored against the panel's database |
-| Russian Federation | pravo.gov.ru (official legal information system) | Russian | **Yes** (2026-09-26) | Not yet scored. Federal Laws at their current redaction; Government resolutions extract as one block |
-| Indonesia | peraturan.bpk.go.id | Indonesian | **Yes** (2026-09-27) | Not yet scored. Cloudflare challenge cleared in a browser (`scrapling install`); page 1 of each search term only |
-| Lao PDR | laoofficialgazette.gov.la | Lao | No — extraction only | Crawl walks ~20 of ~89 index pages |
+| Singapore | sso.agc.gov.sg | English | **Yes** | Scored 7/7 (6: 2/2 · 7: 5/5). Current Acts only, not subsidiary instruments |
+| Australia | www.legislation.gov.au (official API) | English | **Yes** | Scored 7/7 (6: 3/3 · 7: 4/4). Multi-volume compilations handled |
+| Malaysia | lom.agc.gov.my + www.pdp.gov.my | English (bilingual portal) | **Yes** | Scored 7/7 (6: 2/2 · 7: 5/5). Portal catalogue is AES-GCM encrypted; key read from the portal's own page |
+| China | www.cac.gov.cn (+ search.cac.gov.cn) and the State Council Gazette, www.gov.cn/gongbao | Chinese (Simplified) | **Yes** | Scored 7/9 (6: 3/4 · 7: 4/5; missing 6.3, 7.5). Gazette lane added 2026-09-29: pillar-6 answer-key rows 2/15 → 8/15. The gazette cache takes ~2 h to warm on a new machine (`adapter_cn_gazette --warm`); warm runs need ~4 requests |
+| India | www.indiacode.nic.in / indiacode.gov.in (+ sector regulators) | English | **Yes** | Scored 5/8 (6: 0/3 · 7: 5/5). Pillar 6 is weak: the panel's 6.x citations are sector regulators' rules. Several regulator hosts refuse via robots.txt or do not answer |
+| Mongolia | legalinfo.mn | Mongolian (Cyrillic) | **Yes** | Scored 3/5 (6: 2/2 · 7: 1/3). The pillar-7 figure is partly a name-matching limit: the panel names laws in English, the portal in Mongolian. Full text exported as HTML — no OCR needed |
+| Thailand | www.law.go.th (its law API) | Thai | **Yes** (2026-09-26) | Scored 6/7 (6: 2/2 · 7: 4/5; missing 7.5) |
+| Russian Federation | pravo.gov.ru (official legal information system) | Russian | **Yes** (2026-09-26) | Scored 7/9 (6: 2/4 · 7: 5/5). Federal Laws at their current redaction; Government resolutions extract as one block |
+| Indonesia | peraturan.bpk.go.id | Indonesian | **Yes** (2026-09-27) | Scored 5/9 (6: 1/4 · 7: 4/5). Cloudflare challenge cleared in a browser (`scrapling install`); page 1 of each search term only |
+| Lao PDR | laoofficialgazette.gov.la | Lao | No — extraction only | Scored 0/5. Crawl walks ~20 of ~89 index pages |
 | Timor-Leste | mj.gov.tl/jornal | Portuguese | No — extraction only | Gazette index stops at 2012. The panel holds no answer-key sheet, so it cannot be scored |
 
-"Scored n/m" = answer-key indicators reached in the live run of 2026-08-30, diffed against the
-panel's 2025 database with `tools/compare_to_key.py` (44 of 48 across the six committed
-economies; `PROJECT_STATE.md` §3). Run `python tools/readiness.py` for the current per-economy
-status; portal details and probe dates are in [`data/sources.yaml`](data/sources.yaml).
+"Scored n/m" = of the indicators the panel's Round 2 database cites a law for (score-0 "no such
+measure" rows left out; 7.1 and 7.2 always kept), how many our export reaches with a row citing
+that same law. Live run of 2026-09-29/30 on the released code, both pillars, engine A; outputs
+in `outputs/rt_0930/`, counted with `python tools/scorecard_round2.py outputs/rt_0930/*.csv`.
+It measures recall of the panel's laws, not the precision of every extra row. Run
+`python tools/readiness.py` for the current per-economy status; portal details and probe dates
+are in [`data/sources.yaml`](data/sources.yaml).
 
 ---
 
@@ -500,8 +503,9 @@ the gap is the per-token price, not the token count. Refresh prices with
 
 - **Two economies do not run end to end.** Lao PDR and Timor-Leste reach extracted provisions
   only. Timor-Leste's gazette index stops at 2012 and it has no answer-key sheet.
-- **Thailand, Russia and Indonesia are not scored** against the panel's database yet; their
-  runs complete, but their quality is unmeasured.
+- **Pillar 6 is weak for India (0/3) and Indonesia (1/4)** against the panel's Round 2
+  database: the rules the panel cites there are sector regulators' circulars and government
+  regulations that our portal lanes mostly do not reach.
 - **Pillars other than 6 and 7 are declared, not measured.** The 52 indicators of pillars 1–5
   and 8–12 have legal tests and query terms but no answer-key validation.
 - **Discovery coverage gaps.** Singapore covers current Acts, not its 5,843 subsidiary
@@ -540,7 +544,7 @@ the gap is the per-token price, not the token count. Refresh prices with
 pytest tests/
 ```
 
-1,380 tests are collected (2026-09-29); CI runs them on Python 3.11 and 3.12
+1,517 tests are collected (2026-09-30); CI runs them on Python 3.11 and 3.12
 (`.github/workflows/ci.yml`). They need no API key; portal behaviour is pinned with pages saved
 under `tests/fixtures/`.
 
@@ -569,7 +573,7 @@ under `tests/fixtures/`.
 ## Reproducing Your Submitted Evidence
 
 ```bash
-python batch_run.py --economies Singapore Australia Malaysia China India Mongolia Thailand "Russian Federation" Indonesia --pillar 6 7 --live --fresh
+python batch_run.py --economies Singapore Australia Malaysia China India Mongolia Thailand "Russian Federation" --pillar 6 7 --live --fresh
 ```
 
 Writes one CSV + JSON per economy and a combined `VeriTrade_MASTER_<timestamp>.csv` to
@@ -577,8 +581,11 @@ Writes one CSV + JSON per economy and a combined `VeriTrade_MASTER_<timestamp>.c
 Needs `OPENROUTER_API_KEY` set. Then, to compare against the panel's answer key:
 
 ```bash
-python tools/compare_to_key.py SG AU MY CN IN MN
+python tools/scorecard_round2.py outputs/*_P67_*.csv     # the "Scored n/m" figures above
 ```
+
+The submitted evidence (`FTU-VeriTrade_Final_Evidence.csv` / `.json`) is these eight
+economies' files from the run of 2026-09-29/30, concatenated unchanged.
 
 A live crawl reflects the portals on the day it runs, and the grader is not fully
 deterministic, so expect the same laws and articles with small differences in row counts.
@@ -604,7 +611,7 @@ text. Third-party components and their licences:
 
 ---
 
-**Release tag:** *[tag recorded at submission on 30 September 2026]*. The release tag we record
+**Release tag:** [`final-submission`](https://github.com/ftulabs/law-v2.0/releases/tag/final-submission) (30 September 2026). The release tag we record
 is the version that runs on 15 October. Settings may change on the day; code may not.
 
 ---

@@ -97,10 +97,16 @@ def _index_put(url: str, entry: dict, idx: dict) -> None:
     idx[url] = entry                        # keep the caller's copy consistent too
 
 
+def host_delay(host: str | None) -> float:
+    """The gap for one host: the global setting, raised by a per-host floor where one is set."""
+    floor = (settings.crawl_delay_floor_by_host or {}).get((host or "").lower(), 0.0)
+    return max(settings.crawl_delay_seconds, float(floor))
+
+
 def _polite_wait(host: str, url: str | None = None) -> None:
     """Space requests to one host. A `Crawl-delay` the host itself asks for WINS over our
     default whenever it is larger — our setting is a floor on politeness, not a ceiling."""
-    delay = settings.crawl_delay_seconds
+    delay = host_delay(host)
     if url and settings.crawl_respect_robots:
         asked = robots.for_url(url).delay_for()
         if asked and asked > delay:
