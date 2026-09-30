@@ -177,8 +177,8 @@ Details · Download · Engines**.
 The **Coverage** screen shows, for every economy, how far the tool has been taken
 (declared → reachable → extracted → measured) and the next blocker.
 
-**Walkthrough recording:** *to be added — recorded before 30 September and submitted with the
-Word document.*
+**Walkthrough recording:** `VeriTrade_Walkthrough`, submitted with the Word document on
+30 September 2026.
 
 ---
 
@@ -596,8 +596,8 @@ deterministic, so expect the same laws and articles with small differences in ro
 
 | Role | Name | Responsibility |
 | :--- | :--- | :--- |
-| Technical Lead | *[name]* | AI architecture, OCR, discovery and retrieval pipeline |
-| Substantive Lead | *[name]* | Legal and policy analysis, RDTII mapping, output QA |
+| Technical Lead | Trần Công Minh | AI architecture, OCR, discovery and retrieval pipeline |
+| Substantive Lead | Võ Minh Ngọc | Legal and policy analysis, RDTII mapping, output QA |
 
 Contact: minhtc@ftu.edu.vn
 
