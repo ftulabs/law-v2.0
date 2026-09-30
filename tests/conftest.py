@@ -18,8 +18,6 @@ from pathlib import Path
 
 import pytest
 
-from backend import config as settings_module
-
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -62,5 +60,11 @@ def _isolate_grading_cache(monkeypatch):
     Production keeps it ON (`settings.grading_cache_enabled`). `tests/test_grade_cache.py`
     turns it back on against a `tmp_path` of its own, which is the only safe way to exercise it.
     """
-    monkeypatch.setattr(settings_module.settings, "grading_cache_enabled", False,
-                        raising=False)
+    # Imported INSIDE the fixture, not at module scope. `backend` only becomes importable
+    # after the `sys.path.insert` above runs, and a module-level import here executes before
+    # it — which is the very failure this file's docstring was written about: it passes under
+    # `python -m pytest` (the `-m` form puts cwd on sys.path) and fails under the bare `pytest`
+    # entry point that CI uses. Reintroduced on 2026-09-30 and caught by CI, not locally.
+    from backend.config import settings
+
+    monkeypatch.setattr(settings, "grading_cache_enabled", False, raising=False)
