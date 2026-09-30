@@ -79,16 +79,26 @@ def available() -> bool:
 
 
 def profile_pdf(path: str, page_texts: dict[int, str] | None = None,
-                page_count: int | None = None) -> PdfProfile:
+                page_count: int | None = None,
+                page_texts_fn=None) -> PdfProfile:
     """Classify `path` page by page.
 
     `page_texts` / `page_count` are only consulted by the density fallback, so a caller that
     has already extracted the text layer can avoid a second parse.
+
+    `page_texts_fn` is that advice made usable: a zero-argument callable returning the same
+    dict, invoked ONLY if the density fallback actually needs it. Passing the dict eagerly
+    would force a parse even when `pdf_inspector` is installed and never looks at it — and
+    would waste it entirely on a fully scanned document, whose text layer is worthless. The
+    callable lets the caller memoise one parse and share it with whoever ends up wanting it.
+    Measured 2026-09-15 (`tools/profile_extraction.py`): without this, triage and extraction
+    each parsed the whole file and cost the SAME — 7.17s vs 7.25s on a 121-page Act, 28.5s vs
+    29.7s on a 599-page one — so the fallback path paid for the document twice.
     """
     prof = _profile_with_inspector(path)
     if prof is not None:
         return prof
-    return _profile_by_density(path, page_texts, page_count)
+    return _profile_by_density(path, page_texts, page_count, page_texts_fn)
 
 
 def _profile_with_inspector(path: str) -> PdfProfile | None:
@@ -130,7 +140,7 @@ def _profile_with_inspector(path: str) -> PdfProfile | None:
 
 
 def _profile_by_density(path: str, page_texts: dict[int, str] | None,
-                        page_count: int | None) -> PdfProfile:
+                        page_count: int | None, page_texts_fn=None) -> PdfProfile:
     """Original heuristic, kept as the no-dependency fallback.
 
     Applied per page when the caller supplies per-page text; otherwise it degrades to the
@@ -139,6 +149,35 @@ def _profile_by_density(path: str, page_texts: dict[int, str] | None,
     from .ocr import _page_count, _pdf_text_layer
 
     count = page_count if page_count is not None else (_page_count(path) or 0)
+
+    # A SHARED PARSE MUST NOT CHANGE THE VERDICT. `page_texts_fn` exists to remove a second
+    # read of the same file, nothing else — so it feeds the WHOLE-FILE average rule below,
+    # byte for byte the rule that runs when no page texts are available at all.
+    #
+    # Feeding it into the per-page branch instead was tried on 2026-09-15 and reverted the
+    # same hour. It is not a speed change: per-page triage flags every page under 40 stripped
+    # characters, so a typeset Act with a blank verso or a sparse title page acquires
+    # `pages_needing_ocr` it never had, and the hybrid router then invokes the OCR ENGINE on
+    # a document that has a perfect text layer. Caught only because this machine's configured
+    # engine answered 401; with a working engine it would have silently added cost, latency
+    # and OCR noise to documents that never needed it.
+    #
+    # Per-page triage is probably the better rule — mixed gazettes are the expected shape for
+    # the Finals economies, which is why this module exists — but switching to it is a
+    # ROUTING decision that needs its own measurement, not a side effect of removing a parse.
+    # A caller that wants it still passes `page_texts` explicitly, exactly as before.
+    if page_texts is None and page_texts_fn is not None:
+        from .ocr import _pdf_text_layer_from
+        joined = _pdf_text_layer_from(page_texts_fn())
+        dense = len(joined.strip()) / max(count, 1) >= MIN_CHARS_PER_PAGE
+        return PdfProfile(
+            page_count=count,
+            pages_needing_ocr=set() if dense else set(range(1, count + 1)),
+            doc_type="text_based" if dense else "scanned",
+            confidence=0.5,
+            engine="density-fallback",
+        )
+
     if page_texts:
         thin = {p for p, t in page_texts.items() if len((t or "").strip()) < MIN_CHARS_PER_PAGE}
         doc_type = ("text_based" if not thin

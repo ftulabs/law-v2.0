@@ -118,6 +118,35 @@ def forget(url: str) -> None:
     _MEMO.pop(url, None)
 
 
+# A JS interstitial served INSTEAD of the page — the body is present and well-formed, so
+# every "did I get content?" check passes, and the parser then finds no laws in it.
+#
+# Found 2026-09-14: `sso.agc.gov.sg` answers a burst with HTTP 202 and 2,432 bytes of AWS WAF
+# challenge. The rule here used to read "202 with an EMPTY body is a throttle, 202 WITH content
+# is a real response", which was true when it was written (2026-08-01) and is not true now: the
+# throttle grew a body. A Singapore pillar-7 run then discovered SEVEN documents instead of
+# twenty-two, extracted 434 provisions instead of 5,276, exported a clean CSV and logged nothing
+# at all — while the web-search lane in the same run reported its own 202s loudly. Discovery is
+# the primary lane for ten of eleven economies, so a silent short read here is the most
+# expensive silence in the pipeline.
+_CHALLENGE_MARKS = (
+    "awswafcookiedomainlist", "gokuprops", ".awswaf.com",      # AWS WAF (SSO)
+    "cf-browser-verification", "cdn-cgi/challenge-platform",    # Cloudflare
+    "_incapsula_resource", "distil_r_captcha",                  # Imperva / Distil
+)
+
+
+def looks_like_a_challenge(body: str) -> bool:
+    """True when a body is a bot-check interstitial rather than the page that was asked for.
+
+    Deliberately NOT a size heuristic: a short page can be a real short page, and a challenge
+    can be padded. It matches the vendor's own client-side marker, which is what actually
+    distinguishes the two.
+    """
+    low = (body or "")[:8000].lower()
+    return any(m in low for m in _CHALLENGE_MARKS)
+
+
 def portal_get(client, url: str, log: Log, tries: int = 4, memo: bool = False, **kw):
     """Portal-friendly GET. Returns the response, or None when the portal never answered.
 
@@ -144,19 +173,31 @@ def portal_get(client, url: str, log: Log, tries: int = 4, memo: bool = False, *
     for attempt in range(tries):
         try:
             r = client.get(url, **kw)
-            if r.status_code == 200 and r.content:
-                if use_memo:
-                    _MEMO[url] = (time.monotonic(), r)
-                return r
-            if r.status_code == 202 and r.content:
-                return r
-            log(f"[portal] {r.status_code} len={len(r.content)} "
-                f"(attempt {attempt + 1}/{tries}) {url[:90]}")
+            if r.status_code in (200, 202) and r.content:
+                # A challenge body is not an answer, whatever the status code says. Checked
+                # BEFORE the memo on purpose: SSO's challenge arrives as 202 and would escape
+                # it, but Cloudflare's arrives as 200, and memoising one would replay a
+                # throttled read for the whole memo window instead of retrying it.
+                if looks_like_a_challenge(r.text):
+                    log(f"[portal] BOT CHALLENGE ({r.status_code}, {len(r.content)} bytes) "
+                        f"— the portal is throttling, not answering "
+                        f"(attempt {attempt + 1}/{tries}) {url[:80]}")
+                else:
+                    if use_memo and r.status_code == 200:
+                        _MEMO[url] = (time.monotonic(), r)
+                    return r
+            else:
+                log(f"[portal] {r.status_code} len={len(r.content)} "
+                    f"(attempt {attempt + 1}/{tries}) {url[:90]}")
         except Exception as e:  # noqa: BLE001 — network flake; retry, then give up
             log(f"[portal] {type(e).__name__} (attempt {attempt + 1}/{tries}) {url[:90]}")
         if attempt + 1 < tries:
             time.sleep(delay)
             delay *= 2.5
+    # Say it once, in the words the run's own error surface uses. A portal that refused us is
+    # not an economy without law, and the difference has to survive into the log.
+    log(f"[error] portal did not answer after {tries} attempts: {url[:90]} — this lane's "
+        f"coverage is INCOMPLETE, and that is not evidence the economy has no such law")
     return None
 
 

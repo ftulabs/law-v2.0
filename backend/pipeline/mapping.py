@@ -20,7 +20,7 @@ from ..providers.llm_base import LLMProvider, LLMTerminalError
 from ..rdtii import get_indicator, siblings
 from ..rdtii.place_words import names_place
 from ..schemas import DiscoveryTag, EvidenceMapping, Provision
-from . import confidence, retrieval_budget
+from . import confidence, grade_cache, retrieval_budget
 from .retrieval import Retrieved, retrieve
 
 
@@ -114,6 +114,18 @@ SYSTEM = (
     # prompt accepted 9 — and 7.1 has no second-pass check to fall back on. Copied example
     # rationales (28 of 51 kept 6.2 rows on 2026-09-26, none in 7.1) are replaced by the
     # checker's own rationale in `_grade` instead.
+    # `operative_rule` IS A SPEED LEVER, AND MUST NOT BE CUT WITHOUT MEASURING FIRST.
+    # Measured 2026-09-15 on the V100 host: decode costs 10 ms per output token and a typical
+    # answer is 152 tokens, so generation is 1.45 s of a 2.22 s call — output length, not the
+    # 3,900-token prompt, is what a call actually costs. Nothing downstream reads
+    # `operative_rule`: it appears in this contract and nowhere else in the codebase, so
+    # dropping it would cut roughly 12% off every first-time grading call for free.
+    #
+    # "For free" is the part that needs proving. It is STEP 1 of a nine-step chain that ends in
+    # the verdict, so it is plausibly a reasoning scaffold rather than documentation, and
+    # removing it could move `satisfies_target` on the borderline rows this prompt exists to
+    # get right. `tools/replay_grade.py` answers that without a crawl. The repo has been here
+    # before: three of the four P7-I3 rules that READING the refusals suggested were wrong.
     "Return ONLY this JSON: {operative_rule:str, satisfies_target:bool, better_sibling:str|null, "
     "relevant:bool, legal_match:0..1, scope_alignment:0..1, scope_flag:str|null, "
     "subsection:str|null, rationale:str}\n\n"
@@ -842,24 +854,34 @@ def map_provisions(
             with breaker["lock"]:
                 breaker["skipped"] += 1
             return ("SKIP", ind.indicator_id)
-        try:
-            graded = llm.complete_json(SYSTEM, _user_prompt(ind, prov))
-        except LLMTerminalError as e:
-            # The provider has told us the NEXT call fails the same way. Stop the run's
-            # grading here rather than proving it 900 more times.
-            _trip(str(e)[:200], e.kind, e.hint)
-            return ("FAIL", f"{e.kind}: {e}"[:160], ind.indicator_id, prov.provision_id)
-        except Exception as e:  # noqa: BLE001 — one rate-limited call must not crash the run
-            reason = f"{type(e).__name__}: {e}"[:160]
-            with breaker["lock"]:
-                breaker["bad"] += 1
-                # Nothing has EVER worked and we are this far in: the fault is systemic, not
-                # per-provision. Trip on the count rather than on any one error's wording, so
-                # a provider that reports its outage in prose we have never seen still stops.
-                if breaker["ok"] == 0 and breaker["bad"] >= settings.mapping_failure_breaker:
-                    _trip(reason, "systemic",
-                          "no grading call has succeeded — check the LLM provider, key and network")
-            return ("FAIL", reason, ind.indicator_id, prov.provision_id)
+        user = _user_prompt(ind, prov)
+        # A verdict already given by THIS model for THIS exact prompt. Checked before the call
+        # and before the breaker's accounting, because a cache hit is neither a success nor a
+        # failure of the provider — counting it as `ok` would let a fully-cached run hold the
+        # breaker open on a dead endpoint.
+        cached = grade_cache.get(llm.model_version, SYSTEM, user, llm.name)
+        if cached is not None:
+            graded = cached
+        else:
+            try:
+                graded = llm.complete_json(SYSTEM, user)
+            except LLMTerminalError as e:
+                # The provider has told us the NEXT call fails the same way. Stop the run's
+                # grading here rather than proving it 900 more times.
+                _trip(str(e)[:200], e.kind, e.hint)
+                return ("FAIL", f"{e.kind}: {e}"[:160], ind.indicator_id, prov.provision_id)
+            except Exception as e:  # noqa: BLE001 — one rate-limited call must not crash a run
+                reason = f"{type(e).__name__}: {e}"[:160]
+                with breaker["lock"]:
+                    breaker["bad"] += 1
+                    # Nothing has EVER worked and we are this far in: the fault is systemic,
+                    # not per-provision. Trip on the count rather than on any one error's
+                    # wording, so a provider reporting its outage in prose we have never seen
+                    # still stops.
+                    if breaker["ok"] == 0 and breaker["bad"] >= settings.mapping_failure_breaker:
+                        _trip(reason, "systemic",
+                              "no grading call has succeeded — check the LLM provider, key and network")
+                return ("FAIL", reason, ind.indicator_id, prov.provision_id)
 
         # An empty or unparseable response is a FAILED call, not a considered rejection.
         # Treating it as "not relevant" silently deleted known-good mappings: a reasoning
@@ -877,8 +899,12 @@ def map_provisions(
                           "no grading call has returned parseable JSON — raise "
                           "OPENROUTER_MAX_TOKENS or pick a non-reasoning model")
             return ("FAIL", reason, ind.indicator_id, prov.provision_id)
-        with breaker["lock"]:
-            breaker["ok"] += 1
+        if cached is None:
+            # Only a REAL call counts toward the breaker, and only a real call is worth
+            # storing. Re-writing a hit would rewrite an identical file on every run.
+            with breaker["lock"]:
+                breaker["ok"] += 1
+            grade_cache.put(llm.model_version, SYSTEM, user, graded, llm.name)
 
         # relevant = satisfies the target AND not a mislabel for a better sibling. Prefer the
         # model's explicit `relevant`; else derive it (real LLMs return satisfies_target/

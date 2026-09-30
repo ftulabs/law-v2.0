@@ -295,6 +295,15 @@ Everything else is retrieval or grading, which is where the budget below bites.
 
 ## §4 Decisions and traps a future session must not re-litigate
 
+- **A concurrency number measured with IDENTICAL prompts is fiction.** `tools/sweep_local_
+  concurrency.py` first sent one repeated request per level and reported 429 calls/min at 64
+  threads on the V100 host; acting on it made a real run SLOWER (191.6s against 151.4s, mean
+  latency 30.6s against 6.0s). vLLM's prefix cache — **77.7% hit rate, read off `/metrics`** —
+  had been serving the whole repeated prompt, so the sweep timed a cache. Re-measured with 144
+  DISTINCT prompts the knee is 32. It is not `max_num_seqs` (64) either: the binding limit is
+  `max_num_batched_tokens` (8192) against a ~3,900-token grading prompt, so about two prompts
+  prefill per scheduler step. The shared SYSTEM prefix is 64% of the prompt BY DESIGN, which is
+  exactly why the error was so large. (`backend/providers/llm_local.py` carries both tables.)
 - **Retrieval parameters are measured, not tuned.** `hybrid_alpha=0.65`, `retrieve_max_top_k`,
   `retrieve_fraction`, `retrieve_per_law_k=0` come from sweeps against the panel's Database.
   Two counter-intuitive results are settled: a law-level prefilter makes recall WORSE, and
@@ -405,6 +414,63 @@ Everything else is retrieval or grading, which is where the budget below bites.
       iOS/Android removed (mobile is out of scope).
       Open: the flash grader drops a borderline panel answer in some runs (SG CPC s40 for 7.5 on
       2026-09-27, accepted 10/10 when graded alone); 7.1 row counts vary between runs.
+- [x] **Grading verdicts are cached, and grading was the only stage that wasn't** (2026-09-15).
+      Keyed on `(model_version, SYSTEM, user prompt)`; two consecutive live SG pillar-6 runs:
+      **289.0s → 30.6s (9.4x), grading 113.7s → 0.1s, 320 calls → 0**, CSVs byte-for-byte
+      identical. An ENGINE SWAP misses by construction, so the 15 Oct two-engine comparison
+      re-grades everything and stays honest. The mock grader is never cached (it is free, and
+      the offline demo's determinism must come from its code). A failed call is never stored.
+      The hit count is logged every run — §4's result-cache lesson applied.
+      `backend/pipeline/grade_cache.py`, `tests/test_grade_cache.py`.
+      Found wiring it: **the test suite was contaminating itself through the filesystem** —
+      `test_crosscheck.py` pins three different answers to one model id for one prompt, so the
+      first test's verdict was served to the rest. Off by default under test now
+      (`tests/conftest.py`); it would have persisted between suite runs, which is worse.
+- [x] **Three economies re-measured on pillar 6 through three different portal adapters**
+      (2026-09-15, 28 min total, $0). SG **reproduces the panel's own citations exactly** —
+      PDPA §26 → 6.4 and Companies Act §199(4) → 6.2. AU finds My Health Records Act s.77 under
+      **both** P6-I1 and P6-I2, which is what `indicators.py` says the methodology requires.
+      MY files PDPA 2010 §129 under 6.4 where the panel scores 6.1 — the documented deliberate
+      disagreement, reproducing unchanged.
+
+      | | docs | prov | calls | rows | disc | fetch | extract | retr | grade | total |
+      |---|---|---|---|---|---|---|---|---|---|---|
+      | AU P6 | 8 | 1,883 | 380 | 7 | 34.6 | 72.5 | 239.6 | 81.0 | 148.6 | 578s |
+      | MY P6 | 9 | 2,670 | 536 | 12 | 10.3 | 20.3 | 307.5 | 111.4 | 198.0 | 650s |
+      | SG P6 | 18 | 3,807 | 320 | 5 | 14.9 | 228.6 | 34.7 | 47.3 | 123.4 | 450s |
+
+      **Four constants reproduce across all three and predict a run to within 4%:** cold
+      extraction ~8.4 prov/s · cold retrieval ~0.21s per candidate per indicator (so it tracks
+      **k**, not corpus size) · grading ~2.6 calls/s at 32-way · warm extraction 110-543 prov/s.
+      `T ≈ discovery + docs×fetch + prov/8.4 + 0.21×k×indicators + calls/2.6` predicted AU at
+      557s against 578 actual and MY at 668s against 650.
+
+- [x] **The live query, profiled stage by stage** (2026-09-14, branch `perf/live-query-speedups`).
+      Live SG pillar-7 against the 4x V100 host (`leader`, vLLM 1.2.2 TP4, Qwen3.6-35B-A3B).
+      Where a warm run's time goes: **grading 151.4s (76%)**, retrieval 12.6s, extraction 9.1s,
+      discovery 24.9s, fetch 0.0s. Cold: extraction **617.1s**, fetch 126.9s, discovery 112.4s.
+      Shipped: grading concurrency 16 → **32** (3.36 vs 2.64 calls/s end to end); the BM25 index
+      is built once per CORPUS instead of once per indicator (19.53s → 6.78s, rankings
+      byte-identical, `tools/bench_bm25_cache.py`); web search now runs AFTER the portal lanes
+      (it was spending 22s of a 24.9s discovery, and 90s of a 112.4s one, proving that every
+      engine still answers 403/202).
+      Measured and REJECTED, so they are not retried: parallelising the per-indicator
+      retrievals is **1.00x** at 2/3/5 workers (the cross-encoder is torch and already saturates
+      the cores — and it is **97.1%** of retrieval time, `tools/profile_retrieval.py`);
+      cross-encoder thread/batch tuning is worth 4%, and 12 threads is WORSE than 6 on a
+      12-core box.
+- [x] **`sso.agc.gov.sg` throttles with an AWS WAF challenge, and the portal lane could not see
+      it** (found and fixed 2026-09-14). A run returned **7 documents instead of 22 and 434
+      provisions instead of 5,276**, exported a clean CSV and logged nothing — while the
+      web-search lane in the SAME run reported its own 202s loudly. SSO answers a burst with
+      HTTP 202 and 2,432 bytes of challenge JavaScript; `portal_get` read "202 with an EMPTY
+      body is a throttle, 202 WITH content is a real response", which was true when written on
+      2026-08-01 and false once the throttle grew a body. Now matched on the vendor's own
+      client-side marker (AWS WAF / Cloudflare / Imperva) rather than on size, and on giving up
+      it says the lane's coverage is INCOMPLETE. `tests/test_portal_challenge.py`.
+      **Operational consequence for 15 Oct:** re-running discovery for the same economy trips
+      this. The panel's own second-pass requirement (engine A then engine B over the SAME
+      documents) is safe because it re-reads the cache, but a repeated FIRST pass is not.
 
 - [x] **Phase 2 — ten of eleven economies now reach their own portal** (2026-09-08). Web search
       answers HTTP 403 from every engine (Serper spent, DuckDuckGo/Mojeek blocked), so six
