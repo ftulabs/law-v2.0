@@ -1639,25 +1639,38 @@ def discover_live(economy: Economy, pillar: int | None = None,
     by_url: dict[str, DiscoveredDoc] = {}
     unscoreable: dict[str, int] = {}               # dropped before the budget break, per bucket
 
-    # web-search adapters (SG/MY/…): portal-agnostic, finds laws the JS search hides. Each
-    # web-search SOURCE may scope to its own `site` + `queries` (e.g. a secondary sectoral
-    # regulator like MY's pdp.gov.my for the registered Codes of Practice), so we run one search
-    # per web-search source rather than once per economy.
-    for s in sources:
-        if s.get("adapter") != "websearch":
-            continue
-        log(f"[discovery] web-search lane: {s.get('name', s.get('site') or '?')}")
-        found = discover_websearch(economy, pillar, max_docs, site=s.get("site"),
-                                   queries=_source_queries(s, pillar),
-                                   pdf_only=bool(s.get("pdf_only")),
-                                   per_query=s.get("per_query"),
-                                   base_url=s.get("base_url"), log=log)
-        if economy.value == "AU":
-            # content-lane hits can be bills, budget papers or repealed acts — keep only
-            # register ids the OData API confirms as in-force (repealed evidence is penalised)
-            found = [d for d in found if _au_verify_in_force(d)]
-        for d in found:
-            by_url.setdefault(d.source_url, d)
+    # WEB SEARCH RUNS LAST, AFTER THE PORTAL LANES. It used to run first, which was right
+    # when it was the only lane most economies had. Since Phase 2 gave ten of eleven their
+    # own portal adapter it is a fallback, and since every engine started answering 403/202
+    # it is usually a fallback that returns nothing — so running it first spent 20-90s per
+    # run establishing that before the lane that works was even asked. Measured on a live SG
+    # pillar-7 run, 2026-09-14: 22s of a 24.9s discovery, and 90s of a 112.4s one.
+    #
+    # Precedence is unchanged, which is why this is safe to reorder. Web-search documents
+    # carry score 0 by design (they are ranked later, by content) and are merged with
+    # `setdefault`, while a portal lane overwrites on a HIGHER score. So a document both
+    # lanes find kept the portal's richer metadata before and keeps it now; a document only
+    # web search finds is still added. `tests/test_discovery_lane_order.py` pins it.
+    def _run_websearch_lanes() -> None:
+        # Portal-agnostic: finds laws a JS-only portal search hides. Each web-search SOURCE
+        # may scope to its own `site` + `queries` (e.g. MY's pdp.gov.my for the registered
+        # Codes of Practice), so this runs one search per source, not once per economy.
+        for s in sources:
+            if s.get("adapter") != "websearch":
+                continue
+            log(f"[discovery] web-search lane: {s.get('name', s.get('site') or '?')}")
+            found = discover_websearch(economy, pillar, max_docs, site=s.get("site"),
+                                       queries=_source_queries(s, pillar),
+                                       pdf_only=bool(s.get("pdf_only")),
+                                       per_query=s.get("per_query"),
+                                       base_url=s.get("base_url"), log=log)
+            if economy.value == "AU":
+                # content-lane hits can be bills, budget papers or repealed acts — keep only
+                # register ids the OData API confirms as in-force (repealed evidence is penalised)
+                found = [d for d in found if _au_verify_in_force(d)]
+            for d in found:
+                by_url.setdefault(d.source_url, d)
+
 
     # API / scrape adapters (AU JSON API; server-rendered portals)
     api_sources = [s for s in sources if s.get("adapter") not in ("websearch",)]
@@ -1767,6 +1780,8 @@ def discover_live(economy: Economy, pillar: int | None = None,
                             by_url[d.source_url] = d
                     if _budget_used(by_url.values(), section_unit) >= max_docs * 3:
                         break
+
+    _run_websearch_lanes()
 
     # web-search docs carry score 0 (ranked later by CONTENT); keep them. Only drop
     # the API title-overlap zeros (content-only noise) when no web-search ran.

@@ -223,6 +223,52 @@ class LocalLLM(LLMProvider):
         times the failure rate buys lost evidence and a shrinking pool. 39 is the last point
         where the cluster is being worked hard and still answering reliably.
 
+        A BATCHING SERVER IS A THIRD SHAPE, and the failure rate cannot find its knee.
+        Measured 2026-09-14 against the 4x V100 host (`leader`, vLLM 1.2.2 TP4 serving
+        Qwen3.6-35B-A3B, `--max-num-seqs 64 --max-num-batched-tokens 8192`), real grading
+        prompts, 144 DISTINCT ones per level (`tools/sweep_local_concurrency.py`):
+
+            threads   throughput    failed   p50 latency
+                  8     149/min       0 %        3.1 s
+                 16     236/min       0 %        4.0 s
+                 32     316/min       0 %        5.9 s      <- knee
+                 48     307/min       0 %        9.4 s
+
+        vLLM never refuses: past the knee it QUEUES, so 48 threads cost 60 % more latency for
+        no throughput. On the CPU cluster the ERROR RATE marks the ceiling; here errors stay at
+        0 % the whole way and the only sign of overshoot is throughput flattening while latency
+        climbs. So read throughput, not errors, when re-measuring one of these.
+
+        THE KNEE IS NOT `max_num_seqs` — it is 32 against a configured 64 — and WHY is not
+        established. This paragraph first asserted `max_num_batched_tokens` (8192 against a
+        ~3,900-token prompt, so ~2 prompts prefill per scheduler step). Splitting the call
+        afterwards refuted that as the main cost (2026-09-15, `tools/`-driven, nonce per
+        request so the prefix cache cannot serve it):
+
+            prefill, ~3,900 tokens, uncached    0.76 s   (~5,100 tok/s — healthy)
+            decode, per output token              10 ms  (104.6 tok/s single stream)
+            a real 152-token answer             2.22 s   = 0.76 prefill + 1.45 decode
+
+        DECODE IS TWO THIRDS OF A CALL, so prefill scheduling cannot be the whole story and
+        raising `max_num_batched_tokens` is not the lever it was billed as. Two candidates
+        remain untested: decode saturation on sm_70 (no INT4 tensor-core path, so AWQ weights
+        dequantise to FP16 every forward pass), and MoE expert routing — 32 concurrent streams
+        buy roughly 12x throughput rather than 32x, and a batch that routes to many different
+        experts touches far more than the 3B "active" parameters, so it gets little of the
+        weight-read amortisation a dense model would. Distinguishing them needs a dense model
+        of similar quality benchmarked on the same box. Until then the number stands on the
+        throughput curve above, which is measurement, and not on the explanation.
+
+        The practical consequence is that OUTPUT LENGTH, not prompt length, is the per-call
+        lever: every token the grader writes costs 10 ms, and 152 of them cost 1.45 s.
+
+        MEASURE WITH DISTINCT PROMPTS OR THE NUMBER IS FICTION. An earlier sweep sent one
+        identical request per level and reported 429/min at 64 threads, and a real run then
+        managed 125/min at that setting. vLLM's prefix cache (77.7 % hit rate on this server)
+        was serving the whole repeated prompt, so the sweep timed a cache rather than the
+        model. The shared SYSTEM prefix is 64 % of this prompt by design, which is exactly why
+        the error was so large.
+
         Bounded below by `settings.mapping_concurrency` so a single-node Ollama on a laptop
         does not end up with LESS concurrency than the shared default.
 
