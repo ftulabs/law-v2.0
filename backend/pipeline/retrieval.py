@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import math
 import re
+import threading
 from collections import Counter
 from dataclasses import dataclass
 
@@ -119,6 +120,52 @@ def _build_bm25(corpus: list[list[str]]):
         return BM25Okapi(corpus)
     except Exception:
         return _FallbackBM25(corpus)
+
+
+# ── tokenised corpus + BM25 index, memoised across indicators ────────────────
+# `retrieve()` is called once per INDICATOR over the SAME provision list — nine times on a
+# both-pillar run. Tokenising every provision and building the BM25 index are functions of the
+# corpus alone, not of the query, so both were being recomputed identically nine times.
+# Measured on the live SG pillar-7 corpus (5,276 provisions), 2026-09-14: see
+# `tools/bench_bm25_cache.py`.
+#
+# Keyed on the provision IDs, not on `id(provisions)`: the list is rebuilt per call in some
+# paths, and a recycled `id()` after garbage collection would serve one corpus's index for
+# another — a wrong-answer bug that no test would catch, since BM25 scores look plausible
+# whatever corpus produced them. One entry is kept, because a run grades one corpus at a time.
+#
+# Guarded by a lock because `retrieve()` may now be called for several indicators at once
+# (mapping builds its work list in parallel): without it one thread's `clear()` can drop the
+# entry another thread just read, and two threads can each pay the full build.
+_BM25_CACHE: dict[str, tuple[list[list[str]], object]] = {}
+_BM25_LOCK = threading.Lock()
+
+
+def _corpus_key(provisions: list[Provision]) -> str:
+    h = hashlib.sha1()
+    for p in provisions:
+        h.update(p.provision_id.encode("utf-8", "ignore"))
+        h.update(b"\x00")
+    return h.hexdigest()
+
+
+def _corpus_and_bm25(provisions: list[Provision]):
+    """(tokenised corpus, BM25 index) for this provision set, built once per corpus."""
+    key = _corpus_key(provisions)
+    with _BM25_LOCK:
+        hit = _BM25_CACHE.get(key)
+        if hit is not None:
+            return hit
+    # Built outside the lock — it is seconds of CPU on a large corpus, and holding the lock
+    # would serialise the very callers this exists to let run in parallel. A rare double build
+    # costs time; a lock held across it costs the parallelism.
+    corpus = [_tok(p.law_name + " " + p.article_section + " "
+                   + p.verbatim_snippet[:_RETRIEVAL_SNIPPET_LEN]) for p in provisions]
+    built = (corpus, _build_bm25(corpus))
+    with _BM25_LOCK:
+        _BM25_CACHE.clear()      # one corpus at a time; do not grow unbounded across runs
+        _BM25_CACHE[key] = built
+    return built
 
 
 # ── dense (semantic) stage — optional, lazy, cached ──────────────────────────
@@ -594,9 +641,8 @@ def retrieve(indicator_id: str, provisions: list[Provision], top_k: int = 5) -> 
 
     # BM25 corpus: law_name kept for document-level discrimination (IDF handles it naturally);
     # snippet capped at _RETRIEVAL_SNIPPET_LEN to avoid long boilerplate dominating scores.
-    corpus = [_tok(p.law_name + " " + p.article_section + " "
-                   + p.verbatim_snippet[:_RETRIEVAL_SNIPPET_LEN]) for p in provisions]
-    bm25 = _build_bm25(corpus)
+    # Built once per corpus and reused across indicators — see `_corpus_and_bm25`.
+    corpus, bm25 = _corpus_and_bm25(provisions)
 
     # BM25 query: title + description + legal_test gives a much richer vocabulary than
     # query_terms alone. The legal_test includes "Distinguish from X" notes whose key terms

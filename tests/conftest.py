@@ -41,3 +41,30 @@ def _reset_websearch_diagnostics():
     yield
     websearch.reset_diagnostics()
     websearch.reset_circuit()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_grading_cache(monkeypatch):
+    """The grading verdict cache is OFF by default under test, and the reason is shared state.
+
+    `grade_cache` keys on (model_version, SYSTEM, user prompt) and writes to a real directory
+    under `data/cache`. Tests routinely pin DIFFERENT canned answers to the SAME model id for
+    the same prompt — `test_crosscheck.py` alone has a clear-miss, a borderline-reject and an
+    accept all answering as "deepseek/deepseek-v4-flash" — so with the cache live the first
+    test's verdict is served to the rest, and `test_clear_miss_is_never_re_asked` fails because
+    it is handed a borderline rejection it never configured. That is cross-test contamination
+    through the filesystem, and it would also survive between RUNS of the suite, which is the
+    worse half: a stale entry on a developer's disk changes results a clean checkout cannot
+    reproduce.
+
+    Production keeps it ON (`settings.grading_cache_enabled`). `tests/test_grade_cache.py`
+    turns it back on against a `tmp_path` of its own, which is the only safe way to exercise it.
+    """
+    # Imported INSIDE the fixture, not at module scope. `backend` only becomes importable
+    # after the `sys.path.insert` above runs, and a module-level import here executes before
+    # it — which is the very failure this file's docstring was written about: it passes under
+    # `python -m pytest` (the `-m` form puts cwd on sys.path) and fails under the bare `pytest`
+    # entry point that CI uses. Reintroduced on 2026-09-30 and caught by CI, not locally.
+    from backend.config import settings
+
+    monkeypatch.setattr(settings, "grading_cache_enabled", False, raising=False)
